@@ -1,7 +1,7 @@
 [Unit]
 Description=AirPlay Synchronous Audio Service
 After=sound.target
-Requires=avahi-daemon.service
+Wants=avahi-daemon.service
 After=avahi-daemon.service
 
 [Service]
