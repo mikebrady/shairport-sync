@@ -5,8 +5,8 @@ Wants=avahi-daemon.service
 After=avahi-daemon.service
 
 [Service]
-User=shairport
-Group=shairport
+User=shairport-sync
+Group=shairport-sync
 SupplementaryGroups=audio
 ExecStart=/usr/bin/shairport-sync
 Restart=always
