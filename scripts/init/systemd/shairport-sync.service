@@ -1,5 +1,5 @@
 [Unit]
-Description=Shairport AirTunes receiver
+Description=AirPlay Synchronous Audio Service
 After=sound.target
 Requires=avahi-daemon.service
 After=avahi-daemon.service
