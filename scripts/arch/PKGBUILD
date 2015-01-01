@@ -7,7 +7,6 @@ arch=('i686' 'x86_64' 'armv6h' 'armv7h')
 license=('custom')
 groups=('daemons')
 depends=('polarssl' 'avahi' 'alsa-lib' 'libdaemon' 'popt')
-depends_x86_64=('
 source=(https://github.com/mikebrady/shairport-sync/archive/$pkgver.tar.gz
         shairport-sync.service)
 install='shairport-sync.install'
@@ -28,5 +27,5 @@ package() {
   
   #Copy LICENSES File
   install -d -m 755 "${pkgdir}/usr/share/licenses/${pkgname}"
-  install -D -m 644 ${srcdir}/LICENSES" "${pkgdir}/usr/share/licenses/${pkgname}/"
+  install -D -m 644 "${srcdir}/LICENSES" "${pkgdir}/usr/share/licenses/${pkgname}/"
 }
