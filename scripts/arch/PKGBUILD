@@ -10,10 +10,13 @@ depends=('polarssl' 'avahi' 'alsa-lib' 'libdaemon' 'popt')
 depends_x86_64=('
 source=(https://github.com/mikebrady/shairport-sync/archive/$pkgver.tar.gz
         shairport-sync.service)
+install='shairport-sync.install'
 
 build() {
   cd "${srcdir}/shairport-sync-${pkgver}"
-
+  #Use the Arch Linux Systemd script instead of the generic one
+  cp "scripts/arch/shairport-sync.service" "scripts/init/systemd/shairport-sync.service"
+  
   autoreconf -i -f
   ./configure --prefix=/usr --with-alsa --with-avahi --with-ssl=polarssl
   make
