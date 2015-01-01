@@ -143,15 +143,13 @@ AM_CONDITIONAL([USE_DNS_SD], [test "x$HAS_DNS_SD" = "x1"])
 AC_ARG_WITH(init, [ choose --with-init=sysv or --with-init=systemd for init type ], [
   if test "x${with_init}" = x -o "x${with_init}" = xyes -o "x${with_init}" = xsysv ; then
     AC_MSG_RESULT(>>Using SysV init script)
-    init=sysv
   elif test "x${with_init}" = xsystemd ; then
     AC_MSG_RESULT(>>Using Systemd init script)
-    init=systemd
   else
     AC_MSG_ERROR(unknown option "${with_init}"." Please choose with "sysv" or "systemd")
   fi
 ], )
-AM_CONDITIONAL([USE_SYSTEMD], [test "x$init" = "xsystemd"])
+AM_CONDITIONAL([USE_SYSTEMD], [test "x${with_init}" = "xsystemd"])
 
 # Checks for header files.
 AC_HEADER_STDC
