@@ -17,7 +17,7 @@ build() {
   cp "scripts/arch/shairport-sync.service" "scripts/init/systemd/shairport-sync.service"
   
   autoreconf -i -f
-  ./configure --prefix=/usr --with-alsa --with-avahi --with-ssl=polarssl
+  ./configure --prefix=/usr --with-alsa --with-avahi --with-ssl=polarssl --with-init=systemd
   make
 }
 
