@@ -38,7 +38,7 @@ endif
 
 install-exec-hook:
 	if USE_SYSTEMD
-	[ -f /usr/lib/systemd/system/shairport-sync.service ] ||  install -m 644 "scripts/init/systemd/shairport.service" "/usr/lib/systemd/system/shairport.service"
+	[ -f /usr/lib/systemd/system/shairport-sync.service ] ||  install -m 644 "scripts/init/systemd/shairport-sync.service" "/usr/lib/systemd/system/shairport-sync.service"
 	else
 	[ -f /etc/init.d/shairport-sync ] || cp scripts/init/sysv/shairport-sync /etc/init.d/
 	update-rc.d shairport-sync defaults 90 10
