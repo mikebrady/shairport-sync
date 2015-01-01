@@ -55,8 +55,7 @@ AC_ARG_WITH(ssl, [ choose --with-ssl=openssl or --with-ssl=polarssl for encrypti
   if test "x${with_ssl}" = x -o "x${with_ssl}" = xyes ; then
     AC_MSG_RESULT(not found)
     AC_MSG_ERROR(choose either "openssl" or "polarssl" encryption)
-  fi
-  if test "x${with_ssl}" = xopenssl ; then
+  elif test "x${with_ssl}" = xopenssl ; then
     PKG_CHECK_MODULES(
         [CRYPTO], [libcrypto],
         [LIBS="${CRYPTO_LIBS} ${LIBS}"
@@ -139,6 +138,20 @@ AC_ARG_WITH(dns_sd, [  --with-dns_sd = choose dns_sd mDNS support], [
   AC_DEFINE([CONFIG_HAVE_DNS_SD_H], 1, [Needed by the compiler.])
   AC_CHECK_LIB([dns_sd], [DNSServiceRefDeallocate], , AC_MSG_ERROR(dns_sd support requires the dns_sd library!))], )
 AM_CONDITIONAL([USE_DNS_SD], [test "x$HAS_DNS_SD" = "x1"])
+
+# Check --with-init=argument
+AC_ARG_WITH(init, [ choose --with-init=sysv or --with-init=systemd for init type ], [
+  if test "x${with_init}" = x -o "x${with_init}" = xyes -o "x${with_init}" = xsysv ; then
+    AC_MSG_RESULT(>>Using SysV init script)
+    init=sysv
+  elif test "x${with_ssl}" = xsystemd ; then
+    AC_MSG_RESULT(>>Using Systemd init script)
+    init=systemd
+  else
+    AC_MSG_ERROR(unknown option "${with_init}"." Please choose with "sysv" or "systemd")
+  fi
+], )
+AM_CONDITIONAL([USE_SYSTEMD], [test "x$init" = "xsystemd"])
 
 # Checks for header files.
 AC_HEADER_STDC
