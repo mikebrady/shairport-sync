@@ -37,5 +37,9 @@ shairport_sync_SOURCES += mdns_dns_sd.c
 endif
 
 install-exec-hook:
-	[ -f /etc/init.d/shairport-sync ] || cp scripts/shairport-sync /etc/init.d/
+	if USE_SYSTEMD
+	[ -f /usr/lib/systemd/system/shairport-sync.service ] ||  install -m 644 "scripts/init/systemd/shairport.service" "/usr/lib/systemd/system/shairport.service"
+	else
+	[ -f /etc/init.d/shairport-sync ] || cp scripts/init/sysv/shairport-sync /etc/init.d/
 	update-rc.d shairport-sync defaults 90 10
+	endif
