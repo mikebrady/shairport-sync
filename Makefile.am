@@ -36,10 +36,16 @@ if USE_DNS_SD
 shairport_sync_SOURCES += mdns_dns_sd.c
 endif
 
+if USE_SYSTEMD
+init="systemd"
+else
+init="sysv"
+endif
+
 install-exec-hook:
-	if USE_SYSTEMD
-	[ -f /usr/lib/systemd/system/shairport-sync.service ] ||  install -d -m 755 "/usr/lib/systemd/system/" && install -m 644 "scripts/init/systemd/shairport-sync.service" "/usr/lib/systemd/system/shairport-sync.service"
+	if [ "${init}" = "systemd" ] ; then
+		[ -f /usr/lib/systemd/system/shairport-sync.service ] ||  install -d -m 755 "/usr/lib/systemd/system/" && install -m 644 "scripts/init/systemd/shairport-sync.service" "/usr/lib/systemd/system/shairport-sync.service"
 	else
-	[ -f /etc/init.d/shairport-sync ] || cp scripts/init/sysv/shairport-sync /etc/init.d/
-	update-rc.d shairport-sync defaults 90 10
-	endif
+		[ -f /etc/init.d/shairport-sync ] || cp scripts/init/sysv/shairport-sync /etc/init.d/
+		update-rc.d shairport-sync defaults 90 10
+	fi
