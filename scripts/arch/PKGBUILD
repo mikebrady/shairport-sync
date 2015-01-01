@@ -4,7 +4,7 @@ pkgrel=1
 pkgdesc='Open-source implementation of a synchronous AirPlay reciever'
 url='https://github.com/mikebrady/shairport-sync'
 arch=('i686' 'x86_64' 'armv6h' 'armv7h')
-license=('GPL')
+license=('custom')
 groups=('daemons')
 depends=('polarssl' 'avahi' 'alsa-lib' 'libdaemon' 'popt')
 depends_x86_64=('
@@ -25,4 +25,8 @@ build() {
 package() {
   cd "${srcdir}/shairport-sync-${pkgver}"
   make DESTDIR="${pkgdir}/" install
+  
+  #Copy LICENSES File
+  install -d -m 755 "${pkgdir}/usr/share/licenses/${pkgname}"
+  install -D -m 644 ${srcdir}/LICENSES" "${pkgdir}/usr/share/licenses/${pkgname}/"
 }
