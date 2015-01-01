@@ -144,7 +144,7 @@ AC_ARG_WITH(init, [ choose --with-init=sysv or --with-init=systemd for init type
   if test "x${with_init}" = x -o "x${with_init}" = xyes -o "x${with_init}" = xsysv ; then
     AC_MSG_RESULT(>>Using SysV init script)
     init=sysv
-  elif test "x${with_ssl}" = xsystemd ; then
+  elif test "x${with_init}" = xsystemd ; then
     AC_MSG_RESULT(>>Using Systemd init script)
     init=systemd
   else
