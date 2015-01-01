@@ -1,0 +1,11 @@
+post_install() {
+  getent group shairport-sync &>/dev/null || groupadd -r shairport-sync >/dev/null
+  getent passwd shairport-sync &> /dev/null || useradd -r -M -g shairport-sync -s /usr/bin/nologin -G audio shairport-sync >/dev/null
+  true
+}
+
+post_remove() {
+  getent passwd shairport-sync &>/dev/null && userdel shairport-sync >/dev/null
+  getent group shairport-sync &>/dev/null && groupdel shairport-sync >/dev/null
+  true
+}
