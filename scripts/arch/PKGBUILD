@@ -19,12 +19,12 @@ build() {
 }
 
 package() {
-  cd "${srcdir}/}${pkgname}-${pkgver}"
+  cd "${srcdir}/${pkgname}-${pkgver}"
   make DESTDIR="${pkgdir}/" install
   
   #Install init script
   install -d -m 755 "${pkgdir}/usr/lib/systemd/system"
-  install -D -m 644 "${srcdir}/scripts/arch/${pkgname}.service" "${pkgdir}/usr/lib/systemd/system/"
+  install -D -m 644 "${srcdir}/${pkgname}-${pkgver}/scripts/arch/${pkgname}.service" "${pkgdir}/usr/lib/systemd/system/"
   
   #Install LICENSES file
   install -d -m 755 "${pkgdir}/usr/share/licenses/${pkgname}"
