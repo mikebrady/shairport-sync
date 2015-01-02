@@ -23,7 +23,7 @@ package() {
   make DESTDIR="${pkgdir}/" install
   
   #Install init script
-  install -d -m 755 "${pkdir}/usr/lib/systemd/system"
+  install -d -m 755 "${pkgdir}/usr/lib/systemd/system"
   install -D -m 644 "${srcdir}/scripts/arch/${pkgname}.service" "${pkgdir}/usr/lib/systemd/system/"
   
   #Install LICENSES file
