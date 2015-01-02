@@ -37,9 +37,9 @@ shairport_sync_SOURCES += mdns_dns_sd.c
 endif
 
 if USE_SYSTEMD
-init="systemd"
+init=systemd
 else
-init="sysv"
+init=sysv
 endif
 
 install-exec-hook:
