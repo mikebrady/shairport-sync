@@ -139,18 +139,6 @@ AC_ARG_WITH(dns_sd, [  --with-dns_sd = choose dns_sd mDNS support], [
   AC_CHECK_LIB([dns_sd], [DNSServiceRefDeallocate], , AC_MSG_ERROR(dns_sd support requires the dns_sd library!))], )
 AM_CONDITIONAL([USE_DNS_SD], [test "x$HAS_DNS_SD" = "x1"])
 
-# Check --with-init=argument
-AC_ARG_WITH(init, [ choose --with-init=sysv or --with-init=systemd for init type ], [
-  if test "x${with_init}" = x -o "x${with_init}" = xyes -o "x${with_init}" = xsysv ; then
-    AC_MSG_RESULT(>>Using SysV init script)
-  elif test "x${with_init}" = xsystemd ; then
-    AC_MSG_RESULT(>>Using Systemd init script)
-  else
-    AC_MSG_ERROR(unknown option "${with_init}"." Please choose with "sysv" or "systemd")
-  fi
-], )
-AM_CONDITIONAL([USE_SYSTEMD], [test "x${with_init}" = "xsystemd"])
-
 # Checks for header files.
 AC_HEADER_STDC
 AC_CHECK_HEADERS([getopt_long.h])
