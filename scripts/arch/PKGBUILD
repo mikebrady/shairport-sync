@@ -7,25 +7,26 @@ arch=('i686' 'x86_64' 'armv6h' 'armv7h')
 license=('custom')
 groups=('daemons')
 depends=('polarssl' 'avahi' 'alsa-lib' 'libdaemon' 'popt')
-source=(https://github.com/mikebrady/shairport-sync/archive/$pkgver.tar.gz
-        shairport-sync.service)
+source=('https://github.com/mikebrady/shairport-sync/archive/${pkgver}.tar.gz'')
 install='shairport-sync.install'
 
 build() {
-  cd "${srcdir}/shairport-sync-${pkgver}"
-  #Use the Arch Linux Systemd script instead of the generic one
-  cp "scripts/arch/shairport-sync.service" "scripts/init/systemd/shairport-sync.service"
+  cd "${srcdir}/${pkgname}-${pkgver}"
   
   autoreconf -i -f
-  ./configure --prefix=/usr --with-alsa --with-avahi --with-ssl=polarssl --with-init=systemd
+  ./configure --prefix=/usr --with-alsa --with-avahi --with-ssl=polarssl
   make
 }
 
 package() {
-  cd "${srcdir}/shairport-sync-${pkgver}"
+  cd "${srcdir}/}${pkgname}-${pkgver}"
   make DESTDIR="${pkgdir}/" install
   
-  #Copy LICENSES File
+  #Install init script
+  install -d -m 755 "${pkdir}/usr/lib/systemd/system"
+  install -D -m 644 "${srcdir}/scripts/arch/${pkgname}.service" "${pkgdir}/usr/lib/systemd/system/"
+  
+  #Install LICENSES file
   install -d -m 755 "${pkgdir}/usr/share/licenses/${pkgname}"
   install -D -m 644 "${srcdir}/LICENSES" "${pkgdir}/usr/share/licenses/${pkgname}/"
 }
