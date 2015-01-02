@@ -28,5 +28,5 @@ package() {
   
   #Install LICENSES file
   install -d -m 755 "${pkgdir}/usr/share/licenses/${pkgname}"
-  install -D -m 644 "${srcdir}/LICENSES" "${pkgdir}/usr/share/licenses/${pkgname}/"
+  install -D -m 644 "${srcdir}/${pkgname}-${pkgver}/LICENSES" "${pkgdir}/usr/share/licenses/${pkgname}/"
 }
