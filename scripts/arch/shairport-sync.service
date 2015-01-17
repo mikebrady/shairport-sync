@@ -1,0 +1,15 @@
+[Unit]
+Description=AirPlay Synchronous Audio Service
+After=sound.target
+Wants=avahi-daemon.service
+After=avahi-daemon.service
+
+[Service]
+User=shairport-sync
+Group=shairport-sync
+SupplementaryGroups=audio
+ExecStart=/usr/bin/shairport-sync
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

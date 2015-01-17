@@ -1,0 +1,14 @@
+[Unit]
+Description=AirPlay Synchronous Audio Service
+After=sound.target
+Wants=avahi-daemon.service
+After=avahi-daemon.service
+
+[Service]
+ExecStart=/usr/local/bin/shairport-sync
+#ExecStart=/usr/local/bin/shairport-sync -a "Topping TP30 or Griffin iMic on Raspberry Pi" -- -d hw:1 -t hardware -c "PCM"
+#ExecStart=/usr/local/bin/shairport-sync -a "'3D Sound' USB Soundcard on Raspberry Pi" -- -d hw:1 -t hardware -c "Speaker"
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

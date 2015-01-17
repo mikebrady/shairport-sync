@@ -55,8 +55,7 @@ AC_ARG_WITH(ssl, [ choose --with-ssl=openssl or --with-ssl=polarssl for encrypti
   if test "x${with_ssl}" = x -o "x${with_ssl}" = xyes ; then
     AC_MSG_RESULT(not found)
     AC_MSG_ERROR(choose either "openssl" or "polarssl" encryption)
-  fi
-  if test "x${with_ssl}" = xopenssl ; then
+  elif test "x${with_ssl}" = xopenssl ; then
     PKG_CHECK_MODULES(
         [CRYPTO], [libcrypto],
         [LIBS="${CRYPTO_LIBS} ${LIBS}"

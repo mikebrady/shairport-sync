@@ -1,0 +1,32 @@
+pkgname=shairport-sync
+pkgver=2.1.15
+pkgrel=1
+pkgdesc='Open-source implementation of a synchronous AirPlay reciever'
+url='https://github.com/mikebrady/shairport-sync'
+arch=('i686' 'x86_64' 'armv6h' 'armv7h')
+license=('custom')
+groups=('daemons')
+depends=('polarssl' 'avahi' 'alsa-lib' 'libdaemon' 'popt')
+source=("https://github.com/mikebrady/shairport-sync/archive/${pkgver}.tar.gz")
+install='shairport-sync.install'
+
+build() {
+  cd "${srcdir}/${pkgname}-${pkgver}"
+  
+  autoreconf -i -f
+  ./configure --prefix=/usr --with-alsa --with-avahi --with-ssl=polarssl
+  make
+}
+
+package() {
+  cd "${srcdir}/${pkgname}-${pkgver}"
+  make DESTDIR="${pkgdir}/" install
+  
+  #Install init script
+  install -d -m 755 "${pkgdir}/usr/lib/systemd/system"
+  install -D -m 644 "scripts/arch/${pkgname}.service" "${pkgdir}/usr/lib/systemd/system/"
+  
+  #Install LICENSES file
+  install -d -m 755 "${pkgdir}/usr/share/licenses/${pkgname}"
+  install -D -m 644 "LICENSES" "${pkgdir}/usr/share/licenses/${pkgname}/"
+}

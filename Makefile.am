@@ -35,7 +35,3 @@ endif
 if USE_DNS_SD
 shairport_sync_SOURCES += mdns_dns_sd.c
 endif
-
-install-exec-hook:
-	[ -f /etc/init.d/shairport-sync ] || cp scripts/shairport-sync /etc/init.d/
-	update-rc.d shairport-sync defaults 90 10
