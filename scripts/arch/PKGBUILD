@@ -7,7 +7,7 @@ arch=('i686' 'x86_64' 'armv6h' 'armv7h')
 license=('custom')
 groups=('daemons')
 depends=('polarssl' 'avahi' 'alsa-lib' 'libdaemon' 'popt')
-source=('https://github.com/mikebrady/shairport-sync/archive/${pkgver}.tar.gz'')
+source=("https://github.com/mikebrady/shairport-sync/archive/${pkgver}.tar.gz")
 install='shairport-sync.install'
 
 build() {
@@ -24,9 +24,9 @@ package() {
   
   #Install init script
   install -d -m 755 "${pkgdir}/usr/lib/systemd/system"
-  install -D -m 644 "${srcdir}/${pkgname}-${pkgver}/scripts/arch/${pkgname}.service" "${pkgdir}/usr/lib/systemd/system/"
+  install -D -m 644 "scripts/arch/${pkgname}.service" "${pkgdir}/usr/lib/systemd/system/"
   
   #Install LICENSES file
   install -d -m 755 "${pkgdir}/usr/share/licenses/${pkgname}"
-  install -D -m 644 "${srcdir}/${pkgname}-${pkgver}/LICENSES" "${pkgdir}/usr/share/licenses/${pkgname}/"
+  install -D -m 644 "LICENSES" "${pkgdir}/usr/share/licenses/${pkgname}/"
 }
