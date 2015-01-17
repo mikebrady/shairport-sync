@@ -7,7 +7,7 @@ arch=('i686' 'x86_64' 'armv6h' 'armv7h')
 license=('custom')
 groups=('daemons')
 depends=('polarssl' 'avahi' 'alsa-lib' 'libdaemon' 'popt')
-source=("https://github.com/mikebrady/shairport-sync/archive/${pkgver}.tar.gz")
+source=("${pkgname}-${pkgver}::https://github.com/mikebrady/shairport-sync/archive/${pkgver}.tar.gz")
 install='shairport-sync.install'
 
 build() {
