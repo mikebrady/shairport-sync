@@ -1,3 +1,24 @@
+Version 2.3.4
+----
+* Enhancement
+ * When a play session starts, Shairport Sync opens three UDP ports to communicate with the source. Until now, those ports could be any high numbered port. Now, they are located within a range of 100 port locations starting at port 6001. The starting port and the port range are settable by two new general settings in `/etc/shairport-sync.conf` -- `udp_port_base` (default 6001) and `udp_port_range` (default 100). To retain the previous behaviour, set the `udp_port_base` to `0`.
+* Bugfixes
+ * Fix an out-of-stack-space error that can occur in certain cases (thanks to https://github.com/joerg-krause).
+ * Fix a couple of compiler warnings (thanks to https://github.com/joerg-krause).
+ 
+Version 2.3.3.2
+----
+* Bugfix -- fixed an error in the sample configuration file.
+
+Version 2.3.3.1
+----
+* Enhancement
+ * Metadata format has changed slightly -- the format of each item is now `<item><type>..</type><code>..</code><length>..</length><data..>..</data></item>`, where the `<data..>..</data>` part is present if the length is non-zero. The change is that everything is now enclosed in an `<item>..</item>` pair.
+ 
+Version 2.3.2 and 2.3.3
+----
+These releases were faulty and have been deleted.
+
 Version 2.3.1
 -----
 Some big changes "under the hood" have been made, leading to limited support for unsynchronised output to `stdout` or to a named pipe and continuation of defacto support for unsynchronised PulseAudio. Also, support for a configuration file in preference to command line options, an option to ignore volume control and other improvements are provided.

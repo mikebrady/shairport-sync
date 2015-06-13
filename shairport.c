@@ -372,7 +372,7 @@ int parse_options(int argc, char **argv) {
     /* Get the udp port base setting. */
     if (config_lookup_int(config.cfg, "general.udp_port_base", &value)) {
       if ((value < 0) || (value > 65535))
-        die("Invalid port number  \"%sd\". It should be between 0 and 65535, default is 7000",
+        die("Invalid port number  \"%sd\". It should be between 0 and 65535, default is 6001",
             value);
       else
         config.udp_port_base = value;
@@ -624,7 +624,7 @@ int main(int argc, char **argv) {
   set_requested_connection_state_to_output(
       1); // we expect to be able to connect to the output device
   config.audio_backend_buffer_desired_length = 6615; // 0.15 seconds.
-  config.udp_port_base = 7000;
+  config.udp_port_base = 6001;
   config.udp_port_range = 100;
 
   // this is a bit weird, but apparently necessary
