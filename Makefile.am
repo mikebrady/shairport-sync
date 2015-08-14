@@ -55,13 +55,21 @@ if INSTALL_CONFIG_FILES
 	[ -e $(DESTDIR)/etc ] || mkdir $(DESTDIR)/etc
 	cp scripts/shairport-sync.conf $(DESTDIR)/etc/shairport-sync.conf.sample
 	[ -f $(DESTDIR)/etc/shairport-sync.conf ] || cp scripts/shairport-sync.conf $(DESTDIR)/etc/shairport-sync.conf
-endif
 if INSTALL_SYSTEMV
 	[ -e $(DESTDIR)/etc/init.d ] || mkdir -p $(DESTDIR)/etc/init.d
 	[ -f $(DESTDIR)/etc/init.d/shairport-sync ] || cp scripts/shairport-sync $(DESTDIR)/etc/init.d/
-	update-rc.d shairport-sync defaults 90 10
 endif
 if INSTALL_SYSTEMD
 	[ -e $(DESTDIR)/usr/lib/systemd/system ] || mkdir -p $(DESTDIR)/usr/lib/systemd/system
 	cp scripts/shairport-sync.service $(DESTDIR)/usr/lib/systemd/system
+endif
+endif
+
+if CONFIGURE_SERVICE
+if INSTALL_SYSTEMV
+	update-rc.d shairport-sync defaults 90 10
+endif
+if INSTALL_SYSTEMD
+	systemctl enable shairport-sync
+endif
 endif
