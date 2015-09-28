@@ -7,7 +7,7 @@
   Copyright (c) Mike Brady 2014-2015
 
   All rights reserved.
- 
+
   Permission is hereby granted, free of charge, to any person
   obtaining a copy of this software and associated documentation
   files (the "Software"), to deal in the Software without
@@ -15,10 +15,10 @@
   copy, modify, merge, publish, distribute, sublicense, and/or
   sell copies of the Software, and to permit persons to whom the
   Software is furnished to do so, subject to the following conditions:
- 
+
   The above copyright notice and this permission notice shall be
   included in all copies or substantial portions of the Software.
- 
+
   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
   OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
@@ -41,6 +41,7 @@
       <opt>[-B </opt><arg>command</arg><opt>]</opt>
       <opt>[-c </opt><arg>configurationfile</arg><opt>]</opt>
       <opt>[-E </opt><arg>command</arg><opt>]</opt>
+      <opt>[-C </opt><arg>command</arg><opt>]</opt>
       <opt>[--forkedDaapdLatency=</opt><arg>latency</arg><opt>]</opt>
       <opt>[--get-cover-art]</opt>
       <opt>[-i </opt><arg>latency</arg><opt>]</opt>
@@ -74,22 +75,22 @@
     This allows multiple devices play the same source without getting out of phase with one another,
     enabling, for example, simultaneous multi-room operation.
     </p>
-    
+
     <p>shairport-sync can additionally be compiled and configured to stream raw audio to a pipe or to stdout.</p>
-    
+
     <p>Settings can be made using the configuration file (recommended for all new installations) or by using command-line options.</p>
- 
+
 	</description>
-	
+
 	<section name="Configuration File Settings">
 	   <p>You should use the configuration file for setting up shairport-sync.
 	  This file is normally <file>/etc/shairport-sync.conf</file>.
 	  You may need to have root privileges to modify it.</p>
-	  
+
 	  <p>Settings are organised into <i>groups</i>, for example, there is a "general" group of
 	  standard settings, and there is an "alsa" group with settings that pertain to the ALSA
 	  back end. Here is an example of a typical configuration file:</p>
-	  
+
 	  <p><opt>general = {</opt></p>
     <p><p><opt>name = "Mike's Boombox";</opt></p></p>
     <p><p><opt>interpolation = "soxr";</opt></p></p>
@@ -100,12 +101,12 @@
     <p><p><opt>output_device = "hw:0";</opt></p></p>
     <p><p><opt>mixer_control_name = "PCM";</opt></p></p>
     <p><opt>};</opt></p>
-	  
+
 	  <p>Most settings have sensible default values, so -- as in the example above -- users generally only need to set (1) the service name, (2) a password (if desired) and
 	  (3) the output device. If the output device has a mixer that can be used for volume control, then (4) the volume control's name should be specificed. It is highly desirable to use the output device's mixer for volume control, if available -- response time is reduced to zero and the processor load is reduced. In the example above, "soxr" interpolation was also enabled.</p>
-	  
+
 	  <p>A sample configuration file with all possible settings, but with all of them commented out, is installed at <file>/etc/shairport-sync.conf.sample</file>.</p>
-	  
+
 	  <p>To retain backwards compatability with previous versions of shairport-sync
 	  you can use still use command line options, but any new features, etc. will
 	  be available only via configuration file settings.</p>
@@ -123,7 +124,7 @@
     The default name is "Shairport Sync on &lt;hostname&gt;".
     </optdesc>
 	  </option>
-	  
+
 	  <option>
     <p><opt>password=</opt><arg>"password"</arg><opt>;</opt></p>
     <optdesc>Require the password <arg>password</arg> to connect to the service. If you leave this setting commented out, no password is needed.</optdesc>
@@ -141,7 +142,7 @@
     shairport-sync is compiled.
 		</optdesc>
     </option>
-    
+
     <option>
     <p><opt>statistics=</opt><arg>"setting"</arg><opt>;</opt></p>
     <optdesc>Use this <arg>setting</arg> to enable ("yes") or disable ("no") the output of some statistical information on the console or in the log. The default is to disable statistics.</optdesc>
@@ -238,11 +239,11 @@
     <p><opt>pipe_name=</opt><arg>"filepathname"</arg><opt>;</opt></p>
     <optdesc>Specify the absolute path name of the pipe through which metadata should be sent The default is <file>/tmp/shairport-sync-metadata</file>".</optdesc>
     </option>
-    
+
     <option><p><opt>"SESSIONCONTROL" SETTINGS</opt></p></option>
-    <p>shairport-sync can run programs just before it starts to play an audio stream and just after it finishes.
-    You specify them using the settings <opt>run_this_before_play_begins</opt> and <opt>run_this_after_play_ends</opt>. </p>
-    
+    <p>shairport-sync can run programs just before it starts to play an audio stream and just after it finishes or when the audio source changes it's volume.
+    You specify them using the settings <opt>run_this_before_play_begins</opt>, <opt>run_this_after_play_ends</opt> and <opt>run_this_on_volume_change</opt>. </p>
+
     <option>
     <p><opt>run_this_before_play_begins=</opt><arg>"/path/to/application and args"</arg><opt>;</opt></p>
     <optdesc>Here you can specify a program and its arguments that will be run just before a play session begins. Be careful to include the full path to the application.
@@ -254,9 +255,15 @@
     The application must be marked as executable and, if it is a script, its first line must begin with the standard <file>#!/bin/...</file> as appropriate.</optdesc>
     </option>
     <option>
+    <p><opt>run_this_on_volume_change=</opt><arg>"/path/to/application"</arg><opt>;</opt></p>
+    <optdesc>Here you can specify a program that will be run when the audio source changes the volume. Be careful to include the full path to the application.
+    The application must be marked as executable and, if it is a script, its first line must begin with the standard <file>#!/bin/...</file> as appropriate.
+    There are no user specified arguments allowed for the program. Only the current volume will be passed as the first parameter to the program.</optdesc>
+    </option>
+    <option>
     <p><opt>wait_for_completion=</opt><arg>"choice"</arg><opt>;</opt></p>
-    <optdesc>Set <arg>choice</arg> to "yes" to make shairport-sync wait until the programs specified in the <opt>run_this_before_play_begins</opt>
-    and <opt>run_this_after_play_ends</opt> have completed execution before continuing. The default is "no".</optdesc>
+    <optdesc>Set <arg>choice</arg> to "yes" to make shairport-sync wait until the programs specified in the <opt>run_this_before_play_begins</opt>, <opt>run_this_after_play_ends</opt>
+    and <opt>run_this_on_volume_change</opt> have completed execution before continuing. The default is "no".</optdesc>
     </option>
     <option>
     <p><opt>allow_session_interruption=</opt><arg>"choice"</arg><opt>;</opt></p>
@@ -269,7 +276,7 @@
     then wait for <arg>seconds</arg> seconds before ending the session. Once the session has terminated, other devices can use it.
     The default is 120 seconds.</optdesc>
     </option>
-    
+
     <option><p><opt>"ALSA" SETTINGS</opt></p></option>
     <p>These settings are for the ALSA back end, used to communicate with audio output devices in the ALSA system.
     (By the way, you can use tools such as <opt>alsamixer</opt> or <opt>aplay</opt> to discover what devices are available.)
@@ -308,7 +315,7 @@
     or it may exceed the hardware buffer size.
     It may need to be larger on low-powered machines that are also performing other tasks, such as processing metadata.</optdesc>
     </option>
-    
+
     <option><p><opt>"PIPE" SETTINGS</opt></p></option>
     <p>These settings are for the PIPE backend, used to route audio to a named unix pipe. The audio is in raw CD audio format: PCM 16 bit little endian, 44,100 samples per second,
     stereo.</p>
@@ -332,10 +339,10 @@
     You can offset the time of initial audio output relative to its nominal time using this setting.
     For example to send an audio stream to the pipe 100 milliseconds before it is due to be played, set this to -4410. Default setting is 0.</optdesc>
     </option>
-    
+
     <option>
     <p><opt>audio_backend_buffer_desired_length=</opt><arg>buffer_length_in_frames</arg><opt>;</opt></p>
-    <optdesc>    
+    <optdesc>
     Use this setting, in frames, to set the size of the output buffer. It works by determining how soon the second and subsequent packets of audio frames are sent to the pipe.
     For example, if you send the first packet of audio exactly when it is due and, using a <arg>audio_backend_buffer_desired_length</arg> setting of 44100,
     send subsequent packets of audio a second before they are due to be played, they will be buffered in the pipe reader's buffer, giving it a nominal buffer size of 44,100 frames.
@@ -343,7 +350,7 @@
     shairport-sync performs no stuffing or interpolation when writing to a pipe. Default setting is 44,100 frames.
     </optdesc>
     </option>
-     
+
     <option><p><opt>"STDOUT" SETTINGS</opt></p></option>
     <p>These settings are for the STDOUT backend, used to route audio to standard output ("stdout").
     The audio is in raw CD audio format: PCM 16 bit little endian, 44,100 samples per second, stereo.</p>
@@ -359,10 +366,10 @@
     You can offset the time of initial audio output relative to its nominal time using this setting.
     For example to send an audio stream to stdout 100 milliseconds before it is due to be played, set this to -4410. Default setting is 0.</optdesc>
     </option>
-    
+
     <option>
     <p><opt>audio_backend_buffer_desired_length=</opt><arg>buffer_length_in_frames</arg><opt>;</opt></p>
-    <optdesc>    
+    <optdesc>
     Use this setting, in frames, to set the size of the output buffer. It works by determining how soon the second and subsequent packets of audio frames are sent to stdout.
     For example, if you send the first packet of audio exactly when it is due and, using a <arg>audio_backend_buffer_desired_length</arg> setting of 44100,
     send subsequent packets of audio a second before they are due to be played, they will be buffered in the stdout reader's buffer, giving it a nominal buffer size of 44,100 frames.
@@ -370,7 +377,7 @@
     shairport-sync performs no stuffing or interpolation when writing to stdout. Default setting is 44,100 frames.
     </optdesc>
     </option>
-     
+
 	</section>
 
 	<options>
@@ -378,7 +385,7 @@
     <p>Note: if you are setting up shairport-sync for the first time or are updating an existing installation,
     you are encouraged to use the configuration file settings described above. Most of the options described below
     simply replicate the configuration settings and are retained to provide backward compatability with older installations of shairport-sync.</p>
-    
+
     <p>Many  of  the options take sensible default values, so you can normally
     ignore most of them. See the EXAMPLES section for typical usages.</p>
 
@@ -387,11 +394,11 @@
     Program options are
     always listed first, followed by any audio backend options, preceded by
     a <opt>--</opt> symbol.</p>
-    
+
   <section name="Program Options">
   <p>These options are used by shairport-sync itself.</p>
   </section>
-  
+
 	  <option>
 		<p><opt>-a </opt><arg>service name</arg><opt> | --name=</opt><arg>service name</arg></p>
 		<optdesc><p>
@@ -412,11 +419,11 @@
 	  <option>
 		<p><opt>-B </opt><arg>program</arg><opt> | --on-start=</opt><arg>program</arg></p>
 		<optdesc><p>
-		Execute <arg>program</arg> when playback is about to begin. Specify the 
+		Execute <arg>program</arg> when playback is about to begin. Specify the
 		full path to the program, e.g. <file>/usr/bin/logger</file>.
 		Executable scripts can be used, but they must have <file>#!/bin/sh</file> (or
 		whatever is appropriate) in the headline.</p>
-		
+
 		<p>If you want shairport-sync to wait until the command has
 		completed before starting to play, select the <opt>-w</opt> option as well.
 		</p></optdesc>
@@ -452,10 +459,22 @@
 	  <option>
 		<p><opt>-E </opt><arg>program</arg><opt> | --on-stop=</opt><arg>program</arg></p>
 		<optdesc><p>
-		Execute <arg>program</arg> when playback has ended. Specify the 
+		Execute <arg>program</arg> when playback has ended. Specify the
 		full path to the program, e.g. <file>/usr/bin/logger</file>.
 		Executable scripts can be used, but they must have <file>#!/bin/sh</file> (or
-		whatever is appropriate) in the headline.</p>		
+		whatever is appropriate) in the headline.</p>
+		<p>If you want shairport-sync to wait until the command has
+		completed before continuing, select the <opt>-w</opt> option as well.
+		</p></optdesc>
+	  </option>
+
+    <option>
+		<p><opt>-C </opt><arg>program</arg><opt> | --on-vol-change=</opt><arg>program</arg></p>
+		<optdesc><p>
+		Execute <arg>program</arg> when the volume of the audio source has changed.
+    Specify the full path to the program, e.g. <file>/usr/bin/logger</file>.
+		Executable scripts can be used, but they must have <file>#!/bin/sh</file> (or
+		whatever is appropriate) in the headline.</p>
 		<p>If you want shairport-sync to wait until the command has
 		completed before continuing, select the <opt>-w</opt> option as well.
 		</p></optdesc>
@@ -469,7 +488,7 @@
     frames to the second.
     </p></optdesc>
 	  </option>
-	  
+
 	  <option>
 		<p><opt>--get-coverart</opt></p>
 		<optdesc><p>
@@ -665,7 +684,7 @@
   and finally (c) you must specify the name of the level control you are using
   with the <opt>-c</opt> option.</p>
   </section>
-  
+
   <option>
   <p><opt>-c </opt><arg>controlname</arg></p>
   <optdesc><p>
@@ -717,7 +736,7 @@
       <opt>--</opt>
       <opt>-d hw:1,0</opt>
       <opt>-m hw:1</opt>
-      <opt>-c PCM</opt>      
+      <opt>-c PCM</opt>
       </cmd>
   <p>The program will run in daemon mode ( <opt>-d</opt> ), will be  visible  as
   "Joe's Stereo" ( <opt>-a "Joe's Stereo"</opt> ) and will use the SoX Resampler
@@ -736,9 +755,9 @@
       <opt>-S soxr</opt>
       <opt>--</opt>
       <opt>-d hw:1</opt>
-      <opt>-c PCM</opt>      
+      <opt>-c PCM</opt>
       </cmd>
- 
+
   </section>
 
 	<section name="Credits">

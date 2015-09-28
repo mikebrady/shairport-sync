@@ -401,6 +401,49 @@ void command_stop(void) {
   }
 }
 
+void command_volChange(double volume) {
+  if (config.cmd_volChange) {
+    /*Spawn a child to run the program.*/
+    pid_t pid = fork();
+    if (pid == 0) { /* child process */
+      int argC;
+      char **argV;
+
+      // convert the double volume to a string with maximum 10 digits
+      char volString[10];
+	    sprintf(volString, "%lf", volume);
+      // concat the program with the argument (volume) string
+      char *cmdWithArgs = (char *) malloc(1 + strlen(config.cmd_volChange) + strlen(volString));
+      sprintf(cmdWithArgs, "%s %s", config.cmd_volChange, volString);
+
+      // debug(1,"on-vol-change command found.");
+      if (poptParseArgvString(cmdWithArgs, &argC, (const char ***)&argV) !=
+          0) // note that argV should be free()'d after use, but we expect this fork to exit
+             // eventually.
+        debug(1, "Can't decipher on-vol-change command arguments");
+      else {
+        // debug(1,"Executing on-vol-change command %s",config.cmd_volChange);
+        execv(argV[0], argV);
+        warn("Execution of on-vol-change command failed to start");
+        debug(1, "Error executing on-vol-change command %s", config.cmd_volChange);
+        exit(127); /* only if execv fails */
+      }
+      // free the memory
+      free(cmdWithArgs);
+    } else {
+      if (config.cmd_blocking) { /* pid!=0 means parent process and if blocking is true, wait for
+                                    process to finish */
+        pid_t rc = waitpid(pid, 0, 0); /* wait for child to exit */
+        if (rc != pid) {
+          warn("Execution of on-vol-change command returned an error.");
+          debug(1, "Volume change command %s finished with error %d", config.cmd_volChange, errno);
+        }
+      }
+      // debug(1,"Continue after on-vol-change command");
+    }
+  }
+}
+
 // this is for reading an unsigned 32 bit number, such as an RTP timestamp
 
 uint32_t uatoi(const char *nptr) {
