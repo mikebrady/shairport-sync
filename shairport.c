@@ -188,6 +188,7 @@ void usage(char *progname) {
       "                            \"soxr\" option only available if built with soxr support.\n");
   printf("    -B, --on-start=PROGRAM  run PROGRAM when playback is about to begin.\n");
   printf("    -E, --on-stop=PROGRAM   run PROGRAM when playback has ended.\n");
+  printf("    -C, --on-vol-change=PROGRAM run PROGRAM when audio source volume changes.\n");
   printf("                            For -B and -E options, specify the full path to the program, "
          "e.g. /usr/bin/logger.\n");
   printf("                            Executable scripts work, but must have #!/bin/sh (or "
@@ -238,6 +239,7 @@ int parse_options(int argc, char **argv) {
       {"output", 'o', POPT_ARG_STRING, &config.output_name, 0, NULL},
       {"on-start", 'B', POPT_ARG_STRING, &config.cmd_start, 0, NULL},
       {"on-stop", 'E', POPT_ARG_STRING, &config.cmd_stop, 0, NULL},
+      {"on-vol-change", 'C', POPT_ARG_STRING, &config.cmd_volChange, 0, NULL},
       {"wait-cmd", 'w', POPT_ARG_NONE, &config.cmd_blocking, 0, NULL},
       {"mdns", 'm', POPT_ARG_STRING, &config.mdns_name, 0, NULL},
       {"latency", 'L', POPT_ARG_INT, &config.userSuppliedLatency, 0, NULL},
@@ -445,6 +447,10 @@ int parse_options(int argc, char **argv) {
 
       if (config_lookup_string(config.cfg, "sessioncontrol.run_this_after_play_ends", &str)) {
         config.cmd_stop = (char *)str;
+      }
+
+      if (config_lookup_string(config.cfg, "sessioncontrol.run_this_on_volume_change", &str)) {
+        config.cmd_volChange = (char *)str;
       }
 
       if (config_lookup_string(config.cfg, "sessioncontrol.wait_for_completion", &str)) {
@@ -832,6 +838,7 @@ int main(int argc, char **argv) {
   debug(2, "Audio Output name is \"%s\".", config.output_name);
   debug(2, "on-start action is \"%s\".", config.cmd_start);
   debug(2, "on-stop action is \"%s\".", config.cmd_stop);
+  debug(2, "on-vol-change action is \"%s\".", config.cmd_volChange);
   debug(2, "wait-cmd status is %d.", config.cmd_blocking);
   debug(2, "mdns backend \"%s\".", config.mdns_name);
   debug(2, "userSuppliedLatency is %d.", config.userSuppliedLatency);

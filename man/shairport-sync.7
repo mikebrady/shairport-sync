@@ -232,6 +232,11 @@ Execute \fIprogram\f1 when playback has ended. Specify the full path to the prog
 
 If you want shairport-sync to wait until the command has completed before continuing, select the \fB-w\f1 option as well. 
 .TP
+\fB-C \f1\fIprogram\f1\fB | --on-vol-change=\f1\fIprogram\f1
+Execute \fIprogram\f1 when the volume of the audio source has changed. Specify the full path to the program, e.g. \fI/usr/bin/logger\f1. Executable scripts can be used, but they must have \fI#!/bin/sh\f1 (or whatever is appropriate) in the headline.
+
+If you want shairport-sync to wait until the command has completed before continuing, select the \fB-w\f1 option as well.
+.TP
 \fB--forkedDaapdLatency=\f1\fIlatency\f1
 Use this \fIlatency\f1, in frames, for audio streamed from a forked-daapd based source. The default is 99,400 frames, where there are 44,100 frames to the second. 
 .TP

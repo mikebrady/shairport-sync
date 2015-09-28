@@ -70,7 +70,7 @@ typedef struct {
   uint32_t ForkedDaapdLatency; // supplied with --ForkedDaapdLatency option
   int daemonise;
   int statistics_requested;
-  char *cmd_start, *cmd_stop;
+  char *cmd_start, *cmd_stop, *cmd_volChange;
   int cmd_blocking;
   int tolerance; // allow this much drift before attempting to correct it
   enum stuffing_type packet_stuffing;
@@ -127,6 +127,7 @@ uint64_t play_segment_reference_frame_remote_time;
 
 void command_start(void);
 void command_stop(void);
+void command_volChange(double volume);
 
 void shairport_shutdown();
 // void shairport_startup_complete(void);

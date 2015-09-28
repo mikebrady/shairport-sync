@@ -461,6 +461,18 @@
 		</p></optdesc>
 	  </option>
 
+    <option>
+		<p><opt>-C </opt><arg>program</arg><opt> | --on-vol-change=</opt><arg>program</arg></p>
+		<optdesc><p>
+		Execute <arg>program</arg> when the volume of the audio source has changed.
+    Specify the full path to the program, e.g. <file>/usr/bin/logger</file>.
+		Executable scripts can be used, but they must have <file>#!/bin/sh</file> (or
+		whatever is appropriate) in the headline.</p>
+		<p>If you want shairport-sync to wait until the command has
+		completed before continuing, select the <opt>-w</opt> option as well.
+		</p></optdesc>
+	  </option>
+
 	  <option>
 		<p><opt>--forkedDaapdLatency=</opt><arg>latency</arg></p>
 		<optdesc><p>

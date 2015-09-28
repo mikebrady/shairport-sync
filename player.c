@@ -1229,6 +1229,7 @@ void player_volume(double f) {
   software_mixer_volume = linear_volume;
   fix_volume = 65536.0 * software_mixer_volume;
   pthread_mutex_unlock(&vol_mutex);
+  command_volChange(linear_volume);
 #ifdef CONFIG_METADATA
   char *dv = malloc(64); // will be freed in the metadata thread
   if (dv) {
