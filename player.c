@@ -1203,7 +1203,7 @@ void player_volume(double f) {
   // it back to a number.
 
   double scaled_volume = vol2attn(f, 0, -4810);
-  double linear_volume = pow(10, scaled_volume / 1000);
+  double linear_volume = (f + 30.0)/30.0;
 
   if (f == -144.0)
     linear_volume = 0.0;
