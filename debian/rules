@@ -1,0 +1,7 @@
+#!/usr/bin/make -f
+%:
+	dh $@ --verbose
+
+override_dh_auto_configure:
+	autoreconf -i -f
+	dh_auto_configure -- --with-alsa --with-avahi --with-ssl=openssl --with-metadata --with-systemv

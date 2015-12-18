@@ -1,0 +1,13 @@
+Source: shairport-sync
+Maintainer: Dan Carter <dantheperson@gmail.com>
+Section: sound
+Priority: optional
+Standards-Version: 3.9.5
+Build-Depends: debhelper (>= 9), libavahi-client-dev, libssl-dev, autoconf, libtool, libdaemon-dev, libasound2-dev, libpopt-dev, libconfig-dev
+
+Package: shairport-sync
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Airplay audio player. 
+ It plays audio streamed from iTunes, iOS devices and third-party AirPlay
+ sources such as ForkedDaapd and others

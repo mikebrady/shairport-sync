@@ -1,0 +1,2 @@
+#It's only the debain packing files under GPL, so ok to link with OpenSSL
+shairport-sync: possible-gpl-code-linked-with-openssl
