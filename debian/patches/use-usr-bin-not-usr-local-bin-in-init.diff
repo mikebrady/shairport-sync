@@ -1,0 +1,11 @@
+--- a/scripts/shairport-sync
++++ b/scripts/shairport-sync
+@@ -17,7 +17,7 @@
+ PATH=/sbin:/usr/sbin:/bin:/usr/bin
+ DESC="AirPlay Synchronous Audio Service"
+ NAME=shairport-sync
+-DAEMON=/usr/local/bin/$NAME
++DAEMON=/usr/bin/$NAME
+ 
+ # We don't use the DAEMON_ARGS variable here because some of the identifiers may have spaces in them, and so are
+ # impossible to pass as arguments.
