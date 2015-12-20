@@ -16,3 +16,4 @@ install-sh
 missing
 stamp-h1
 .deps
+/.project
