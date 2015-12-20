@@ -61,6 +61,6 @@ if INSTALL_SYSTEMV
 	[ -f $(DESTDIR)/etc/init.d/shairport-sync ] || cp scripts/shairport-sync $(DESTDIR)/etc/init.d/
 endif
 if INSTALL_SYSTEMD
-	[ -e $(DESTDIR)/usr/lib/systemd/system ] || mkdir -p $(DESTDIR)/usr/lib/systemd/system
-	cp scripts/shairport-sync.service $(DESTDIR)/usr/lib/systemd/system
+	[ -e $(DESTDIR)$(systemdsystemunitdir) ] || mkdir -p $(DESTDIR)$(systemdsystemunitdir)
+	cp scripts/shairport-sync.service $(DESTDIR)$(systemdsystemunitdir)
 endif
