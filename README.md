@@ -121,10 +121,9 @@ Download Shairport Sync:
 
 `git clone https://github.com/mikebrady/shairport-sync.git`
 
-Next, `cd` into the shairport-sync directory and execute the following commands:
+Next, `cd` into the shairport-sync directory and execute the following command:
 
 ```
-$ git checkout development #select the development branch
 $ autoreconf -i -f
 ```
 (Note that the `autoreconf...` step may take some time on less powerful machines.)
