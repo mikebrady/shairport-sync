@@ -2,6 +2,7 @@
 #define _COMMON_H
 
 #include <stdint.h>
+#include <endian.h>
 #include <sys/socket.h>
 #include <libconfig.h>
 
@@ -18,9 +19,9 @@
 #endif
 #endif
 
-#if defined(__linux__) || defined(__FreeBSD__)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__CYGWIN__)
 /* Linux and FreeBSD */
-#define COMPILE_FOR_LINUX_AND_FREEBSD 1
+#define COMPILE_FOR_LINUX_AND_FREEBSD_AND_CYGWIN 1
 #endif
 
 // struct sockaddr_in6 is bigger than struct sockaddr. derp
@@ -116,12 +117,13 @@ uint64_t get_absolute_time_in_fp(void);
 
 // this is for reading an unsigned 32 bit number, such as an RTP timestamp
 
+long endianness;
 uint32_t uatoi(const char *nptr);
 
 shairport_cfg config;
 config_t config_file_stuff;
 
-uint32_t buffer_occupancy;
+int32_t buffer_occupancy; // allow it to be negative because seq_diff may be negative
 int64_t session_corrections;
 uint32_t play_segment_reference_frame;
 uint64_t play_segment_reference_frame_remote_time;

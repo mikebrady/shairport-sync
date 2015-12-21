@@ -33,7 +33,7 @@
 #include "tinysvcmdns.h"
 #include "common.h"
 
-#define DEBUG_PRINTF(...) debug(1, __VA_ARGS__)
+#define DEBUG_PRINTF(...) debug(3, __VA_ARGS__)
 #define log_message(level, ...)                                                                    \
   do {                                                                                             \
     switch (level) {                                                                               \
@@ -41,7 +41,7 @@
       warn(__VA_ARGS__);                                                                           \
       break;                                                                                       \
     default:                                                                                       \
-      debug(1, __VA_ARGS__);                                                                       \
+      debug(3, __VA_ARGS__);                                                                       \
     }                                                                                              \
   } while (0)
 

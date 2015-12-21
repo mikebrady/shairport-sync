@@ -157,31 +157,33 @@ void usage(char *progname) {
   printf("  or:  %s [options...] -- [audio output-specific options]\n", progname);
   printf("\n");
   printf("Options:\n");
-  printf("    -h, --help              show this help\n");
+  printf("    -h, --help              show this help.\n");
   printf("    -d, --daemon            daemonise.\n");
-  printf("    -V, --version           show version information\n");
+  printf("    -V, --version           show version information.\n");
   printf("    -k, --kill              kill the existing shairport daemon.\n");
   printf("    -D, --disconnectFromOutput  disconnect immediately from the output device.\n");
   printf("    -R, --reconnectToOutput  reconnect to the output device.\n");
   printf("    -c, --configfile=FILE   read configuration settings from FILE. Default is "
          "/etc/shairport-sync.conf.\n");
 
-  printf("    -v, --verbose           -v print debug information; -vv more; -vvv lots\n");
-  printf("    -p, --port=PORT         set RTSP listening port\n");
-  printf("    -a, --name=NAME         set advertised name\n");
+  printf("\n");
+  printf("The following general options are for backward compatability. These and all new options have settings in the configuration file, by default /etc/shairport-sync.conf:\n");
+  printf("    -v, --verbose           -v print debug information; -vv more; -vvv lots.\n");
+  printf("    -p, --port=PORT         set RTSP listening port.\n");
+  printf("    -a, --name=NAME         set advertised name.\n");
   printf(
-      "    -A, --AirPlayLatency=FRAMES set the latency for audio sent from an AirPlay device.\n");
-  printf("                            The default value is %d frames.\n", config.AirPlayLatency);
+      "    -A, --AirPlayLatency=FRAMES [Deprecated] Set the latency for audio sent from an AirPlay device.\n");
+  printf("                            The default is to set it automatically.\n");
   printf(
-      "    -i, --iTunesLatency=FRAMES set the latency for audio sent from iTunes 10 or later.\n");
-  printf("                            The default value is %d frames.\n", config.iTunesLatency);
-  printf("    -L, --latency=FRAMES    set the latency for audio sent from an unknown device\n");
-  printf("                            or from an old version of iTunes. Default is %d frames.\n",
-         config.latency);
-  printf("    --forkedDaapdLatency=FRAMES set the latency for audio sent from forked-daapd.\n");
-  printf("    -S, --stuffing=MODE set how to adjust current latency to match desired latency \n");
+      "    -i, --iTunesLatency=FRAMES [Deprecated] Set the latency for audio sent from iTunes 10 or later.\n");
+  printf("                            The default is to set it automatically.\n");
+  printf("    -L, --latency=FRAMES    [Deprecated] Set the latency for audio sent from an unknown device.\n");
+  printf("                            The default is to set it automatically.\n");
+  printf("    --forkedDaapdLatency=FRAMES [Deprecated] Set the latency for audio sent from forked-daapd.\n");
+  printf("                            The default is to set it automatically.\n");
+  printf("    -S, --stuffing=MODE set how to adjust current latency to match desired latency, where \n");
   printf("                            \"basic\" (default) inserts or deletes audio frames from "
-         "packet frames with low processor overhead.\n");
+         "packet frames with low processor overhead, and \n");
   printf("                            \"soxr\" uses libsoxr to minimally resample packet frames -- "
          "moderate processor overhead.\n");
   printf(
@@ -192,9 +194,9 @@ void usage(char *progname) {
          "e.g. /usr/bin/logger.\n");
   printf("                            Executable scripts work, but must have #!/bin/sh (or "
          "whatever) in the headline.\n");
-  printf("    -w, --wait-cmd          wait until the -B or -E programs finish before continuing\n");
-  printf("    -o, --output=BACKEND    select audio output method\n");
-  printf("    -m, --mdns=BACKEND      force the use of BACKEND to advertize the service\n");
+  printf("    -w, --wait-cmd          wait until the -B or -E programs finish before continuing.\n");
+  printf("    -o, --output=BACKEND    select audio output method.\n");
+  printf("    -m, --mdns=BACKEND      force the use of BACKEND to advertize the service.\n");
   printf("                            if no mdns provider is specified,\n");
   printf("                            shairport tries them all until one works.\n");
   printf("    -r, --resync=THRESHOLD  resync if error exceeds this number of frames. Set to 0 to "
@@ -210,9 +212,9 @@ void usage(char *progname) {
 #ifdef CONFIG_METADATA
   printf("    --metadata-pipename=PIPE send metadata to PIPE, e.g. "
          "--metadata-pipename=/tmp/shairport-sync-metadata.\n");
+  printf("                            The default is /tmp/shairport-sync-metadata.\n");
   printf("    --get-coverart          send cover art through the metadata pipe.\n");
 #endif
-  printf("\nGeneral options can be configured in /etc/%s.conf.\n", appName);
   printf("\n");
   mdns_ls_backends();
   printf("\n");
@@ -639,6 +641,27 @@ int main(int argc, char **argv) {
   free(basec);
 
   // set defaults
+  
+  
+  // get thje endianness
+  union {
+   uint32_t u32;
+   uint8_t arr[4];
+  } xn;
+
+  xn.arr[0] = 0x44;     /* Lowest-address byte */
+  xn.arr[1] = 0x33;
+  xn.arr[2] = 0x22;
+  xn.arr[3] = 0x11;     /* Highest-address byte */
+  
+  if (xn.u32==0x11223344)
+    endianness = __LITTLE_ENDIAN;
+  else if (xn.u32==0x33441122)
+    endianness = __PDP_ENDIAN;
+  else if (xn.u32==0x44332211)
+    endianness = __BIG_ENDIAN;
+  else die("Can not recognise the endianness of the processor.");
+  
   strcpy(configuration_file_path, "/etc/");
   strcat(configuration_file_path, appName);
   strcat(configuration_file_path, ".conf");
@@ -829,6 +852,18 @@ int main(int argc, char **argv) {
   config.output->init(argc - audio_arg, argv + audio_arg);
 
   daemon_log(LOG_NOTICE, "startup");
+  
+  switch (endianness) {
+    case __LITTLE_ENDIAN:
+      debug(2,"The processor is running little-endian.");
+      break;
+    case __BIG_ENDIAN:
+      debug(2,"The processor is running big-endian.");
+      break;
+    case __PDP_ENDIAN:
+      debug(2,"The processor is running pdp-endian.");
+      break; 
+  }
   
   /* Mess around with the latency options */
   // Basically, we used to rely on static latencies -- 99400 for iTunes 10 or later and forkedDaapd, 88200 for everything else

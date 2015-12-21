@@ -588,12 +588,12 @@ static void handle_record(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
   resp->respcode = 200;
    // I think this is for telling the client what the absolute minimum latency actually is,
    // and when the client specifies a latency, it should be added to this figure.
-   
+
    // Thus, AirPlay's latency figure of 77175, when added to 11025 gives you exactly 88200
    // and iTunes' latency figure of 88553, when added to 11025 gives you 99578, pretty close to the 99400 we guessed.
-   
+
   msg_add_header(resp, "Audio-Latency", "11025");
-  
+
   char *p;
   uint32_t rtptime = 0;
   char *hdr = msg_get_header(req, "RTP-Info");
@@ -603,9 +603,9 @@ static void handle_record(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
     // get the rtp timestamp
     p = strstr(hdr, "rtptime=");
     if (p) {
-      p = strchr(p, '=') + 1;
+      p = strchr(p, '=');
       if (p) {
-        rtptime = uatoi(p); // unsigned integer -- up to 2^32-1
+        rtptime = uatoi(p+1); // unsigned integer -- up to 2^32-1
 				rtptime--;
 				// debug(1,"RTSP Flush Requested by handle_record: %u.",rtptime);
 				player_flush(rtptime);
@@ -641,9 +641,9 @@ static void handle_flush(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *
     // get the rtp timestamp
     p = strstr(hdr, "rtptime=");
     if (p) {
-      p = strchr(p, '=') + 1;
+      p = strchr(p, '=');
       if (p)
-        rtptime = uatoi(p); // unsigned integer -- up to 2^32-1
+        rtptime = uatoi(p+1); // unsigned integer -- up to 2^32-1
     }
   }
   // debug(1,"RTSP Flush Requested: %u.",rtptime);
@@ -678,7 +678,7 @@ static void handle_setup(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *
 
   // This latency-setting mechanism is deprecated and will be removed.
   // If no non-standard latency is chosen, automatic negotiated latency setting is permitted.
-  
+
   // Select a static latency
   // if iTunes V10 or later is detected, use the iTunes latency setting
   // if AirPlay is detected, use the AirPlay latency setting
@@ -721,7 +721,7 @@ static void handle_setup(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *
       debug(2, "Unrecognised User-Agent. Using latency of %d frames.", config.latency);
     }
   }
-  
+
   if (config.latency==-1) {
     // this means that no static latency was set, so we'll allow it to be set dynamically
     config.latency=88198; // to be sure, to be sure -- make it slighty different from the default to ensure we get a debug message when set to 88200
@@ -857,8 +857,10 @@ static void handle_set_parameter_parameter(rtsp_conn_info *conn, rtsp_message *r
 //    'prgr' -- progress -- this is metadata from AirPlay consisting of RTP timestamps for the start
 //    of the current play sequence, the current play point and the end of the play sequence.
 //              I guess the timestamps wrap at 2^32.
-//    'mdst' -- a sequence of metadata is about to start
-//    'mden' -- a sequence of metadata has ended
+//    'mdst' -- a sequence of metadata is about to start; will have, as data, the rtptime associated with the metadata, if available
+//    'mden' -- a sequence of metadata has ended; will have, as data, the rtptime associated with the metadata, if available
+//    'pcst' -- a picture is about to be sent; will have, as data, the rtptime associated with the picture, if available
+//    'pcen' -- a picture has been sent; will have, as data, the rtptime associated with the metadata, if available
 //    'snam' -- A device -- e.g. "Joe's iPhone" -- has opened a play session. Specifically, it's the "X-Apple-Client-Name" string
 //    'snua' -- A "user agent" -- e.g. "iTunes/12..." -- has opened a play session. Specifically, it's the "User-Agent" string
 //    The next two two tokens are to facilitiate remote control of the source.
@@ -1048,7 +1050,7 @@ int send_metadata(uint32_t type, uint32_t code, char *data, uint32_t length, rts
   // the rtsp_message is sent for 'core' messages, because it contains the data and must not be
   // freed until the data has been read. So, it is passed to send_metadata to be retained,
   // sent to the thread where metadata is processed and released (and probably freed).
-  
+
   // The rtsp_message is also sent for certain non-'core' messages.
 
   // The reading of the parameters is a bit complex
@@ -1083,18 +1085,16 @@ static void handle_set_parameter_metadata(rtsp_conn_info *conn, rtsp_message *re
 
   unsigned int off = 8;
 
-  // inform the listener that a set of metadata is starting
-  // this doesn't include the cover art though...
-
-  send_metadata('ssnc', 'mdst', NULL, 0, NULL, 1);
-
+  uint32_t itag, vl;
   while (off < cl) {
     // pick up the metadata tag as an unsigned longint
-    uint32_t itag = ntohl(*(uint32_t *)(cp + off));
+    memcpy(&itag, (uint32_t *)(cp + off), sizeof(uint32_t)); /* can be misaligned, thus memcpy */
+    itag = ntohl(itag);
     off += sizeof(uint32_t);
 
     // pick up the length of the data
-    uint32_t vl = ntohl(*(uint32_t *)(cp + off));
+    memcpy(&vl, (uint32_t *)(cp + off), sizeof(uint32_t)); /* can be misaligned, thus memcpy */
+    vl = ntohl(vl);
     off += sizeof(uint32_t);
 
     // pass the data over
@@ -1106,9 +1106,6 @@ static void handle_set_parameter_metadata(rtsp_conn_info *conn, rtsp_message *re
     // move on to the next item
     off += vl;
   }
-
-  // inform the listener that a set of metadata is ending
-  send_metadata('ssnc', 'mden', NULL, 0, NULL, 1);
 }
 
 #endif
@@ -1123,24 +1120,76 @@ static void handle_set_parameter(rtsp_conn_info *conn, rtsp_message *req, rtsp_m
   // if (!req->contentlength)
   //    debug(1, "received empty SET_PARAMETER request.");
 
+  // msg_print_debug_headers(req);
+
   char *ct = msg_get_header(req, "Content-Type");
 
   if (ct) {
     debug(2, "SET_PARAMETER Content-Type:\"%s\".", ct);
+
 #ifdef CONFIG_METADATA
+    // It seems that the rtptime of the message is used as a kind of an ID that can be used
+    // to link items of metadata, including pictures, that refer to the same entity.
+    // If they refer to the same item, they have the same rtptime.
+    // So we send the rtptime before and after both the metadata items and the picture item
+     // get the rtptime
+    char *p = NULL;
+    char *hdr = msg_get_header(req, "RTP-Info");
+
+    if (hdr) {
+      p = strstr(hdr, "rtptime=");
+      if (p) {
+        p = strchr(p, '=');
+      }
+    }
+
+    // not all items have RTP-time stuff in them, which is okay
+
     if (!strncmp(ct, "application/x-dmap-tagged", 25)) {
       debug(2, "received metadata tags in SET_PARAMETER request.");
+      if (p==NULL)
+        debug(1,"Missing RTP-Time info for metadata");
+      if (p)
+        send_metadata('ssnc', 'mdst', p+1, strlen(p+1), req, 1); // metadata starting
+      else
+        send_metadata('ssnc', 'mdst', NULL, 0, NULL, 0); // metadata starting, if rtptime is not available
+
       handle_set_parameter_metadata(conn, req, resp);
+
+      if (p)
+        send_metadata('ssnc', 'mden', p+1, strlen(p+1), req, 1); // metadata ending
+      else
+        send_metadata('ssnc', 'mden', NULL, 0, NULL, 0); // metadata starting, if rtptime is not available
+
     } else if (!strncmp(ct, "image", 5)) {
-      // debug(1, "received image in SET_PARAMETER request.");
-      // note: the image/type tag isn't reliable, so it's not being sent
-      // -- best look at the first few bytes of the image
-      send_metadata('ssnc', 'PICT', req->content, req->contentlength, req, 1);
+      // Some server simply ignore the md field from the TXT record. If The
+      // config says 'please, do not include any cover art', we are polite and
+      // do not write them to the pipe.
+      if (config.get_coverart) {
+        // debug(1, "received image in SET_PARAMETER request.");
+        // note: the image/type tag isn't reliable, so it's not being sent
+        // -- best look at the first few bytes of the image
+        if (p==NULL)
+          debug(1,"Missing RTP-Time info for picture item");
+        if (p)
+          send_metadata('ssnc', 'pcst', p+1, strlen(p+1), req, 1); // picture starting
+        else
+          send_metadata('ssnc', 'pcst', NULL, 0, NULL, 0); // picture starting, if rtptime is not available
+
+        send_metadata('ssnc', 'PICT', req->content, req->contentlength, req, 1);
+
+        if (p)
+          send_metadata('ssnc', 'pcen', p+1, strlen(p+1), req, 1); // picture ending
+        else
+          send_metadata('ssnc', 'pcen', NULL, 0, NULL, 0); // picture ending, if rtptime is not available
+      } else {
+        debug(1, "Ignore received picture item (include_cover_art = no).");
+      }
     } else
 #endif
-        if (!strncmp(ct, "text/parameters", 15)) {
+    if (!strncmp(ct, "text/parameters", 15)) {
       debug(2, "received parameters in SET_PARAMETER request.");
-      handle_set_parameter_parameter(conn, req, resp);
+      handle_set_parameter_parameter(conn, req, resp); // this could be volume or progress
     } else {
       debug(1, "received unknown Content-Type \"%s\" in SET_PARAMETER request.", ct);
     }
@@ -1176,7 +1225,7 @@ static void handle_announce(rtsp_conn_info *conn, rtsp_message *req, rtsp_messag
 
       cp = next;
     }
-    
+
     if ((paesiv==NULL) && (prsaaeskey==NULL)) {
       //debug(1,"Unencrypted session requested?");
       conn->stream.encrypted = 0;
@@ -1184,7 +1233,7 @@ static void handle_announce(rtsp_conn_info *conn, rtsp_message *req, rtsp_messag
       conn->stream.encrypted = 1;
       //debug(1,"Encrypted session requested");
     }
-    
+
     if (!pfmtp) {
       warn("FMTP params missing from the following ANNOUNCE message:");
       // print each line of the request content
@@ -1199,7 +1248,7 @@ static void handle_announce(rtsp_conn_info *conn, rtsp_message *req, rtsp_messag
       }
       goto out;
     }
-    
+
     if (conn->stream.encrypted) {
       int len, keylen;
       uint8_t *aesiv = base64_dec(paesiv, &len);

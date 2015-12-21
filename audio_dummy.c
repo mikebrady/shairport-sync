@@ -60,4 +60,5 @@ audio_output audio_dummy = {.name = "dummy",
                             .delay = NULL,
                             .play = &play,
                             .volume = NULL,
-                            .parameters = NULL};
+                            .parameters = NULL,
+                            .mute = NULL};

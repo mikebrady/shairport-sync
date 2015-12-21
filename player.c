@@ -95,7 +95,6 @@ static uint64_t packet_count = 0;
 static int32_t last_seqno_read;
 
 // interthread variables
-static double software_mixer_volume = 1.0;
 static int fix_volume = 0x10000;
 static pthread_mutex_t vol_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -243,8 +242,13 @@ static void alac_decode(short *dest, uint8_t *buf, int len) {
   } else {
     alac_decode_frame(decoder_info, buf, dest, &outsize);
   }
-
-  assert(outsize == FRAME_BYTES(frame_size));
+  if (outsize!=FRAME_BYTES(frame_size)) {
+    if(outsize<FRAME_BYTES(frame_size)) {
+      debug(1,"Output from alac_decode is smaller than expected. Encrypted = %d.",encrypted);
+    } else {
+      debug(1,"OUtput from alac_decode larger than expected -- truncated, but buffer overflow possible! Encrypted = %d.",encrypted);
+    }
+  }
 }
 
 static int init_decoder(int32_t fmtp[12]) {
@@ -374,22 +378,44 @@ void player_put_packet(seq_t seqno, uint32_t timestamp, uint8_t *data, int len) 
   pthread_mutex_unlock(&ab_mutex);
 }
 
-static inline short lcg_rand(void) {
-  static unsigned long lcg_prev = 12345;
-  lcg_prev = lcg_prev * 69069 + 3;
-  return lcg_prev & 0xffff;
+int32_t rand_in_range(int32_t exclusive_range_limit) {
+  static uint32_t lcg_prev = 12345;
+	// returns a pseudo random integer in the range 0 to (exclusive_range_limit-1) inclusive
+	int64_t sp = lcg_prev;
+	int64_t rl = exclusive_range_limit;
+	lcg_prev = lcg_prev * 69069 + 3; // crappy psrg
+	sp = sp*rl; // 64 bit calculation. INtersting part if above the 32 rightmost bits;
+	return sp >> 32;  
 }
 
 static inline short dithered_vol(short sample) {
-  short rand_a, rand_b;
   long out;
 
   out = (long)sample * fix_volume;
   if (fix_volume < 0x10000) {
-    rand_b = rand_a;
-    rand_a = lcg_rand();
-    out += rand_a;
-    out -= rand_b;
+  
+  	// add a TPDF dither -- see http://www.users.qwest.net/%7Evolt42/cadenzarecording/DitherExplained.pdf
+  	// and the discussion around https://www.hydrogenaud.io/forums/index.php?showtopic=16963&st=25
+  	
+  	// I think, for a 32 --> 16 bits, the range of
+  	// random numbers needs to be from -2^16 to 2^16, i.e. from -65536 to 65536 inclusive, not from -32768 to +32767
+  	
+  	// See the original paper at http://www.ece.rochester.edu/courses/ECE472/resources/Papers/Lipshitz_1992.pdf
+  	// by Lipshitz, Wannamaker and Vanderkooy, 1992.
+  	
+  	long tpdf = rand_in_range(65536+1) - rand_in_range(65536+1);
+  	// Check there's no clipping -- if there is, 
+  	if (tpdf>=0) {
+  		if (LONG_MAX-tpdf>=out)
+    		out += tpdf;
+    	else
+    		out = LONG_MAX;
+    } else {
+    	if (LONG_MIN-tpdf<=out)
+    		out += tpdf;
+    	else
+    		out = LONG_MIN;
+    }
   }
   return out >> 16;
 }
@@ -452,7 +478,7 @@ static abuf_t *buffer_get_frame(void) {
     if (ab_synced) {
       do {
         curframe = audio_buffer + BUFIDX(ab_read);
-        if (curframe->ready) {
+        if ((ab_read!=ab_write) && (curframe->ready)) { // it could be synced and empty, under exceptional circumstances, with the frame unused, thus apparently ready
 
           if (curframe->sequence_number != ab_read) {
             // some kind of sync problem has occurred.
@@ -675,7 +701,7 @@ static abuf_t *buffer_get_frame(void) {
       time_to_wait_for_wakeup_fp *= 4 * 352; // four full 352-frame packets
       time_to_wait_for_wakeup_fp /= 3; // four thirds of a packet time
 
-#ifdef COMPILE_FOR_LINUX_AND_FREEBSD
+#ifdef COMPILE_FOR_LINUX_AND_FREEBSD_AND_CYGWIN
       uint64_t time_of_wakeup_fp = local_time_now + time_to_wait_for_wakeup_fp;
       uint64_t sec = time_of_wakeup_fp >> 32;
       uint64_t nsec = ((time_of_wakeup_fp & 0xffffffff) * 1000000000) >> 32;
@@ -765,14 +791,14 @@ static int stuff_buffer_basic(short *inptr, short *outptr, int stuff) {
   };
   if (stuff) {
     if (stuff == 1) {
-      debug(3, "+++++++++");
+      // debug(3, "+++++++++");
       // interpolate one sample
       //*outptr++ = dithered_vol(((long)inptr[-2] + (long)inptr[0]) >> 1);
       //*outptr++ = dithered_vol(((long)inptr[-1] + (long)inptr[1]) >> 1);
       *outptr++ = dithered_vol(shortmean(inptr[-2], inptr[0]));
       *outptr++ = dithered_vol(shortmean(inptr[-1], inptr[1]));
     } else if (stuff == -1) {
-      debug(3, "---------");
+      // debug(3, "---------");
       inptr++;
       inptr++;
     }
@@ -838,7 +864,7 @@ static int stuff_buffer_soxr(short *inptr, short *outptr, int stuff) {
     }
 
     // finally, adjust the volume, if necessary
-    if (software_mixer_volume != 1.0) {
+    if (fix_volume != 65536.0) {
       // pthread_mutex_lock(&vol_mutex);
       op = outptr;
       for (i = 0; i < frame_size + stuff; i++) {
@@ -888,7 +914,6 @@ static void *player_thread_func(void *arg) {
   int32_t minimum_buffer_occupancy = BUFFER_FRAMES;
   int32_t maximum_buffer_occupancy = 0;
 
-  audio_information.valid = 0;
   buffer_occupancy = 0;
 
   int play_samples;
@@ -1171,7 +1196,7 @@ static void *player_thread_func(void *arg) {
 								inform("Sync error: %.1f (frames); net correction: %.1f (ppm); corrections: %.1f "
 											 "(ppm); missing packets %llu; late packets %llu; too late packets %llu; "
 											 "resend requests %llu; min DAC queue size %lli, min and max buffer occupancy "
-											 "%u and %u.",
+											 "%d and %d.",
 											 moving_average_sync_error, moving_average_correction * 1000000 / 352,
 											 moving_average_insertions_plus_deletions * 1000000 / 352, missing_packets,
 											 late_packets, too_late_packets, resend_requests, minimum_dac_queue_size,
@@ -1179,7 +1204,7 @@ static void *player_thread_func(void *arg) {
               else
 								inform("Synchronisation disabled. Missing packets %llu; late packets %llu; too late packets %llu; "
 											 "resend requests %llu; min and max buffer occupancy "
-											 "%u and %u.",
+											 "%d and %d.",
 											 missing_packets,
 											 late_packets, too_late_packets, resend_requests,
 											 minimum_buffer_occupancy, maximum_buffer_occupancy);            
@@ -1201,67 +1226,152 @@ static void *player_thread_func(void *arg) {
 }
 
 // takes the volume as specified by the airplay protocol
-void player_volume(double f) {
+void player_volume(double airplay_volume) {
 
   // The volume ranges -144.0 (mute) or -30 -- 0. See
   // http://git.zx2c4.com/Airtunes2/about/#setting-volume
   // By examination, the -30 -- 0 range is linear on the slider; i.e. the slider is calibrated in 30
   // equal increments. Since the human ear's response is roughly logarithmic, we imagine these to
   // be power dB, i.e. from -30dB to 0dB.
+    
+  // We may have a hardware mixer, and if so, we will give it priority.
+  // If a desired volume range is given, then we will try to accommodate it from
+  // the top of the hardware mixer's range downwards.
   
-  // So, if we have a hardware mixer, we will pass this on to its dB volume settings.
-  
-  // Without a hardware mixer, we have to do attenuation in software, so
-  // here, we ask for an attenuation we will apply to the signal amplitude in software.
+  // If no desired volume range is given, we will use the native resolution of the hardware mixer, if any,
+  // or failing that, the software mixer. The software mixer has a range of from -96.3 dB up to 0 dB,
+  // corresponding to a multiplier of 1 to 65535.
+ 
+  // Otherwise, we will accommodate the desired volume range in the combination of the software and hardware mixer
+  // Intuitively (!), it seems best to give the hardware mixer as big a role as possible, so
+  // we will use its full range and then accommodate the rest of the attenuation in software.
+  // A problem is that we don't know whether the lowest hardware volume actually mutes the output
+  // so we must assume that it does, and for this reason, the volume control goes at the "bottom" of the adjustment range
+    
   // The dB range of a value from 1 to 65536 is about 96.3 dB (log10 of 65536 is 4.8164).
   // Since the levels correspond with amplitude, they correspond to voltage, hence voltage dB,
   // or 20 times the log of the ratio. Then multiplied by 100 for convenience.
   // Thus, we ask our vol2attn function for an appropriate dB between -96.3 and 0 dB and translate
   // it back to a number.
-
-  double linear_volume = 0.0;
-
-  if (config.output->volume) {
-    // debug(1,"Set volume to %f.",f);
-    config.output->volume(f); // volume will be sent as metadata by the config.output device
-    linear_volume = 1.0; // no attenuation needed -- this value is used as a flag to avoid calculations
-  }
-
-  if (config.output->parameters)
+  
+  int32_t hw_min_db, hw_max_db, hw_range_db, range_to_use, min_db, max_db; // hw_range_db is a flag; if 0 means no mixer
+  
+  int32_t sw_min_db = -9630;
+  int32_t sw_max_db = 0;
+  int32_t sw_range_db = sw_max_db - sw_min_db;
+  int32_t desired_range_db; // this is used as a flag; if 0 means no desired range
+  
+  if (config.volume_range_db)
+    desired_range_db = (int32_t)trunc(config.volume_range_db*100);
+  else
+    desired_range_db = 0;
+  
+  if (config.output->parameters) {
+    // have a hardware mixer
     config.output->parameters(&audio_information);
-  else {
-    long mindb = -9630;
-    if (config.volume_range_db) {
-      long suggested_alsa_min_db = -(long)trunc(config.volume_range_db*100);
-      if (suggested_alsa_min_db > mindb)
-        mindb = suggested_alsa_min_db;
-      else
-        inform("The volume_range_db setting, %f is greater than the native range of the mixer %f, so it is ignored.",config.volume_range_db,mindb/100.0);
-    }
-    double scaled_volume = vol2attn(f, 0, mindb);
-    linear_volume = pow(10, scaled_volume / 2000);
-    audio_information.airplay_volume = f;
-    audio_information.minimum_volume_dB = mindb;
-    audio_information.maximum_volume_dB = 0;
-    audio_information.current_volume_dB = scaled_volume;
-    audio_information.has_true_mute = 0;
-    audio_information.is_muted = 0;
-    // debug(1,"Minimum software volume set to %d centi-dB",f,mindb);
+    hw_max_db = audio_information.maximum_volume_dB;
+    hw_min_db = audio_information.minimum_volume_dB;
+    hw_range_db = hw_max_db-hw_min_db;
+  } else {
+    // don't have a hardware mixer
+    hw_max_db = hw_min_db = hw_range_db = 0;
   }
-  audio_information.valid = 1;
-  // debug(1,"Software volume set to %f on scale with a %f dB",f,linear_volume);
+  
+  if (desired_range_db) {
+    // debug(1,"An attenuation range of %d is requested.",desired_range_db);
+    // we have a desired volume range.
+    if (hw_range_db) {
+    // we have a hardware mixer
+      if (hw_range_db>=desired_range_db) {
+        // the hardware mixer can accommodate the desired range
+        max_db = hw_max_db;
+        min_db = max_db - desired_range_db;
+      } else {
+        if ((hw_range_db+sw_range_db)<desired_range_db) {
+          inform("The volume attenuation range %f is greater than can be accommodated by the hardware and software -- set to %f.",config.volume_range_db,hw_range_db+sw_range_db);
+          desired_range_db=hw_range_db+sw_range_db;
+        }
+        min_db = hw_min_db;
+        max_db = min_db + desired_range_db;
+      }
+    } else {
+      // we have a desired volume range and no hardware mixer
+      if (sw_range_db<desired_range_db) {
+        inform("The volume attenuation range %f is greater than can be accommodated by the software -- set to %f.",config.volume_range_db,sw_range_db);
+        desired_range_db=sw_range_db;      
+      }
+      max_db = sw_max_db;
+      min_db = max_db - desired_range_db;
+    }
+  } else {
+    // we do not have a desired volume range, so use the mixer's volume range, if there is one.
+    // debug(1,"No attenuation range requested.");
+    if (hw_range_db) {
+      min_db = hw_min_db;
+      max_db = hw_max_db;
+    } else {
+      min_db = sw_min_db;
+      max_db = sw_max_db;
+    }
+  }
+  
+  double hardware_attenuation, software_attenuation;
+  double scaled_attenuation = hw_min_db+sw_min_db;
+    
+  // now, we can map the input to the desired output volume
+  if (airplay_volume==-144.0) {    
+    // do a mute    
+  	if (config.output->mute) {
+  		config.output->mute(1); // use real mute if it's there
+  	  software_attenuation = sw_min_db; // needed for when sound is unmuted; otherwise it might be very loud.
+  	} else {
+  	  hardware_attenuation = hw_min_db;
+  	  software_attenuation = sw_min_db;
+  		// debug(1,"Software mute.");
+  	}    
+    
+  } else {
+  	if (config.output->mute)
+  		config.output->mute(0); // unmute mute if it's there  
+    scaled_attenuation = vol2attn(airplay_volume, max_db, min_db);
+    if (hw_range_db) {
+      // if there is a hardware mixer
+      if (scaled_attenuation<=hw_max_db) {
+        // the attenuation is so low that's it's in the hardware mixer's range
+        // debug(1,"Attenuation all taken care of by the hardware mixer.");
+        hardware_attenuation = scaled_attenuation;
+        software_attenuation = sw_max_db - (max_db-hw_max_db); // e.g. if the hw_max_db  is +4 and the max is +40, this will be -36 (all by 100, of course)
+      } else {
+        // debug(1,"Attenuation taken care of by hardware and software mixer.");
+        hardware_attenuation = hw_max_db; // the hardware mixer is turned up full
+        software_attenuation = sw_max_db - (max_db-scaled_attenuation);
+      }
+    } else {
+      // if there is no hardware mixer, the scaled_volume is the software volume
+      // debug(1,"Attenuation all taken care of by the software mixer.");
+      software_attenuation = scaled_attenuation;
+    }
+  }
+  
+  if ((config.output->volume) && (hw_range_db)) {
+	  config.output->volume(hardware_attenuation); // otherwise set the output to the lowest value
+	  //debug(1,"Hardware attenuation set to %f for airplay volume of %f.",hardware_attenuation,airplay_volume);
+  }
+  double temp_fix_volume = 65536.0 * pow(10, software_attenuation / 2000);
+ 	// debug(1,"Software attenuation set to %f, i.e %f out of 65,536, for airplay volume of %f",software_attenuation,temp_fix_volume,airplay_volume);
+  
   pthread_mutex_lock(&vol_mutex);
-  software_mixer_volume = linear_volume;
-  fix_volume = 65536.0 * software_mixer_volume;
+  fix_volume = temp_fix_volume;
   pthread_mutex_unlock(&vol_mutex);
+
 #ifdef CONFIG_METADATA
   char *dv = malloc(128); // will be freed in the metadata thread
   if (dv) {
     memset(dv, 0, 128);
-    snprintf(dv, 127, "%.2f,%.2f,%.2f,%.2f", audio_information.airplay_volume,
-             audio_information.current_volume_dB / 100.0,
-             audio_information.minimum_volume_dB / 100.0,
-             audio_information.maximum_volume_dB / 100.0);
+    snprintf(dv, 127, "%.2f,%.2f,%.2f,%.2f", airplay_volume,
+             scaled_attenuation / 100.0,
+             min_db / 100.0,
+             max_db / 100.0);
     send_ssnc_metadata('pvol', dv, strlen(dv), 1);
   }
 #endif
@@ -1307,7 +1417,7 @@ int player_play(stream_cfg *stream) {
 #endif
 
 // set the flowcontrol condition variable to wait on a monotonic clock
-#ifdef COMPILE_FOR_LINUX_AND_FREEBSD
+#ifdef COMPILE_FOR_LINUX_AND_FREEBSD_AND_CYGWIN
   pthread_condattr_t attr;
   pthread_condattr_init(&attr);
   pthread_condattr_setclock(&attr, CLOCK_MONOTONIC); // can't do this in OS X, and don't need it.

@@ -41,16 +41,43 @@ static void help(void) {
 }
 
 static int init(int argc, char **argv) {
+  const char *str;
+  int value;
   ao_initialize();
   int driver = ao_default_driver_id();
   ao_option *ao_opts = NULL;
 
+  config.audio_backend_buffer_desired_length = 44100; // one second.
+  config.audio_backend_latency_offset = 0;
+  
+  // get settings from settings file first, allow them to be overridden by command line options
+
+  if (config.cfg != NULL) {
+    /* Get the desired buffer size setting. */
+    if (config_lookup_int(config.cfg, "ao.audio_backend_buffer_desired_length_software", &value)) {
+      if ((value < 0) || (value > 66150))
+        die("Invalid a0 audio backend buffer desired length \"%d\". It should be between 0 and "
+            "66150, default is 44100",
+            value);
+      else {
+        config.audio_backend_buffer_desired_length = value;
+      }
+    }
+    
+    /* Get the latency offset. */
+    if (config_lookup_int(config.cfg, "ao.audio_backend_latency_offset", &value)) {
+      if ((value < -66150) || (value > 66150))
+        die("Invalid ao audio backend buffer latency offset \"%d\". It should be between -66150 and +66150, default is 0",
+            value);
+      else
+        config.audio_backend_latency_offset = value;
+    }
+  }
+
+
   optind = 1; // optind=0 is equivalent to optind=1 plus special behaviour
   argv--;     // so we shift the arguments to satisfy getopt()
   argc++;
-
-  config.audio_backend_buffer_desired_length = 44100; // one second.
-  config.audio_backend_latency_offset = 0;
 
   // some platforms apparently require optreset = 1; - which?
   int opt;
@@ -126,4 +153,5 @@ audio_output audio_ao = {.name = "ao",
                          .delay = NULL,
                          .play = &play,
                          .volume = NULL,
-                         .parameters = NULL};
+                         .parameters = NULL,
+                         .mute = NULL};

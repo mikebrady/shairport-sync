@@ -46,7 +46,7 @@ static uint32_t delay(void);
 static void volume(double vol);
 static void linear_volume(double vol);
 static void parameters(audio_parameters *info);
-static int has_mute = 0;
+static void mute(int do_mute);
 static double set_volume;
 
 audio_output audio_alsa = {
@@ -59,6 +59,7 @@ audio_output audio_alsa = {
     .flush = &flush,
     .delay = &delay,
     .play = &play,
+    .mute = NULL, // to be set later on...
     .volume = NULL,    // to be set later on...
     .parameters = NULL // to be set later on...
 };
@@ -93,7 +94,8 @@ static void help(void) {
 }
 
 static int init(int argc, char **argv) {
-  const char *str;
+	// debug(1,"audio_alsa init called.");
+	const char *str;
   int value;
 
   int hardware_mixer = 0;
@@ -107,9 +109,9 @@ static int init(int argc, char **argv) {
 
   if (config.cfg != NULL) {
     /* Get the desired buffer size setting. */
-    if (config_lookup_int(config.cfg, "alsa.audio_backend_buffer_desired_length_software", &value)) {
+    if (config_lookup_int(config.cfg, "alsa.audio_backend_buffer_desired_length", &value)) {
       if ((value < 0) || (value > 66150))
-        die("Invalid alsa audio backend buffer desired length (software) \"%d\". It should be between 0 and "
+        die("Invalid alsa audio backend buffer desired length \"%d\". It should be between 0 and "
             "66150, default is 6615",
             value);
       else {
@@ -234,13 +236,6 @@ static int init(int argc, char **argv) {
       }
       debug(1, "Hardware mixer has dB volume from %f to %f.", (1.0 * alsa_mix_mindb) / 100.0,
             (1.0 * alsa_mix_maxdb) / 100.0);
-      if (config.volume_range_db) {
-        long suggested_alsa_min_db = alsa_mix_maxdb - (long)trunc(config.volume_range_db*100);
-        if (suggested_alsa_min_db > alsa_mix_mindb)
-          alsa_mix_mindb = suggested_alsa_min_db;
-        else
-          inform("The volume_range_db setting, %f is greater than the native range of the mixer %f, so it is ignored.",config.volume_range_db,(alsa_mix_maxdb-alsa_mix_mindb)/100.0);
-      }
     } else {
       // use the linear scale and do the db conversion ourselves
       debug(1, "note: the hardware mixer specified -- \"%s\" -- does not have a dB volume scale, so it can't be used.",alsa_mix_ctrl);
@@ -258,7 +253,7 @@ static int init(int argc, char **argv) {
      }
   }
   if (snd_mixer_selem_has_playback_switch(alsa_mix_elem)) {
-    has_mute = 1;
+    audio_alsa.mute = &mute; // insert the mute function now we know it can do muting stuff
     debug(1, "Has mute ability.");
   }
   return 0;
@@ -272,38 +267,76 @@ static void deinit(void) {
 }
 
 int open_alsa_device(void) {
-
+  const snd_pcm_uframes_t buffer_headroom = 352*3; // the hardware buffer must be this much bigger than the desired buffer length
   int ret, dir = 0;
   unsigned int my_sample_rate = desired_sample_rate;
-  snd_pcm_uframes_t frames = 441 * 10;
-  snd_pcm_uframes_t buffer_size = frames * 4;
+  //snd_pcm_uframes_t frames = 441 * 10;
+  snd_pcm_uframes_t buffer_size, actual_buffer_length;
   ret = snd_pcm_open(&alsa_handle, alsa_out_dev, SND_PCM_STREAM_PLAYBACK, 0);
   if (ret < 0)
     return (ret);
   // die("Alsa initialization failed: unable to open pcm device: %s.", snd_strerror(ret));
 
   snd_pcm_hw_params_alloca(&alsa_params);
-  snd_pcm_hw_params_any(alsa_handle, alsa_params);
-  snd_pcm_hw_params_set_access(alsa_handle, alsa_params, SND_PCM_ACCESS_RW_INTERLEAVED);
-  snd_pcm_hw_params_set_format(alsa_handle, alsa_params, SND_PCM_FORMAT_S16);
-  snd_pcm_hw_params_set_channels(alsa_handle, alsa_params, 2);
-  snd_pcm_hw_params_set_rate_near(alsa_handle, alsa_params, &my_sample_rate, &dir);
+
+  ret = snd_pcm_hw_params_any(alsa_handle, alsa_params);
+  if (ret < 0) {
+    die("audio_alsa: Broken configuration for device \"%s\": no configurations available", alsa_out_dev);
+  }
+  
+  ret = snd_pcm_hw_params_set_access(alsa_handle, alsa_params, SND_PCM_ACCESS_RW_INTERLEAVED);
+  if (ret < 0) {
+    die("audio_alsa: Access type not available for device \"%s\": %s", alsa_out_dev, snd_strerror(ret));
+  }
+  
+  ret = snd_pcm_hw_params_set_format(alsa_handle, alsa_params, SND_PCM_FORMAT_S16);
+  if (ret < 0) {
+    die("audio_alsa: Sample format not available for device \"%s\": %s", alsa_out_dev, snd_strerror(ret));
+  }  
+  
+  ret = snd_pcm_hw_params_set_channels(alsa_handle, alsa_params, 2);
+  if (ret < 0) {
+    die("audio_alsa: Channels count (2) not available for device \"%s\": %s", alsa_out_dev, snd_strerror(ret));
+  }  
+
+  ret = snd_pcm_hw_params_set_rate_near(alsa_handle, alsa_params, &my_sample_rate, &dir);
+  if (ret < 0) {
+    die("audio_alsa: Rate %iHz not available for playback: %s", desired_sample_rate, snd_strerror(ret));
+  }  
+ 
   // snd_pcm_hw_params_set_period_size_near(alsa_handle, alsa_params, &frames, &dir);
   // snd_pcm_hw_params_set_buffer_size_near(alsa_handle, alsa_params, &buffer_size);
+  
   ret = snd_pcm_hw_params(alsa_handle, alsa_params);
   if (ret < 0) {
-    die("unable to set hw parameters: %s.", snd_strerror(ret));
+    die("audio_alsa: Unable to set hw parameters for device \"%s\": %s.", alsa_out_dev, snd_strerror(ret));
   }
+  
   if (my_sample_rate != desired_sample_rate) {
-    die("Can't set the D/A converter to %d -- set to %d instead./n", desired_sample_rate,
-        my_sample_rate);
+    die("Can't set the D/A converter to %d.", desired_sample_rate);
   }
+  
+  ret = snd_pcm_hw_params_get_buffer_size(alsa_params,&actual_buffer_length);
+   if (ret < 0) {
+    die("audio_alsa: Unable to get hw buffer length for device \"%s\": %s.", alsa_out_dev, snd_strerror(ret));
+  }
+  
+  if (actual_buffer_length < config.audio_backend_buffer_desired_length+buffer_headroom) {
+    // the dac buffer is too small, so let's try to set it
+    buffer_size = config.audio_backend_buffer_desired_length+buffer_headroom;
+    ret =  snd_pcm_hw_params_set_buffer_size_near(alsa_handle, alsa_params, &buffer_size);
+    if (ret < 0)
+      die("audio_alsa: Unable to set hw buffer size to %lu for device \"%s\": %s.", config.audio_backend_buffer_desired_length+buffer_headroom, alsa_out_dev, snd_strerror(ret));
+    if (config.audio_backend_buffer_desired_length+buffer_headroom > buffer_size)
+      die("audio_alsa: Can't set hw buffer size to %lu for device \"%s\": %s.", config.audio_backend_buffer_desired_length+buffer_headroom, alsa_out_dev, snd_strerror(ret));
+  }
+  
   return (0);
 }
 
 static void start(int sample_rate) {
   if (sample_rate != 44100)
-    die("Unexpected sample rate %d -- only 44,100 supported!", sample_rate);
+	  die("Unexpected sample rate %d -- only 44,100 supported!", sample_rate);
   desired_sample_rate = sample_rate; // must be a variable
 }
 
@@ -409,35 +442,32 @@ static void stop(void) {
 }
 
 static void parameters(audio_parameters *info) {
-  info->has_true_mute = has_mute;
-  info->is_muted = ((has_mute) && (set_volume == -144.0));
   info->minimum_volume_dB = alsa_mix_mindb;
   info->maximum_volume_dB = alsa_mix_maxdb;
-  info->airplay_volume = set_volume;
-  info->current_volume_dB = vol2attn(set_volume, alsa_mix_maxdb, alsa_mix_mindb);
 }
 
 static void volume(double vol) {
-  // debug(1,"Volume called %f.",vol);
-  set_volume = vol;
-  double vol_setting = vol2attn(vol, alsa_mix_maxdb, alsa_mix_mindb);
   // debug(1,"Setting volume db to %f, for volume input of %f.",vol_setting/100,vol);
-  if (snd_mixer_selem_set_playback_dB_all(alsa_mix_elem, vol_setting, -1) != 0)
+  set_volume = vol;
+  if (snd_mixer_selem_set_playback_dB_all(alsa_mix_elem, vol, -1) != 0)
     die("Failed to set playback dB volume");
-  if (has_mute)
-    snd_mixer_selem_set_playback_switch_all(alsa_mix_elem, (vol != -144.0));
 }
 
 static void linear_volume(double vol) {
-  set_volume = vol;
-  double vol_setting = vol2attn(vol, 0, alsa_mix_mindb)/2000;
-  // debug(1,"Adjusted volume is %f.",vol_setting);
-  double linear_volume = pow(10, vol_setting);
+  double linear_volume = pow(10, vol);
   // debug(1,"Linear volume is %f.",linear_volume);
   long int_vol = alsa_mix_minv + (alsa_mix_maxv - alsa_mix_minv) * linear_volume;
   // debug(1,"Setting volume to %ld, for volume input of %f.",int_vol,vol);
   if (snd_mixer_selem_set_playback_volume_all(alsa_mix_elem, int_vol) != 0)
     die("Failed to set playback volume");
-  if (has_mute)
-    snd_mixer_selem_set_playback_switch_all(alsa_mix_elem, (vol != -144.0));
+}
+
+static void mute(int do_mute) {
+ if (do_mute) {
+  // debug(1,"Mute");
+  snd_mixer_selem_set_playback_switch_all(alsa_mix_elem, 0);
+ } else {
+  // debug(1,"Unmute");
+  snd_mixer_selem_set_playback_switch_all(alsa_mix_elem, 1); 
+ }   
 }

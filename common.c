@@ -474,7 +474,7 @@ double vol2attn(double vol, long max_db, long min_db) {
 
 uint64_t get_absolute_time_in_fp() {
   uint64_t time_now_fp;
-#ifdef COMPILE_FOR_LINUX_AND_FREEBSD
+#ifdef COMPILE_FOR_LINUX_AND_FREEBSD_AND_CYGWIN
   struct timespec tn;
   // can't use CLOCK_MONOTONIC_RAW as it's not implemented in OpenWrt
   clock_gettime(CLOCK_MONOTONIC, &tn);

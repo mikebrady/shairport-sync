@@ -137,4 +137,5 @@ audio_output audio_pulse = {.name = "pulse",
                             .delay = NULL,
                             .play = &play,
                             .volume = NULL,
-                            .parameters = NULL};
+                            .parameters = NULL,
+                            .mute = NULL};

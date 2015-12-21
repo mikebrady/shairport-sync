@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.50])
-AC_INIT([shairport-sync], [2.6], [mikebrady@eircom.net])
+AC_INIT([shairport-sync], [2.7.3], [mikebrady@eircom.net])
 AM_INIT_AUTOMAKE
 AC_CONFIG_SRCDIR([shairport.c])
 AC_CONFIG_HEADERS([config.h])
@@ -201,7 +201,7 @@ AC_ARG_WITH(pulseaudio, [  --with-pulseaudio = choose native PulseAudio API supp
   AC_MSG_RESULT(>>Including a PulseAudio back end -- N.B. no synchronisation -- so underflow or overflow is inevitable!)
   HAS_PULSE=1
   AC_DEFINE([CONFIG_PULSE], 1, [Needed by the compiler.])
-  AC_CHECK_LIB([pulse-simple], [pa_simple_new], , AC_MSG_ERROR(PulseAudio support requires the pulse-simple library!))
+  AC_CHECK_LIB([pulse-simple], [pa_simple_new], , AC_MSG_ERROR(PulseAudio support requires the pulse-simple library, possibly in the package libpulse-dev!))
   AC_CHECK_LIB([pulse], [pa_stream_peek], , AC_MSG_ERROR(PulseAudio support requires the libpulse-dev library!))], )
 AM_CONDITIONAL([USE_PULSE], [test "x$HAS_PULSE" = "x1"])
 
@@ -212,6 +212,22 @@ AC_ARG_WITH(dns_sd, [  --with-dns_sd = choose dns_sd mDNS support], [
   AC_DEFINE([CONFIG_HAVE_DNS_SD_H], 1, [Needed by the compiler.])
   AC_SEARCH_LIBS([DNSServiceRefDeallocate], [dns_sd], , AC_MSG_ERROR(dns_sd support requires the dns_sd library!))], )
 AM_CONDITIONAL([USE_DNS_SD], [test "x$HAS_DNS_SD" = "x1"])
+
+# Find systemd unit dir
+AC_ARG_WITH([systemdsystemunitdir],
+     [AS_HELP_STRING([--with-systemdsystemunitdir=DIR], [Directory for systemd service files])],,
+     [with_systemdsystemunitdir=auto])
+AS_IF([test "x$with_systemdsystemunitdir" = "xyes" -o "x$with_systemdsystemunitdir" = "xauto"], [
+     def_systemdsystemunitdir=$($PKG_CONFIG --variable=systemdsystemunitdir systemd)
+
+     AS_IF([test "x$def_systemdsystemunitdir" = "x"],
+   [AS_IF([test "x$with_systemdsystemunitdir" = "xyes"],
+    [AC_MSG_ERROR([systemd support requested but pkg-config unable to query systemd package])])
+    with_systemdsystemunitdir=no],
+   [with_systemdsystemunitdir="$def_systemdsystemunitdir"])])
+AS_IF([test "x$with_systemdsystemunitdir" != "xno"],
+      [AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])])
+AM_CONDITIONAL([HAVE_SYSTEMD], [test "x$with_systemdsystemunitdir" != "xno"])
 
 # Checks for header files.
 AC_HEADER_STDC

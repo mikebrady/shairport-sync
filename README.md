@@ -1,19 +1,21 @@
 Shairport Sync
 =============
-Shairport Sync is an AirPlay audio player -- it plays audio streamed from iTunes, iOS devices and third-party AirPlay sources such as ForkedDaapd and others.
+Shairport Sync is an AirPlay audio player -- it plays audio streamed from iTunes, iOS devices and other AirPlay sources such as Quicktime Player, ForkedDaapd among others.
 Audio played by a Shairport Sync-powered device stays synchronised with the source and hence with similar devices playing the same source. In this way, synchronised multi-room audio is possible without difficulty. (Hence the name Shairport Sync, BTW.)
 
 Shairport Sync does not support AirPlay video or photo streaming.
 
-This branch -- "master" -- is the stable branch of Shairport Sync. To access the development version, please switch to the "development" branch.
+This branch -- "development" -- is unstable and may change quickly. To access the stable version, please switch to the "master" branch.
 
 More Information
 ----------
-Shairport Sync works by using timing information and timestamps present in data coming from the audio source (e.g. an iPhone) to "play" audio at exactly the right time. It does this by monitoring and controlling the *latency* — the time between a sound frame is supposed to be played, as specified by its `timestamp`, and the time when it is actually played by the audio output device, usually a Digital to Audio Converter (DAC).  Timestamps are measured relative to the source computer's clocks, the `source clock`, but timing must be done relative to the clock of the computer running Shairport Sync, the `local clock`. The source and local clocks are synchronised, usually to within a fraction of a millisecond, using a variant of NTP synchronisation protocols. 
+Shairport Sync works by using timing information and timestamps present in data coming from the audio source (e.g. an iPhone) to "play" audio at exactly the right time. It does this by monitoring and controlling the *latency* — the time between a sound frame is supposed to be played, as specified by its `timestamp`, and the time when it is actually played by the audio output device, usually a Digital to Audio Converter (DAC).
+
+The latency to be used is specified by the source when it negotiates with Shairport Sync. Most sources set a latency of 88,200 frames -- exactly two seconds. Recent versions of iTunes and forkedDaapd use a latency of 99,577 frames.
+
+Timestamps are measured relative to the source computer's clocks, the `source clock`, but timing must be done relative to the clock of the computer running Shairport Sync, the `local clock`. The source and local clocks are synchronised, usually to within a fraction of a millisecond, using a variant of NTP synchronisation protocols. 
 
 To maintain the exact latency required, if an output device is running slow relative to the source, Shairport Sync will delete frames of audio to allow the device to keep up. If the output device is running fast, Shairport Sync will insert frames to keep time. The number of frames inserted or deleted is so small as to be almost inaudible on normal audio material. Frames are inserted or deleted as necessary at pseudorandom intervals. Alternatively, with `libsoxr` support, Shairport Sync can resample the audio feed to ensure the output device can keep up. This is less obtrusive than insertion and deletion but requires a good deal of processing power — most embedded devices probably can't support it. The process of insertion/deletion or resampling is rather inelegantly called “stuffing”.
-
-The exact latency to be used is specified by the source when it negotiates with Shaiport Sync. Most sources set a latency of 88,200 frames -- exactly two seconds. Recent versions of iTunes and forkedDaapd use a latency of 99,577 frames (pretty close to the 99,400 frames estimated from listening tests!).
 
 Shairport Sync is a pretty substantial rewrite of the fantastic work done in Shairport 1.0 by James Laird and others — please see https://github.com/abrasive/shairport/blob/master/README.md#contributors-to-version-1x for a list of the contributors to Shairport 1.x and Shairport 0.x. From a "heritage" point of view, Shairport Sync is a fork of Shairport 1.0.
 
@@ -52,7 +54,9 @@ Building And Installing
 If you wish to install Shairport Sync on OpenWrt, Arch or Fedora platforms, please follow the appropriate instructions below. Otherwise follow the General Build Instructions. Then, when the program has been installed, refer to the section on Configuring Shairport Sync that follows.
 
 **Note**
-The following procedures will install shairport-sync at `/usr/local/bin/shairport-sync`. Before continuing, you should check to see if shairport-sync is already installed on your system -- use `which shairport-sync` to find where it is located, if installed. If it is installed anywhere other than at `/usr/local/bin/shairport-sync`, you should delete it -- you may need to have superuser privileges.
+
+The following procedures will install the shairport-sync application into your system. Before continuing, you should check to see if shairport-sync is already installed -- you can use `which shairport-sync` to find where it is located, if installed. If it is installed you should delete it -- you may need to have superuser privileges. After deleting, check again in case further copies are installed elsewhere.
+(If the existing installation of shairport-sync is where the new copy will be installed into, it will be overwritten;  sometimes, however, the installation is to another location, so it is safer, initially, to delete previous versions manually.) 
 
 **OpenWrt:**
 There is a Shairport Sync package in OpenWrt `trunk`. Also, there's an OpenWrt package at https://github.com/mikebrady/shairport-sync-for-openwrt, including one that builds back to `Attitude Adjustment`.
@@ -94,6 +98,7 @@ The following libraries are required:
 * ALSA
 * libdaemon
 * autoconf
+* automake
 * libtool
 * libpopt
 * libconfig
@@ -103,13 +108,14 @@ Optional:
 
 Many Linux distributions have Avahi and OpenSSL already in place, so normally it probably makes sense to choose those options rather than tinysvcmdns or PolarSSL. Libsoxr is available in recent Linux distributions, but it requires lots of processor power — chances are an embedded processor won't be able to keep up.
 
-Assuming the usual build essentials and git, Debian, Ubuntu and Raspbian users can get the basics with:
+Debian, Ubuntu and Raspbian users can get the basics with:
 
-- `apt-get install autoconf libtool libdaemon-dev libasound2-dev libpopt-dev libconfig-dev`
+- `apt-get install build-essential git` – these may already be installed.
+- `apt-get install autoconf automake libtool libdaemon-dev libasound2-dev libpopt-dev libconfig-dev`
 - `apt-get install avahi-daemon libavahi-client-dev` if you want to use Avahi (recommended).
 - `apt-get install libssl-dev` if you want to use OpenSSL and libcrypto, or use PolarSSL otherwise.
 - `apt-get install libpolarssl-dev` if you want to use PolarSSL, or use OpenSSL/libcrypto otherwise.
-- `apt-get install libsoxr-dev` if you want support for libsoxr-based resampling. This library is not yet part of  Raspbian; instructions for how to build it from source are available at [LIBSOXR.md](https://github.com/mikebrady/shairport-sync/blob/development/LIBSOXR.md).
+- `apt-get install libsoxr-dev` if you want support for libsoxr-based resampling. This library is not yet part of every distribution; instructions for how to build it from source for Raspian/Debian Wheezy are available at [LIBSOXR.md](https://github.com/mikebrady/shairport-sync/blob/development/LIBSOXR.md).
 
 Download Shairport Sync:
 
@@ -120,6 +126,7 @@ Next, `cd` into the shairport-sync directory and execute the following command:
 ```
 $ autoreconf -i -f
 ```
+(Note that the `autoreconf...` step may take some time on less powerful machines.)
 
 Choose the appropriate `--with-*` options:
 
@@ -208,7 +215,7 @@ To enable Shairport Sync to start automatically at system startup, enter:
 
 **Man Page**
 
-You can view the man page here: http://htmlpreview.github.io/?https://github.com/mikebrady/shairport-sync/blob/master/man/shairport-sync.html
+You can view the man page here: http://htmlpreview.github.io/?https://github.com/mikebrady/shairport-sync/blob/development/man/shairport-sync.html
 
 Configuring Shairport Sync
 --------
@@ -260,7 +267,7 @@ From a user's point of view, the effect of using this setting is to move the min
 
 *Command Line Arguments*
 
-You can use command line arguments to provide settings to Shairport Sync as before. For full information, please read the Shairport Sync `man` page, also available at  http://htmlpreview.github.io/?https://github.com/mikebrady/shairport-sync/blob/master/man/shairport-sync.html.
+You can use command line arguments to provide settings to Shairport Sync as before. For full information, please read the Shairport Sync `man` page, also available at  http://htmlpreview.github.io/?https://github.com/mikebrady/shairport-sync/blob/development/man/shairport-sync.html.
 
 Apart from the following options, all command line options can be replaced by settings in the configuration file. Here is a brief description of command line options that are not replicated by settings in the settings file.
 

@@ -5,13 +5,9 @@
 #include <libconfig.h>
 
 typedef struct {
-  double airplay_volume;
   double current_volume_dB;
-  int minimum_volume_dB;
-  int maximum_volume_dB;
-  int has_true_mute;
-  int is_muted;
-  int valid;
+  int32_t minimum_volume_dB;
+  int32_t maximum_volume_dB;
 } audio_parameters;
 
 typedef struct {
@@ -42,6 +38,10 @@ typedef struct {
 
   // may be NULL, in which case soft volume parameters are used
   void (*parameters)(audio_parameters *info);
+  
+  // may be NULL, in which case software muting is used.
+  void (*mute)(int do_mute);
+  
 } audio_output;
 
 audio_output *audio_get_output(char *name);

@@ -1,4 +1,36 @@
-Version 2.6
+Version 2.7.3 -- Development Version
+----
+**Bug Fix**
+* The dither code was broken in Shairport Sync and also less than ideal anyway. Fixed and improved. Dither is added whenever you use the software volume control at less than full volume. See http://www.ece.rochester.edu/courses/ECE472/resources/Papers/Lipshitz_1992.pdf for a very influential paper by Lipshitz, Wannamaker and Vanderkooy, 1992. The dither code in Shairport Sync was inherited from Shairport and does not conform to the recommendations in the paper -- specifically the implementation would give one bit of dither where the paper recommends two bits peak-to-peak. The other thing is that the inherited dither code was actually broken in Shairport Sync. So, the new dither code gives a two bit peak-to-peak dither based on a Triangular Propability Distributing Function (TPDF). It sounds like a very low-level white noise, unmodulated by the audio material. It would be nice if it was even lower, but it's better than listening to the artifacts present when dithering is disabled.
+
+Version 2.7.2 -- Development Version
+----
+**Bug Fix**
+* Fix a bug that suppressed output of the `rtptime` associated with metadata and with picture information coming from the audio source and passed on via the metadata pipe.
+
+**Other Changes**
+* Added some more information to the log whenever problems are detected with the proposed alsa device. 
+
+Version 2.7.1 -- Development Version
+----
+**Bug Fix**
+* The new volume-extension code was not correctly setting the volume after a pause / resume. Fixed.
+
+Version 2.7 -- Development Version
+----
+**New Features**
+* Extend the volume range for some DACs. Background: some of the cheaper DACS have a very small volume range (that is, the ratio of the highest to the lowest volume, expressed in decibels). In some really cheap DACs it's only around 30 dB. That means that the difference betweeen the lowest and highest volume settings isn't large enough. With the new feature, if you set the `general` `volume_range_db` to more than the hardware mixer's range, Shairport Sync will combine the hardware mixer's range with a software attenuator to give the desired range. For example, suppose you want a volume range of 70 dB and the hardware mixer offers only 30 dB, then Shairport Sync will make up the other 40 dB with a software attenuator. One drawback is that, when the volume is being changed, there may be a slight delay (0.15 seconds by default) as the audio, whose volume may have been adjusted in software, propagates through the system. Another slight possible drawback is a slightly heavier load on the processor.
+* Check for underflow a little better when buffer aliasing occurs on very bad connections...
+* Add extra debug messages to the alsa back end to diagnose strange DACs.
+* Add configuration file for the `libao` back end -- to change the buffer size and the latency offset, same as for stdout.
+* Add `shairport-sync.exe` to `.gitignore`.
+* Add a check to support compilation on a CYGWIN platform.
+* Add `rtptime` tags to metadata and picture information and add two new metadata items to precede and follow the transmission of a picture. Background: it seems that metadata and picture information for the same item, e.g. a track, are normally tagged with a timestamp called the `rtptime`; if they refer to the same item, they will have the same `rtptime` tags. The update here is to add the `rtptime` value, if available, as data to the `mdst` and `mden` metadata items, which are  sent before ("MetaData STart") and after ("MetaData ENd") a metadata sequence.
+In addition, similar tags -- `pcst` ("PiCture STart") and `pcen` ("PiCture ENd") are now sent before and after a picture with the `rtptime` value, if available, sent as data.
+By the way, the progress metadata (`prgr` for "PRoGRess"), which is sent just when a track starts, contains the same `rtptime` as its middle element.
+
+
+Version 2.6 -- Stable Version
 ----
 This is basically version 2.4.2 with two small fixes. It's been bumped to 2.6 because (1) the new features added between 2.4.1 and 2.4.2 deserve more than just a bug-fix increment and (2) the development versions (2.5.x) should have lower numbers than the release versions, so that releases are always seen as upgrades. For example: 2.5.0.9 --> 2.6 looks like an upgrade, whereas 2.5.0.9 --> 2.4.2 looks like a downgrade.
 
@@ -88,7 +120,7 @@ Version 2.3.12
 
 
 **Enhancements**
-* Larger range of interpolation. Shairport Sync has previously constrained not to make interpolations ("corrections") of more than about 1 per 1000 real frames. This contraint has been relaxed, and it is now able to make corrections of up to 1 in 352 real frames. This might result in a faster and undesirably sudden correction early during a play session, so a number of further changes have been made. The full set of these changes is as follows:
+* Larger range of interpolation. Shairport Sync was previously constrained not to make interpolations ("corrections") of more than about 1 per 1000 frames. This contraint has been relaxed, and it is now able to make corrections of up to 1 in 352 frames. This might result in a faster and undesirably sudden correction early during a play session, so a number of further changes have been made. The full set of these changes is as follows:
   * No corrections happen for the first five seconds.
   * Corrections of up to about 1 in 1000 for the next 25 seconds.
   * Corrections of up to 1 in 352 thereafter.

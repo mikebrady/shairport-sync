@@ -691,7 +691,7 @@ void rtp_request_resend(seq_t first, uint32_t count) {
     *(unsigned short *)(req + 6) = htons(count); // count
     socklen_t msgsize = sizeof(struct sockaddr_in);
 #ifdef AF_INET6
-    if (rtp_client_timing_socket.SAFAMILY == AF_INET6) {
+    if (rtp_client_control_socket.SAFAMILY == AF_INET6) {
       msgsize = sizeof(struct sockaddr_in6);
     }
 #endif
