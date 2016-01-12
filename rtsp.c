@@ -455,6 +455,7 @@ static enum rtsp_read_request_response rtsp_read_request(int fd, rtsp_message **
 
   while (msg_size < 0) {
     if (please_shutdown) {
+      please_shutdown = 0;
       debug(1, "RTSP shutdown requested.");
       reply = rtsp_read_request_response_shutdown_requested;
       goto shutdown;
@@ -1564,7 +1565,6 @@ static void *rtsp_conversation_thread_func(void *pconn) {
     rtp_shutdown();
     player_stop();
     pthread_mutex_unlock(&play_lock);
-    please_shutdown = 0;
     pthread_mutex_unlock(&playing_mutex);
   }
   if (auth_nonce)
