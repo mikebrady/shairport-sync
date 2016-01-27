@@ -240,6 +240,22 @@ static int init(int argc, char **argv) {
           alsa_mix_mindb = suggested_alsa_min_db;
         else
           inform("The volume_range_db setting, %f is greater than the native range of the mixer %f, so it is ignored.",config.volume_range_db,(alsa_mix_maxdb-alsa_mix_mindb)/100.0);
+      }else{
+
+        if(config.isset_volume_min_db){
+          long suggested_alsa_min_db = (long) trunc(config.volume_min_db * 100);
+          if(suggested_alsa_min_db > alsa_mix_mindb){
+            alsa_mix_mindb = suggested_alsa_min_db; 
+          }
+        }
+
+        if(config.isset_volume_max_db){
+          long suggested_alsa_max_db = (long) trunc(config.volume_max_db * 100);
+          if(suggested_alsa_max_db < alsa_mix_maxdb){
+            alsa_mix_maxdb = suggested_alsa_max_db;
+          }
+        }
+        
       }
     } else {
       // use the linear scale and do the db conversion ourselves

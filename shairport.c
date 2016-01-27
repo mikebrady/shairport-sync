@@ -404,6 +404,20 @@ int parse_options(int argc, char **argv) {
               value);
         else
           config.volume_range_db = value;
+      }else{
+        if (config_lookup_int(config.cfg, "general.volume_min_db", &value)) {
+          config.isset_volume_min_db = 1;
+          config.volume_min_db = value;
+        }else{
+          config.isset_volume_min_db = 0;
+        }
+      
+        if (config_lookup_int(config.cfg, "general.volume_max_db", &value)) {
+          config.isset_volume_max_db = 1;
+          config.volume_max_db = value;
+        }else{
+          config.isset_volume_max_db = 0;
+        }
       }
 
 /* Get the default latency. Deprecated! */

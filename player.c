@@ -1231,18 +1231,35 @@ void player_volume(double f) {
     config.output->parameters(&audio_information);
   else {
     long mindb = -9630;
+    long maxdb = 0;
     if (config.volume_range_db) {
       long suggested_alsa_min_db = -(long)trunc(config.volume_range_db*100);
       if (suggested_alsa_min_db > mindb)
         mindb = suggested_alsa_min_db;
       else
         inform("The volume_range_db setting, %f is greater than the native range of the mixer %f, so it is ignored.",config.volume_range_db,mindb/100.0);
+    } else {
+      if(config.isset_volume_min_db){
+        long suggested_alsa_min_db = (long) trunc(config.volume_min_db * 100);
+        if(suggested_alsa_min_db > mindb){
+          mindb = suggested_alsa_min_db;
+        }
+      }
+      if(config.isset_volume_max_db){
+        maxdb = 9630;
+        long suggested_alsa_max_db = (long) trunc(config.volume_max_db * 100);
+        if(suggested_alsa_max_db < maxdb){
+          maxdb = suggested_alsa_max_db;
+        }
+      }
     }
-    double scaled_volume = vol2attn(f, 0, mindb);
+    //double scaled_volume = vol2attn(f, 0, mindb);
+    double scaled_volume = vol2attn(f, maxdb, mindb);
     linear_volume = pow(10, scaled_volume / 2000);
     audio_information.airplay_volume = f;
     audio_information.minimum_volume_dB = mindb;
-    audio_information.maximum_volume_dB = 0;
+    //audio_information.maximum_volume_dB = 0;
+    audio_information.maximum_volume_dB = maxdb;
     audio_information.current_volume_dB = scaled_volume;
     audio_information.has_true_mute = 0;
     audio_information.is_muted = 0;
