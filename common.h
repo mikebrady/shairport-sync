@@ -83,6 +83,10 @@ typedef struct {
   int32_t audio_backend_latency_offset; // this will be the offset to compensate for any fixed latency
   uint32_t volume_range_db; // the range, in dB, from max dB to min dB. Zero means use the mixer's native range.
                                      // there might be in the audio
+  int isset_volume_min_db;
+  int isset_volume_max_db;
+  int32_t volume_min_db;
+  int32_t volume_max_db;
 } shairport_cfg;
 
 // true if Shairport Sync is supposed to be sending output to the output device, false otherwise
