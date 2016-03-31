@@ -939,6 +939,8 @@ static void *player_thread_func(void *arg) {
   int32_t minimum_buffer_occupancy = BUFFER_FRAMES;
   int32_t maximum_buffer_occupancy = 0;
 
+  time_t playstart = time(NULL);
+
   buffer_occupancy = 0;
 
   int play_samples;
@@ -1219,18 +1221,19 @@ static void *player_thread_func(void *arg) {
             if (at_least_one_frame_seen) {
             	if (config.output->delay) 
 								inform("Sync error: %.1f (frames); net correction: %.1f (ppm); corrections: %.1f "
-											 "(ppm); missing packets %llu; late packets %llu; too late packets %llu; "
+											 "(ppm); total packets %d; missing packets %llu; late packets %llu; too late packets %llu; "
 											 "resend requests %llu; min DAC queue size %lli, min and max buffer occupancy "
 											 "%d and %d.",
 											 moving_average_sync_error, moving_average_correction * 1000000 / 352,
-											 moving_average_insertions_plus_deletions * 1000000 / 352, missing_packets,
+											 moving_average_insertions_plus_deletions * 1000000 / 352,
+											 play_number, missing_packets,
 											 late_packets, too_late_packets, resend_requests, minimum_dac_queue_size,
 											 minimum_buffer_occupancy, maximum_buffer_occupancy);
               else
-								inform("Synchronisation disabled. Missing packets %llu; late packets %llu; too late packets %llu; "
+								inform("Synchronisation disabled. total packets %d; missing packets %llu; late packets %llu; too late packets %llu; "
 											 "resend requests %llu; min and max buffer occupancy "
 											 "%d and %d.",
-											 missing_packets,
+											 play_number, missing_packets,
 											 late_packets, too_late_packets, resend_requests,
 											 minimum_buffer_occupancy, maximum_buffer_occupancy);            
             } else {
@@ -1245,6 +1248,13 @@ static void *player_thread_func(void *arg) {
       }
     }
   }
+
+  int rawSeconds = (int) difftime( time( NULL ), playstart );
+  int elapsedHours = rawSeconds / 3600;
+  int elapsedMin = (rawSeconds / 60) % 60;
+  int elapsedSec = rawSeconds % 60;
+  inform( "Playback Stopped. Total playing time %02d:%02d:%02d\n", elapsedHours, elapsedMin, elapsedSec );
+
   if (config.output->stop)
   	config.output->stop();
   usleep(100000); // allow this time to (?) allow the alsa subsystem to finish cleaning up after itself. 50 ms seems too short

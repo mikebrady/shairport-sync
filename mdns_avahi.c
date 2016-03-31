@@ -42,12 +42,50 @@ static AvahiThreadedPoll *tpoll = NULL;
 static char *name = NULL;
 static int port = 0;
 
+static void register_service( AvahiClient *c );
+
 static void egroup_callback(AvahiEntryGroup *g, AvahiEntryGroupState state,
                             AVAHI_GCC_UNUSED void *userdata) {
-  if (state == AVAHI_ENTRY_GROUP_COLLISION)
-    die("service name already exists on network!");
-  if (state == AVAHI_ENTRY_GROUP_FAILURE)
-    die("avahi entry group failure!");
+   switch ( state )
+   {
+      case AVAHI_ENTRY_GROUP_ESTABLISHED:
+         /* The entry group has been established successfully */
+         inform("Service '%s' successfully established.\n", name );
+         break;
+
+      case AVAHI_ENTRY_GROUP_COLLISION:
+      {
+         char *n;
+
+         /* A service name collision with a remote service
+          * happened. Let's pick a new name */
+         n = avahi_alternative_service_name( name );
+         avahi_free( name );
+         name = n;
+
+         warn( "Service name collision, renaming service to '%s'\n", name );
+
+         /* And recreate the services */
+         register_service( avahi_entry_group_get_client( g ) );
+         break;
+      }
+
+      case AVAHI_ENTRY_GROUP_FAILURE:
+        die( "Entry group failure: %s\n", avahi_strerror( avahi_client_errno( avahi_entry_group_get_client( g ) ) ) );
+        break;
+
+      case AVAHI_ENTRY_GROUP_UNCOMMITED:
+         debug(1, "Service '%s' group is not yet commited.\n", name );
+         break;
+
+      case AVAHI_ENTRY_GROUP_REGISTERING:
+         inform( "Service '%s' group is registering.\n", name );
+         break;
+
+      default:
+         warn( "Unhandled avahi egroup state: %d\n", state );
+         break;
+   }
 }
 
 static void register_service(AvahiClient *c) {
@@ -88,21 +126,30 @@ static void register_service(AvahiClient *c) {
 static void client_callback(AvahiClient *c, AvahiClientState state,
                             AVAHI_GCC_UNUSED void *userdata) {
   switch (state) {
-  case AVAHI_CLIENT_S_REGISTERING:
-    if (group)
-      avahi_entry_group_reset(group);
-    break;
+     case AVAHI_CLIENT_S_REGISTERING:
+       if (group)
+         avahi_entry_group_reset(group);
+       break;
 
-  case AVAHI_CLIENT_S_RUNNING:
-    register_service(c);
-    break;
+     case AVAHI_CLIENT_S_RUNNING:
+       register_service(c);
+       break;
 
-  case AVAHI_CLIENT_FAILURE:
-  case AVAHI_CLIENT_S_COLLISION:
-    die("avahi client failure");
+     case AVAHI_CLIENT_FAILURE:
+       die("avahi client failure");
+       break;
 
-  case AVAHI_CLIENT_CONNECTING:
-    break;
+     case AVAHI_CLIENT_S_COLLISION:
+       warn( "Avahi state is AVAHI_CLIENT_S_COLLISION...needs a rename: %s\n", name );
+       break;
+
+     case AVAHI_CLIENT_CONNECTING:
+       inform( "Received AVAHI_CLIENT_CONNECTING\n" );
+       break;
+
+     default:
+       warn( "Unhandled avahi client state: %d\n", state );
+       break;
   }
 }
 
