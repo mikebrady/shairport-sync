@@ -147,6 +147,9 @@ void ask_other_rtsp_conversation_threads_to_stop(pthread_t except_this_thread);
 
 void pc_queue_init(pc_queue *the_queue, char *items, size_t item_size,
                    uint32_t number_of_items) {
+  pthread_mutex_init(&the_queue->pc_queue_lock, NULL);
+  pthread_cond_init(&the_queue->pc_queue_item_added_signal, NULL);
+  pthread_cond_init(&the_queue->pc_queue_item_removed_signal, NULL);
   the_queue->item_size = item_size;
   the_queue->items = items;
   the_queue->count = 0;
