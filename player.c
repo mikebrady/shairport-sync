@@ -378,6 +378,24 @@ void player_put_packet(seq_t seqno, uint32_t timestamp, uint8_t *data, int len) 
 					abuf->ready = 1;
 					abuf->timestamp = timestamp;
 					abuf->sequence_number = seqno;
+
+          if (config.mono) {
+            signed short *v = abuf->data;
+            int i;
+            int both;
+            for (i=frame_size;i;i--) {
+              int both = *v + *(v+1);
+              if (both > INT16_MAX) {
+                both = INT16_MAX;
+              } else if (both < INT16_MIN) {
+                both = INT16_MIN;
+              }
+              short sboth = (short)both;
+              *v++ = sboth;
+              *v++ = sboth;
+            }
+          }
+
         } else {
         	debug(1,"Bad audio packet detected and discarded.");
 					abuf->ready = 0;
