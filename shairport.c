@@ -420,7 +420,7 @@ int parse_options(int argc, char **argv) {
         else if (strcasecmp(str, "yes") == 0)
           config.mono = 1;
         else
-          die("Invalid general enabled option choice \"%s\". It should be \"yes\" or \"no\"");
+          die("Invalid mono option choice \"%s\". It should be \"yes\" or \"no\"");
       }
 
       /* Get the regtype -- the service type and protocol, separated by a dot. Default is "_raop._tcp" */
