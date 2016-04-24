@@ -207,6 +207,7 @@ void usage(char *progname) {
   printf("                            Executable scripts work, but must have #!/bin/sh (or "
          "whatever) in the headline.\n");
   printf("    -w, --wait-cmd          wait until the -B or -E programs finish before continuing.\n");
+  printf("    --mono                   convert all outgoing audio to mono.\n");
   printf("    -o, --output=BACKEND    select audio output method.\n");
   printf("    -m, --mdns=BACKEND      force the use of BACKEND to advertize the service.\n");
   printf("                            if no mdns provider is specified,\n");
@@ -253,6 +254,7 @@ int parse_options(int argc, char **argv) {
       {"on-start", 'B', POPT_ARG_STRING, &config.cmd_start, 0, NULL},
       {"on-stop", 'E', POPT_ARG_STRING, &config.cmd_stop, 0, NULL},
       {"wait-cmd", 'w', POPT_ARG_NONE, &config.cmd_blocking, 0, NULL},
+      {"mono", 0, POPT_ARG_NONE, &config.mono, 0, NULL},
       {"mdns", 'm', POPT_ARG_STRING, &config.mdns_name, 0, NULL},
       {"latency", 'L', POPT_ARG_INT, &config.userSuppliedLatency, 0, NULL},
       {"AirPlayLatency", 'A', POPT_ARG_INT, &config.AirPlayLatency, 0, NULL},
@@ -409,6 +411,16 @@ int parse_options(int argc, char **argv) {
           config.ignore_volume_control = 1;
         else
           die("Invalid ignore_volume_control option choice \"%s\". It should be \"yes\" or \"no\"");
+      }
+
+      /* Get the mono setting */
+      if (config_lookup_string(config.cfg, "general.mono", &str)) {
+        if (strcasecmp(str, "no") == 0)
+          config.mono = 0;
+        else if (strcasecmp(str, "yes") == 0)
+          config.mono = 1;
+        else
+          die("Invalid mono option choice \"%s\". It should be \"yes\" or \"no\"");
       }
 
       /* Get the regtype -- the service type and protocol, separated by a dot. Default is "_raop._tcp" */
@@ -961,6 +973,7 @@ int main(int argc, char **argv) {
   debug(1, "drift tolerance is %d frames.", config.tolerance);
   debug(1, "password is \"%s\".", config.password);
   debug(1, "ignore_volume_control is %d.", config.ignore_volume_control);
+  debug(1, "mono is %d.", config.mono);
   debug(1, "disable_synchronization is %d.", config.no_sync);
   debug(1, "audio backend desired buffer length is %d.",
         config.audio_backend_buffer_desired_length);
