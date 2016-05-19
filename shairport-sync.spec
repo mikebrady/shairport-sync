@@ -1,29 +1,29 @@
-Name:		shairport-sync
-Version:	2.8.2
-Release:	1%{?dist}
-Summary:	AirTunes emulator. Shairport Sync adds multi-room capability with Audio Synchronisation
+Name:           shairport-sync
+Version:        2.8.3
+Release:        1%{?dist}
+Summary:        AirTunes emulator. Shairport Sync adds multi-room capability with Audio Synchronisation.
 
-Group:		Applications/Multimedia
-License:	GPL
-URL:		https://github.com/mikebrady/shairport-sync
-Source0:	https://github.com/mikebrady/%{name}/archive/%{version}.tar.gz#/%{name}-%{version}.tar.gz
+Group:          Applications/Multimedia
+License:        GPL
+URL:            https://github.com/mikebrady/shairport-sync
+Source0:        https://github.com/mikebrady/%{name}/archive/%{version}.tar.gz#/%{name}-%{version}.tar.gz
 
-BuildRequires:	autoconf
-BuildRequires:	automake
-BuildRequires:	libconfig-devel
-BuildRequires:	popt-devel
-BuildRequires:	openssl-devel
-BuildRequires:	libdaemon-devel
-BuildRequires:	avahi-devel
-BuildRequires:	alsa-lib-devel
-BuildRequires:	systemd-units
-BuildRequires:	soxr-devel
-Requires:	popt
-Requires:	openssl
-Requires:	avahi
-Requires:	libdaemon
-Requires:	alsa-lib
-Requires:	soxr
+BuildRequires:  autoconf
+BuildRequires:  automake
+BuildRequires:  libconfig-devel
+BuildRequires:  popt-devel
+BuildRequires:  openssl-devel
+BuildRequires:  libdaemon-devel
+BuildRequires:  avahi-devel
+BuildRequires:  alsa-lib-devel
+BuildRequires:  systemd-units
+BuildRequires:  soxr-devel
+Requires:       popt
+Requires:       openssl
+Requires:       avahi
+Requires:       libdaemon
+Requires:       alsa-lib
+Requires:       soxr
 
 %description
 Shairport Sync emulates an AirPort Express for the purpose of streaming audio from iTunes, iPods, iPhones, iPads and AppleTVs. Audio played by a Shairport Sync-powered device stays synchronised with the source and hence with similar devices playing the same source. Thus, for example, synchronised multi-room audio is possible without difficulty. (Hence the name Shairport Sync, BTW.)
@@ -45,8 +45,8 @@ rm %{buildroot}/etc/shairport-sync.conf.sample
 %pre
 getent group %{name} &>/dev/null || groupadd --system %{name} >/dev/null
 getent passwd %{name} &> /dev/null || useradd --system -c "%{name} User" \
-	-d %{_localstatedir}/%{name} -m -g %{name} -s /sbin/nologin \
-	-G audio %{name} >/dev/null
+        -d %{_localstatedir}/%{name} -m -g %{name} -s /sbin/nologin \
+        -G audio %{name} >/dev/null
 
 %files
 %config /etc/shairport-sync.conf
