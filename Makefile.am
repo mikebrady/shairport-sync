@@ -52,13 +52,13 @@ endif
 
 install-exec-hook:
 if INSTALL_CONFIG_FILES
-	[ -e $(DESTDIR)/etc ] || mkdir $(DESTDIR)/etc
-	cp scripts/shairport-sync.conf $(DESTDIR)/etc/shairport-sync.conf.sample
-	[ -f $(DESTDIR)/etc/shairport-sync.conf ] || cp scripts/shairport-sync.conf $(DESTDIR)/etc/shairport-sync.conf
+	[ -e $(DESTDIR)$(sysconfdir) ] || mkdir $(DESTDIR)$(sysconfdir)
+	cp scripts/shairport-sync.conf $(DESTDIR)$(sysconfdir)/shairport-sync.conf.sample
+	[ -f $(DESTDIR)$(sysconfdir)/shairport-sync.conf ] || cp scripts/shairport-sync.conf $(DESTDIR)$(sysconfdir)/shairport-sync.conf
 endif
 if INSTALL_SYSTEMV
-	[ -e $(DESTDIR)/etc/init.d ] || mkdir -p $(DESTDIR)/etc/init.d
-	[ -f $(DESTDIR)/etc/init.d/shairport-sync ] || cp scripts/shairport-sync $(DESTDIR)/etc/init.d/
+	[ -e $(DESTDIR)$(sysconfdir)/init.d ] || mkdir -p $(DESTDIR)$(sysconfdir)/init.d
+	[ -f $(DESTDIR)$(sysconfdir)/init.d/shairport-sync ] || cp scripts/shairport-sync $(DESTDIR)$(sysconfdir)/init.d/
 endif
 if INSTALL_SYSTEMD
 	[ -e $(DESTDIR)$(systemdsystemunitdir) ] || mkdir -p $(DESTDIR)$(systemdsystemunitdir)
