@@ -156,7 +156,7 @@ pi@raspberrypi ~ $
 ```
 whereas on a system without `systemd` – presumably using System V – (this is a from a Raspberry Pi running Raspbian Wheezy) , you'll get nothing:
 ```
-pi@raspberrypi ~ $ ps aux | grep systemd | grep -v grep
+pi@raspberrypi ~ $ ps aux | grep [s]ystemd
 pi@raspberrypi ~ $ 
 ```
 Choose `--with-systemd` or `--with-systemv` on the basis of the outcome.
