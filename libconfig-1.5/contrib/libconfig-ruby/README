@@ -1,0 +1,76 @@
+# << Usage >>
+
+# you can feed this README to irb and see the result
+# $ irb README
+
+# IMPORTANT NOTICE:
+# be careful with big *fixnum* (plain int) values in configs
+# int is 32 bit, but ruby fixnum is only 31!
+# For example, 2100000000 will be read as -47483648.
+
+require 'rconfig'
+c = Config.new
+
+c.read!('test.cfg')
+# => IOError
+c.read('test.cfg')
+# => false
+
+p c['some_var']
+# => SettingNotFoundError
+# note: Config#lookup is alias for Config#[]
+
+c.append 'fixnum', Config::Fixnum.new(150)
+# #<Config::Fixnum...>
+
+f1 = Config::Fixnum.new(1)
+c.append 'another_fixnum', f1
+
+f2 = Config::Fixnum.new(256)
+c.append 'next_fixnum', f2
+
+p c.size
+# => 3
+
+c.delete(f1)            # by element
+c.delete(0)             # by index
+c.delete('next_fixnum') # by name
+# note: (at now) you cannot delete nested elements by Config#delete
+#       you can do c['nested.element'].parent.delete(c['nested.element'])
+
+p c.size
+# => 0
+
+l = Config::List.new
+c.append 'the_list', l
+
+l.append Config::String.new("abcdef")
+l << Config::Float.new(3.14)
+# note: Config::List#append and Config::Array#append both have
+#       aliases Config::[Aggregate]#<<
+
+p l.name
+# => "the_list"
+
+p l.index
+# => 0
+
+p l.root?
+# => false
+
+p l.size
+# => 3
+
+l[0].format = Config::FORMAT_HEX
+
+p l[1].value
+# => 3.14
+
+l[1].value = 2.71828
+
+c.write 'test.cfg'
+
+# you will get test.cfg with following contents:
+#
+# the_list = ( "abcdef", 2.71828, 0x2A );
+#

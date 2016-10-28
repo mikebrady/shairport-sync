@@ -1,0 +1,5 @@
+version=3
+
+# Full-site-with-pattern  [Version  [Action]]
+http://www.hyperrealm.com/libconfig/index.html \
+	libconfig-(.+)\.tar\.gz

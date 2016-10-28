@@ -1,0 +1,17 @@
+require 'rubygems'
+require 'rubygems/package_task'
+
+spec = Gem::Specification.new do |s| 
+  s.name = "rconfig"
+  s.version = "1.0"
+  s.author = "Peter Zotov"
+  s.email = "whitequark@whitequark.ru"
+  s.platform = Gem::Platform::RUBY
+  s.summary = "libconfig bindings"
+  s.files = [ File.join('ext', 'extconf.rb'), File.join('ext', 'rconfig.c') ].to_a
+  s.extensions = 'ext/extconf.rb'
+end
+ 
+Rake::GemPackageTask.new(spec) do |pkg| 
+end
+ 

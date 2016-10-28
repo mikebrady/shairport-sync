@@ -1,0 +1,98 @@
+Source: libconfig
+Priority: optional
+Maintainer: Klaus Schneider <kschn@users.sourceforge.net>
+Uploaders: Julien Danjou <acid@debian.org>
+Build-Depends: debhelper (>= 5), autotools-dev, texinfo, texlive-latex-base
+Standards-Version: 3.8.0
+Homepage: http://www.hyperrealm.com/libconfig/
+Section: libs
+
+Package: libconfig9
+Section: libs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: processing of structured configuration files
+ This library features a fully reentrant parser and includes bindings for
+ both the C and C++ programming languages. It runs on modern POSIX-compliant
+ systems such as Linux, Solaris, and Mac OS X (Darwin), as well as on 
+ Microsoft Windows 2000/XP and later (Visual Studio or MinGW).
+ .
+ This library allows parsing, manipulating and writing structured configuration
+ files.
+
+Package: libconfig++9
+Section: libs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: processing of structured configuration files (C++ binding)
+ This library features a fully reentrant parser and includes bindings for
+ both the C and C++ programming languages. It runs on modern POSIX-compliant
+ systems such as Linux, Solaris, and Mac OS X (Darwin), as well as on 
+ Microsoft Windows 2000/XP and later (Visual Studio or MinGW).
+ .
+ This library allows parsing, manipulating and writing structured configuration
+ files.
+ .
+ This is the C++ binding.
+
+Package: libconfig9-dev
+Section: libdevel
+Architecture: any
+Provides: libconfig-dev
+Depends: libconfig9 (= ${binary:Version}), pkg-config (>= 0.20)
+Conflicts: libconfig8-dev
+Description: processing of structured config files (development)
+ This library features a fully reentrant parser and includes bindings for
+ both the C and C++ programming languages. It runs on modern POSIX-compliant
+ systems such as Linux, Solaris, and Mac OS X (Darwin), as well as on 
+ Microsoft Windows 2000/XP and later (Visual Studio or MinGW).
+ .
+ This library allows parsing, manipulating and writing structured configuration
+ files. Its main features are:
+  - A fully reentrant parser: Multiple configurations can be parsed in
+    concurrent threads at the same time.
+  - A simple, structured configuration file format: more readable and compact
+    than XML and more flexible than Windows' "INI" file format.
+  - A low-footprint implementation
+  - Proper documentation.
+ .
+ This package contains the files needed in order to use libconfig
+ in your own programs.
+
+Package: libconfig++9-dev
+Section: libdevel
+Architecture: any
+Provides: libconfig++-dev
+Depends: libconfig++9 (= ${binary:Version}), libconfig9 (= ${binary:Version}), pkg-config (>= 0.20)
+Conflicts: libconfig++8-dev
+Description: processing of structured config files (C++ development)
+ This library features a fully reentrant parser and includes bindings for
+ both the C and C++ programming languages. It runs on modern POSIX-compliant
+ systems such as Linux, Solaris, and Mac OS X (Darwin), as well as on 
+ Microsoft Windows 2000/XP and later (Visual Studio or MinGW).
+ .
+ This library allows parsing, manipulating and writing structured configuration
+ files. Its main features are:
+  - A fully reentrant parser: Multiple configurations can be parsed in
+    concurrent threads at the same time.
+  - A simple, structured configuration file format: more readable and compact
+    than XML and more flexible than Windows' "INI" file format.
+  - A low-footprint implementation
+  - Proper documentation.
+ .
+ This package contains the files needed in order to use libconfig
+ in your own C++ programs.
+
+Package: libconfig9-dbg
+Section: debug
+Architecture: any
+Depends: libconfig9 (= ${binary:Version})
+Description: debug symbols for libconfig9
+ This package provides debugging information for libconfig library
+
+Package: libconfig++9-dbg
+Section: debug
+Architecture: any
+Depends: libconfig++9 (= ${binary:Version})
+Description: debug symbols for libconfig++9
+ This package provides debugging information for C++ API of libconfig library

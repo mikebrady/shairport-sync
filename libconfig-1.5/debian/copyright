@@ -1,0 +1,65 @@
+This package was debianized by Jose Luis Tallon <jltallon@adv-solutions.net> on
+Tue, 10 Oct 2006 01:42:09 +0200.
+
+It was downloaded from http://www.hyperrealm.com/libconfig
+
+Upstream Author: Mark A Lindner
+	Mark Lindner - Lead developer & maintainer.
+	Daniel Marjamdki - Enhancements & bugfixes.
+	Andrew Tytula - Windows Port.
+	Glenn Herteg - Enhancements, bugfixes, documentation corrections.
+
+
+Copyright:	Copyright (C) 2005-2009  Mark A Lindner
+
+License:	(LGPL-2.1)
+
+   This library is free software; you can redistribute it and/or
+   modify it under the terms of the GNU Lesser General Public License
+   as published by the Free Software Foundation; either version 2.1 of
+   the License, or (at your option) any later version.
+
+   This library is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+   Lesser General Public License for more details.
+
+
+
+On Debian systems, the full text of GNU's Lesser General Public License can
+be found at /usr/share/common-licenses/LGPL-2.1
+
+
+The Debian packaging is (C) 2006-2008, Jose Luis Tallon <jltallon@adv-solutions.net>
+and is licensed under the GPL, see `/usr/share/common-licenses/GPL'.
+This package was debianized by Klaus Schneider <kschn@users.sourceforge.net> on
+Mon, 25 Jun 2007 16:21:56 +0200.
+
+It was downloaded from http://www.hyperrealm.com/libconfig/libconfig.html
+
+Upstream Author: Mark A. Lindner
+
+Copyright: (c) 2005-2009 Mark A. Lindner
+
+License:
+
+    This package is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2 of the License, or (at your option) any later version.
+
+    This package is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public
+    License along with this package; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+
+On Debian systems, the complete text of the GNU Lesser General
+Public License can be found in `/usr/share/common-licenses/LGPL'.
+
+
+The Debian packaging is (C) 2007, Klaus Schneider <kschn@users.sourceforge.net> and
+is licensed under the GPL, see `/usr/share/common-licenses/GPL'.
