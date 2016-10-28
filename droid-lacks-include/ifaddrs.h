@@ -1,1 +1,1 @@
-../lib/ifaddrs.h
+../droid-lacks-src/ifaddrs.h

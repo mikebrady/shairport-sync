@@ -6,8 +6,8 @@ include $(LOCAL_PATH)/droid_conf.mk
 include $(CLEAR_VARS)
 LOCAL_MODULE := shairport
 LOCAL_MODULE_TAGS := optional
-LOCAL_SRC_FILES := shairport.c rtsp.c mdns.c mdns_external.c common.c rtp.c player.c alac.c audio.c random.c
-
+LOCAL_SRC_FILES := shairport.c common.c rtsp.c mdns.c mdns_external.c rtp.c player.c alac.c audio.c 
+LOCAL_SRC_FILES += droid-lacks-src/random.c
 
 ## 
 $(info "Please get libdaemon from https://android.googlesource.com/platform/external/libdaemon")
