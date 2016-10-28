@@ -1074,8 +1074,10 @@ static void *player_thread_func(void *arg) {
   char rnstate[256];
   if (local_initstate)
     local_initstate(time(NULL), rnstate, 256);
+#if defined(__android__)
   else
     shairport_initstate(time(NULL), rnstate, 256);
+#endif
 
   signed short *inbuf, *outbuf, *silence;
   outbuf = malloc(bytes_per_audio_frame*(frame_size+max_frame_size_change));

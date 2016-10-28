@@ -34,14 +34,9 @@ static void play(short buf[], int samples) {
      fd = open(pipename, O_WRONLY | O_NONBLOCK); 
   }
   // if it's got a reader, write to it.
-    int ignore;
   if (fd != -1) {
-    //int ignore = non_blocking_write(fd, buf, samples * 4);
-    ignore = non_blocking_write(fd, buf, samples * 4);
-    if (ignore != samples)
-    	ALOGI("rktube audio play buffer length =%d, ignore=%d\n", samples,ignore);
+    int ignore = non_blocking_write(fd, buf, samples * 4);
   } 
-  ALOGI("rktube audio play buffer length =%d, ignore=%d\n", samples,ignore);
 }
 
 static void stop(void) { 
