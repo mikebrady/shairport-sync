@@ -50,8 +50,8 @@
 #include <openssl/md5.h>
 #endif
 
-#ifdef HAVE_LIBPOLARSSL
-#include <polarssl/md5.h>
+#ifdef HAVE_LIBMBEDTLS
+#include <mbedtls/md5.h>
 #endif
 
 #include "common.h"
@@ -979,7 +979,7 @@ static void handle_set_parameter_parameter(rtsp_conn_info *conn,
 // more significant changes make it not malloc memory
 // needs to initialise the docoding table first
 
-// add _so to end of name to avoid confusion with polarssl's implementation
+// add _so to end of name to avoid confusion with SSL library implementation
 
 static char encoding_table[] = {
     'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
@@ -1651,21 +1651,21 @@ static int rtsp_auth(char **nonce, rtsp_message *req, rtsp_message *resp) {
   MD5_Final(digest_mu, &ctx);
 #endif
 
-#ifdef HAVE_LIBPOLARSSL
-  md5_context tctx;
-  md5_starts(&tctx);
-  md5_update(&tctx, (const unsigned char *)username, strlen(username));
-  md5_update(&tctx, (unsigned char *)":", 1);
-  md5_update(&tctx, (const unsigned char *)realm, strlen(realm));
-  md5_update(&tctx, (unsigned char *)":", 1);
-  md5_update(&tctx, (const unsigned char *)config.password,
+#ifdef HAVE_LIBMBEDTLS
+  mbedtls_md5_context tctx;
+  mbedtls_md5_starts(&tctx);
+  mbedtls_md5_update(&tctx, (const unsigned char *)username, strlen(username));
+  mbedtls_md5_update(&tctx, (unsigned char *)":", 1);
+  mbedtls_md5_update(&tctx, (const unsigned char *)realm, strlen(realm));
+  mbedtls_md5_update(&tctx, (unsigned char *)":", 1);
+  mbedtls_md5_update(&tctx, (const unsigned char *)config.password,
              strlen(config.password));
-  md5_finish(&tctx, digest_urp);
-  md5_starts(&tctx);
-  md5_update(&tctx, (const unsigned char *)req->method, strlen(req->method));
-  md5_update(&tctx, (unsigned char *)":", 1);
-  md5_update(&tctx, (const unsigned char *)uri, strlen(uri));
-  md5_finish(&tctx, digest_mu);
+  mbedtls_md5_finish(&tctx, digest_urp);
+  mbedtls_md5_starts(&tctx);
+  mbedtls_md5_update(&tctx, (const unsigned char *)req->method, strlen(req->method));
+  mbedtls_md5_update(&tctx, (unsigned char *)":", 1);
+  mbedtls_md5_update(&tctx, (const unsigned char *)uri, strlen(uri));
+  mbedtls_md5_finish(&tctx, digest_mu);
 #endif
 
   int i;
@@ -1685,16 +1685,16 @@ static int rtsp_auth(char **nonce, rtsp_message *req, rtsp_message *resp) {
   MD5_Final(digest_total, &ctx);
 #endif
 
-#ifdef HAVE_LIBPOLARSSL
-  md5_starts(&tctx);
-  md5_update(&tctx, buf, 32);
-  md5_update(&tctx, (unsigned char *)":", 1);
-  md5_update(&tctx, (const unsigned char *)*nonce, strlen(*nonce));
-  md5_update(&tctx, (unsigned char *)":", 1);
+#ifdef HAVE_LIBMBEDTLS
+  mbedtls_md5_starts(&tctx);
+  mbedtls_md5_update(&tctx, buf, 32);
+  mbedtls_md5_update(&tctx, (unsigned char *)":", 1);
+  mbedtls_md5_update(&tctx, (const unsigned char *)*nonce, strlen(*nonce));
+  mbedtls_md5_update(&tctx, (unsigned char *)":", 1);
   for (i = 0; i < 16; i++)
     sprintf((char *)buf + 2 * i, "%02x", digest_mu[i]);
-  md5_update(&tctx, buf, 32);
-  md5_finish(&tctx, digest_total);
+  mbedtls_md5_update(&tctx, buf, 32);
+  mbedtls_md5_finish(&tctx, digest_total);
 #endif
 
   for (i = 0; i < 16; i++)

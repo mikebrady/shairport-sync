@@ -47,9 +47,9 @@
 
 #include "config.h"
 
-#ifdef HAVE_LIBPOLARSSL
-#include <polarssl/aes.h>
-#include <polarssl/havege.h>
+#ifdef HAVE_LIBMBEDTLS
+#include <mbedtls/aes.h>
+#include <mbedtls/havege.h>
 #endif
 
 #ifdef HAVE_LIBSSL
@@ -82,8 +82,8 @@ static int max_frame_size_change = 1;
 // maximal resampling shift - conservative
 //#define OUTFRAME_BYTES(frame_size) (4 * (frame_size + 3))
 
-#ifdef HAVE_LIBPOLARSSL
-static aes_context dctx;
+#ifdef HAVE_LIBMBEDTLS
+static mbedtls_aes_context dctx;
 #endif
 
 //static pthread_t player_thread = NULL;
@@ -247,8 +247,8 @@ static int alac_decode(short *dest, int *destlen, uint8_t *buf, int len) {
     unsigned char iv[16];
     int aeslen = len & ~0xf;
     memcpy(iv, aesiv, sizeof(iv));
-#ifdef HAVE_LIBPOLARSSL
-    aes_crypt_cbc(&dctx, AES_DECRYPT, aeslen, iv, buf, packet);
+#ifdef HAVE_LIBMBEDTLS
+    mbedtls_aes_crypt_cbc(&dctx, MBEDTLS_AES_DECRYPT, aeslen, iv, buf, packet);
 #endif
 #ifdef HAVE_LIBSSL
     AES_cbc_encrypt(buf, packet, aeslen, &aes, iv, AES_DECRYPT);
@@ -1685,9 +1685,9 @@ int player_play(stream_cfg *stream, pthread_t *player_thread) {
     die("specified buffer starting fill %d > buffer size %d", config.buffer_start_fill,
         BUFFER_FRAMES);
   if (encrypted) {
-#ifdef HAVE_LIBPOLARSSL
-    memset(&dctx, 0, sizeof(aes_context));
-    aes_setkey_dec(&dctx, stream->aeskey, 128);
+#ifdef HAVE_LIBMBEDTLS
+    memset(&dctx, 0, sizeof(mbedtls_aes_context));
+    mbedtls_aes_setkey_dec(&dctx, stream->aeskey, 128);
 #endif
 
 #ifdef HAVE_LIBSSL
