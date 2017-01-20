@@ -37,6 +37,7 @@ ifeq ($(strip $(CONFIG_SOXR)),yes)
 endif
 
 ifeq ($(strip $(CONFIG_OPENSSL)),yes)
+  LOCAL_CFLAGS += -DHAVE_LIBSSL
   LOCAL_SHARED_LIBRARIES +=  libssl libcrypto
   LOCAL_C_INCLUDES += external/openssl \
 	external/openssl/include 
