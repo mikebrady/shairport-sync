@@ -1,4 +1,3 @@
-
 LOCAL_PATH := $(call my-dir)
 
 include $(LOCAL_PATH)/droid_conf.mk
@@ -6,7 +5,7 @@ include $(LOCAL_PATH)/droid_conf.mk
 include $(CLEAR_VARS)
 LOCAL_MODULE := shairport
 LOCAL_MODULE_TAGS := optional
-LOCAL_SRC_FILES := shairport.c common.c rtsp.c mdns.c mdns_external.c rtp.c player.c alac.c audio.c 
+LOCAL_SRC_FILES := shairport.c common.c rtsp.c mdns.c mdns_external.c rtp.c player.c alac.c audio.c
 LOCAL_SRC_FILES += droid-lacks-src/random.c
 
 ## 
@@ -16,11 +15,10 @@ LOCAL_C_INCLUDES := $(LOCAL_PATH) \
   $(LOCAL_PATH)/droid-lacks-include \
   external/libdaemon
 
-LOCAL_CFLAGS := -Wno-missing-field-initializers \
-  -DSYSCONFDIR=\"/etc\" \
-  -D__android__
+LOCAL_CFLAGS := -g -Wno-missing-field-initializers \
+  -DSYSCONFDIR=\"/etc\"
 
-LOCAL_SHARED_LIBRARIES :=  libc liblog \
+LOCAL_SHARED_LIBRARIES := libc liblog \
   libcutils libdaemon 
 
 LOCAL_STATIC_LIBRARIES := \
@@ -28,8 +26,7 @@ LOCAL_STATIC_LIBRARIES := \
   libshairport_config-c
 
 ifeq ($(strip $(CONFIG_CUSTOMPIDDIR)),yes)
-  LOCAL_CFLAGS += \
-	-DPIDDIR=\"$(CUSTOM_PID_DIR)\"
+  LOCAL_CFLAGS += -DPIDDIR=\"$(CUSTOM_PID_DIR)\"
 endif
 
 ifeq ($(strip $(CONFIG_SOXR)),yes)
@@ -37,7 +34,6 @@ ifeq ($(strip $(CONFIG_SOXR)),yes)
 endif
 
 ifeq ($(strip $(CONFIG_OPENSSL)),yes)
-  LOCAL_CFLAGS += -DHAVE_LIBSSL
   LOCAL_SHARED_LIBRARIES +=  libssl libcrypto
   LOCAL_C_INCLUDES += external/openssl \
 	external/openssl/include 
@@ -100,4 +96,5 @@ endif
 
 include $(BUILD_EXECUTABLE)
 
-include $(call all-subdir-makefiles)
+#include $(call all-subdir-makefiles)
+

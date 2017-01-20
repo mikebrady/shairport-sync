@@ -2,7 +2,7 @@
  * rokid audio bridge
  */
 
-#if defined(__android__)
+#if defined(__ANDROID__)
 
 #include <stdio.h>
 #include <unistd.h>
@@ -118,5 +118,4 @@ audio_output audio_rktube = {.name = "rktube",
                             .parameters = NULL,
                             .mute = NULL};
 
-
-#endif // defined(__android)__
+#endif // defined(__ANDROID)__

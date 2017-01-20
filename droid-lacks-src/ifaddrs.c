@@ -25,7 +25,7 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#if defined(ANDROID)
+#if defined(__ANDROID__)
 #include "ifaddrs.h"
 #include <stdlib.h>
 #include <string.h>
@@ -244,4 +244,4 @@ void freeifaddrs(struct ifaddrs* addrs) {
     free(last);
   }
 }
-#endif  // defined(ANDROID)
+#endif  // defined(__ANDROID__)
