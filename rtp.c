@@ -91,7 +91,7 @@ static uint64_t departure_time; // dangerous -- this assumes that there will nev
 
 static pthread_mutex_t reference_time_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-uint64_t static local_to_remote_time_difference; // used to switch between local and remote clocks
+static uint64_t local_to_remote_time_difference; // used to switch between local and remote clocks
 
 void *rtp_audio_receiver(void *arg) {
   debug(2, "Audio receiver -- Server RTP thread starting.");

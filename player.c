@@ -37,7 +37,11 @@
 #include <math.h>
 #include <sys/stat.h>
 #include <signal.h>
+#ifdef __ANDROID__
+#include <syslog.h>
+#else
 #include <sys/syslog.h>
+#endif
 #include <assert.h>
 #include <fcntl.h>
 #include <stdlib.h>
@@ -472,6 +476,27 @@ static inline short dithered_vol(short sample) {
   return out >> 16;
 }
 
+static void absolute_timespec_from_timespec(struct timespec* abs_ts, const struct timespec* ts, clockid_t clock) {
+  #ifndef NS_PER_S
+  static const int64_t NS_PER_S = 1000000000LL;
+  #endif 
+  clock_gettime(clock, abs_ts);
+  abs_ts->tv_sec += ts->tv_sec;
+  abs_ts->tv_nsec += ts->tv_nsec;
+  if (abs_ts->tv_nsec >= NS_PER_S) {
+    abs_ts->tv_nsec -= NS_PER_S;
+    abs_ts->tv_sec++;
+  }
+}
+
+#ifdef COMPILE_FOR_LINUX_AND_FREEBSD_AND_CYGWIN
+// pthread_condattr_setclock is available only since Android 5.0. On older versions, there's
+// a private function for relative waits (hidden in 5.0).
+// Use weakref so we can determine at runtime whether each of them is present.
+static int local_condattr_setclock(pthread_condattr_t*, clockid_t)
+__attribute__((weakref("pthread_condattr_setclock")));
+#endif
+
 // get the next frame, when available. return 0 if underrun/stream reset.
 static abuf_t *buffer_get_frame(void) {
   int16_t buf_fill;
@@ -795,7 +820,13 @@ static abuf_t *buffer_get_frame(void) {
       time_of_wakeup.tv_sec = sec;
       time_of_wakeup.tv_nsec = nsec;
 
-      pthread_cond_timedwait(&flowcontrol, &ab_mutex, &time_of_wakeup);
+      if (local_condattr_setclock) {
+        pthread_cond_timedwait(&flowcontrol, &ab_mutex, &time_of_wakeup);
+      } else {
+        struct timespec realtime_of_wakeup;
+	absolute_timespec_from_timespec(&realtime_of_wakeup, &time_of_wakeup, CLOCK_REALTIME);
+        pthread_cond_timedwait(&flowcontrol, &ab_mutex, &realtime_of_wakeup);
+      }
 // int rc = pthread_cond_timedwait(&flowcontrol,&ab_mutex,&time_of_wakeup);
 // if (rc!=0)
 //  debug(1,"pthread_cond_timedwait returned error code %d.",rc);
@@ -985,6 +1016,16 @@ typedef struct stats { // statistics for running averages
   int64_t sync_error, correction, drift;
 } stats_t;
 
+
+extern char *
+shairport_initstate(
+        unsigned long seed,             /* seed for R.N.G. */
+        char *arg_state,                /* pointer to state array */
+        size_t n);
+
+static char* local_initstate(unsigned int, char*, size_t)
+__attribute__((weakref("initstate")));
+
 static void *player_thread_func(void *arg) {
 	struct inter_threads_record itr;
 	itr.please_stop = 0;
@@ -1031,7 +1072,12 @@ static void *player_thread_func(void *arg) {
   // other process.
 
   char rnstate[256];
-  initstate(time(NULL), rnstate, 256);
+  if (local_initstate)
+    local_initstate(time(NULL), rnstate, 256);
+#if defined(__android__)
+  else
+    shairport_initstate(time(NULL), rnstate, 256);
+#endif
 
   signed short *inbuf, *outbuf, *silence;
   outbuf = malloc(bytes_per_audio_frame*(frame_size+max_frame_size_change));
@@ -1708,7 +1754,9 @@ int player_play(stream_cfg *stream, pthread_t *player_thread) {
 #ifdef COMPILE_FOR_LINUX_AND_FREEBSD_AND_CYGWIN
   pthread_condattr_t attr;
   pthread_condattr_init(&attr);
-  pthread_condattr_setclock(&attr, CLOCK_MONOTONIC); // can't do this in OS X, and don't need it.
+  //pthread_condattr_setclock(&attr, CLOCK_MONOTONIC); // can't do this in OS X, and don't need it.
+  if (local_condattr_setclock)
+    local_condattr_setclock(&attr, CLOCK_MONOTONIC);
   int rc = pthread_cond_init(&flowcontrol, &attr);
 #endif
 #ifdef COMPILE_FOR_OSX
