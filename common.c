@@ -54,17 +54,14 @@
 #include <openssl/buffer.h>
 #endif
 
-#ifdef HAVE_LIBPOLARSSL
-#include <polarssl/version.h>
-#include <polarssl/base64.h>
-#include <polarssl/x509.h>
-#include <polarssl/md.h>
-#include "polarssl/entropy.h"
-#include "polarssl/ctr_drbg.h"
+#ifdef HAVE_LIBMBEDTLS
+#include <mbedtls/version.h>
+#include <mbedtls/base64.h>
+#include <mbedtls/x509.h>
+#include <mbedtls/md.h>
+#include "mbedtls/entropy.h"
+#include "mbedtls/ctr_drbg.h"
 
-#if POLARSSL_VERSION_NUMBER >= 0x01030000
-#include "polarssl/compat-1.2.h"
-#endif
 #endif
 
 #include "common.h"
@@ -126,16 +123,16 @@ void inform(char *format, ...) {
   daemon_log(LOG_INFO, "%s", s);
 }
 
-#ifdef HAVE_LIBPOLARSSL
+#ifdef HAVE_LIBMBEDTLS
 char *base64_enc(uint8_t *input, int length) {
   char *buf = NULL;
   size_t dlen = 0;
-  int rc = base64_encode(NULL, &dlen, input, length);
-  if (rc && (rc != POLARSSL_ERR_BASE64_BUFFER_TOO_SMALL))
+  int rc = mbedtls_base64_encode(NULL, 0, &dlen, input, length);
+  if (rc && (rc != MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL))
     debug(1, "Error %d getting length of base64 encode.", rc);
   else {
     buf = (char *)malloc(dlen);
-    rc = base64_encode((unsigned char *)buf, &dlen, input, length);
+    rc = mbedtls_base64_encode((unsigned char *)buf, dlen, &dlen, input, length);
     if (rc != 0)
       debug(1, "Error %d encoding base64.", rc);
   }
@@ -156,10 +153,10 @@ uint8_t *base64_dec(char *input, int *outlen) {
   else {
     strcpy(inbuf, input);
     strcat(inbuf, "===");
-    // debug(1,"base64_dec called with string \"%s\", length %d, filled string: \"%s\", length
-    // %d.",input,strlen(input),inbuf,inbufsize);
-    int rc = base64_decode(buf, &dlen, (unsigned char *)inbuf, inbufsize);
-    if (rc && (rc != POLARSSL_ERR_BASE64_BUFFER_TOO_SMALL))
+    // debug(1,"base64_dec called with string \"%s\", length %d, filled string: \"%s\", length %d.",
+    //		input,strlen(input),inbuf,inbufsize);
+    int rc = mbedtls_base64_decode(NULL, 0, &dlen, (unsigned char *)inbuf, inbufsize);
+    if (rc && (rc != MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL))
       debug(1, "Error %d getting decode length, result is %d.", rc, dlen);
     else {
       // debug(1,"Decode size is %d.",dlen);
@@ -167,7 +164,7 @@ uint8_t *base64_dec(char *input, int *outlen) {
       if (buf == 0)
         debug(1, "Can't allocate memory in base64_dec.");
       else {
-        rc = base64_decode(buf, &dlen, (unsigned char *)inbuf, inbufsize);
+        rc = mbedtls_base64_decode(buf, dlen, &dlen, (unsigned char *)inbuf, inbufsize);
         if (rc != 0)
           debug(1, "Error %d in base64_dec.", rc);
       }
@@ -280,58 +277,59 @@ uint8_t *rsa_apply(uint8_t *input, int inlen, int *outlen, int mode) {
 }
 #endif
 
-#ifdef HAVE_LIBPOLARSSL
+#ifdef HAVE_LIBMBEDTLS
 uint8_t *rsa_apply(uint8_t *input, int inlen, int *outlen, int mode) {
-  rsa_context trsa;
+  mbedtls_pk_context pkctx;
+  mbedtls_rsa_context *trsa;
   const char *pers = "rsa_encrypt";
+  size_t olen = *outlen;
   int rc;
 
-  entropy_context entropy;
-  ctr_drbg_context ctr_drbg;
-  entropy_init(&entropy);
-  if ((rc = ctr_drbg_init(&ctr_drbg, entropy_func, &entropy, (const unsigned char *)pers,
-                          strlen(pers))) != 0)
-    debug(1, "ctr_drbg_init returned %d\n", rc);
+  mbedtls_entropy_context entropy;
+  mbedtls_ctr_drbg_context ctr_drbg;
 
-  rsa_init(&trsa, RSA_PKCS_V21, POLARSSL_MD_SHA1); // padding and hash id get overwritten
-  // BTW, this seems to reset a lot of parameters in the rsa_context
-  rc = x509parse_key(&trsa, (unsigned char *)super_secret_key, strlen(super_secret_key), NULL, 0);
+  mbedtls_entropy_init(&entropy);
+
+  mbedtls_ctr_drbg_init(&ctr_drbg);
+  mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy,
+			(const unsigned char *)pers, strlen(pers));
+
+  mbedtls_pk_init(&pkctx);
+
+  rc = mbedtls_pk_parse_key(&pkctx, (unsigned char *)super_secret_key, sizeof(super_secret_key), NULL, 0);
   if (rc != 0)
-    debug(1, "Error %d reading the private key.");
+    debug(1, "Error %d reading the private key.", rc);
 
-  uint8_t *out = NULL;
+  uint8_t *outbuf = NULL;
+  trsa = mbedtls_pk_rsa(pkctx);  
 
   switch (mode) {
   case RSA_MODE_AUTH:
-    trsa.padding = RSA_PKCS_V15;
-    trsa.hash_id = POLARSSL_MD_NONE;
-    debug(2, "rsa_apply encrypt");
-    out = malloc(trsa.len);
-    rc = rsa_pkcs1_encrypt(&trsa, ctr_drbg_random, &ctr_drbg, RSA_PRIVATE, inlen, input, out);
+    mbedtls_rsa_set_padding(trsa, MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
+    outbuf = malloc(trsa->len);
+    rc = mbedtls_rsa_pkcs1_encrypt(trsa, mbedtls_ctr_drbg_random, &ctr_drbg, MBEDTLS_RSA_PRIVATE,
+			   inlen, input, outbuf);
     if (rc != 0)
-      debug(1, "rsa_pkcs1_encrypt error %d.", rc);
-    *outlen = trsa.len;
+      debug(1, "mbedtls_pk_encrypt error %d.", rc);
+    *outlen = trsa->len;
     break;
   case RSA_MODE_KEY:
-    debug(2, "rsa_apply decrypt");
-    trsa.padding = RSA_PKCS_V21;
-    trsa.hash_id = POLARSSL_MD_SHA1;
-    out = malloc(trsa.len);
-#if POLARSSL_VERSION_NUMBER >= 0x01020900
-    rc = rsa_pkcs1_decrypt(&trsa, ctr_drbg_random, &ctr_drbg, RSA_PRIVATE, (size_t *)outlen, input,
-                           out, trsa.len);
-#else
-    rc = rsa_pkcs1_decrypt(&trsa, RSA_PRIVATE, outlen, input, out, trsa.len);
-#endif
+    mbedtls_rsa_set_padding(trsa, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA1);
+    outbuf = malloc(trsa->len);
+    rc = mbedtls_rsa_pkcs1_decrypt(trsa, mbedtls_ctr_drbg_random, &ctr_drbg, MBEDTLS_RSA_PRIVATE, 
+			   &olen, input, outbuf, trsa->len);
     if (rc != 0)
-      debug(1, "decrypt error %d.", rc);
+      debug(1, "mbedtls_pk_decrypt error %d.", rc);
+    *outlen = olen;
     break;
   default:
     die("bad rsa mode");
   }
-  rsa_free(&trsa);
-  debug(2, "rsa_apply exit");
-  return out;
+
+  mbedtls_ctr_drbg_free(&ctr_drbg);
+  mbedtls_entropy_free(&entropy);
+  mbedtls_pk_free(&pkctx);
+  return outbuf;
 }
 #endif
 
@@ -517,7 +515,7 @@ ssize_t non_blocking_write(int fd, const void *buf, size_t count) {
 	void *ibuf = (void *)buf;
 	size_t bytes_remaining = count;
 	int rc = 0;
-  struct pollfd ufds[1];
+	struct pollfd ufds[1];
 	while ((bytes_remaining>0) && (rc==0)) {
 		// check that we can do some writing
 		ufds[0].fd = fd;

@@ -1,3 +1,9 @@
+Version 2.8.next – Proposed
+----
+
+Replace end-of-life PolarSSL with supported mbed TLS SSL library (https://tls.mbed.org/).<br>
+Configure: `--with-ssl=mbedtls` 
+
 Version 2.8.6 – Stable Candidate
 ----
 
