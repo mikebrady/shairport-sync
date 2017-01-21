@@ -31,6 +31,10 @@
 #include "mdns.h"
 #include "common.h"
 
+#ifndef HAVE_STPCPY
+extern char *shairport_stpcpy (char *dest, const char *src);
+#endif
+
 static DNSServiceRef service;
 
 static int mdns_dns_sd_register(char *apname, int port) {
@@ -64,7 +68,11 @@ static int mdns_dns_sd_register(char *apname, int port) {
   char *p = buf;
 
   for (field = record; *field; field++) {
+    #ifdef HAVE_STPCPY
     char *newp = stpcpy(p + 1, *field);
+    #else
+    char *newp = shairport_stpcpy(p + 1, *field);
+    #endif
     *p = newp - p - 1;
     p = newp;
   }

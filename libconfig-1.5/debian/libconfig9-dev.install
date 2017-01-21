@@ -1,0 +1,5 @@
+debian/tmp/usr/include/libconfig.h
+debian/tmp/usr/lib/libconfig.a
+debian/tmp/usr/lib/libconfig.so
+debian/tmp/usr/lib/libconfig.la
+debian/tmp/usr/lib/pkgconfig/libconfig.pc

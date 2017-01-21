@@ -2,6 +2,7 @@
 #define _PLAYER_H
 
 #include "audio.h"
+#include <pthread.h>
 
 typedef struct {
   int encrypted;

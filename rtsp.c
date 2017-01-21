@@ -1385,6 +1385,8 @@ static void handle_set_parameter(rtsp_conn_info *conn, rtsp_message *req,
   resp->respcode = 200;
 }
 
+static int rokid_hack_ftmp[12] = { 96, 352, 0, 16, 40, 10, 14, 2, 255, 0, 0, 44100 };
+
 static void handle_announce(rtsp_conn_info *conn, rtsp_message *req,
                             rtsp_message *resp) {
   int have_the_player = 0;
@@ -1483,8 +1485,12 @@ static void handle_announce(rtsp_conn_info *conn, rtsp_message *req,
     }
     int i;
     for (i = 0; i < sizeof(conn->stream.fmtp) / sizeof(conn->stream.fmtp[0]);
-         i++)
-      conn->stream.fmtp[i] = atoi(strsep(&pfmtp, " \t"));
+         i++) {
+      if (pfmtp == NULL)
+	conn->stream.fmtp[i] = rokid_hack_ftmp[i];
+      else
+        conn->stream.fmtp[i] = atoi(strsep(&pfmtp, " \t"));
+    }
 
     char *hdr = msg_get_header(req, "X-Apple-Client-Name");
     if (hdr) {

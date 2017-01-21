@@ -1,0 +1,661 @@
+
+	----- version 1.5 ------
+
+2015-05-16  Mark Lindner  <markl@neuromancer>
+
+	* lib/libconfig.c - Don't fclose() a null pointer.
+
+2014-09-19  Mark Lindner  <markl@neuromancer>
+
+	* lib/libconfig.c, lib/wincompat.h - check if file being opened is a
+	  directory
+	* lib/libconfig.c, lib/libconfig.h, lib/libconfig.h++,
+	  doc/libconfig.texi - added config_set_options(),
+	  config_get_options(), setOptions(), getOptions().
+
+2014-05-25  Mark Lindner  <markl@neuromancer>
+
+	* lib/libconfig.c++, lib/libconfig.h++ - added patches from Matt
+	  Renaud (added iterators, removed throws() specifications); added
+	  Setting.lookup(); code cleanup; added patch from Yuri Dyachenko
+	  (made exception constructors public)
+	* lib/libconfig.c, lib/libconfig.h - renamed
+	  config_setting_lookup_from() to config_setting_lookup() and
+	  documented it; patch from Alexander Klauer (floating point precision
+	  loss)
+	* doc/libconfig.texi - documented new APIs, bumped version
+	* lib/scanner.c, lib/scanner.h, lib/scanner.l, libconfig.c -
+	  scanner code cleanup; and regenerated with flex 2.5.39
+	* lib/grammar.c, lib/grammar.h, lib/grammar.y - parser code cleanup;
+	  and regenerated with bison 3.0.2
+	* README, ChangeLog - version updates
+
+2014-01-21  Mark Lindner  <markl@neuromancer>
+
+	* lib/libconfig.c - bugfix; capture root filename
+	* tests/Makefile.am - fix for out-of-source builds
+	* ac_config.h.in, aclocal.m4 - updated to newer autotools
+
+	----- version 1.4.9 ------
+
+2012-09-28  Mark Lindner  <markl@neuromancer>
+
+	* lib/libconfigcpp.c++ - Fixed compiler warnings in constructor
+	  initializers
+	* tinytest/tiytest.c, tinytest/tinytest.h - added tt_file_exists();
+	  added alternate implementations of some test macros since MSVC does
+	  not support C99 fully; added comparators for text files (ignoring
+	  line endings)
+	* tests/tests.c - use tt_file_exists() rather than access(); alias
+	  snprintf to _snprintf for MSVC; compare files as text files rather
+	  than as binary files
+	* lib/scanner.l - fixed parsing issue when backslash in string is
+	  followed by invalid escape character; reported by Jimmy Scott
+	* lib/scanner.c - regenerated
+	* lib/libconfig.h, lib/libconfig.h++, lib/Makefile.am,
+	  doc/libconfig.texi, configure.ac - bump version numbers
+	* aclocal.m4, ac_config.h - regenerated
+	* m4/*, aux-build/*, libtool - updated to newer
+
+2011-12-30  Mark Lindner  <markl@neuromancer>
+
+	* debian/control - updates from Jonathan McCrohan
+
+	----- version 1.4.8 ------
+
+2011-08-04  Mark Lindner  <markl@neuromancer>
+
+	* tests/Makefile.am - marked 'libconfig_tests' as non-installable
+	* lib/scanner.l, lib/grammar.y - grammar changes to make trailing
+	  semicolons optional (and to allow commas as an alternative)
+	* lib/libconfig.c - bugfixes for lack of auto-conversion handling in
+	  the config_lookup*() functions (reported by Feng Yu), and some
+	  fixes for compiler warnings
+	* lib/Makefile.am - bump .so version
+	* configure.ac - bump version, add '-Wno-unused-parameter' compiler
+	  switch to disable "unused parameter" warnings
+	* doc/libconfig.texi - documentation updates; added a chapter that
+	  calls attention to the bundled example programs
+	* lib/libconfig.h, lib/libconfig.h++ - bump versions
+
+	----- version 1.4.7 ------
+
+2011-03-11  Mark Lindner  <markl@neuromancer>
+
+	* doc/libconfig.texi - fixed typo; updated docs
+	* TODO - updated list
+	* lib/libconfig.c, lib/libconfig.h, lib/libconfigcpp.c++,
+	  lib/libconfig.h++ - added config{get,set}_default_format(),
+	  Config::{get,set}DefaultFormat()
+
+2011-03-10  Mark Lindner  <markl@neuromancer>
+
+	* lib/libconfig.c - fixed memory leak when encountering a parse error
+	  in an @include'd file
+	* lib/libconfig.h, lib/libconfig.h++, lib/Makefile.am, configure.ac,
+	  doc/libconfig.texi - bump versions
+
+	----- version 1.4.6 ------
+
+2010-09-10  Mark Lindner  <markl@neuromancer>
+
+	* doc/libconfig.texi - documentation updates
+	* lib/libconfig.c, lib/libconfigcpp.c++, lib/libconfig.h,
+	  lib/libconfig.h++, lib/wincompat.h, lib/scanctx.c - added support
+	  for specifying an include directory
+	* m4/* - added local m4 directory
+	* contrib/* - added user-contributed files
+
+2010-09-07  Mark Lindner  <markl@neuromancer>
+
+	* lib/scanner.l - bugfix for parse error when there is a missing
+	  newline at the end of the file
+	* lib/libconfig.h, lib/libconfig.h++, lib/Makefile.am - bump version
+	* tinytest/* - added a simple unit testing framework
+	* tests/* - added preliminary unit tests
+	* configure.ac, ac_config.h, ac_config.h.in, Makefile.am,
+	  lib/Makefile.am, libtool, doc/libconfig.texi - bump versions/dates
+	* lib/grammar.h, lib/grammar.c - regenerated with newer version of
+	  Bison
+	* lib/libconfig.c - bugfix: explicitly set starting line number to 1
+	  when parsing from strings; otherwise line numbers reported in parse
+	  errors are undefined
+
+	----- version 1.4.5 ------
+
+2010-05-04  Mark Lindner  <markl@neuromancer>
+
+	* lib/libconfig.h, lib/libconfig.h++, lib/Makefile.am - bumped version
+	  numbers; removed #include for <map> and added one for <exception>
+	* lib/libconfigcpp.c++ - bugfix: properly handle TypeInt64 in add() and
+	  assertType()
+	* aux-build/*, ac_config.h, configure.ac, ac_config.h.in, libtool -
+	  regenerated with newer autotools
+	* libconfig.c - added declaration of libconfig_yylex_init_extra() to
+	  eliminate compiler warning
+	* scanner.l - added #define YY_NO_INPUT to prevent compiler warning
+	* libconfig.texi - Added example code for operator=()
+
+	----- version 1.4.4 ------
+
+2010-04-12  Mark Lindner  <markl@neuromancer>
+
+	* lib/Makefile.am - fixed shared library version info
+	* lib/libconfig.h++ - added Setting::c_str() method
+	* configure.ac, ac_config.h, libconfig.spec, lib/libconfig.h,
+	  lib/libconfig.h++ - bump versions
+	* lib/wincompat.h - fixed MinGW build error
+	* doc/libconfig.texi - doc updates
+	* README - added MinGW info
+
+	----- version 1.4.3 ------
+
+2010-02-13  Mark Lindner  <markl@neuromancer>
+
+	* lib/scanner.l - bugfix for matching @include with preceding
+	  whitespace
+
+	----- version 1.4.2 ------
+
+2010-01-19  Mark Lindner  <markl@neuromancer>
+
+	* lib/libconfigcpp.c++, lib/libconfig.h++ - bugfix for crash; added
+	  copy constructor for ParseException (from Frederic Heitzmann)
+	* lib/libconfig.h, lib/libconfig.h++, lib/Makefile.am,
+	  ac_config.h, libconfig.spec, configure.ac - bump versions
+
+2010-01-09  Mark Lindner  <markl@neuromancer>
+
+	* lib/libconfigcpp.c++ - bugfix in ParseException constructor (from
+	  Ilya Dogolazky)
+	* debian/* - more cleanup, and added debug rules (from Ilya Dogolazky)
+
+	----- version 1.4.1 ------
+
+2009-12-31  Mark Lindner  <markl@neuromancer>
+
+	* lib/libconfig.c - bugfix for crash; removed unnecessary buffer delete
+	  in __config_read()
+	* examples/c/Makefile.am, examples/c++/Makefile.am - fixed build issue
+	* configure.ac, Makefile.am - Added `--disable-examples' configure
+	  option
+	* configure.ac, lib/Makefile.am, libconfig.spec, ac_config.h - bumped
+	  version numbers
+
+	----- version 1.4 ------
+
+2009-10-24  Mark Lindner  <markl@neuromancer>
+
+	* grammar.y, scanner.l - properly report @include errors
+	* exmaples/example4.cpp - new example added
+
+2009-10-14  Mark Lindner  <markl@neuromancer>
+
+	* debian/* - more fixes; from Klaus Schneider-Zapp
+	* libconfig.c - when writing strings, escape only control characters
+	  with \x
+
+	----- version 1.4b4 ------
+
+2009-09-09  Mark Lindner  <markl@neuromancer>
+
+	* lib/Makefile.am - fixed MinGW build issues
+
+	----- version 1.4b3 ------
+
+2009-09-04  Mark Lindner  <markl@neuromancer>
+
+	* lib/libconfig.c, lib/scanner.l, lib/grammar.y - fixed all memory
+	  leaks reported by Valgrind; removed an unncessary strdup()/free().
+
+2009-09-01  Mark Lindner  <markl@neuromancer>
+
+	* lib/libconfig.c, lib/libconfig.h, lib/libconfigcpp.c++,
+	  lib/libconfig.h++ - added config_error_type() and fixed a segfault
+	   when throwing a ParseException.
+	* doc/libconfig.texi - doc updates
+
+	----- version 1.4b2 ------
+
+2009-08-29  Mark Lindner  <markl@neuromancer>
+
+	* examples/* - added new example programs to replace the less
+	  practical ones in samples/
+
+2009-08-25  Mark Lindner  <markl@neuromancer>
+
+	* lib/libconfig.c, lib/libconfig.h, lib/libconfigcpp.c++,
+	  lib/libconfig.h++ - added config_set_tab_width(),
+	  config_get_tab_width() and Config::setTabWidth(),
+	  Config::getTabWidth().
+	* doc/libconfig.texi - doc updates
+
+	----- version 1.4b1 ------
+
+2009-08-21  Mark Lindner  <markl@neuromancer>
+
+	* lib/libconfig.h++, lib/libconfigcpp.c++ - broke the public
+	  dependency on libconfig.h; updated VC++ projects on Windows so that
+	  the C++ DLL no longer exports any of the C API functions
+	* debian/* - updated for version 1.4
+	* lib/libconfig.c - fixed an isprint() assertion on Windows
+
+2009-08-20  Mark Lindner  <markl@neuromancer>
+
+	* lib/parsectx.c, lib/parsectx.h, lib/scanctx.c, lib/scanctx.h,
+	  lib/strbuf.c, lib/strbuf.h - code refactoring to reduce library size
+	  lib/Makefile.am - fixed 'make install' error
+
+	----- version 1.4b ------
+
+2009-08-16  Mark Lindner  <markl@neuromancer>
+
+	* lib/libconfig.c, lib/libconfig.h, lib/scanctx.c, lib/scanctx.h,
+	  lib/grammar.y, lib/grammar.c, lib/grammar.h - added
+	  config_read_string(); added config_setting_source_file() and
+	  management of list of input file names; added #ifdef guard for
+	  DllMain() function so that it's not included for static library
+	  builds
+	* lib/libconfigcpp.c++, lib/libconfig.h++ - added filename to
+	  ParseException; bugfix in Setting::setFormat(); made what() methods
+	  of exceptions public; added Setting::getSourceFile(),
+	  Config::readString().
+	* doc/libconfig.texi - documentation updates
+	* lib/Makefile.am - bump .so version
+	* ac_config.h, configure.ac, libtool - bump version
+
+2009-07-19  Mark Lindner  <markl@neuromancer>
+
+	* lib/libconfig.c, lib/libconfig.h, lib/libconfigcpp.c++,
+	  lib/libconfig.h++ - added config_read_string() and
+	  Config::readString() functions (contributed by Matthias Weisser).
+
+2009-07-02  Mark Lindner  <markl@neuromancer>
+
+	* lib/parsectx.c, lib/parsectx.h, lib/scanctx.c, lib/scanctx.h,
+	  lib/scanner.l, lib/grammar.y, lib/private.h, lib/Makefile.am,
+	  lib/libconfig.c, lib/libconfig.h - replaced ugly C code in scanner.l
+	  for processing strings with a new <STRING> scanner state and
+	  associated rules; added support for hex character literals (\xNN) in
+	  strings; refactored scanner and parser context into separate source
+	  files; added preliminary support for include files ("@include"
+	  directive).
+
+2009-05-27  Mark Lindner  <markl@neuromancer>
+
+	* ltmain.sh, ac_config.h, ac_config.h.in, configure.ac, libconfig.spec,
+	  libtool - upgraded to newer versions of autotools
+	* grammar.y, grammar.h, grammar.c, libconfigcpp.c++, libconfig.h++,
+	  libconfig.c, libconfig.h - added LIBCONFIG_VER_* macros, changed API
+	  to replace 'long' and 'unsigned long' with 'int' and 'unsigned int'
+	  to resolve a portability problem; added 'const' to declarations of
+	  getLine() and getError() methods on ParseException
+	* <multiple> - directory structure reorg
+
+	----- version 1.3.2 ------
+
+2009-02-18  Mark Lindner  <markl@neuromancer>
+
+	* libconfig.vcproj, libconfig++.vcproj - #define _STDLIB_H to
+	  eliminate 'inconsistent dll linkage' warnings for free & malloc
+
+2009-02-17  Mark Lindner  <markl@neuromancer>
+
+	* libconfig.c, libconfig.h - added config_setting_lookup*() functions;
+	  modified config_lookup_*() functions to have more consistent API
+	  (return status, and accept value-result param)
+	* debian/* - updates and cleanup (from Klaus Schneider-Zapp)
+	* libconfig.spec, Makefile.am, ac_config.h - update version number
+	* doc/libconfig.texi - documentation updates
+	* samples/c/sample1.c - patch from Rodolfo Giometti
+	* samples/c/stub.c - fixed relative to API changes
+
+2008-12-06  Mark Lindner  <markl@neuromancer>
+
+	* libconfig.c - fix memory leak in config_setting_remove_elem();
+	  reported by Timi Tuohenmaa
+	* configure.ac - fix incorrect processing of --enable-cxx option;
+	  reported by Thomas Gazzola
+
+2008-09-11  Mark Lindner  <markl@neuromancer>
+
+	* debian/libconfigduo2.postinst - fix typo in test stmt
+
+	----- version 1.3.1 ------
+
+2008-09-07  Mark Lindner  <markl@neuromancer>
+
+	* scanner.l, wincompat.h - workarounds for problems with parsing and
+	  formatting of 64-bit integers on MinGW
+	* scanner.c - regenerated
+
+2008-09-05  Mark Lindner  <markl@neuromancer>
+
+	* libconfig.spec - updated for 1.3.1
+	* Makefile.am - fix version
+	* scanner.l - add fromhex() function, since strtoull() seems broken
+	  on MinGW
+
+2008-08-25  Mark Lindner  <markl@neuromancer>
+
+	* libconfigcpp.c++, libconfig.h++ - derive exceptions from
+	  std::exception
+
+2008-08-10  Mark Lindner  <markl@neuromancer>
+
+	* wincompat.h - fix MinGW build issue
+	* configure.ac, ac_config.h, Makefile.am - bump version
+	* doc/libconfig.texi - doc updates
+	* libconfigcpp.c++, libconfig.h++ - include path information in
+	  setting exceptions
+	* libconfig.c - force "C" locale for parsing & formatting
+
+	----- version 1.3 ------
+
+2008-04-07  Mark Lindner  <markl@neuromancer>
+
+	* libconfig.spec - updated for 1.3
+
+2008-04-03  Mark Lindner  <markl@neuromancer>
+
+	* scanner.l, grammar.y, libconfig.c, libconfig.h, wincompat.h -
+	  fix/add comment headers, add C90 portability fixes from
+	  Chris Pickett (C-style comments, renamed 'index' to 'idx' to
+	  resolve name clash)
+	* scanner.c, grammar.c - regenerated
+	* configure.ac - enable more gcc warnings
+	* libconfigcpp.c++, libconfig.h++ - added getPath(), fixed impl of
+	  isRoot(), add portability fixes from Chris Pickett (renamed 'index'
+	  to 'idx' to resolve name clash), moved exception constructors into
+	  source file; changed SettingExistsException to SettingNameException
+	  to be more broad in scope
+	* Makefile.am - add wincompat.h to sources; add missing debian files
+	  to EXTRA_DIST
+	* test.cfg - added example 64-bit integer settings
+	* samples/* - expanded some examples
+	* doc/libconfig.texi - documentation updates
+	* Makefile.am, *msvc7* - added (generated) VS2003 projects/solution
+
+2008-03-22  Mark Lindner  <markl@neuromancer>
+
+	* debian/* - updates from Klaus Schneider
+
+2008-03-22  Mark Lindner  <markl@neuromancer>
+
+	* scanner.l, grammar.y, libconfig.h++, libconfig.c, libconfig.h,
+	  wincompat.h, libconfigcpp.c++, grammar.c, scanner.c, grammar.h -
+	  add support for 64-bit integer values
+	* libconfig.texi - documentation updates
+	* Makefile.am, ac_config.h, configure.ac, libtool - bump version
+	* libconfig.h - add config_setting_parent(), config_setting_is_root()
+	* libconfigcpp.c++, libconfig.h++ - add isRoot(), getParent() to
+	  Setting
+
+2008-03-15  Mark Lindner  <markl@neuromancer>
+
+	* scanner.l - made 'true' and 'false' tokens completely
+	  case-insensitive
+	* libconfigcpp.cc, libconfig.hh - added alias files for Windows
+	* libconfig.c, libconfig.h - modified __config_write_value() to write
+	  out floating point values in a more human-readable form; added name
+	  validation; added config_setting_remove_elem() and
+	  config_setting_index()
+	* libconfigcpp.c++, libconfig.h++ - added remove(unsigned int) and
+	  getIndex() to Setting
+	* libconfig.texi - documentation updates
+
+	----- version 1.2.1 ------
+	
+2007-12-21  Mark Lindner  <markl@neuromancer>
+
+	* libconfig.c - source cleanup
+	* config.guess, config.sub, ltmain.sh, libtool - updated to newer
+	* configure.ac, Makefile.am, ac_config.h.in, ac_config.h
+	  - MinGW-related fixes
+
+	----- version 1.2 ------
+
+2007-10-15  Mark Lindner  <markl@neuromancer>
+
+	* libconfig.h++, libconfigcpp.c++ - renamed "SettingFormat" to
+	  "Setting::Format" to reduce namespace pollution
+
+2007-10-13  Mark Lindner  <markl@neuromancer>
+
+	* scanner.l - updated regexp for float to allow for values which have
+	  an exponent but no decimal point
+	* grammar.y - capture input line number when parsing settings
+	* libconfig.c, libconfig.h - added config_setting_is*() macros;
+	  added config_setting_source_line(); added line member to
+	  config_setting_t struct
+	* libconfig.c++, libconfig.h++ - renamed "SettingType" enum to
+	  Setting::Type to reduce namespace pollution; added getSourceLine()
+	* samples/* - various updates
+	* debian/changelog - added entry
+	* ac_config.h, configure.ac, libtool, Makefile.am - new version #
+	* TODO - updates
+	* doc/libconfig.texi - documentation updates
+
+2007-10-12  Mark Lindner  <markl@neuromancer>
+
+	* libconfig.c, libconfig.h - added config_set_auto_convert(),
+	  config_get_auto_convert(), and number auto-conversion logic
+	* libconfigcpp.c++, libconfig.h++ - add setAutoConvert(),
+	  getAutoConvert(), lookupValue() that takes std::string&,
+	  corrected return values of assignment operators
+	* debian/rules - made file executable
+	* debian/libconfigduo-dev.install - add pkgconfig files to list
+	
+2007-09-22  Mark Lindner  <markl@neuromancer>
+
+	* libconfig.c, libconfig.h - change 'type' and 'format' members of
+	   config_setting_t to short, thereby saving 4 bytes
+
+2007-09-22  Mark Lindner  <markl@neuromancer>
+
+	* doc/libconfig.texi - add @direntry to fix install-info warnings
+	* libconfig.spec.in, Makefile.am, configure.ac - added RPM support
+	  (from Deneys S. Maartens)
+
+2007-09-18  Mark Lindner  <markl@neuromancer>
+
+	* libconfig.h - remove DLL_EXPORT; add LIBCONFIG_STATIC to fix
+	  static linking on Windows
+
+2007-09-18  Deneys S. Maartens  <dsm@tlabs.ac.za>
+	
+	* samples/c/Makefile.am, samples/c++/Makefile.am - Add
+	  AM_CPPFLAGS to fix distcheck build failure
+	* Makefile.am - expand wildcards in EXTRA_DIST to fix distcheck
+	  build failure
+
+	----- version 1.1.3 ------
+
+2007-08-03  Mark Lindner  <markl@neuromancer>
+
+	* libconfigcpp.c++ - bugfix in unsigned cast operators (incorrect value
+	  clipping logic)
+	* debian/control - made some corrections
+
+	----- version 1.1.2 ------
+
+2007-07-01  Mark Lindner  <markl@neuromancer>
+
+	* debian/* added debian package files from Klaus Schneider
+	* libconfig.h++ - added new predicate is<type>() functions
+	* libconfig.h - fix comments
+	* doc/libconfig.texi - documentation updates
+	* ac_config.h, configure.ac, Makefile.am - new version #
+	
+	----- version 1.1.1 ------
+
+2007-06-15  Mark Lindner  <markl@neuromancer>
+
+	* scanner.l - bugfix in string parsing
+	* test.cfg - added test case
+
+	----- version 1.1 ------
+
+2007-04-18  Mark Lindner  <markl@neuromancer>
+
+	* libconfigcpp.c++ - bugfix in add(SettingType)
+	* stubcpp.cpp - add more ad-hoc tests
+
+2007-04-05  Mark Lindner  <markl@neuromancer>
+
+	* scanner.l - Add string concatenation patch from Glenn Herteg.
+	  Add \f as a whitespace character.
+	* grammar.y - add mode directive emacs
+	* libconfigcpp.c++, libconfig.h++ - add exists() and lookupValue()
+	  methods; add Setting::operator std::string()
+	* libconfig.texi - documentation updates
+
+	----- version 1.0.1 ------
+
+2006-11-26  Mark Lindner  <markl@neuromancer>
+
+	* samples/c/Makefile.am, samples/c++/Makefile.am - fix linker error
+	* libconfig.texi - documentation update
+
+	----- version 1.0 ------
+
+2006-10-19  Mark Lindner  <markl@neuromancer>
+
+	* libconfigcpp.c++ - bugfix in add() for lists
+
+2006-10-11  Mark Lindner  <markl@neuromancer>
+
+	* scanner.l - allow asterisk in setting names (submitted by
+	  James McCann)
+	* libconfig.texi - documentation updates
+	* configure.ac, Makefile.am, samples/Makefile.am - add --disable-cxx
+	  configure option; conditionally build/install C++ components
+
+2006-10-01  Mark Lindner  <markl@neuromancer>
+
+	* <multiple> - samples cleanup
+
+2006-09-14  Mark Lindner  <markl@neuromancer>
+
+	* libconfig.c - Change %.8f to %e for double values in
+	  __config_write_value(). Submitted by Filipe Maia.
+
+2006-08-31  Mark Lindner  <markl@neuromancer>
+
+	* Makefile.am - changed bin_PROGRAMS to noinst_PROGRAMS; the stub
+	  programs are for testing and should not be installed.
+
+2006-08-26  Mark Lindner  <markl@neuromancer>
+
+	* libconfig.texi - documentation corrections & updates
+	* stub.c, stubcpp.c++ - check return value of fopen(); fix compiler
+	  warnings
+	* configure.ac, Makefile.am - add -Wall to CFLAGS only for gcc;
+	  add test.cfg to EXTRA_DIST
+	* grammar.y, libconfigcpp.c++ - fix compiler warnings
+	* libconfig.c - use CONFIG_TRUE & CONFIG_FALSE rather than 1 & 0
+	  for success/failure return values.
+
+	----- version 0.9 ------
+
+2006-07-29  Mark Lindner  <markl@neuromancer>
+
+	* <multiple> - major grammar redesign: groups are now values instead of
+	  distinct syntax constructs; this allows groups to be elements of
+	  lists
+	* libconfig.texi - documentation updates; added new chapter containing
+	  the BNF grammar
+	* test.cfg - modified to reflect new syntax and to demonstrate lists
+
+2006-06-23  Mark Lindner  <markl@neuromancer>
+
+	* <multiple> - added support for lists (collections of
+	  heterogeneous values of any type)
+	* libconfig.c - pretty-printing fixes in config_write()
+
+2006-06-08  Mark Lindner  <markl@neuromancer>
+
+	* libconfig.h++ - added private copy constructor & assignment operator
+	  (from Josef Meile)
+	* ligconfigcpp.c++, libconfig.h++ - added cast operators for unsigned
+	  int and unsigned long (from Scott Frazer)
+	* <multiple> - add support for value formats; the only non-default
+	  format currently supported is hexadecimal format for integer values
+	  (based on patch from Scott Frazer)
+
+2006-04-15  Mark Lindner  <markl@neuromancer>
+
+	* <multiple> - added pkg-config support
+
+2006-03-31  mlindner  <markl@neuromancer>
+
+	* <multiple> - cleaned up config.tab.h mess (this file was obsolete,
+	  and superseded by grammar.h ... problem identified by Scott Frazer)
+
+2006-03-30  mlindner  <mlindner@chimera>
+
+	* grammar.y - fixed includes for windows (missing decl of malloc/free)
+	* libconfig.c - fixed several signed/unsigned warnings
+	* doc/libconfig.texi - documentation updates, formatting fix
+	* scanner.l - allow lowercase 'true' and 'false' in addition to
+	  'TRUE' and 'FALSE'
+
+2006-03-27  Mark Lindner  <markl@neuromancer>
+
+	* libconfigcpp.c++ - added missing break statements in switch (from
+	  Lukas Zweifel)
+	* libconfig.c - don't strdup() a NULL string (from Lukas Zweifel)
+	* grammar.c, grammar.h - regenerated with bison 2.1
+
+2006-03-20  Mark Lindner  <markl@neuromancer>
+
+	* scanner.l - added '%option nounistd' and regenerated with newest
+	  version of flex; Windows doesn't have unistd.h.
+
+2006-03-17  Mark Lindner  <markl@neuromancer>
+
+	* grammar.y - bugfix; error & abort parsing if duplicate setting name
+	  encountered (previously caused a crash ... reported by Tobias Witek)
+	* scanner.l - bugfix; multi-line C-style comments were causing line
+	  number counting to be thrown off, because the newlines were being
+	  "eaten"
+	* <multiple> - various fixes to support building of DLLs on Windows.
+
+2005-11-26  Mark Lindner  <markl@neuromancer>
+
+	* grammar.y, scanner.l - always strdup() yytext, and free the memory
+	  in the grammar rules.
+
+2005-11-22  Mark Lindner  <markl@neuromancer>
+
+	* libconfigcpp.c++, libconfig.h++, libconfig.c, libconfig.h -
+	  Added Daniel's enhancements: methods & functions for reading/writing
+	  files, fixes for various memory leaks, etc.
+	* samples/* - Added Daniel's example code.
+	* docs/libconfig.texi - Updated documentation
+
+2005-09-28  Mark Lindner  <markl@neuromancer>
+
+	* libconfigcpp.c++, libconfig.h++, libconfig.c, libconfig.h
+	  Enhanced API to support modification of a configuration.
+	* libconfig.texi - updated manual
+
+2005-06-02  Mark Lindner  <markl@neuromancer>
+
+	* libconfigcpp.c++, libconfig.h++ - Added getName() method;
+	  fixed operator[](int) to work with groups; this allows iteration over
+	  a group's child settings. Added a missing break statement (bugfix
+	  submitted by Pablo Barrera Gonzalez). Added operator int() and
+	  operator float() to Setting; note that these may cause loss of
+	  precision since the actual values are stored internally as long
+	  and double, respectively.
+
+	* libconfig.h - added config_setting_name() macro
+
+	* libconfig.c - maintain two lists of children at each node; a sorted
+	  list and an unsorted list (to preserve the order of the settings as
+	  they appear in the file).
+	
+	* scanner.l - fixed scanner rule for comments. '#' no longer has to
+	  be in column 0 to be recognized as a comment. Added support for C
+	  and C++ style comments.

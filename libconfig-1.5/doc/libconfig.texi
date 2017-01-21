@@ -1,0 +1,2045 @@
+\input texinfo.tex    @c -*-texinfo-*-
+@c
+@c %**start of header
+
+@c All text is ignored before the setfilename.
+@setfilename libconfig.info
+@settitle libconfig
+
+@set edition 1.5
+@set update-date 21 Sep 2014
+@set subtitle-text A Library For Processing Structured Configuration Files
+@set author-text Mark A.@: Lindner
+
+@comment %**end of header
+
+@dircategory Software libraries
+@direntry
+* libconfig: (libconfig).       A Library For Processing Structured Configuration Files
+@end direntry
+
+
+@tex
+\global\emergencystretch = .3\hsize
+@end tex
+
+@setchapternewpage odd
+
+@titlepage
+
+@title libconfig
+@subtitle @value{subtitle-text}
+@subtitle Version @value{edition}
+@subtitle @value{update-date}
+
+@author @value{author-text}
+
+@page
+@vskip 0pt plus 1filll
+Copyright @copyright{} 2005-2014  Mark A Lindner
+
+Permission is granted to make and distribute verbatim copies of
+this manual provided the copyright notice and this permission notice
+are preserved on all copies.
+
+Permission is granted to copy and distribute modified versions of this
+manual under the conditions for verbatim copying, provided that the entire
+resulting derived work is distributed under the terms of a permission
+notice identical to this one.
+
+@end titlepage
+
+@c Give the HTML output a title page that somewhat resembles the printed one
+@ifhtml
+@html
+<hr noshade size=6 color="black">
+<div align=right>@value{subtitle-text}<br>
+Version @value{edition}<br>
+@value{update-date}</div>
+<br><br><br><br>
+<font size=+1>@value{author-text}</font>
+<hr size=3 noshade color="black">
+<br><br>
+@end html
+@end ifhtml
+
+@contents
+
+@ifnottex
+@node Top
+@comment  node-name,  next,  previous,  up
+@top libconfig
+@end ifnottex
+
+@menu
+* Introduction::
+* Configuration Files::
+* The C API::
+* The C++ API::
+* Example Programs::
+* Configuration File Grammar::
+* License::
+* Function Index::
+* Type Index::
+* Concept Index::
+@end menu
+
+@node Introduction, Configuration Files, Top, Top
+@comment  node-name,  next,  previous,  up
+@menu
+* Why Another Configuration File Library?::
+* Using the Library from a C Program::
+* Using the Library from a C++ Program::
+* Multithreading Issues::
+* Internationalization Issues::
+* Compiling Using pkg-config::
+* Version Test Macros::
+@end menu
+@chapter Introduction
+
+@i{Libconfig} is a library for reading, manipulating, and writing
+structured configuration files. The library features a fully
+reentrant parser and includes bindings for both the C and C++
+programming languages.
+
+The library runs on modern POSIX-compilant systems, such as Linux,
+Solaris, and Mac OS X (Darwin), as well as on Microsoft Windows
+2000/XP and later (with either Microsoft Visual Studio 2005 or later,
+or the GNU toolchain via the MinGW environment).
+
+@node Why Another Configuration File Library?, Using the Library from a C Program, , Introduction
+@comment  node-name,  next,  previous,  up
+@section Why Another Configuration File Library?
+
+There are several open-source configuration file libraries available
+as of this writing. This library was written because each of those
+libraries falls short in one or more ways. The main features of
+@i{libconfig} that set it apart from the other libraries are:
+
+@itemize @bullet
+
+@item A fully reentrant parser. Independent configurations can be parsed in concurrent threads at the same time.
+
+@item Both C @i{and} C++ bindings, as well as hooks to allow for the creation of wrappers in other languages.
+
+@item A simple, structured configuration file format that is more
+readable and compact than XML and more flexible than the obsolete but
+prevalent Windows ``INI'' file format.
+
+@item A low-footprint implementation (just 37K for the C library and 76K for
+the C++ library) that is suitable for memory-constrained systems.
+
+@item Proper documentation.
+
+@end itemize
+
+@node Using the Library from a C Program, Using the Library from a C++ Program, Why Another Configuration File Library?, Introduction
+@comment  node-name,  next,  previous,  up
+@section Using the Library from a C Program
+
+To use the library from C code, include the following preprocessor
+directive in your source files:
+
+@sp 1
+@smallexample
+#include <libconfig.h>
+@end smallexample
+@sp 1
+
+To link with the library, specify @samp{-lconfig} as an argument to the
+linker.
+
+@node Using the Library from a C++ Program, Multithreading Issues, Using the Library from a C Program, Introduction
+@comment  node-name,  next,  previous,  up
+@section Using the Library from a C++ Program
+
+To use the library from C++, include the following preprocessor
+directive in your source files:
+
+@sp 1
+@smallexample
+#include <libconfig.h++>
+@end smallexample
+@sp 1
+
+Or, alternatively:
+
+@sp 1
+@smallexample
+#include <libconfig.hh>
+@end smallexample
+@sp 1
+@page
+The C++ API classes are defined in the namespace @samp{libconfig}, hence the
+following statement may optionally be used:
+
+@sp 1
+@smallexample
+using namespace libconfig;
+@end smallexample
+@sp 1
+
+To link with the library, specify @samp{-lconfig++} as an argument to
+the linker.
+
+@node Multithreading Issues, Internationalization Issues, Using the Library from a C++ Program, Introduction
+@comment  node-name,  next,  previous,  up
+@section Multithreading Issues
+
+@i{Libconfig} is fully @dfn{reentrant}; the functions in the library
+do not make use of global variables and do not maintain state between
+successive calls. Therefore two independent configurations may be safely
+manipulated concurrently by two distinct threads.
+
+@i{Libconfig} is not @dfn{thread-safe}. The library is not aware of
+the presence of threads and knows nothing about the host system's
+threading model. Therefore, if an instance of a configuration is to be
+accessed from multiple threads, it must be suitably protected by
+synchronization mechanisms like read-write locks or mutexes; the
+standard rules for safe multithreaded access to shared data must be
+observed.
+
+@i{Libconfig} is not @dfn{async-safe}. Calls should not be made into
+the library from signal handlers, because some of the C library
+routines that it uses may not be async-safe.
+
+@i{Libconfig} is not guaranteed to be @dfn{cancel-safe}. Since it is
+not aware of the host system's threading model, the library does not
+contain any thread cancellation points. In most cases this will not be
+an issue for multithreaded programs. However, be aware that some of
+the routines in the library (namely those that read/write
+configurations from/to files or streams) perform I/O using C library
+routines which may potentially block; whether or not these C library
+routines are cancel-safe depends on the host system.
+
+@node Internationalization Issues, Compiling Using pkg-config, Multithreading Issues, Introduction
+@comment  node-name,  next,  previous,  up
+@section Internationalization Issues
+
+@cindex Unicode
+@cindex UTF-8
+@i{Libconfig} does not natively support Unicode configuration files,
+but string values may contain Unicode text encoded in UTF-8; such
+strings will be treated as ordinary 8-bit ASCII text by the
+library. It is the responsibility of the calling program to perform
+the necessary conversions to/from wide (@t{wchar_t}) strings using the
+wide string conversion functions such as @t{mbsrtowcs()} and
+@t{wcsrtombs()} or the @t{iconv()} function of the @i{libiconv}
+library.
+
+@cindex locale
+The textual representation of a floating point value varies by
+locale. However, the @i{libconfig} grammar specifies that
+floating point values are represented using a period (`.') as the
+radix symbol; this is consistent with the grammar of most programming
+languages. When a configuration is read in or written out,
+@i{libconfig} temporarily changes the @t{LC_NUMERIC} category of the
+locale of the calling thread to the ``C'' locale to ensure consistent
+handling of floating point values regardless of the locale(s) in use
+by the calling program.
+
+Note that the MinGW environment does not (as of this writing) provide
+functions for changing the locale of the calling thread. Therefore,
+when using @i{libconfig} in that environment, the calling program is
+responsible for changing the @t{LC_NUMERIC} category of the locale to
+the "C" locale before reading or writing a configuration.
+
+@node Compiling Using pkg-config, Version Test Macros, Internationalization Issues, Introduction
+@comment  node-name,  next,  previous,  up
+@section Compiling Using pkg-config
+
+On UNIX systems you can use the @i{pkg-config} utility (version 0.20
+or later) to automatically select the appropriate compiler and linker
+switches for @i{libconfig}. Ensure that the environment variable
+@code{PKG_CONFIG_PATH} contains the absolute path to the
+@file{lib/pkgconfig} subdirectory of the @i{libconfig} installation. Then,
+you can compile and link C programs with @i{libconfig} as follows:
+
+@smallexample
+gcc `pkg-config --cflags libconfig` myprogram.c -o myprogram \
+    `pkg-config --libs libconfig`
+@end smallexample
+@sp 1
+
+And similarly, for C++ programs:
+
+@smallexample
+g++ `pkg-config --cflags libconfig++` myprogram.cpp -o myprogram \
+    `pkg-config --libs libconfig++`
+@end smallexample
+
+@sp 1
+Note the backticks in the above examples.
+
+When using @b{autoconf}, the @code{PKG_CHECK_MODULES} m4 macro may be used to check for the presence of a given version of @i{libconfig}, and set the appropriate Makefile variables automatically. For example:
+
+@smallexample
+PKG_CHECK_MODULES([LIBCONFIGXX], [libconfig++ >= 1.4],,
+  AC_MSG_ERROR([libconfig++ 1.4 or newer not found.])
+)
+@end smallexample
+
+In the above example, if @i{libconfig++} version 1.4 or newer is found,
+the Makefile variables @code{LIBCONFIGXX_LIBS} and @code{LIBCONFIGXX_CFLAGS} will be
+set to the appropriate compiler and linker flags for compiling with
+@i{libconfig}, and if it is not found, the configure script will abort
+with an error to that effect.
+
+@node Version Test Macros, , Compiling Using pkg-config, Introduction
+@comment  node-name,  next,  previous,  up
+@section Version Test Macros
+
+The @file{libconfig.h} header declares the following macros:
+
+@defmac LIBCONFIG_VER_MAJOR
+@defmacx LIBCONFIG_VER_MINOR
+@defmacx LIBCONFIG_VER_REVISION
+
+These macros represent the major version, minor version, and revision
+of the @i{libconfig} library. For example, in @i{libconfig} 1.4 these
+are defined as @samp{1}, @samp{4}, and @samp{0}, respectively. These
+macros can be used in preprocessor directives to determine which
+@i{libconfig} features and/or APIs are present. For example:
+
+@smallexample
+#if (((LIBCONFIG_VER_MAJOR == 1) && (LIBCONFIG_VER_MINOR >= 4)) \
+     || (LIBCONFIG_VER_MAJOR > 1))
+  /* use features present in libconfig 1.4 and later */
+#endif
+@end smallexample
+
+These macros were introduced in @i{libconfig} 1.4.
+
+@end defmac
+
+Similarly, the @file{libconfig.h++} header declares the following macros:
+
+@defmac LIBCONFIGXX_VER_MAJOR
+@defmacx LIBCONFIGXX_VER_MINOR
+@defmacx LIBCONFIGXX_VER_REVISION
+
+These macros represent the major version, minor version, and revision
+of the @i{libconfig++} library.
+
+@end defmac
+
+@node Configuration Files, The C API, Introduction, Top
+@comment  node-name,  next,  previous,  up
+@menu
+* Settings::
+* Groups::
+* Arrays::
+* Lists::
+* Integer Values::
+* 64-bit Integer Values::
+* Floating Point Values::
+* Boolean Values::
+* String Values::
+* Comments::
+* Include Directives::
+@end menu
+@chapter Configuration Files
+
+@i{Libconfig} supports structured, hierarchical configurations. These
+configurations can be read from and written to files and manipulated
+in memory.
+
+@cindex setting
+@cindex value
+@cindex scalar value
+@cindex array
+@cindex group
+@cindex list
+@cindex configuration
+A @dfn{configuration} consists of a group of @dfn{settings}, which
+associate names with values. A @dfn{value} can be one of the
+following:
+
+@itemize @bullet
+@item A @dfn{scalar value}: integer, 64-bit integer, floating-point number, boolean,
+or string
+@item An @dfn{array}, which is a sequence of scalar values, all of which must have the same type
+@item A @dfn{group}, which is a collection of settings
+@item A @dfn{list}, which is a sequence of values of any type, including other lists
+@end itemize
+
+Consider the following configuration file for a hypothetical GUI
+application, which illustrates all of the elements of the configuration
+file grammar.
+
+@sp 1
+@cartouche
+@smallexample
+# Example application configuration file
+
+version = "1.0";
+
+application:
+@{
+  window:
+  @{
+    title = "My Application";
+    size = @{ w = 640; h = 480; @};
+    pos = @{ x = 350; y = 250; @};
+  @};
+
+  list = ( ( "abc", 123, true ), 1.234, ( /* an empty list */) );
+
+  books = ( @{ title  = "Treasure Island";
+              author = "Robert Louis Stevenson";
+              price  = 29.95;
+              qty    = 5; @},
+            @{ title  = "Snow Crash";
+              author = "Neal Stephenson";
+              price  = 9.99;
+              qty    = 8; @} );
+
+  misc:
+  @{
+    pi = 3.141592654;
+    bigint = 9223372036854775807L;
+    columns = [ "Last Name", "First Name", "MI" ];
+    bitmask = 0x1FC3;
+  @};
+@};
+@end smallexample
+@end cartouche
+@sp 1
+
+@cindex path
+Settings can be uniquely identified within the configuration by a
+@dfn{path}. The path is a dot-separated sequence of names, beginning
+at a top-level group and ending at the setting itself. Each name in
+the path is the name of a setting; if the setting has no name because
+it is an element in a list or array, an integer index in square
+brackets can be used as the name.
+
+For example, in our hypothetical configuration file, the path to the
+@code{x} setting is @code{application.window.pos.x}; the path to the
+@code{version} setting is simply @code{version}; and the path to the
+@code{title} setting of the second book in the @code{books} list is
+@code{application.books.[1].title}.
+
+The datatype of a value is determined from the format of the value
+itself. If the value is enclosed in double quotes, it is treated as a
+string. If it looks like an integer or floating point number, it is
+treated as such. If it is one of the values @code{TRUE}, @code{true},
+@code{FALSE}, or @code{false} (or any other mixed-case version of
+those tokens, e.g., @code{True} or @code{FaLsE}), it is treated as a
+boolean. If it consists of a comma-separated list of values enclosed
+in square brackets, it is treated as an array. And if it consists of a
+comma-separated list of values enclosed in parentheses, it is treated
+as a list. Any value which does not meet any of these criteria is
+considered invalid and results in a parse error.
+
+All names are case-sensitive. They may consist only of alphanumeric
+characters, dashes (@samp{-}), underscores (@samp{_}), and asterisks
+(@samp{*}), and must begin with a letter or asterisk. No other
+characters are allowed.
+
+In C and C++, integer, 64-bit integer, floating point, and string
+values are mapped to the types @code{int}, @code{long long},
+@code{double}, and @code{const char *}, respectively. The boolean type
+is mapped to @code{int} in C and @code{bool} in C++.
+
+The following sections describe the elements of the configuration file
+grammar in additional detail.
+
+@node Settings, Groups, , Configuration Files
+@comment  node-name,  next,  previous,  up
+@section Settings
+
+A setting has the form:
+
+@i{name} @b{=} @i{value} @b{;}
+
+or:
+
+@i{name} @b{:} @i{value} @b{;}
+
+The trailing semicolon is optional. Whitespace is not significant.
+
+The value may be a scalar value, an array, a group, or a list.
+
+@node Groups, Arrays, Settings, Configuration Files
+@comment  node-name,  next,  previous,  up
+@section Groups
+
+A group has the form:
+
+@b{@{}
+   @i{settings ...}
+@b{@}}
+
+Groups can contain any number of settings, but each setting must have
+a unique name within the group.
+
+@node Arrays, Lists, Groups, Configuration Files
+@comment  node-name,  next,  previous,  up
+@section Arrays
+
+An array has the form:
+
+@b{[} @i{value}@b{,} @i{value ...} @b{]}
+
+An array may have zero or more elements, but the elements must all be
+scalar values of the same type.
+
+@node Lists, Integer Values, Arrays, Configuration Files
+@comment  node-name,  next,  previous,  up
+@section Lists
+
+A list has the form:
+
+@b{(} @i{value}@b{,} @i{value ...} @b{)}
+
+A list may have zero or more elements, each of which can be a scalar
+value, an array, a group, or another list.
+
+@node Integer Values, 64-bit Integer Values, Lists, Configuration Files
+@comment  node-name,  next,  previous,  up
+@section Integer Values
+
+Integers can be represented in one of two ways: as a series of one or
+more decimal digits (@samp{0} - @samp{9}), with an optional leading
+sign character (@samp{+} or @samp{-}); or as a hexadecimal value
+consisting of the characters @samp{0x} followed by a series of one or
+more hexadecimal digits (@samp{0} - @samp{9}, @samp{A} - @samp{F},
+@samp{a} - @samp{f}).
+
+@node 64-bit Integer Values, Floating Point Values, Integer Values, Configuration Files
+@comment  node-name,  next,  previous,  up
+@section 64-bit Integer Values
+
+Long long (64-bit) integers are represented identically to integers,
+except that an 'L' character is appended to indicate a 64-bit
+value. For example, @samp{0L} indicates a 64-bit integer value 0.
+
+@node Floating Point Values, Boolean Values, 64-bit Integer Values, Configuration Files
+@comment  node-name,  next,  previous,  up
+@section Floating Point Values
+
+Floating point values consist of a series of one or more digits, one
+decimal point, an optional leading sign character (@samp{+} or
+@samp{-}), and an optional exponent. An exponent consists of the
+letter @samp{E} or @samp{e}, an optional sign character, and a series
+of one or more digits.
+
+@node Boolean Values, String Values, Floating Point Values, Configuration Files
+@comment  node-name,  next,  previous,  up
+@section Boolean Values
+
+Boolean values may have one of the following values: @samp{true},
+@samp{false}, or any mixed-case variation thereof.
+
+@node String Values, Comments, Boolean Values, Configuration Files
+@comment  node-name,  next,  previous,  up
+@section String Values
+
+@cindex escape sequence
+String values consist of arbitrary text delimited by double
+quotes. Literal double quotes can be escaped by preceding them with a
+backslash: @samp{\"}. The escape sequences @samp{\\}, @samp{\f},
+@samp{\n}, @samp{\r}, and @samp{\t} are also recognized, and have the
+usual meaning.
+
+In addition, the @samp{\x} escape sequence is supported; this sequence
+must be followed by @i{exactly two} hexadecimal digits, which represent an
+8-bit ASCII value. For example, @samp{\xFF} represents the character
+with ASCII code 0xFF.
+
+No other escape sequences are currently supported.
+
+Adjacent strings are automatically concatenated, as in C/C++ source
+code. This is useful for formatting very long strings as sequences of
+shorter strings. For example, the following constructs are equivalent:
+
+@itemize @bullet
+@item
+@code{"The quick brown fox jumped over the lazy dog."}
+
+@item
+@code{"The quick brown fox"} @*
+@code{" jumped over the lazy dog."}
+
+@item
+@code{"The quick" /* comment */ " brown fox " // another comment} @*
+@code{"jumped over the lazy dog."}
+
+@end itemize
+@page
+@node Comments, Include Directives, String Values, Configuration Files
+@comment  node-name,  next,  previous,  up
+@section Comments
+
+@cindex comment
+Three types of comments are allowed within a configuration:
+
+@itemize @bullet
+
+@item Script-style comments. All text beginning with a @samp{#} character
+to the end of the line is ignored.
+
+@item C-style comments. All text, including line breaks, between a starting
+@samp{/*} sequence and an ending @samp{*/} sequence is ignored.
+
+@item C++-style comments. All text beginning with a @samp{//} sequence to the
+end of the line is ignored.
+
+@end itemize
+
+As expected, comment delimiters appearing within quoted strings are
+treated as literal text.
+
+Comments are ignored when the configuration is read in, so they are
+not treated as part of the configuration. Therefore if the
+configuration is written back out to a stream, any comments that were
+present in the original configuration will be lost.
+
+@node Include Directives, , Comments, Configuration Files
+@comment  node-name,  next,  previous,  up
+@section Include Directives
+
+@cindex include directive
+A configuration file may ``include'' the contents of another file
+using an @i{include directive}. This directive has the effect of
+inlining the contents of the named file at the point of inclusion.
+
+An include directive must appear on its own line in the input. It has
+the form:
+
+@b{@@include "}@i{filename}@b{"}
+
+Any backslashes or double quotes in the filename must be escaped as
+@samp{\\} and @samp{\"}, respectively.
+
+For example, consider the following two configuration files:
+
+@cartouche
+@smallexample
+# file: quote.cfg
+quote = "Criticism may not be agreeable, but it is necessary."
+        " It fulfils the same function as pain in the human"
+        " body. It calls attention to an unhealthy state of"
+        " things.\n"
+        "\t--Winston Churchill";
+@end smallexample
+@end cartouche
+
+@cartouche
+@smallexample
+# file: test.cfg
+info: @{
+  name = "Winston Churchill";
+  @@include "quote.cfg"
+  country = "UK";
+@};
+@end smallexample
+@end cartouche
+
+Include files may be nested to a maximum of 10 levels; exceeding this
+limit results in a parse error.
+
+Like comments, include directives are not part of the configuration
+file syntax. They are processed before the configuration itself is
+parsed. Therefore, they are not preserved when the configuration is
+written back out to a stream. There is presently no support for
+programmatically inserting include directives into a configuration.
+
+@node The C API, The C++ API, Configuration Files, Top
+@comment  node-name,  next,  previous,  up
+@chapter The C API
+
+@tindex config_t
+@tindex config_setting_t
+This chapter describes the C library API. The type @i{config_t}
+represents a configuration, and the type @i{config_setting_t} represents
+a configuration setting.
+
+The boolean values @code{CONFIG_TRUE} and @code{CONFIG_FALSE} are
+macros defined as @code{(1)} and @code{(0)}, respectively.
+
+@deftypefun void config_init (@w{config_t * @var{config}})
+@deftypefunx void config_destroy (@w{config_t * @var{config}})
+
+These functions initialize and destroy the configuration object @var{config}.
+
+@code{config_init()} initializes the @i{config_t} structure pointed to by
+@var{config} as a new, empty configuration.
+
+@code{config_destroy()} destroys the configuration @var{config},
+deallocating all memory associated with the configuration, but does not
+attempt to deallocate the @i{config_t} structure itself.
+
+@end deftypefun
+
+@deftypefun int config_read (@w{config_t * @var{config}}, @w{FILE * @var{stream}})
+
+This function reads and parses a configuration from the given
+@var{stream} into the configuration object @var{config}. It returns
+@code{CONFIG_TRUE} on success, or @code{CONFIG_FALSE} on failure; the
+@code{config_error_text()}, @code{config_error_file()},
+@code{config_error_line()}, and @code{config_error_type()} functions,
+described below, can be used to obtain information about the error.
+
+@end deftypefun
+
+@deftypefun int config_read_file (@w{config_t * @var{config}}, @w{const char * @var{filename}})
+
+This function reads and parses a configuration from the file named
+@var{filename} into the configuration object @var{config}. It returns
+@code{CONFIG_TRUE} on success, or @code{CONFIG_FALSE} on failure; the
+@code{config_error_text()} and @code{config_error_line()} functions,
+described below, can be used to obtain information about the error.
+
+@end deftypefun
+
+@deftypefun int config_read_string (@w{config_t * @var{config}}, @w{const char * @var{str}})
+
+This function reads and parses a configuration from the string
+@var{str} into the configuration object @var{config}. It returns
+@code{CONFIG_TRUE} on success, or @code{CONFIG_FALSE} on failure; the
+@code{config_error_text()} and @code{config_error_line()} functions,
+described below, can be used to obtain information about the error.
+
+@end deftypefun
+
+@deftypefun void config_write (@w{const config_t * @var{config}}, @w{FILE * @var{stream}})
+
+This function writes the configuration @var{config} to the given
+@var{stream}.
+
+@end deftypefun
+
+@deftypefun int config_write_file (@w{config_t * @var{config}}, @w{const char * @var{filename}})
+
+This function writes the configuration @var{config} to the file named
+@var{filename}. It returns @code{CONFIG_TRUE} on success, or
+@code{CONFIG_FALSE} on failure.
+
+@end deftypefun
+
+@deftypefun {const char *} config_error_text (@w{const config_t * @var{config}})
+@deftypefunx {const char *} config_error_file (@w{const config_t * @var{config}})
+@deftypefunx int config_error_line (@w{const config_t * @var{config}})
+
+These functions, which are implemented as macros, return the text,
+filename, and line number of the parse error, if one occurred during a
+call to @code{config_read()}, @code{config_read_string()}, or
+@code{config_read_file()}. Storage for the strings returned by
+@code{config_error_text()} and @code{config_error_file()} are managed
+by the library and released automatically when the configuration is
+destroyed; these strings must not be freed by the caller. If the error
+occurred in text that was read from a string or stream,
+@code{config_error_file()} will return NULL.
+
+@end deftypefun
+
+@deftypefun config_error_t config_error_type (@w{const config_t * @var{config}})
+@tindex config_error_t
+This function, which is implemented as a macro, returns the type of
+error that occurred during the last call to one of the read or write
+functions. The @var{config_error_t} type is an enumeration with the
+following values: @code{CONFIG_ERR_NONE}, @code{CONFIG_ERR_FILE_IO},
+@code{CONFIG_ERR_PARSE}. These represent success, a file I/O error,
+and a parsing error, respectively.
+
+@end deftypefun
+
+@deftypefun void config_set_include_dir (@w{config_t *@var{config}}, @w{const char *@var{include_dir}})
+@deftypefunx {const char *} config_get_include_dir (@w{const config_t *@var{config}})
+
+@code{config_set_include_dir()} specifies the include directory,
+@var{include_dir}, relative to which the files specified in
+@samp{@@include} directives will be located for the configuration
+@var{config}. By default, there is no include directory, and all
+include files are expected to be relative to the current working
+directory. If @var{include_dir} is @code{NULL}, the default behavior
+is reinstated.
+
+For example, if the include directory is set to @file{/usr/local/etc},
+the include directive @samp{@@include "configs/extra.cfg"} would include the
+file @file{/usr/local/etc/configs/extra.cfg}.
+
+@code{config_get_include_dir()} returns the current include directory for the
+configuration @var{config}, or @code{NULL} if none is set.
+
+@end deftypefun
+
+@deftypefun void config_set_options (@w{config_t *@var{config}}, @w{int @var{options}})
+@deftypefunx int config_get_options (@w{config_t *@var{config}})
+
+These functions set and get the options for the configuration
+@var{config}. The options affect how configurations are read and
+written. The following options are defined:
+
+@table @code
+
+@item CONFIG_OPTION_AUTOCONVERT
+Turning this option on enables number auto-conversion for
+the configuration. When this feature is enabled, an attempt to retrieve a
+floating point setting's value into an integer (or vice versa), or
+store an integer to a floating point setting's value (or vice versa)
+will cause the library to silently perform the necessary conversion
+(possibly leading to loss of data), rather than reporting failure. By
+default this option is turned off.
+
+@item CONFIG_OPTION_SEMICOLON_SEPARATORS
+This option controls whether a semicolon (`;') is output after each setting
+when the configuration is written to a file or stream. (The semicolon
+separators are optional in the configuration syntax.) By default this
+option is turned on.
+
+@item CONFIG_OPTION_COLON_ASSIGNMENT_FOR_GROUPS
+This option controls whether a colon (`:') is output between each
+group setting's name and its value when the configuration is written to
+a file or stream. If the option is turned off, an equals sign (`=') is
+output instead. (These tokens are interchangeable in the configuration
+syntax.) By default this option is turned on.
+
+@item CONFIG_OPTION_COLON_ASSIGNMENT_FOR_NON_GROUPS
+This option controls whether a colon (`:') is output between each
+non-group setting's name and its value when the configuration is written
+to a file or stream. If the option is turned off, an equals sign (`=')
+is output instead. (These tokens are interchangeable in the configuration
+syntax.) By default this option is turned off.
+
+@item CONFIG_OPTION_OPEN_BRACE_ON_SEPARATE_LINE
+This option controls whether an open brace (`@{') will be written on its own
+line when the configuration is written to a file or stream. If the option is
+turned off, the brace will be written at the end of the previous line.
+By default this option is turned on.
+
+@end table
+
+@end deftypefun
+
+@deftypefun void config_set_auto_convert (@w{config_t *@var{config}}, @w{int @var{flag}})
+@deftypefunx int config_get_auto_convert (@w{const config_t *@var{config}})
+
+These functions get and set the @code{CONFIG_OPTION_AUTO_CONVERT}
+option. They are obsoleted by the @code{config_set_options()} and
+@code{config_get_options()} functions described above.
+
+@end deftypefun
+
+@deftypefun void config_set_default_format (@w{config_t * @var{config}}, @w{short @var{format}})
+@deftypefunx short config_get_default_format (@w{config_t * @var{config}})
+
+These functions, which are implemented as macros, set and get the
+default external format for settings in the configuration
+@var{config}. If a non-default format has not been set for a setting
+with @code{config_setting_set_format()}, this configuration-wide
+default format will be used instead when that setting is written to a
+file or stream.
+
+@end deftypefun
+
+@deftypefun void config_set_tab_width (@w{config_t * @var{config}}, @w{unsigned short @var{width}})
+@deftypefunx {unsigned short} config_get_tab_width (@w{const config_t * @var{config}})
+
+These functions, which are implemented as macros, set and get the tab
+width for the configuration @var{config}. The tab width affects the
+formatting of the configuration when it is written to a file or
+stream: each level of nesting is indented by @var{width} spaces, or
+by a single tab character if @var{width} is 0. The tab width has no
+effect on parsing.
+
+Valid tab widths range from 0 to 15. The default tab width is 2.
+
+@end deftypefun
+
+@deftypefun int config_lookup_int (@w{const config_t * @var{config}}, @w{const char * @var{path}}, @w{int * @var{value}})
+@deftypefunx int config_lookup_int64 (@w{const config_t * @var{config}}, @w{const char * @var{path}}, @w{long long * @var{value}})
+@deftypefunx int config_lookup_float (@w{const config_t * @var{config}}, @w{const char * @var{path}}, @w{double * @var{value}})
+@deftypefunx int config_lookup_bool (@w{const config_t * @var{config}}, @w{const char * @var{path}}, @w{int * @var{value}})
+@deftypefunx int config_lookup_string (@w{const config_t * @var{config}}, @w{const char * @var{path}}, @w{const char ** @var{value}})
+
+These functions look up the value of the setting in the configuration
+@var{config} specified by the path @var{path}. They store the value of
+the setting at @var{value} and return @code{CONFIG_TRUE} on
+success. If the setting was not found or if the type of the value did
+not match the type requested, they leave the data pointed to by
+@var{value} unmodified and return @code{CONFIG_FALSE}.
+
+Storage for the string returned by @code{config_lookup_string()} is
+managed by the library and released automatically when the setting is
+destroyed or when the setting's value is changed; the string must not
+be freed by the caller.
+
+@end deftypefun
+
+@deftypefun {config_setting_t *} config_lookup (@w{const config_t * @var{config}}, @w{const char * @var{path}})
+
+This function locates the setting in the configuration @var{config}
+specified by the path @var{path}. It returns a pointer to the
+@code{config_setting_t} structure on success, or @code{NULL} if the
+setting was not found.
+
+@end deftypefun
+
+@deftypefun {config_setting_t *} config_setting_lookup (@w{const config_setting_t * @var{setting}}, @w{const char * @var{path}})
+
+This function locates a setting by a path @var{path} relative to
+the setting @var{setting}. It returns a pointer to the
+@code{config_setting_t} structure on success, or @code{NULL} if the
+setting was not found.
+
+@end deftypefun
+
+@deftypefun int config_setting_get_int (@w{const config_setting_t * @var{setting}})
+@deftypefunx {long long} config_setting_get_int64 (@w{const config_setting_t * @var{setting}})
+@deftypefunx double config_setting_get_float (@w{const config_setting_t * @var{setting}})
+@deftypefunx int config_setting_get_bool (@w{const config_setting_t * @var{setting}})
+@deftypefunx {const char *} config_setting_get_string (@w{const config_setting_t * @var{setting}})
+
+These functions return the value of the given @var{setting}. If the
+type of the setting does not match the type requested, a 0 or
+@code{NULL} value is returned. Storage for the string returned by
+@code{config_setting_get_string()} is managed by the library and
+released automatically when the setting is destroyed or when the
+setting's value is changed; the string must not be freed by the
+caller.
+
+@end deftypefun
+@deftypefun int config_setting_set_int (@w{config_setting_t * @var{setting}}, @w{int @var{value}})
+@deftypefunx int config_setting_set_int64 (@w{config_setting_t * @var{setting}}, @w{long long @var{value}})
+@deftypefunx int config_setting_set_float (@w{config_setting_t * @var{setting}}, @w{double @var{value}})
+@deftypefunx int config_setting_set_bool (@w{config_setting_t * @var{setting}}, @w{int @var{value}})
+@deftypefunx int config_setting_set_string (@w{config_setting_t * @var{setting}}, @w{const char * @var{value}})
+
+These functions set the value of the given @var{setting} to
+@var{value}. On success, they return @code{CONFIG_TRUE}. If
+the setting does not match the type of the value, they return
+@code{CONFIG_FALSE}. @code{config_setting_set_string()} makes a copy
+of the passed string @var{value}, so it may be subsequently freed or
+modified by the caller without affecting the value of the setting.
+
+@end deftypefun
+
+@deftypefun int config_setting_lookup_int (@w{const config_setting_t * @var{setting}}, @w{const char * @var{name}}, @w{int * @var{value}})
+@deftypefunx int config_setting_lookup_int64 (@w{const config_setting_t * @var{setting}}, @w{const char * @var{name}}, @w{long long * @var{value}})
+@deftypefunx int config_setting_lookup_float (@w{const config_setting_t * @var{setting}}, @w{const char * @var{name}}, @w{double * @var{value}})
+@deftypefunx int config_setting_lookup_bool (@w{const config_setting_t * @var{setting}}, @w{const char * @var{name}}, @w{int * @var{value}})
+@deftypefunx int config_setting_lookup_string (@w{const config_setting_t * @var{setting}}, @w{const char * @var{name}}, @w{const char ** @var{value}})
+
+These functions look up the value of the child setting named
+@var{name} of the setting @var{setting}. They store the value at
+@var{value} and return @code{CONFIG_TRUE} on success. If the setting
+was not found or if the type of the value did not match the type
+requested, they leave the data pointed to by @var{value} unmodified
+and return @code{CONFIG_FALSE}.
+
+Storage for the string returned by @code{config_setting_lookup_string()} is
+managed by the library and released automatically when the setting is
+destroyed or when the setting's value is changed; the string must not
+be freed by the caller.
+
+@end deftypefun
+
+@deftypefun short config_setting_get_format (@w{config_setting_t * @var{setting}})
+@deftypefunx int config_setting_set_format (@w{config_setting_t * @var{setting}}, @w{short @var{format}})
+
+These functions get and set the external format for the setting @var{setting}.
+
+@tindex SettingFormat
+@cindex format
+
+The @var{format} must be one of the constants
+@code{CONFIG_FORMAT_DEFAULT} or @code{CONFIG_FORMAT_HEX}. All settings
+support the @code{CONFIG_FORMAT_DEFAULT} format. The
+@code{CONFIG_FORMAT_HEX} format specifies hexadecimal formatting for
+integer values, and hence only applies to settings of type
+@code{CONFIG_TYPE_INT} and @code{CONFIG_TYPE_INT64}.  If @var{format}
+is invalid for the given setting, it is ignored.
+
+If a non-default format has not been set for the setting, @code{config_setting_get_format()} returns the default format for the configuration, as set by @code{config_set_default_format()}.
+
+@code{config_setting_set_format()} returns @code{CONFIG_TRUE} on
+success and @code{CONFIG_FALSE} on failure.
+
+@end deftypefun
+
+
+@deftypefun {config_setting_t *} config_setting_get_member (@w{config_setting_t * @var{setting}}, @w{const char * @var{name}})
+
+This function fetches the child setting named @var{name} from the group
+@var{setting}. It returns the requested setting on success, or
+@code{NULL} if the setting was not found or if @var{setting} is not a
+group.
+
+@end deftypefun
+
+@deftypefun {config_setting_t *} config_setting_get_elem (@w{const config_setting_t * @var{setting}}, @w{unsigned int @var{index}})
+
+This function fetches the element at the given index @var{index} in the
+setting @var{setting}, which must be an array, list, or group. It returns the
+requested setting on success, or @code{NULL} if @var{index} is out of
+range or if @var{setting} is not an array, list, or group.
+
+@end deftypefun
+
+@deftypefun int config_setting_get_int_elem (@w{const config_setting_t * @var{setting}}, @w{int @var{index}})
+@deftypefunx {long long} config_setting_get_int64_elem (@w{const config_setting_t * @var{setting}}, @w{int @var{index}})
+@deftypefunx double config_setting_get_float_elem (@w{const config_setting_t * @var{setting}}, @w{int @var{index}})
+@deftypefunx int config_setting_get_bool_elem (@w{const config_setting_t * @var{setting}}, @w{int @var{index}})
+@deftypefunx {const char *} config_setting_get_string_elem (@w{const config_setting_t * @var{setting}}, @w{int @var{index}})
+
+These functions return the value at the specified index @var{index} in the
+setting @var{setting}. If the setting is not an array or list, or if
+the type of the element does not match the type requested, or if
+@var{index} is out of range, they return 0 or @code{NULL}. Storage for
+the string returned by @code{config_setting_get_string_elem()} is
+managed by the library and released automatically when the setting is
+destroyed or when its value is changed; the string must not be freed
+by the caller.
+@end deftypefun
+
+@deftypefun {config_setting_t *} config_setting_set_int_elem (@w{config_setting_t * @var{setting}}, @w{int @var{index}}, @w{int @var{value}})
+@deftypefunx {config_setting_t *} config_setting_set_int64_elem (@w{config_setting_t * @var{setting}}, @w{int @var{index}}, @w{long long @var{value}})
+@deftypefunx {config_setting_t *} config_setting_set_float_elem (@w{config_setting_t * @var{setting}}, @w{int @var{index}}, @w{double @var{value}})
+@deftypefunx {config_setting_t *} config_setting_set_bool_elem (@w{config_setting_t * @var{setting}}, @w{int @var{index}}, @w{int @var{value}})
+@deftypefunx {config_setting_t *} config_setting_set_string_elem (@w{config_setting_t * @var{setting}}, @w{int @var{index}}, @w{const char * @var{value}})
+
+These functions set the value at the specified index @var{index} in the
+setting @var{setting} to @var{value}. If @var{index} is negative, a
+new element is added to the end of the array or list. On success,
+these functions return a pointer to the setting representing the
+element. If the setting is not an array or list, or if the setting is
+an array and the type of the array does not match the type of the
+value, or if @var{index} is out of range, they return
+@code{NULL}. @code{config_setting_set_string_elem()} makes a copy of
+the passed string @var{value}, so it may be subsequently freed or
+modified by the caller without affecting the value of the setting.
+@end deftypefun
+
+@deftypefun {config_setting_t *} config_setting_add (@w{config_setting_t * @var{parent}}, @w{const char * @var{name}}, @w{int @var{type}})
+
+This function adds a new child setting or element to the setting
+@var{parent}, which must be a group, array, or list. If @var{parent}
+is an array or list, the @var{name} parameter is ignored and may be
+@code{NULL}.
+
+The function returns the new setting on success, or @code{NULL} if
+@var{parent} is not a group, array, or list; or if there is already a
+child setting of @var{parent} named @var{name}; or if @var{type} is
+invalid. If @var{type} is a scalar type, the new setting will have a
+default value of 0, 0.0, @code{false}, or @code{NULL}, as appropriate.
+@end deftypefun
+
+@deftypefun int config_setting_remove (@w{config_setting_t * @var{parent}}, @w{const char * @var{name}})
+
+This function removes and destroys the setting named @var{name} from
+the parent setting @var{parent}, which must be a group. Any child
+settings of the setting are recursively destroyed as well.
+
+The function returns @code{CONFIG_TRUE} on success. If @var{parent} is
+not a group, or if it has no setting with the given name, it returns
+@code{CONFIG_FALSE}.
+
+@end deftypefun
+
+@deftypefun int config_setting_remove_elem (@w{config_setting_t * @var{parent}}, @w{unsigned int @var{index}})
+
+This function removes the child setting at the given index @var{index} from
+the setting @var{parent}, which must be a group, list, or array. Any
+child settings of the removed setting are recursively destroyed as
+well.
+
+The function returns @code{CONFIG_TRUE} on success. If @var{parent} is
+not a group, list, or array, or if @var{index} is out of range, it returns
+@code{CONFIG_FALSE}.
+
+@end deftypefun
+
+@deftypefun {config_setting_t *} config_root_setting (@w{const config_t * @var{config}})
+
+This function returns the root setting for the configuration
+@var{config}. The root setting is a group.
+
+@end deftypefun
+
+@deftypefun {const char *} config_setting_name (@w{const config_setting_t * @var{setting}})
+
+This function returns the name of the given @var{setting}, or
+@code{NULL} if the setting has no name. Storage for the returned
+string is managed by the library and released automatically when the
+setting is destroyed; the string must not be freed by the caller.
+
+@end deftypefun
+
+@deftypefun {config_setting_t *} config_setting_parent (@w{const config_setting_t * @var{setting}})
+
+This function returns the parent setting of the given @var{setting},
+or @code{NULL} if @var{setting} is the root setting.
+
+@end deftypefun
+
+@deftypefun int config_setting_is_root (@w{const config_setting_t * @var{setting}})
+
+This function returns @code{CONFIG_TRUE} if the given @var{setting} is
+the root setting, and @code{CONFIG_FALSE} otherwise.
+
+@end deftypefun
+
+@deftypefun int config_setting_index (@w{const config_setting_t * @var{setting}})
+
+This function returns the index of the given @var{setting} within its
+parent setting. If @var{setting} is the root setting, this function
+returns -1.
+
+@end deftypefun
+
+@deftypefun int config_setting_length (@w{const config_setting_t * @var{setting}})
+
+This function returns the number of settings in a group, or the number of
+elements in a list or array. For other types of settings, it returns
+0.
+
+@end deftypefun
+
+@deftypefun int config_setting_type (@w{const config_setting_t * @var{setting}})
+
+This function returns the type of the given @var{setting}. The return
+value is one of the constants
+@code{CONFIG_TYPE_INT}, @code{CONFIG_TYPE_INT64}, @code{CONFIG_TYPE_FLOAT},
+@code{CONFIG_TYPE_STRING}, @code{CONFIG_TYPE_BOOL},
+@code{CONFIG_TYPE_ARRAY}, @code{CONFIG_TYPE_LIST}, or @code{CONFIG_TYPE_GROUP}.
+
+@end deftypefun
+
+@deftypefun int config_setting_is_group (@w{const config_setting_t * @var{setting}})
+@deftypefunx int config_setting_is_array (@w{const config_setting_t * @var{setting}})
+@deftypefunx int config_setting_is_list (@w{const config_setting_t * @var{setting}})
+
+These convenience functions, which are implemented as macros, test if
+the setting @var{setting} is of a given type. They return
+@code{CONFIG_TRUE} or @code{CONFIG_FALSE}.
+
+@end deftypefun
+
+@deftypefun int config_setting_is_aggregate (@w{const config_setting_t * @var{setting}})
+@deftypefunx int config_setting_is_scalar (@w{const config_setting_t * @var{setting}})
+@deftypefunx int config_setting_is_number (@w{const config_setting_t * @var{setting}})
+
+@cindex aggregate value
+These convenience functions, which are implemented as macros, test if
+the setting @var{setting} is of an aggregate type (a group, array, or
+list), of a scalar type (integer, 64-bit integer, floating point,
+boolean, or string), and of a number (integer, 64-bit integer, or
+floating point), respectively. They return @code{CONFIG_TRUE} or
+@code{CONFIG_FALSE}.
+
+@end deftypefun
+
+@deftypefun {const char *} config_setting_source_file (@w{const config_setting_t * @var{setting}})
+
+This function returns the name of the file from which the setting
+@var{setting} was read, or NULL if the setting was not read from a
+file. This information is useful for reporting application-level
+errors. Storage for the returned string is managed by the library and
+released automatically when the configuration is destroyed; the
+string must not be freed by the caller.
+
+@end deftypefun
+
+@deftypefun {unsigned int} config_setting_source_line (@w{const config_setting_t * @var{setting}})
+
+This function returns the line number of the configuration file or
+stream at which the setting @var{setting} was read, or 0 if no line
+number is available. This information is useful for reporting
+application-level errors.
+
+@end deftypefun
+
+@deftypefun void config_setting_set_hook (@w{config_setting_t * @var{setting}}, @w{void * @var{hook}})
+@deftypefunx {void *} config_setting_get_hook (@w{const config_setting_t * @var{setting}})
+
+These functions make it possible to attach arbitrary data to each
+setting structure, for instance a ``wrapper'' or ``peer'' object written in
+another programming language. The destructor function, if one has been
+supplied via a call to @code{config_set_destructor()}, will be called
+by the library to dispose of this data when the setting itself is
+destroyed. There is no default destructor.
+
+@end deftypefun
+
+@deftypefun void config_set_destructor (@w{config_t * @var{config}}, @w{void (* @var{destructor})(void *)})
+
+This function assigns the destructor function @var{destructor} for the
+configuration @var{config}. This function accepts a single @code{void
+*} argument and has no return value. See
+@code{config_setting_set_hook()} above for more information.
+
+@end deftypefun
+
+@node The C++ API, Example Programs, The C API, Top
+@comment  node-name,  next,  previous,  up
+@chapter The C++ API
+
+@tindex Config
+@tindex Setting
+This chapter describes the C++ library API. The class @code{Config}
+represents a configuration, and the class @code{Setting} represents a
+configuration setting. Note that by design, neither of these classes
+provides a public copy constructor or assignment operator. Therefore,
+instances of these classes may only be passed between functions via
+references or pointers.
+
+@tindex ConfigException
+The library defines a group of exceptions, all of which extend the
+common base exception @code{ConfigException}.
+
+@tindex SettingTypeException
+A @code{SettingTypeException} is thrown when the type of a setting's
+value does not match the type requested.
+
+@deftypemethod SettingTypeException {} SettingTypeException (@w{const Setting &@var{setting}})
+@deftypemethodx SettingTypeException {} SettingTypeException (@w{const Setting &@var{setting}}, @w{int @var{index}})
+@deftypemethodx SettingTypeException {} SettingTypeException (@w{const Setting &@var{setting}}, @w{const char *@var{name}})
+
+These methods construct @code{SettingTypeException} objects for the given @var{setting} and/or member @var{index} or @var{name}.
+
+@end deftypemethod
+
+@tindex SettingNotFoundException
+A @code{SettingNotFoundException} is thrown when a setting is not found.
+
+@deftypemethod SettingNotFoundException {} SettingNotFoundException (@w{const Setting &@var{setting}}, @w{int @var{index}})
+@deftypemethodx SettingNotFoundException {} SettingNotFoundException (@w{const Setting &@var{setting}}, @w{const char *@var{name}})
+@deftypemethodx SettingNotFoundException {} SettingNotFoundException (@w{const char *@var{path}})
+
+These methods construct @code{SettingTypeException} objects for the given @var{setting} and member @var{index} or @var{name}, or path @var{path}.
+
+@end deftypemethod
+
+@tindex SettingNameException
+A @code{SettingNameException} is thrown when an attempt is made to add
+a new setting with a non-unique or invalid name.
+
+@deftypemethod SettingNameException {} SettingNameException (@w{const Setting &@var{setting}}, @w{const char *@var{name}})
+
+This method constructs a @code{SettingNameExcpetion} object for the given @var{setting} and member name @var{name}.
+
+@end deftypemethod
+
+@tindex ParseException
+A @code{ParseException} is thrown when a parse error occurs while
+reading a configuration from a stream.
+
+@deftypemethod ParseException {} ParseException (@w{const char *@var{file}}, @w{int @var{line}}, @w{const char *@var{error}})
+
+This method constructs a @code{ParseException} object with the given filename @var{file}, line number @var{line}, and error message @var{error}.
+
+@end deftypemethod
+
+@tindex FileIOException
+A @code{FileIOException} is thrown when an I/O error occurs while
+reading/writing a configuration from/to a file.
+
+@tindex SettingException
+@code{SettingTypeException}, @code{SettingNotFoundException}, and
+@code{SettingNameException} all extend the common base
+exception @code{SettingException}, which provides the following method:
+
+@deftypemethod SettingException {const char *} getPath ()
+
+Returns the path to the setting associated with the exception, or
+@code{NULL} if there is no applicable path.
+
+@end deftypemethod
+
+The remainder of this chapter describes the methods for manipulating
+configurations and configuration settings.
+
+@deftypemethod Config {} Config ()
+@deftypemethodx Config {} ~Config ()
+
+These methods create and destroy @code{Config} objects. 
+
+@end deftypemethod
+
+@deftypemethod Config void read (@w{FILE * @var{stream}})
+@deftypemethodx Config void write (@w{FILE * @var{stream}})
+
+The @code{read()} method reads and parses a configuration from the given
+@var{stream}. A @code{ParseException} is thrown if a parse error occurs.
+
+The @code{write()} method writes the configuration to the given @var{stream}.
+
+@end deftypemethod
+
+@deftypemethod Config void readFile (@w{const char * @var{filename}})
+@deftypemethodx Config void writeFile (@w{const char * @var{filename}})
+
+The @code{readFile()} method reads and parses a configuration from the
+file named @var{filename}. A @code{ParseException} is thrown if a
+parse error occurs. A @code{FileIOException} is thrown if the file
+cannot be read.
+
+The @code{writeFile()} method writes the configuration to the file
+named @var{filename}. A @code{FileIOException} is thrown if the file cannot
+be written.
+
+@end deftypemethod
+
+@deftypemethod Config void readString (@w{const char * @var{str}})
+@deftypemethodx Config void readString (@w{const std::string &@var{str}})
+
+These methods read and parse a configuration from the string
+@var{str}. A @code{ParseException} is thrown if a parse error occurs.
+
+@end deftypemethod
+
+@deftypemethod ParseException {const char *} getError ()
+@deftypemethodx ParseException {const char *} getFile ()
+@deftypemethodx ParseException int getLine ()
+
+If a call to @code{readFile()}, @code{readString()}, or @code{read()}
+resulted in a @code{ParseException}, these methods can be called on
+the exception object to obtain the text, filename, and line number of
+the parse error. Storage for the strings returned by @code{getError()}
+and @code{getFile()} are managed by the library; the strings must not
+be freed by the caller.
+
+@end deftypemethod
+
+@deftypemethod Config void setIncludeDir (@w{const char *@var{includeDir}})
+@deftypemethodx Config {const char *} getIncludeDir ()
+
+@code{setIncludeDir()} specifies the include directory,
+@var{includeDir}, relative to which the files specified in
+@samp{@@include} directives will be located for the configuration. By
+default, there is no include directory, and all include files are
+expected to be relative to the current working directory. If
+@var{includeDir} is @code{NULL}, the default behavior is reinstated.
+
+For example, if the include directory is set to @file{/usr/local/etc},
+the include directive @samp{@@include "configs/extra.cfg"} would include the
+file @file{/usr/local/etc/configs/extra.cfg}.
+
+@code{getIncludeDir()} returns the current include directory for the
+configuration, or @code{NULL} if none is set.
+
+@end deftypemethod
+
+@deftypemethod Config void setOptions (int @var{options})
+@deftypemethodx Config int getOptions ()
+
+These methods set and get the options for the configuration. The
+options affect how configurations are read and written. The following
+options are defined:
+
+@table @code
+
+@item OptionAutoConvert
+Turning this option on enables number auto-conversion for
+the configuration. When this feature is enabled, an attempt to retrieve a
+floating point setting's value into an integer (or vice versa), or
+store an integer to a floating point setting's value (or vice versa)
+will cause the library to silently perform the necessary conversion
+(possibly leading to loss of data), rather than reporting failure. By
+default this option is turned off.
+
+@item OptionSemicolonSeparators
+This option controls whether a semicolon (`;') is output after each setting
+when the configuration is written to a file or stream. (The semicolon
+separators are optional in the configuration syntax.) By default this
+option is turned on.
+
+@item OptionColonAssignmentForGroups
+This option controls whether a colon (`:') is output between each
+group setting's name and its value when the configuration is written to
+a file or stream. If the option is turned off, an equals sign (`=') is
+output instead. (These tokens are interchangeable in the configuration
+syntax.) By default this option is turned on.
+
+@item OptionColonAssignmentForNonGroups
+This option controls whether a colon (`:') is output between each
+non-group setting's name and its value when the configuration is written
+to a file or stream. If the option is turned off, an equals sign (`=')
+is output instead. (These tokens are interchangeable in the configuration
+syntax.) By default this option is turned off.
+
+@item OptionOpenBraceOnSeparateLine
+This option controls whether an open brace (`@{') will be written on its own
+line when the configuration is written to a file or stream. If the option is
+turned off, the brace will be written at the end of the previous line.
+By default this option is turned on.
+
+@end table
+
+@end deftypemethod
+
+@deftypemethod Config void setAutoConvert (bool @var{flag})
+@deftypemethodx Config bool getAutoConvert ()
+
+These methods get and set the @code{OptionAutoConvert} option. They
+are obsoleted by the @code{setOptions()} and @code{getOptions()}
+methods described above.
+
+@end deftypemethod
+
+@deftypemethod Config void setDefaultFormat (@w{Setting::Format @var{format}})
+@deftypemethodx Config Setting::Format getDefaultFormat ()
+
+These methods set and get the default external format for settings in
+the configuration. If a non-default format has not been set for a
+setting with @code{Setting::setFormat()}, this configuration-wide
+default format will be used instead when that setting is written to a
+file or stream.
+
+@end deftypemethod
+
+@deftypemethod Config void setTabWidth (@w{unsigned short @var{width}})
+@deftypemethodx Config {unsigned short} getTabWidth ()
+
+These methods set and get the tab width for the configuration. The tab
+width affects the formatting of the configuration when it is written
+to a file or stream: each level of nesting is indented by @var{width}
+spaces, or by a single tab character if @var{width} is 0. The tab
+width has no effect on parsing.
+
+Valid tab widths range from 0 to 15. The default tab width is 2.
+
+@end deftypemethod
+
+@deftypemethod Config {Setting &} getRoot ()
+
+This method returns the root setting for the configuration, which is a group.
+
+@end deftypemethod
+
+@deftypemethod Config {Setting &} lookup (@w{const std::string &@var{path}})
+@deftypemethodx Config {Setting &} lookup (@w{const char * @var{path}})
+
+These methods locate the setting specified by the path @var{path}. If
+the requested setting is not found, a @code{SettingNotFoundException} is
+thrown.
+
+@end deftypemethod
+@deftypemethod Config bool exists (@w{const std::string &@var{path}})
+@deftypemethodx Config bool exists (@w{const char *@var{path}})
+
+These methods test if a setting with the given @var{path} exists in
+the configuration. They return @code{true} if the setting exists, and
+@code{false} otherwise. These methods do not throw exceptions.
+
+@end deftypemethod
+
+@deftypemethod Config bool lookupValue (@w{const char *@var{path}}, @w{bool &@var{value}})
+@deftypemethodx Config bool lookupValue (@w{const std::string &@var{path}}, @w{bool &@var{value}})
+
+@deftypemethodx Config bool lookupValue (@w{const char *@var{path}}, @w{int &@var{value}})
+@deftypemethodx Config bool lookupValue (@w{const std::string &@var{path}}, @w{int &@var{value}})
+
+@deftypemethodx Config bool lookupValue (@w{const char *@var{path}}, @w{unsigned int &@var{value}})
+@deftypemethodx Config bool lookupValue (@w{const std::string &@var{path}}, @w{unsigned int &@var{value}})
+
+@deftypemethodx Config bool lookupValue (@w{const char *@var{path}}, @w{long long &@var{value}})
+@deftypemethodx Config bool lookupValue (@w{const std::string &@var{path}}, @w{long long &@var{value}})
+
+@deftypemethodx Config bool lookupValue (@w{const char *@var{path}}, @w{float &@var{value}})
+@deftypemethodx Config bool lookupValue (@w{const std::string &@var{path}}, @w{float &@var{value}})
+
+@deftypemethodx Config bool lookupValue (@w{const char *@var{path}}, @w{double &@var{value}})
+@deftypemethodx Config bool lookupValue (@w{const std::string &@var{path}}, @w{double &@var{value}})
+
+@deftypemethodx Config bool lookupValue (@w{const char *@var{path}}, @w{const char *&@var{value}})
+@deftypemethodx Config bool lookupValue (@w{const std::string &@var{path}}, @w{const char *&@var{value}})
+
+@deftypemethodx Config bool lookupValue (@w{const char *@var{path}}, @w{std::string &@var{value}})
+@deftypemethodx Config bool lookupValue (@w{const std::string &@var{path}}, @w{std::string &@var{value}})
+
+These are convenience methods for looking up the value of a setting
+with the given @var{path}. If the setting is found and is of an
+appropriate type, the value is stored in @var{value} and the method
+returns @code{true}. Otherwise, @var{value} is left unmodified and the
+method returns @code{false}. These methods do not throw exceptions.
+
+Storage for @w{@i{const char *}} values is managed by the library and
+released automatically when the setting is destroyed or when its value
+is changed; the string must not be freed by the caller. For safety and
+convenience, always assigning string values to a @code{std::string} is
+suggested.
+
+Since these methods have boolean return values and do not throw
+exceptions, they can be used within boolean logic expressions. The following
+example presents a concise way to look up three values at once and
+perform error handling if any of them are not found or are of the
+wrong type:
+
+@sp 1
+@cartouche
+@smallexample
+int var1;
+double var2;
+const char *var3;
+
+if(config.lookupValue("values.var1", var1)
+   && config.lookupValue("values.var2", var2)
+   && config.lookupValue("values.var3", var3))
+@{
+  // use var1, var2, var3
+@}
+else
+@{
+  // error handling here
+@}
+@end smallexample
+@end cartouche
+
+This approach also takes advantage of the short-circuit evaluation rules
+of C++, e.g., if the first lookup fails (returning @code{false}), the
+remaining lookups are skipped entirely.
+
+@end deftypemethod
+
+@deftypemethod Setting {} {operator bool ()}
+@deftypemethodx Setting {} {operator int ()}
+@deftypemethodx Setting {} {operator unsigned int ()}
+@deftypemethodx Setting {} {operator long ()}
+@deftypemethodx Setting {} {operator unsigned long ()}
+@deftypemethodx Setting {} {operator long long ()}
+@deftypemethodx Setting {} {operator unsigned long long ()}
+@deftypemethodx Setting {} {operator float ()}
+@deftypemethodx Setting {} {operator double ()}
+@deftypemethodx Setting {} {operator const char * ()}
+@deftypemethodx Setting {} {operator std::string ()}
+@deftypemethodx Setting {const char *} c_str ()
+
+These cast operators allow a @code{Setting} object to be assigned to a
+variable of type @i{bool} if it is of type @code{TypeBoolean};
+@i{int}, @i{unsigned int}; @code{long long} or @code{unsigned long long} if
+it is of type @code{TypeInt64}, @i{float} or @i{double} if it is of type
+@code{TypeFloat}; or @w{@i{const char *}} or @i{std::string} if it is
+of type @code{TypeString}.
+
+Values of type @code{TypeInt} or @code{TypeInt64} may be assigned to
+variables of type @i{long}, or @i{unsigned long}, depending on the
+sizes of those types on the host system.
+
+Storage for @w{@i{const char *}} return values is managed by the
+library and released automatically when the setting is destroyed or
+when its value is changed; the string must not be freed by the
+caller. For safety and convenience, always assigning string return
+values to a @code{std::string} is suggested.
+
+The following examples demonstrate this usage:
+
+@cartouche
+@smallexample
+long width = config.lookup("application.window.size.w");
+
+bool splashScreen = config.lookup("application.splash_screen");
+
+std::string title = config.lookup("application.window.title");
+@end smallexample
+@end cartouche
+
+Note that certain conversions can lead to loss of precision or
+clipping of values, e.g., assigning a negative value to an @i{unsigned
+int} (in which case the value will be treated as 0), or a
+double-precision value to a @i{float}. The library does not treat
+these lossy conversions as errors.
+
+Perhaps surprisingly, the following code in particular will cause a
+compiler error:
+
+@cartouche
+@smallexample
+std::string title;
+.
+.
+.
+title = config.lookup("application.window.title");
+@end smallexample
+@end cartouche
+
+This is because the assignment operator of @code{std::string} is being
+invoked with a @code{Setting &} as an argument. The compiler is unable
+to make an implicit conversion because both the @code{const char *}
+and the @code{std::string} cast operators of @code{Setting} are
+equally appropriate. This is not a bug in @i{libconfig}; providing
+only the @code{const char *} cast operator would resolve this
+particular ambiguity, but would cause assignments to
+@code{std::string} like the one in the previous example to produce a
+compiler error. (To understand why, see section 11.4.1 of @i{The C++
+Programming Language}.)
+
+The solution to this problem is to use an explicit conversion that
+avoids the construction of an intermediate @code{std::string} object,
+as follows:
+
+@cartouche
+@smallexample
+std::string title;
+.
+.
+.
+title = (const char *)config.lookup("application.window.title");
+@end smallexample
+@end cartouche
+
+Or, alternatively, use the @code{c_str()} method, which has the same effect:
+
+@cartouche
+@smallexample
+std::string title;
+.
+.
+.
+title = config.lookup("application.window.title").c_str();
+@end smallexample
+@end cartouche
+
+If the assignment is invalid due to a type mismatch, a
+@code{SettingTypeException} is thrown.
+
+@end deftypemethod
+
+@deftypemethod Setting {Setting &} operator= (@w{bool @var{value}})
+@deftypemethodx Setting {Setting &} operator= (@w{int @var{value}})
+@deftypemethodx Setting {Setting &} operator= (@w{long @var{value}})
+@deftypemethodx Setting {Setting &} operator= (@w{const long long &@var{value}})
+@deftypemethodx Setting {Setting &} operator= (@w{float @var{value}})
+@deftypemethodx Setting {Setting &} operator= (@w{const double &@var{value}})
+@deftypemethodx Setting {Setting &} operator= (@w{const char *@var{value}})
+@deftypemethodx Setting {Setting &} operator= (@w{const std::string &@var{value}})
+
+These assignment operators allow values of type @i{bool}, @i{int},
+@i{long}, @i{long long}, @i{float}, @i{double}, @i{const char *}, and
+@i{std::string} to be assigned to a setting. In the case of strings,
+the library makes a copy of the passed string @var{value}, so it may
+be subsequently freed or modified by the caller without affecting the
+value of the setting.
+
+The following example code looks up a (presumably) integer setting
+and changes its value:
+
+@cartouche
+@smallexample
+Setting &setting = config.lookup("application.window.size.w");
+setting = 1024;
+@end smallexample
+@end cartouche
+
+If the assignment is invalid due to a type mismatch, a
+@code{SettingTypeException} is thrown.
+
+@end deftypemethod
+
+@deftypemethod Setting {Setting &} {operator[]} (@w{int @var{index}})
+@deftypemethodx Setting {Setting &} {operator[]} (@w{const std::string &@var{name}})
+@deftypemethodx Setting {Setting &} {operator[]} (@w{const char *@var{name}})
+
+A @code{Setting} object may be subscripted with an integer index
+@var{index} if it is an array or list, or with either a string
+@var{name} or an integer index @var{index} if it is a group. For example,
+the following code would produce the string @samp{Last Name} when
+applied to the example configuration in @ref{Configuration Files}.
+
+@cartouche
+@smallexample
+Setting& setting = config.lookup("application.misc");
+const char *s = setting["columns"][0];
+@end smallexample
+@end cartouche
+
+If the setting is not an array, list, or group, a
+@code{SettingTypeException} is thrown. If the subscript (@var{index}
+or @var{name}) does not refer to a valid element, a
+@code{SettingNotFoundException} is thrown.
+
+Iterating over a group's child settings with an integer index will
+return the settings in the same order that they appear in the
+configuration.
+
+@end deftypemethod
+
+@deftypemethod Setting {Setting &} lookup (@w{const char * @var{path}})
+@deftypemethodx Setting {Setting &} lookup (@w{const std::string &@var{path}})
+
+This function locates a setting by a path @var{path} relative to
+this setting. If requested setting is not found, a
+@code{SettingNotFoundException} is thrown.
+
+@end deftypemethod
+
+@deftypemethod Setting bool lookupValue (@w{const char *@var{name}}, @w{bool &@var{value}})
+@deftypemethodx Setting bool lookupValue (@w{const std::string &@var{name}}, @w{bool &@var{value}})
+
+@deftypemethodx Setting bool lookupValue (@w{const char *@var{name}}, @w{int &@var{value}})
+@deftypemethodx Setting bool lookupValue (@w{const std::string &@var{name}}, @w{int &@var{value}})
+
+@deftypemethodx Setting bool lookupValue (@w{const char *@var{name}}, @w{unsigned int &@var{value}})
+@deftypemethodx Setting bool lookupValue (@w{const std::string &@var{name}}, @w{unsigned int &@var{value}})
+
+@deftypemethodx Setting bool lookupValue (@w{const char *@var{name}}, @w{long long &@var{value}})
+@deftypemethodx Setting bool lookupValue (@w{const std::string &@var{name}}, @w{long long &@var{value}})
+
+@deftypemethodx Setting bool lookupValue (@w{const char *@var{name}}, @w{unsigned long long &@var{value}})
+@deftypemethodx Setting bool lookupValue (@w{const std::string &@var{name}}, @w{unsigned long long &@var{value}})
+
+@deftypemethodx Setting bool lookupValue (@w{const char *@var{name}}, @w{float &@var{value}})
+@deftypemethodx Setting bool lookupValue (@w{const std::string &@var{name}}, @w{float &@var{value}})
+
+@deftypemethodx Setting bool lookupValue (@w{const char *@var{name}}, @w{double &@var{value}})
+@deftypemethodx Setting bool lookupValue (@w{const std::string &@var{name}}, @w{double &@var{value}})
+
+@deftypemethodx Setting bool lookupValue (@w{const char *@var{name}}, @w{const char *&@var{value}})
+@deftypemethodx Setting bool lookupValue (@w{const std::string &@var{name}}, @w{const char *&@var{value}})
+
+@deftypemethodx Setting bool lookupValue (@w{const char *@var{name}}, @w{std::string &@var{value}})
+@deftypemethodx Setting bool lookupValue (@w{const std::string &@var{name}}, @w{std::string &@var{value}})
+
+These are convenience methods for looking up the value of a child setting
+with the given @var{name}. If the setting is found and is of an
+appropriate type, the value is stored in @var{value} and the method
+returns @code{true}. Otherwise, @var{value} is left unmodified and the
+method returns @code{false}. These methods do not throw exceptions.
+
+Storage for @w{@i{const char *}} values is managed by the library and
+released automatically when the setting is destroyed or when its value
+is changed; the string must not be freed by the caller. For safety and
+convenience, always assigning string values to a @code{std::string} is
+suggested.
+
+Since these methods have boolean return values and do not throw
+exceptions, they can be used within boolean logic expressions. The following
+example presents a concise way to look up three values at once and
+perform error handling if any of them are not found or are of the
+wrong type:
+
+@sp 1
+@cartouche
+@smallexample
+int var1;
+double var2;
+const char *var3;
+
+if(setting.lookupValue("var1", var1)
+   && setting.lookupValue("var2", var2)
+   && setting.lookupValue("var3", var3))
+@{
+  // use var1, var2, var3
+@}
+else
+@{
+  // error handling here
+@}
+@end smallexample
+@end cartouche
+
+This approach also takes advantage of the short-circuit evaluation
+rules of C++, e.g., if the first lookup fails (returning @code{false}), the
+remaining lookups are skipped entirely.
+
+@end deftypemethod
+
+@deftypemethod Setting {Setting &} add (@w{const std::string &@var{name}}, @w{Setting::Type @var{type}})
+@deftypemethodx Setting {Setting &} add (@w{const char *@var{name}}, @w{Setting::Type @var{type}})
+
+These methods add a new child setting with the given @var{name} and
+@var{type} to the setting, which must be a group. They return a
+reference to the new setting. If the setting already has a child
+setting with the given name, or if the name is invalid, a
+@code{SettingNameException} is thrown. If the setting is not a group,
+a @code{SettingTypeException} is thrown.
+
+Once a setting has been created, neither its name nor type can be
+changed.
+
+@end deftypemethod
+
+@deftypemethod Setting {Setting &} add (@w{Setting::Type @var{type}})
+
+This method adds a new element to the setting, which must be of type
+@code{TypeArray} or @code{TypeList}. If the setting is an array which
+currently has zero elements, the @var{type} parameter (which must be
+@code{TypeInt}, @code{TypeInt64}, @code{TypeFloat}, @code{TypeBool},
+or @code{TypeString}) determines the type for the array; otherwise it
+must match the type of the existing elements in the array.
+
+The method returns the new setting on success. If @var{type} is a
+scalar type, the new setting will have a default value of 0, 0.0,
+@code{false}, or @code{NULL}, as appropriate.
+
+The method throws a @code{SettingTypeException} if the setting is not
+an array or list, or if @var{type} is invalid.
+
+@end deftypemethod
+
+@deftypemethod Setting void remove (@w{const std::string &@var{name}})
+@deftypemethodx Setting void remove (@w{const char *@var{name}})
+
+These methods remove the child setting with the given @var{name} from
+the setting, which must be a group. Any child settings of the removed
+setting are recursively destroyed as well.
+
+If the setting is not a group, a @code{SettingTypeException} is
+thrown.  If the setting does not have a child setting with the given
+name, a @code{SettingNotFoundException} is thrown.
+
+@end deftypemethod
+
+@deftypemethod Setting void remove (@w{unsigned int @var{index}})
+
+This method removes the child setting at the given index @var{index} from
+the setting, which must be a group, list, or array. Any child settings
+of the removed setting are recursively destroyed as well.
+
+If the setting is not a group, list, or array, a
+@code{SettingTypeException} is thrown.  If @var{index} is out of range,
+a @code{SettingNotFoundException} is thrown.
+
+@end deftypemethod
+
+@deftypemethod Setting {const char *} getName ()
+
+This method returns the name of the setting, or @code{NULL} if the
+setting has no name. Storage for the returned string is managed by the
+library and released automatically when the setting is destroyed; the
+string must not be freed by the caller. For safety and convenience,
+consider assigning the return value to a @code{std::string}.
+
+@end deftypemethod
+
+@deftypemethod Setting {std::string} getPath ()
+
+This method returns the complete dot-separated path to the
+setting. Settings which do not have a name (list and array elements)
+are represented by their index in square brackets.
+
+@end deftypemethod
+
+@deftypemethod Setting {Setting &} getParent ()
+
+This method returns the parent setting of the setting. If the setting
+is the root setting, a @code{SettingNotFoundException} is thrown.
+
+@end deftypemethod
+
+@deftypemethod Setting bool isRoot ()
+
+This method returns @code{true} if the setting is the root setting, and
+@code{false} otherwise.
+
+@end deftypemethod
+
+@deftypemethod Setting int getIndex ()
+
+This method returns the index of the setting within its parent
+setting. When applied to the root setting, this method returns -1.
+
+@end deftypemethod
+
+@deftypemethod Setting Setting::Type getType ()
+
+@tindex Setting::Type
+This method returns the type of the setting. The
+@code{Setting::Type} enumeration consists of the following constants:
+@code{TypeInt}, @code{TypeInt64}, @code{TypeFloat}, @code{TypeString},
+@code{TypeBoolean}, @code{TypeArray}, @code{TypeList}, and
+@code{TypeGroup}.
+
+@end deftypemethod
+
+@deftypemethod Setting Setting::Format getFormat ()
+@deftypemethodx Setting void setFormat (@w{Setting::Format @var{format}})
+
+These methods get and set the external format for the setting.
+
+@tindex Setting::Format
+The @var{Setting::Format} enumeration consists of the following
+constants: @code{FormatDefault} and @code{FormatHex}. All settings
+support the @code{FormatDefault} format. The @code{FormatHex} format
+specifies hexadecimal formatting for integer values, and hence only
+applies to settings of type @code{TypeInt} and @code{TypeInt64}. If
+@var{format} is invalid for the given setting, it is ignored.
+
+@end deftypemethod
+
+@deftypemethod Setting bool exists (@w{const std::string &@var{name}})
+@deftypemethodx Setting bool exists (@w{const char *@var{name}})
+
+These methods test if the setting has a child setting with the given
+@var{name}. They return @code{true} if the setting exists, and
+@code{false} otherwise. These methods do not throw exceptions.
+
+@end deftypemethod
+@page
+@deftypemethod Setting iterator begin ()
+@deftypemethodx Setting iterator end ()
+@deftypemethodx Setting const_iterator begin ()
+@deftypemethodx Setting const_iterator end ()
+
+These methods return STL-style iterators that can be used to enumerate
+the child settings of a given setting. If the setting is not an array, list,
+or group, they throw a @code{SettingTypeException}.
+
+@end deftypemethod
+
+@deftypemethod Setting int getLength ()
+
+This method returns the number of settings in a group, or the number of
+elements in a list or array. For other types of settings, it returns
+0.
+
+@end deftypemethod
+
+@deftypemethod Setting bool isGroup ()
+@deftypemethodx Setting bool isArray ()
+@deftypemethodx Setting bool isList ()
+
+These convenience methods test if a setting is of a given type.
+
+@end deftypemethod
+
+@deftypemethod Setting bool isAggregate ()
+@deftypemethodx Setting bool isScalar ()
+@deftypemethodx Setting bool isNumber ()
+
+These convenience methods test if a setting is of an aggregate type (a
+group, array, or list), of a scalar type (integer, 64-bit integer,
+floating point, boolean, or string), and of a number (integer, 64-bit
+integer, or floating point), respectively.
+
+@end deftypemethod
+
+@deftypemethod Setting {const char *} getSourceFile ()
+
+This function returns the name of the file from which the setting was
+read, or NULL if the setting was not read from a file. This
+information is useful for reporting application-level errors. Storage
+for the returned string is managed by the library and released
+automatically when the configuration is destroyed; the string must
+not be freed by the caller.
+
+@end deftypemethod
+
+@deftypemethod Setting {unsigned int} getSourceLine ()
+
+This function returns the line number of the configuration file or
+stream at which the setting @var{setting} was read, or 0 if no line
+number is available. This information is useful for reporting
+application-level errors.
+
+@end deftypemethod
+
+@node Example Programs, Configuration File Grammar, The C++ API, Top
+@comment  node-name,  next,  previous,  up
+@chapter Example Programs
+
+Practical example programs that illustrate how to use @i{libconfig}
+from both C and C++ are included in the @file{examples} subdirectory
+of the distribution. These examples include:
+
+@table @file
+
+@item examples/c/example1.c
+An example C program that reads a configuration from an existing file
+@file{example.cfg} (also located in @file{examples/c}) and displays
+some of its contents.
+
+@item examples/c++/example1.cpp
+The C++ equivalent of @file{example1.c}.
+
+@item examples/c/example2.c
+An example C program that reads a configuration from an existing file
+@file{example.cfg} (also located in @file{examples/c}), adds new
+settings to the configuration, and writes the updated configuration to
+another file.
+
+@item examples/c++/example2.cpp
+The C++ equivalent of @file{example2.c}
+
+@item examples/c/example3.c
+An example C program that constructs a new configuration in memory and writes it to a file.
+
+@item examples/c++/example3.cpp
+The C++ equivalent of @file{example3.c}
+
+@end table
+
+@node Configuration File Grammar, License, Example Programs, Top
+@comment  node-name,  next,  previous,  up
+@chapter Configuration File Grammar
+
+Below is the BNF grammar for configuration files. Comments and include
+directives are not part of the grammar, so they are not included here.
+
+@sp 1
+@example
+configuration = setting-list | empty
+
+setting-list = setting | setting-list setting
+
+setting = name (":" | "=") value (";" | "," | empty)
+
+value = scalar-value | array | list | group
+
+value-list = value | value-list "," value
+
+scalar-value = boolean | integer | integer64 | hex | hex64 | float
+               | string
+
+scalar-value-list = scalar-value | scalar-value-list "," scalar-value
+
+array = "[" (scalar-value-list | empty) "]"
+
+list = "(" (value-list | empty) ")"
+
+group = "@{" (setting-list | empty) "@}"
+
+empty =
+@end example
+
+@sp 2
+Terminals are defined below as regular expressions:
+@sp 1
+
+@multitable @columnfractions .2 .8
+@item @code{boolean} @tab
+@code{([Tt][Rr][Uu][Ee])|([Ff][Aa][Ll][Ss][Ee])}
+@item @code{string} @tab
+@code{\"([^\"\\]|\\.)*\"}
+@item @code{name} @tab
+@code{[A-Za-z\*][-A-Za-z0-9_\*]*}
+@item @code{integer} @tab
+@code{[-+]?[0-9]+}
+@item @code{integer64} @tab
+@code{[-+]?[0-9]+L(L)?}
+@item @code{hex} @tab
+@code{0[Xx][0-9A-Fa-f]+}
+@item @code{hex64} @tab
+@code{0[Xx][0-9A-Fa-f]+L(L)?}
+@item @code{float} @tab
+@code{([-+]?([0-9]*)?\.[0-9]*([eE][-+]?[0-9]+)?)|([-+]([0-9]+)(\.[0-9]*)?[eE][-+]?[0-9]+)}
+@end multitable
+
+@node License, Function Index, Configuration File Grammar, Top
+@comment  node-name,  next,  previous,  up
+@appendix License
+
+@include LGPL.texi
+
+@node Function Index, Type Index, License, Top
+@comment  node-name,  next,  previous,  up
+@unnumbered Function Index
+
+@printindex fn
+
+@node Type Index, Concept Index, Function Index, Top
+@comment  node-name,  next,  previous,  up
+@unnumbered Type Index
+
+@printindex tp
+
+@node Concept Index, , Type Index, Top
+@comment  node-name,  next,  previous,  up
+@unnumbered Concept Index
+
+@printindex cp
+
+@bye

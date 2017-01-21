@@ -1,0 +1,77 @@
+libconfig (1.4.8) unstable; urgency=low
+
+  * New upstream release
+  * Update debian/control to reflect current Debian packages
+  * Add texlive-latex-base to Build-Depends
+
+ -- Jonathan McCrohan <jmccrohan@gmail.com>  Sun, 06 Nov 2011 01:16:39 +0000
+
+libconfig (1.4) unstable; urgency=low
+
+  * new upstream release
+  * libconfig++9-dev no longer depends on libconfig9-dev
+
+ -- Mark Lindner <hyperrealm@gmail.com>  Fri, 21 Aug 2009 00:00:00 +0800
+
+libconfig (1.3.2) unstable; urgency=low
+
+  * new upstream release
+  * use official Debian files as basis
+  * libconfig++8-dev depends on libconfig8-dev because libconfig.h++
+    includes libconfig.h which is in libconfig8-dev
+
+ -- Klaus Schneider <kschn@users.sourceforge.net>  Wed, 18 Feb 2009 15:26:32 +0100
+
+libconfig (1.3.1-1) unstable; urgency=low
+
+  * First upload to Debian (Closes: #438683)
+
+  * New upstream release
+    - soname bump to 6.1
+
+ -- Jose Luis Tallon <jltallon@adv-solutions.net>  Fri, 31 Oct 2008 22:13:47 +0100
+
+libconfig (1.3-1) unstable; urgency=low
+
+  * New upstream release
+
+  * Packaging
+    - Updated to S-V 3.8.0 with no changes
+
+ -- Jose Luis Tallon <jltallon@adv-solutions.net>  Mon, 20 Jul 2008 19:55:23 +0200
+
+libconfig (1.1-1) unstable; urgency=low
+
+  * New upstream release
+
+ -- Jose Luis Tallon <jltallon@adv-solutions.net>  Mon,  2 Jul 2007 02:01:40 +0200
+
+libconfig (0.9-1) unstable; urgency=low
+
+  * Initial packaging
+
+ -- Jose Luis Tallon <jltallon@adv-solutions.net>  Tue, 10 Oct 2006 01:42:09 +0200
+
+libconfigduo (1.3.1) unstable; urgency=low
+
+  * Release 1.3.1
+
+ -- Klaus Schneider <kschn@users.sourceforge.net>  Thu, 13 Nov 2008 17:05:12 +0100
+
+libconfigduo (1.3) unstable; urgency=low
+
+  * Release 1.3
+
+ -- Klaus Schneider <kschn@users.sourceforge.net>  Fri, 4 Apr 2008 09:36:42 +0200
+
+libconfigduo (1.2.1-1) unstable; urgency=low
+
+  * Release 1.2.1
+
+ -- Klaus Schneider <kschn@users.sourceforge.net>  Thu, 31 Jan 2008 11:25:21 +0100
+
+libconfigduo (1.1.1-1) unstable; urgency=low
+
+  * Initial release
+
+ -- Klaus Schneider <kschn@users.sourceforge.net>  Mon, 25 Jun 2007 16:21:56 +0200

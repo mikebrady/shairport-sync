@@ -1,0 +1,14 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: libconfig
+Description: C Configuration File Library
+Version: @VERSION@
+URL: http://www.hyperrealm.com/main.php?s=libconfig
+Requires:
+Conflicts:
+Libs: -L${libdir} -lconfig
+Libs.private: @LIBS@ 
+Cflags: -I${includedir}

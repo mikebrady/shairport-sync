@@ -50,6 +50,9 @@ extern audio_output audio_pipe;
 #ifdef CONFIG_STDOUT
 extern audio_output audio_stdout;
 #endif
+#if (defined(CONFIG_RKTUBE) && defined(__ANDROID__))
+extern audio_output audio_rktube;
+#endif
 
 static audio_output *outputs[] = {
 #ifdef CONFIG_SNDIO
@@ -72,6 +75,9 @@ static audio_output *outputs[] = {
 #endif
 #ifdef CONFIG_STDOUT
     &audio_stdout,
+#endif
+#if (defined(CONFIG_RKTUBE) && defined(__ANDROID__))
+    &audio_rktube,
 #endif
     NULL};
 

@@ -22,7 +22,7 @@ void rtp_request_client_pause(void); // ask the client to pause
 void get_reference_timestamp_stuff(uint32_t *timestamp, uint64_t *timestamp_time, uint64_t *remote_timestamp_time);
 void clear_reference_timestamp(void);
 
-uint64_t static local_to_remote_time_jitters;
-uint64_t static local_to_remote_time_jitters_count;
+static uint64_t local_to_remote_time_jitters;
+static uint64_t local_to_remote_time_jitters_count;
 
 #endif // _RTP_H

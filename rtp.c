@@ -91,7 +91,7 @@ static uint64_t departure_time; // dangerous -- this assumes that there will nev
 
 static pthread_mutex_t reference_time_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-uint64_t static local_to_remote_time_difference; // used to switch between local and remote clocks
+static uint64_t local_to_remote_time_difference; // used to switch between local and remote clocks
 
 void *rtp_audio_receiver(void *arg) {
   debug(2, "Audio receiver -- Server RTP thread starting.");
@@ -528,7 +528,20 @@ void *rtp_timing_receiver(void *arg) {
      //    return_time = the time from soliciting a timing packet to getting it back. It should be short ( < 5 ms) and pretty consistent.
      // debug(1, "%lld\t%lld\t%ld\t%lld\t%u\t%llu", clock_drift_in_usec,(session_corrections*1000000)/44100,current_delay,source_drift_usec,buffer_occupancy,(return_time*1000000)>>32);
       
-    } else {
+    } /*else if (packet[1] == 0xd4) {
+      debug(1, "Timing port -- Unknown RTP packet of type 0x%02X length %d.", packet[1], nread);
+	socklen_t msgsize = sizeof(struct sockaddr_in);
+	#ifdef AF_INET6
+    	if (rtp_client_control_socket.SAFAMILY == AF_INET6) {
+      		msgsize = sizeof(struct sockaddr_in6);
+    	}
+	#endif
+
+	if (sendto(control_socket, packet, nread, 0, (struct sockaddr *)&rtp_client_control_socket,
+               msgsize) == -1) {
+      		perror("Error sendto-ing to audio socket");
+    	}
+    }*/ else  {
       debug(1, "Timing port -- Unknown RTP packet of type 0x%02X length %d.", packet[1], nread);
     }
   }
