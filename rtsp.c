@@ -1469,12 +1469,12 @@ static void handle_announce(rtsp_conn_info *conn, rtsp_message *req, rtsp_messag
     }
     resp->respcode = 200;
   } else {
-    resp->respcode = 453;
+    resp->respcode = 401;
     debug(1, "Already playing.");
   }
 
 out:
-  if (resp->respcode != 200 && resp->respcode != 453) {
+  if (resp->respcode != 200 && resp->respcode != 401) {
     pthread_mutex_unlock(&play_lock);
   }
 }
