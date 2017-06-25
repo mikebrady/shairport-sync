@@ -43,6 +43,8 @@ typedef struct {
   // may be NULL, in which case software muting is used.
   void (*mute)(int do_mute);
 
+  // may be NULL, in which case changing out device on-the-fly is not supported
+  void (*change_output_device)(char *device);
 } audio_output;
 
 audio_output *audio_get_output(char *name);

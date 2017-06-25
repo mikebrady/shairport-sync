@@ -80,10 +80,6 @@
 
 #include <libdaemon/dlog.h>
 
-#ifdef CONFIG_ALSA
-void set_alsa_out_dev(char *);
-#endif
-
 // true if Shairport Sync is supposed to be sending output to the output device, false otherwise
 
 static volatile int requested_connection_state_to_output = 1;
@@ -553,7 +549,7 @@ void command_start(void) {
           debug(1, "on-start command %s finished with error %d", config.cmd_start, errno);
         }
         if (config.cmd_start_returns_output) {
-          static char buffer[256];
+          char buffer[256];
           int len;
           close(pipes[1]);
           len = read(pipes[0], buffer, 255);
@@ -562,9 +558,8 @@ void command_start(void) {
           if (buffer[len - 1] == '\n')
             buffer[len - 1] = '\0'; // strip trailing newlines
           debug(1, "received '%s' as the device to use from the on-start command", buffer);
-#ifdef CONFIG_ALSA
-          set_alsa_out_dev(buffer);
-#endif
+          if (config.output->change_output_device)
+            config.output->change_output_device(buffer);
         }
       }
       // debug(1,"Continue after on-start command");

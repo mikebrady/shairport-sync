@@ -238,7 +238,8 @@ audio_output audio_pa = {.name = "pa",
                          .play = &play,
                          .volume = NULL,
                          .parameters = NULL,
-                         .mute = NULL};
+                         .mute = NULL,
+                         .change_output_device = NULL};
 
 void context_state_cb(pa_context *context, void *mainloop) {
   pa_threaded_mainloop_signal(mainloop, 0);

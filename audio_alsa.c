@@ -50,6 +50,7 @@ void do_mute(int request);
 static void linear_volume(double vol);
 static void parameters(audio_parameters *info);
 static void mute(int do_mute);
+static void change_output_device(char *device);
 static double set_volume;
 static int output_method_signalled = 0;
 
@@ -64,7 +65,8 @@ audio_output audio_alsa = {.name = "alsa",
                            .play = &play,
                            .mute = NULL, // a function will be provided if it can, and is allowed to, do hardware mute
                            .volume = NULL, // a function will be provided if it can do hardware volume
-                           .parameters = &parameters};
+                           .parameters = &parameters,
+                           .change_output_device = &change_output_device};
 
 static pthread_mutex_t alsa_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -81,7 +83,7 @@ static snd_mixer_selem_id_t *alsa_mix_sid = NULL;
 static long alsa_mix_minv, alsa_mix_maxv;
 static long alsa_mix_mindb, alsa_mix_maxdb;
 
-static char *alsa_out_dev = "default";
+static char alsa_out_dev[256];
 static char *alsa_mix_dev = NULL;
 static char *alsa_mix_ctrl = "Master";
 static int alsa_mix_index = 0;
@@ -107,10 +109,6 @@ static void help(void) {
          "    -c mixer-control    set the mixer control [Master*|...]\n"
          "    -i mixer-index      set the mixer index [0*|...]\n"
          "    *) default option\n");
-}
-
-void set_alsa_out_dev(char *dev) {
-  alsa_out_dev = dev;
 }
 
 int open_mixer() {
@@ -164,6 +162,9 @@ static int init(int argc, char **argv) {
 
   config.audio_backend_latency_offset = 0;
   config.audio_backend_buffer_desired_length = 0.15;
+
+  strcpy(alsa_out_dev, "default");
+  alsa_out_dev[255] = '\0';
 
   // get settings from settings file first, allow them to be overridden by
   // command line options
@@ -231,7 +232,7 @@ static int init(int argc, char **argv) {
 
     /* Get the Output Device Name. */
     if (config_lookup_string(config.cfg, "alsa.output_device", &str)) {
-      alsa_out_dev = (char *)str;
+      strncpy(alsa_out_dev, (char *)str, 255);
     }
 
     /* Get the Mixer Type setting. */
@@ -366,7 +367,7 @@ static int init(int argc, char **argv) {
   while ((opt = getopt(argc, argv, "d:t:m:c:i:")) > 0) {
     switch (opt) {
     case 'd':
-      alsa_out_dev = optarg;
+      strncpy(alsa_out_dev, optarg, 255);
       break;
 
     case 't':
@@ -976,6 +977,10 @@ static void stop(void) {
 static void parameters(audio_parameters *info) {
   info->minimum_volume_dB = alsa_mix_mindb;
   info->maximum_volume_dB = alsa_mix_maxdb;
+}
+
+static void change_output_device(char *device) {
+  strncpy(alsa_out_dev, device, 255);
 }
 
 void do_volume(double vol) { // caller is assumed to have the alsa_mutex when using this function

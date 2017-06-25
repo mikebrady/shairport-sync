@@ -187,4 +187,5 @@ audio_output audio_ao = {.name = "ao",
                          .play = &play,
                          .volume = NULL,
                          .parameters = NULL,
-                         .mute = NULL};
+                         .mute = NULL,
+                         .change_output_device = NULL};

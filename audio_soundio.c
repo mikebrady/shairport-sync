@@ -212,4 +212,5 @@ audio_output audio_soundio = {.name = "soundio",
                               .play = &play,
                               .volume = NULL,
                               .parameters = &parameters,
-                              .mute = NULL};
+                              .mute = NULL,
+                              .change_output_device = NULL};

@@ -140,4 +140,5 @@ audio_output audio_stdout = {.name = "stdout",
                              .play = &play,
                              .volume = NULL,
                              .parameters = NULL,
-                             .mute = NULL};
+                             .mute = NULL,
+                             .change_output_device = NULL};
