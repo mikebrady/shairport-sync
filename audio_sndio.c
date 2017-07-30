@@ -50,7 +50,8 @@ audio_output audio_sndio = {.name = "sndio",
                             .play = &play,
                             .volume = NULL,
                             .parameters = NULL,
-                            .mute = NULL};
+                            .mute = NULL,
+                            .change_output_device = NULL};
 
 static pthread_mutex_t sndio_mutex = PTHREAD_MUTEX_INITIALIZER;
 static struct sio_hdl *hdl;
