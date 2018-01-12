@@ -191,3 +191,27 @@ This will then be used by default by Shairport-Sync and any other applications u
 Note that some distributions (such as Volumio 2) don't use an asound.conf file by default, they instead specify the hardware details directly in '/etc/mpd.conf' files so some more in-depth modification is needed to override this.
 
 (Note: not tested by Mike B.)
+
+
+### Shairport not starting correctly after reboot
+
+**Problem**
+
+When rebooting certain devices (e.g. Raspberry Pi Zero W) whilst using a USB audio adapter, the Shairport Sync service fails to start.
+
+**Possible Solutions**
+
+Delay the start of the Shairport Sync service.
+
+- Edit Shairport Sync service file `sudo nano /lib/systemd/system/shairport-sync.service`
+- Update the service section to include the line `ExecStartPre=/bin/sleep 5`
+
+Example:
+
+```
+[Service]
+ExecStartPre=/bin/sleep 5
+ExecStart=/usr/local/bin/shairport-sync
+User=pi
+Group=pi
+```
