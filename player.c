@@ -2484,13 +2484,16 @@ void player_volume_without_notification(double airplay_volume, rtsp_conn_info *c
     // debug(1,"Hardware attenuation set to %f for airplay volume of
     // %f.",hardware_attenuation,airplay_volume);
   }
-  double temp_fix_volume = 65536.0 * pow(10, software_attenuation / 2000);
+
+  if (config.ignore_volume_control == 0) {
+    double temp_fix_volume = 65536.0 * pow(10, software_attenuation / 2000);
   // debug(1,"Software attenuation set to %f, i.e %f out of 65,536, for airplay volume of
   // %f",software_attenuation,temp_fix_volume,airplay_volume);
 
-  pthread_mutex_lock(&conn->vol_mutex);
-  conn->fix_volume = temp_fix_volume;
-  pthread_mutex_unlock(&conn->vol_mutex);
+    pthread_mutex_lock(&conn->vol_mutex);
+    conn->fix_volume = temp_fix_volume;
+    pthread_mutex_unlock(&conn->vol_mutex);
+  }
 
   if (config.loudness)
     loudness_set_volume(software_attenuation / 100);
