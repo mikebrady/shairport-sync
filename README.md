@@ -477,9 +477,13 @@ alsa =
 ```
 
 To prevent stuttering with AAC or aptX, set `audio_backend_buffer_desired_length_in_seconds` to a value big enough.
+
 To make bluetooth device sync with other devices, manually adjust `audio_backend_latency_offset_in_seconds`.
+
 Here `output_device` is the one defined in `asound.conf`, for example, `pcm.headset`.
+
 To enable volume control of Airplay, it is also required to set mixer device for bluetooth. You can use command `amixer scontrols -D bluealsa` to acquire name of your mixer device. Example output: `Simple mixer control 'Speaker - A2DP',0`
+
 If your bluetooth device isn't connected when shairport-sync starts, shairport-sync may fail to start. Therefore you should also add some delay for startup.
 
 Metadata
