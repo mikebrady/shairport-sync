@@ -8,7 +8,7 @@ In the commands below, note the convention that a `#` prompt means you are in su
 Do the usual update and upgrade:
 ```
 # apt update
-# apt upgrade
+# apt upgrade -y
 ``` 
 **Note:** The upgrade step above will automatically update to the most recent stable Rapsberry Pi firmware.
 
