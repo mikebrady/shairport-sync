@@ -16,7 +16,7 @@ typedef struct magicCookie {
 magicCookie cookie;
 ALACDecoder *theDecoder;
 
-extern "C" int apple_alac_init(int32_t fmtp[12]) {
+int apple_alac_init(int32_t fmtp[12]) {
 
   memset(&cookie, 0, sizeof(magicCookie));
 
@@ -41,7 +41,7 @@ extern "C" int apple_alac_init(int32_t fmtp[12]) {
   return 0;
 }
 
-extern "C" int apple_alac_decode_frame(unsigned char *sampleBuffer, uint32_t bufferLength,
+int apple_alac_decode_frame(unsigned char *sampleBuffer, uint32_t bufferLength,
                                        unsigned char *dest, int *outsize) {
   uint32_t numFrames = 0;
   BitBuffer theInputBuffer;
@@ -52,7 +52,7 @@ extern "C" int apple_alac_decode_frame(unsigned char *sampleBuffer, uint32_t buf
   return 0;
 }
 
-extern "C" int apple_alac_terminate() {
+int apple_alac_terminate() {
   delete (theDecoder);
   return 0;
 }

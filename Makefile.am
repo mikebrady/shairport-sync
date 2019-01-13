@@ -18,7 +18,7 @@ endif
 endif
 
 if USE_APPLE_ALAC
-  shairport_sync_SOURCES += apple_alac.cpp
+  shairport_sync_SOURCES += apple_alac.c
 endif
 
 if USE_CUSTOMPIDDIR
