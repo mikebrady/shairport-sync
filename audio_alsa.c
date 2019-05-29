@@ -1037,40 +1037,43 @@ static int init(int argc, char **argv) {
 
     /* Get the output format, using the same names as aplay does*/
     if (config_lookup_string(config.cfg, "alsa.output_format", &str)) {
-      if (strcasecmp(str, "S16") == 0)
-        config.output_format = SPS_FORMAT_S16;
-      else if (strcasecmp(str, "S16_LE") == 0)
-        config.output_format = SPS_FORMAT_S16_LE;
-      else if (strcasecmp(str, "S16_BE") == 0)
-        config.output_format = SPS_FORMAT_S16_BE;
-      else if (strcasecmp(str, "S24") == 0)
-        config.output_format = SPS_FORMAT_S24;
-      else if (strcasecmp(str, "S24_LE") == 0)
-        config.output_format = SPS_FORMAT_S24_LE;
-      else if (strcasecmp(str, "S24_BE") == 0)
-        config.output_format = SPS_FORMAT_S24_BE;
-      else if (strcasecmp(str, "S24_3LE") == 0)
-        config.output_format = SPS_FORMAT_S24_3LE;
-      else if (strcasecmp(str, "S24_3BE") == 0)
-        config.output_format = SPS_FORMAT_S24_3BE;
-      else if (strcasecmp(str, "S32") == 0)
-        config.output_format = SPS_FORMAT_S32;
-      else if (strcasecmp(str, "S32_LE") == 0)
-        config.output_format = SPS_FORMAT_S32_LE;
-      else if (strcasecmp(str, "S32_BE") == 0)
-        config.output_format = SPS_FORMAT_S32_BE;
-      else if (strcasecmp(str, "U8") == 0)
-        config.output_format = SPS_FORMAT_U8;
-      else if (strcasecmp(str, "S8") == 0)
-        config.output_format = SPS_FORMAT_S8;
-      else if (strcasecmp(str, "auto") == 0)
+      if (strcasecmp(str, "auto") == 0)
         config.output_format_auto_requested = 1;
       else {
-        warn("Invalid output format \"%s\". It should be \"U8\", \"S8\", "
-             "\"S16\", \"S24\", \"S24_LE\", \"S24_BE\", "
-             "\"S24_3LE\", \"S24_3BE\" or "
-             "\"S32\", \"S32_LE\", \"S32_BE\". It is set to \"%s\".",
-             sps_format_description_string(config.output_format));
+        config.output_format_auto_requested = 0;
+        if (strcasecmp(str, "S16") == 0)
+          config.output_format = SPS_FORMAT_S16;
+        else if (strcasecmp(str, "S16_LE") == 0)
+          config.output_format = SPS_FORMAT_S16_LE;
+        else if (strcasecmp(str, "S16_BE") == 0)
+          config.output_format = SPS_FORMAT_S16_BE;
+        else if (strcasecmp(str, "S24") == 0)
+          config.output_format = SPS_FORMAT_S24;
+        else if (strcasecmp(str, "S24_LE") == 0)
+          config.output_format = SPS_FORMAT_S24_LE;
+        else if (strcasecmp(str, "S24_BE") == 0)
+          config.output_format = SPS_FORMAT_S24_BE;
+        else if (strcasecmp(str, "S24_3LE") == 0)
+          config.output_format = SPS_FORMAT_S24_3LE;
+        else if (strcasecmp(str, "S24_3BE") == 0)
+          config.output_format = SPS_FORMAT_S24_3BE;
+        else if (strcasecmp(str, "S32") == 0)
+          config.output_format = SPS_FORMAT_S32;
+        else if (strcasecmp(str, "S32_LE") == 0)
+          config.output_format = SPS_FORMAT_S32_LE;
+        else if (strcasecmp(str, "S32_BE") == 0)
+          config.output_format = SPS_FORMAT_S32_BE;
+        else if (strcasecmp(str, "U8") == 0)
+          config.output_format = SPS_FORMAT_U8;
+        else if (strcasecmp(str, "S8") == 0)
+          config.output_format = SPS_FORMAT_S8;
+        else {
+          warn("Invalid output format \"%s\". It should be \"U8\", \"S8\", "
+               "\"S16\", \"S24\", \"S24_LE\", \"S24_BE\", "
+               "\"S24_3LE\", \"S24_3BE\" or "
+               "\"S32\", \"S32_LE\", \"S32_BE\". It is set to \"%s\".",
+               sps_format_description_string(config.output_format));
+        }
       }
     }
 
@@ -1078,6 +1081,7 @@ static int init(int argc, char **argv) {
 			if (strcasecmp(str, "auto") == 0) {
 				config.output_rate_auto_requested = 1;
 			} else {
+				config.output_rate_auto_requested = 0;
 				/* Get the output rate, which must be a multiple of 44,100*/
 				if (config_lookup_int(config.cfg, "alsa.output_rate", &value)) {
 					debug(1, "alsa output rate is %d frames per second", value);
