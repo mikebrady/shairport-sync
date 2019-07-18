@@ -471,7 +471,7 @@ int parse_options(int argc, char **argv) {
       config.cfg = &config_file_stuff;
       /* Get the Service Name. */
       if (config_lookup_string(config.cfg, "general.name", &str)) {
-        raw_service_name = (char *)str;
+        raw_service_name = strdup(str);
       }
 #ifdef CONFIG_LIBDAEMON
       /* Get the Daemonize setting. */
