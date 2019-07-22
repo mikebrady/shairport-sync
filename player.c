@@ -2437,8 +2437,8 @@ void *player_thread_func(void *arg) {
 #endif
               ) {
                 int32_t *tbuf32 = (int32_t *)conn->tbuf;
-                float fbuf_l[inbuflength];
-                float fbuf_r[inbuflength];
+                float *fbuf_l = malloc(sizeof(float) * inbuflength);
+                float *fbuf_r = malloc(sizeof(float) * inbuflength);
 
                 // Deinterleave, and convert to float
                 int i;
@@ -2480,6 +2480,9 @@ void *player_thread_func(void *arg) {
                   tbuf32[2 * i] = fbuf_l[i];
                   tbuf32[2 * i + 1] = fbuf_r[i];
                 }
+
+                free(fbuf_l);
+                free(fbuf_r);
               }
 
 #ifdef CONFIG_SOXR
