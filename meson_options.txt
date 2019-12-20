@@ -1,0 +1,185 @@
+option(
+  'os',
+  type : 'combo',
+  value : 'linux',
+  choices : ['linux', 'freebsd', 'openbsd'],
+  description : 'Specify the distribution to target',
+)
+
+option(
+  'apple_alac',
+  type : 'boolean',
+  value : false,
+  description : 'include support for the Apple ALAC decoder',
+)
+
+option(
+  'libdaemon',
+  type : 'boolean',
+  value : false,
+  description : 'include support for daemonising in non-systemd systems',
+)
+
+option(
+  'ssl',
+  type : 'combo',
+  choices : ['openssl', 'mbedtls', 'polarssl'],
+  description : 'choose encryption service',
+)
+
+option(
+  'soxr',
+  type : 'boolean',
+  value : false,
+  description : 'choose libsoxr for high-quality interpolation',
+)
+
+option(
+  'avahi',
+  type : 'boolean',
+  value : false,
+  description : 'choose Avahi-based mDNS support',
+)
+
+option(
+  'tinysvcmdns',
+  type : 'boolean',
+  value : false,
+  description : 'choose tinysvcmdns-based mDNS support',
+)
+
+option(
+  'external_mdns',
+  type : 'boolean',
+  value : false,
+  description : 'support the use of \'avahi-publish-service\' or \'mDNSPublish\' to advertise the service on Bonjour/ZeroConf',
+)
+
+option(
+  'alsa',
+  type : 'boolean',
+  value : false,
+  description : 'choose ALSA API support (GNU/Linux only)',
+)
+
+option(
+  'jack',
+  type : 'boolean',
+  value : false,
+  description : 'include a Jack Audio Connection Kit (jack) backend',
+)
+
+option(
+  'sndio',
+  type : 'boolean',
+  value : false,
+  description : 'choose SNDIO API support',
+)
+
+option(
+  'ao',
+  type : 'boolean',
+  value : false,
+  description : 'choose AO (Audio Output?) API support. N.B. no synchronisation -- so underflow or overflow is inevitable!',
+)
+
+option(
+  'soundio',
+  type : 'boolean',
+  value : false,
+  description : 'choose soundio API support',
+)
+
+option(
+  'pa',
+  type : 'boolean',
+  value : false,
+  description : 'choose PulseAudio support',
+)
+
+option(
+  'dummy',
+  type : 'boolean',
+  value : false,
+  description : 'include the dummy audio back end',
+)
+
+option(
+  'stdout',
+  type : 'boolean',
+  value : false,
+  description : 'include the stdout audio back end',
+)
+
+option(
+  'pipe',
+  type : 'boolean',
+  value : false,
+  description : 'include the pipe audio back end',
+)
+
+option(
+  'convolution',
+  type : 'boolean',
+  value : false,
+  description : 'choose audio DSP convolution support',
+)
+
+option(
+  'dns_sd',
+  type : 'boolean',
+  value : false,
+  description : 'choose dns_sd mDNS support',
+)
+
+option(
+  'dbus',
+  type : 'boolean',
+  value : false,
+  description : 'include support for the native Shairport Sync D-Bus interface',
+)
+
+option(
+  'mpris',
+  type : 'boolean',
+  value : false,
+  description : 'include support for a D-Bus interface conforming to the MPRIS standard',
+)
+
+option(
+  'mqtt',
+  type : 'boolean',
+  value : false,
+  description : 'include a client for MQTT -- the Message Queuing Telemetry Transport protocol',
+)
+
+option(
+  'metadata',
+  type : 'boolean',
+  value : false,
+  description : 'include support for a metadata feed',
+)
+
+option(
+  'piddir',
+  type : 'string',
+  description : 'Specify a pathname to a directory in which to write the PID file',
+)
+
+option(
+  'install_config_files',
+  type : 'boolean',
+  description : 'install configuration files during a ninja install',
+)
+
+option(
+  'systemd',
+  type : 'boolean',
+  description : 'install a systemd startup script during a ninja install',
+)
+
+option(
+  'systemdsystemunitdir',
+  type : 'string',
+  value : 'auto'
+)
