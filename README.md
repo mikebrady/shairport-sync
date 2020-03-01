@@ -376,7 +376,7 @@ To make Shairport Sync output to the built-in audio DAC and use its hardware mix
 ```
 alsa =
 {
-  output_device = "hw:0"; // the name of the alsa output device. Use "alsamixer" or "aplay" to find out the names of devices, mixers, etc.
+  output_device = "default"; // the name of the alsa output device. Use "alsamixer" or "aplay" to find out the names of devices, mixers, etc.
   // mixer_control_name = "PCM"; // the name of the mixer to use to adjust output volume. If not specified, volume in adjusted in software.
   // ... other alsa settings
 ```
