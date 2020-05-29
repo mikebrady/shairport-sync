@@ -7,17 +7,17 @@ In the commands below, note the convention that a `#` prompt means you are in su
 ### Configure and Update
 Do the usual update and upgrade:
 ```
-# apt-get update
-# apt-get upgrade
+# apt update
+# apt upgrade
 ``` 
 (Separately, if you haven't done so already, consider using the `raspi-config` tool to expand the file system to use the entire card.)
 
-### Turn Off WiFi Power Management
-If you are using WiFi, you should turn off WiFi Power Management:
+### Turn Off Wi-Fi Power Management
+If you are using Wi-Fi, you should turn off Wi-Fi Power Management:
 ```
 # iwconfig wlan0 power off
 ```
-WiFi Power Management will put the WiFi system in low-power mode when the WiFi system considered inactive, and in this mode it may not respond to events initiated from the network, such as AirPlay requests. Hence, WiFi Power Management should be turned off. (See [TROUBLESHOOTING.md](https://github.com/mikebrady/shairport-sync/blob/master/TROUBLESHOOTING.md#wifi-adapter-running-in-power-saving--low-power-mode) for more details.)
+Wi-Fi Power Management will put the Wi-Fi system in low-power mode when the Wi-Fi system considered inactive, and in this mode it may not respond to events initiated from the network, such as AirPlay requests. Hence, Wi-Fi Power Management should be turned off. (See [TROUBLESHOOTING.md](https://github.com/mikebrady/shairport-sync/blob/master/TROUBLESHOOTING.md#wifi-adapter-running-in-power-saving--low-power-mode) for more details.)
 
 Reboot the Pi.
 
@@ -34,31 +34,31 @@ Remove it as follows:
 Do this until no more copies of `shairport-sync` are found.
 
 ### Remove Old Startup Scripts
-You should also remove the startup script files `/etc/systemd/system/shairport-sync.service` and `/etc/init.d/shairport-sync` if they exist – new ones will be installed in necessary.
+You should also remove the startup script files `/etc/systemd/system/shairport-sync.service` and `/etc/init.d/shairport-sync` if they exist – new ones will be installed if necessary.
 
 ### Reboot after Cleaning Up
-If you removed any installations of Shairport Sync or any of its startup script files in the last two steps, you should reboot.
+If you have removed any installations of Shairport Sync or any of its startup script files in the last two steps, you should reboot and continue.
 
 ### Build and Install
 Okay, now let's get the tools and sources for building and installing Shairport Sync.
 
 First, install the packages needed by Shairport Sync:
 ```
-# apt-get install build-essential git xmltoman autoconf automake libtool \
+# apt install -y build-essential git xmltoman autoconf automake libtool \
     libpopt-dev libconfig-dev libasound2-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev
 ```
-Next, download Shairport Sync, configure it, compile and install it:
+Next, download Shairport Sync, configure, compile and install it:
 ```
 $ git clone https://github.com/mikebrady/shairport-sync.git
 $ cd shairport-sync
 $ autoreconf -fi
 $ ./configure --sysconfdir=/etc --with-alsa --with-soxr --with-avahi --with-ssl=openssl --with-systemd
-$ make
+$ make -j4
 $ sudo make install
 ```
-By the way, the `autoreconf` step may take quite a while on a Raspberry Pi -- be patient!
+The `autoreconf` command may take quite a while to execute on a Raspberry Pi, so please be patient!
 
-Now to configure Shairport Sync. Here are the important options for the Shairport Sync configuration file at `/etc/shairport-sync.conf`:
+Now on to configuring Shairport Sync. Here are the important options for the Shairport Sync configuration file at `/etc/shairport-sync.conf`:
 ```
 // Sample Configuration File for Shairport Sync on a Raspberry Pi using the built-in audio DAC
 general =
