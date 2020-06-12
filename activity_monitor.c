@@ -62,7 +62,7 @@ void going_active(int block) {
     command_execute(config.cmd_active_start, "", block);
 #ifdef CONFIG_METADATA
   debug(2, "abeg");                       // active mode begin
-  send_ssnc_metadata('pend', NULL, 0, 1); // contains cancellation points
+  send_ssnc_metadata('abeg', NULL, 0, 1); // contains cancellation points
 #endif
 
 #ifdef CONFIG_DBUS_INTERFACE
@@ -89,7 +89,7 @@ void going_inactive(int block) {
     command_execute(config.cmd_active_stop, "", block);
 #ifdef CONFIG_METADATA
   debug(2, "aend");                       // active mode end
-  send_ssnc_metadata('pend', NULL, 0, 1); // contains cancellation points
+  send_ssnc_metadata('aend', NULL, 0, 1); // contains cancellation points
 #endif
 
 #ifdef CONFIG_DBUS_INTERFACE
