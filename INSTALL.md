@@ -7,15 +7,15 @@ In the commands below, note the convention that a `#` prompt means you are in su
 ### Configure and Update
 Do the usual update and upgrade:
 ```
-# apt-get update
-# apt-get upgrade
+sudo apt-get update
+sudo apt-get upgrade
 ``` 
 (Separately, if you haven't done so already, consider using the `raspi-config` tool to expand the file system to use the entire card.)
 
 ### Turn Off WiFi Power Management
 If you are using WiFi, you should turn off WiFi Power Management:
 ```
-# iwconfig wlan0 power off
+sudo iwconfig wlan0 power off
 ```
 WiFi Power Management will put the WiFi system in low-power mode when the WiFi system considered inactive, and in this mode it may not respond to events initiated from the network, such as AirPlay requests. Hence, WiFi Power Management should be turned off. (See [TROUBLESHOOTING.md](https://github.com/mikebrady/shairport-sync/blob/master/TROUBLESHOOTING.md#wifi-adapter-running-in-power-saving--low-power-mode) for more details.)
 
@@ -24,12 +24,11 @@ Reboot the Pi.
 ### Remove Old Copies
 Before you begin building Shairport Sync, it's best to search for and remove any existing copies of the application, called `shairport-sync`. Use the command `$ which shairport-sync` to find them. For example, if `shairport-sync` has been installed previously, this might happen:
 ```
-$ which shairport-sync
-/usr/local/bin/shairport-sync
+which shairport-sync # prints /usr/local/bin/shairport-sync
 ```
 Remove it as follows:
 ```
-# rm /usr/local/bin/shairport-sync
+rm /usr/local/bin/shairport-sync
 ```
 Do this until no more copies of `shairport-sync` are found.
 
@@ -44,26 +43,29 @@ Okay, now let's get the tools and sources for building and installing Shairport 
 
 First, install the packages needed by Shairport Sync:
 ```
-# apt-get install build-essential git xmltoman autoconf automake libtool \
+sudo apt-get install build-essential git xmltoman autoconf automake libtool \
     libpopt-dev libconfig-dev libasound2-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev
 ```
 Next, download Shairport Sync, configure it, compile and install it:
 ```
-$ git clone https://github.com/mikebrady/shairport-sync.git
-$ cd shairport-sync
-$ autoreconf -fi
-$ ./configure --sysconfdir=/etc --with-alsa --with-soxr --with-avahi --with-ssl=openssl --with-systemd
-$ make
-$ sudo make install
+git clone https://github.com/mikebrady/shairport-sync.git
+cd shairport-sync
+autoreconf -fi
+./configure --sysconfdir=/etc --with-alsa --with-soxr --with-avahi --with-ssl=openssl --with-systemd
+make
+sudo make install
 ```
 By the way, the `autoreconf` step may take quite a while on a Raspberry Pi -- be patient!
 
 Now to configure Shairport Sync. Here are the important options for the Shairport Sync configuration file at `/etc/shairport-sync.conf`:
 ```
-// Sample Configuration File for Shairport Sync on a Raspberry Pi using the built-in audio DAC
+sudo xdg-open /etc/shairport-sync.conf # opens text editor
+```
+```
+// Sample configurations for Shairport Sync on a Raspberry Pi using the built-in audio DAC
 general =
 {
-  volume_range_db = 60; 
+  volume_range_db = 60; // the usable part of the built-in audio card mixer's attenuation range.
 };
 
 alsa =
@@ -73,15 +75,14 @@ alsa =
 };
 
 ```
-The `volume_range_db = 60;` setting makes Shairport Sync use only the usable part of the built-in audio card mixer's attenuation range.
 
 The next step is to enable Shairport Sync to start automatically on boot up:
 ```
-# systemctl enable shairport-sync
+sudo systemctl enable shairport-sync
 ```
 Finally, either reboot the Pi or start the `shairport-sync` service:
 ```
-# systemctl start shairport-sync
+sudo systemctl start shairport-sync
 ```
 The Shairport Sync AirPlay service should now appear on the network with a service name made from the Pi's hostname with the first letter capitalised, e.g. hostname `raspberrypi` gives a service name `Raspberrypi`. You can change the service name and set a password in the configuration file.
 
