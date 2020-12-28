@@ -634,3 +634,8 @@ MQTT
 ---------------
 Please refer to the [MQTT INFO](https://github.com/mikebrady/shairport-sync/blob/master/MQTT.md) page for additional info on building, configuring and using MQTT to interface shairport-sync with common home automation systems (contributed by users).
 
+Packaging status
+----------------
+
+[![Packaging status](https://repology.org/badge/vertical-allrepos/shairport-sync.svg)](https://repology.org/project/shairport-sync/versions)
+
