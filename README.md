@@ -87,6 +87,8 @@ Note that the installation uses the libao library and so synchronisation is not 
 
 **Cygwin:** Please see the guide at [CYGWIN.md](https://github.com/mikebrady/shairport-sync/blob/master/CYGWIN.md).
 
+**Gentoo:** Shairport Sync is available in a overlay, please see the guide at [GENTOO.md](https://github.com/mikebrady/shairport-sync/blob/master/GENTOO.md).
+
 Sincere thanks to all package contributors!
 
 If you wish to build and install the latest version of Shairport Sync on Debian, Ubuntu, Fedora or Arch platforms, please continue to follow these instructions. When the program has been compiled and installed, refer to the section on Configuring Shairport Sync that follows. To build Shairport Sync from sources on FreeBSD please refer to [FREEBSD.md](https://github.com/mikebrady/shairport-sync/blob/master/FREEBSD.md).
