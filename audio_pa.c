@@ -252,28 +252,6 @@ static int play(void *buf, int samples) {
   return 0;
 }
 
-int pa_delay(long *the_delay) {
-  long result = 0;
-  int reply = -ENODEV;
-  pa_usec_t latency;
-  int negative;
-  pa_threaded_mainloop_lock(mainloop);
-  int gl = pa_stream_get_latency(stream, &latency, &negative);
-  pa_threaded_mainloop_unlock(mainloop);
-  if (gl == PA_ERR_NODATA) {
-    // debug(1, "No latency data yet.");
-    reply = -ENODEV;
-  } else if (gl != 0) {
-    // debug(1,"Error %d getting latency.",gl);
-    reply = -EIO;
-  } else {
-    result = (audio_occupancy / (2 * 2)) + (latency * 44100) / 1000000;
-    reply = 0;
-  }
-  *the_delay = result;
-  return reply;
-}
-
 void flush(void) {
   // Cork the stream so it will stop playing
   pa_threaded_mainloop_lock(mainloop);
@@ -314,7 +292,7 @@ audio_output audio_pa = {.name = "pa",
                          .stop = &stop,
                          .is_running = NULL,
                          .flush = &flush,
-                         .delay = &pa_delay,
+                         .delay = NULL,
                          .play = &play,
                          .volume = NULL,
                          .parameters = NULL,
