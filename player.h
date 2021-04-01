@@ -269,6 +269,9 @@ typedef struct {
 
   int enable_dither; // needed for filling silences before play actually starts
   uint64_t dac_buffer_queue_minimum_length;
+
+  int player_stop_set;
+
 } rtsp_conn_info;
 
 uint32_t modulo_32_offset(uint32_t from, uint32_t to);

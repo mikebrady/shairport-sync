@@ -1714,6 +1714,7 @@ void *player_thread_func(void *arg) {
   conn->flush_rtp_timestamp = 0;  // it seems this number has a special significance -- it seems to
                                   // be used as a null operand, so we'll use it like that too
   conn->fix_volume = 0x10000;
+  conn->player_stop_set = 0;
 
   if (conn->latency == 0) {
     debug(3, "No latency has (yet) been specified. Setting 88,200 (2 seconds) frames "
@@ -2005,7 +2006,7 @@ void *player_thread_func(void *arg) {
   player_volume(config.airplay_volume, conn); // will contain a cancellation point if asked to wait
 
   debug(2, "Play begin");
-  while (1) {
+  while (!conn->player_stop_set) {
     pthread_testcancel();                     // allow a pthread_cancel request to take effect.
     abuf_t *inframe = buffer_get_frame(conn); // this has cancellation point(s), but it's not
                                               // guaranteed that they'll always be executed
@@ -2830,10 +2831,8 @@ void *player_thread_func(void *arg) {
     }
   }
 
-  debug(1, "This should never be called.");
-  pthread_cleanup_pop(1); // pop the cleanup handler
-                          //  debug(1, "This should never be called either.");
-                          //  pthread_cleanup_pop(1); // pop the initial cleanup handler
+  pthread_cleanup_pop(1);
+  debug(3, "player_thread exited");
   pthread_exit(NULL);
 }
 
@@ -3124,15 +3123,19 @@ int player_play(rtsp_conn_info *conn) {
 }
 
 int player_stop(rtsp_conn_info *conn) {
+  int ret;
   // note -- this may be called from another connection thread.
   // int dl = debuglev;
   // debuglev = 3;
+
+  conn->player_stop_set = 1;
+
   debug(3, "player_stop");
   if (conn->player_thread) {
-    debug(3, "player_thread cancel...");
-    pthread_cancel(*conn->player_thread);
+
+    ret = pthread_join(*conn->player_thread, NULL);
     debug(3, "player_thread join...");
-    if (pthread_join(*conn->player_thread, NULL) == -1) {
+    if (ret != 0) {
       char errorstring[1024];
       strerror_r(errno, (char *)errorstring, sizeof(errorstring));
       debug(1, "Connection %d: error %d joining player thread: \"%s\".", conn->connection_number,
