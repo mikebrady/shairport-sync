@@ -3,7 +3,7 @@ Shairport Sync
 =============
 Shairport Sync is an AirPlay audio player – it plays audio streamed from iTunes, iOS, Apple TV and macOS devices and AirPlay sources such as Quicktime Player and [ForkedDaapd](http://ejurgensen.github.io/forked-daapd/), among others.
 
-Audio played by a Shairport Sync-powered device stays synchronised with the source and hence with similar devices playing the same source. In this way, synchronised multi-room audio is possible for players that support it, such as iTunes and the macOS Music app.
+Audio played by a Shairport Sync-powered device stays synchronised with the source and hence with similar devices playing the same source. In this way, synchronised multi-room audio is possible for players that support it, such as iTunes and the macOS Music app. Note that multi-room audio is [not supported](https://github.com/mikebrady/shairport-sync/issues/535#issuecomment-306464309) for iOS players.
 
 Shairport Sync runs on Linux, FreeBSD and OpenBSD. It does not support AirPlay video or photo streaming.
 
