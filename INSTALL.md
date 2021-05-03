@@ -4,12 +4,19 @@ Here are simple instructions for building and installing Shairport Sync on a Ras
 
 In the commands below, note the convention that a `#` prompt means you are in superuser mode and a `$` prompt means you are in a regular unprivileged user mode. You can use `sudo` *("SUperuser DO")* to temporarily promote yourself from user to superuser, if permitted. For example, if you want to execute `apt-get update` in superuser mode and you are in user mode, enter `sudo apt-get update`.
 
+As an alternative to running these commands manually, you may instead run [this script](scripts/shairport-sync-install-or-update-raspberry-pi), which automates the process of installing or updating shairport-sync on a raspberry pi:
+```
+$ git clone https://github.com/mikebrady/shairport-sync.git
+$ cd shairport-sync
+$ ./scripts/shairport-sync-install-or-update-raspberry-pi
+```
+
 ### Configure and Update
 Do the usual update and upgrade:
 ```
 # apt-get update
 # apt-get upgrade
-``` 
+```
 (Separately, if you haven't done so already, consider using the `raspi-config` tool to expand the file system to use the entire card.)
 
 ### Turn Off WiFi Power Management
@@ -63,7 +70,7 @@ Now to configure Shairport Sync. Here are the important options for the Shairpor
 // Sample Configuration File for Shairport Sync on a Raspberry Pi using the built-in audio DAC
 general =
 {
-  volume_range_db = 60; 
+  volume_range_db = 60;
 };
 
 alsa =
