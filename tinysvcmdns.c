@@ -735,7 +735,8 @@ static size_t mdns_parse_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off, struct
   if (name == NULL)
     goto err;
 
-  // parse the MDNS RR section  p += label_len(pkt_buf, pkt_len, off);
+  // parse the MDNS RR section
+  p += label_len(pkt_buf, pkt_len, off);
   rr->name = name;
 
   rr->type = mdns_read_u16(p);
