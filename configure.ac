@@ -3,7 +3,7 @@
 
 AC_PREREQ([2.50])
 AC_INIT([shairport-sync], [3.3.8], [4265913+mikebrady@users.noreply.github.com])
-AM_INIT_AUTOMAKE
+AM_INIT_AUTOMAKE([subdir-objects])
 AC_CONFIG_SRCDIR([shairport.c])
 AC_CONFIG_HEADERS([config.h])
 AC_PROG_RANLIB
@@ -302,7 +302,6 @@ AM_CONDITIONAL([USE_PA], [test "x$with_pa" = "xyes"])
 # Look for Convolution flag
 AC_ARG_WITH(convolution, [AS_HELP_STRING([--with-convolution],[choose audio DSP convolution support])])
 if test "x$with_convolution" = "xyes" ; then
-  AM_INIT_AUTOMAKE([subdir-objects])
   AC_DEFINE([CONFIG_CONVOLUTION], 1, [Include audio DSP convolution support.])
   AC_CHECK_LIB([sndfile], [sf_open], , AC_MSG_ERROR(Convolution support requires the sndfile library -- libsndfile1-dev suggested!))
 fi
