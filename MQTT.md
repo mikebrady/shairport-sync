@@ -156,7 +156,7 @@ binary_sensor:
     off_delay: 300
 ```
 
-Below parsed data is saved into the Home Assistant database as sensor data.  Please not the conversion of the volume from dB to percentage.
+Below parsed data is saved into the Home Assistant database as sensor data.  Please note the conversion of the volume from dB to percentage.
 
 ```yml
 sensor:
