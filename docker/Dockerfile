@@ -113,6 +113,14 @@ RUN apk -U add \
 
 RUN rm -rf  /lib/apk/db/*
 
+# set version for s6 overlay
+ARG OVERLAY_VERSION="v2.2.0.3"
+ARG OVERLAY_ARCH="armhf"
+
+# add s6 overlay
+ADD https://github.com/just-containers/s6-overlay/releases/download/${OVERLAY_VERSION}/s6-overlay-${OVERLAY_ARCH}-installer /tmp/
+RUN chmod +x /tmp/s6-overlay-${OVERLAY_ARCH}-installer && /tmp/s6-overlay-${OVERLAY_ARCH}-installer / && rm /tmp/s6-overlay-${OVERLAY_ARCH}-installer
+
 COPY --from=builder-alac /usr/local/lib/libalac.* /usr/local/lib/
 COPY --from=builder-sps /etc/shairport-sync* /etc/
 COPY --from=builder-sps /etc/dbus-1/system.d/shairport-sync-dbus.conf /etc/dbus-1/system.d/
@@ -129,8 +137,10 @@ RUN adduser -D shairport-sync -G shairport-sync
 # Add the shairport-sync user to the pre-existing audio group, which has ID 29, for access to the ALSA stuff
 RUN addgroup -g 29 docker_audio && addgroup shairport-sync docker_audio && addgroup shairport-sync audio
 
-COPY ./docker/start.sh /
+#COPY ./docker/start.sh /
+#RUN chmod +x ./start.sh
+#ENTRYPOINT [ "/start.sh" ]
 
-RUN chmod +x ./start.sh
-
-ENTRYPOINT [ "/start.sh" ]
+# s6 start
+COPY ./docker/etc /etc
+ENTRYPOINT ["/init"]

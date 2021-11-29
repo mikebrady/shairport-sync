@@ -1,0 +1,3 @@
+#!/usr/bin/execlineb -P
+s6-setuidgid shairport-sync
+/usr/local/bin/shairport-sync -vu --statistics
