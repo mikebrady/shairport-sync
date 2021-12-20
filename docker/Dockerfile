@@ -28,7 +28,8 @@ RUN apk -U add \
         libressl-dev \
         openssl-dev \
         libplist-dev \
-        libgcrypt-dev
+        libgcrypt-dev \
+        pulseaudio-dev
 
 # ALAC Build System:
 FROM builder-base AS builder-alac
@@ -85,7 +86,7 @@ RUN autoreconf -fi
 #         --with-airplay-2
 # RUN make -j $(nproc)
 RUN CFLAGS="-O0 -g" CXXFLAGS="-O0 -g" ./configure --sysconfdir=/etc --with-metadata --with-dummy --with-pipe \
-        --with-alsa --with-soxr --with-avahi --with-ssl=openssl --with-dbus-interface --with-stdout \
+        --with-alsa --with-pa --with-soxr --with-avahi --with-ssl=openssl --with-dbus-interface --with-stdout \
         --with-mpris-interface --with-mqtt-client --with-apple-alac --with-convolution --with-airplay-2
 RUN make -j
 RUN make install
@@ -109,7 +110,8 @@ RUN apk -U add \
         ffmpeg \
         libsodium \
         libplist \
-        libgcrypt
+        libgcrypt \
+        pulseaudio
 
 RUN rm -rf  /lib/apk/db/*
 
