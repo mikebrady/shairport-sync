@@ -116,7 +116,7 @@ general =
 alsa =
 {
   output_device = "hw:Headphones";
-  mixer_control_name = "Headphone";
+  mixer_control_name = "PCM";
 };
 
 ```
