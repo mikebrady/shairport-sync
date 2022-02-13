@@ -155,8 +155,8 @@ typedef struct {
 #endif
   uint8_t hw_addr[8]; // only needs 6 but 8 is handy when converting this to a number
   int port;
-  int udp_port_base;
-  int udp_port_range;
+  int airplay_port_base;
+  int airplay_port_range;
   int ignore_volume_control;
   int volume_max_db_set; // set to 1 if a maximum volume db has been set
   int volume_max_db;
@@ -350,8 +350,8 @@ int64_t r64i();
 // rules a bit more complex, as they need to allow more than the minimum three ports.
 // a range of 10 is suggested anyway
 
-void resetFreeUDPPort();
-uint16_t nextFreeUDPPort();
+void resetFreePort();
+uint16_t nextFreePort();
 
 extern volatile int debuglev;
 
@@ -468,10 +468,11 @@ int string_update_with_size(char **str, int *flag, char *s, size_t len);
 // from https://stackoverflow.com/questions/13663617/memdup-function-in-c, with thanks
 void *memdup(const void *mem, size_t size);
 
-int bind_socket_and_port(int type, int ip_family, const char *self_ip_address, uint32_t scope_id,
-                         uint16_t *port, int *sock);
+int bind_socket_and_port(int type, int protocol, int ip_family, const char *self_ip_address,
+                         uint32_t scope_id, uint16_t *port, int *sock);
 
-uint16_t bind_UDP_port(int ip_family, const char *self_ip_address, uint32_t scope_id, int *sock);
+void bind_UDP_port(int ip_family, const char *self_ip_address, uint32_t scope_id, uint16_t *port,
+                   int *sock);
 
 void socket_cleanup(void *arg);
 void mutex_unlock(void *arg);

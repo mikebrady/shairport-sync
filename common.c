@@ -266,52 +266,59 @@ int usleep_uncancellable(useconds_t usec) {
   return response;
 }
 
-static uint16_t UDPPortIndex = 0;
+static uint16_t PortIndex = 0;
 
-void resetFreeUDPPort() {
-  debug(3, "Resetting UDP Port Suggestion to %u", config.udp_port_base);
-  UDPPortIndex = 0;
+void resetFreePort() {
+  debug(3, "Resetting Port Suggestion to %u", config.airplay_port_base);
+  PortIndex = 0;
 }
 
-uint16_t nextFreeUDPPort() {
-  if (UDPPortIndex == 0)
-    UDPPortIndex = config.udp_port_base;
-  else if (UDPPortIndex == (config.udp_port_base + config.udp_port_range - 1))
-    UDPPortIndex = config.udp_port_base + 3; // avoid wrapping back to the first three, as they can
-                                             // be assigned by resetFreeUDPPort without checking
+uint16_t nextFreePort() {
+  if (PortIndex == 0 || PortIndex == (config.airplay_port_base + config.airplay_port_range - 1))
+    PortIndex = config.airplay_port_base;
+   else if (PortIndex == (config.airplay_port_base + config.airplay_port_range - 1))
+     PortIndex = config.airplay_port_base + 3; // avoid wrapping back to the first three, as they can
+                                              // be assigned by resetFreePort without checking
   else
-    UDPPortIndex++;
-  return UDPPortIndex;
+    PortIndex++;
+  return PortIndex;
 }
 
-// if port is zero, pick any port
-// otherwise, try the given port only
-int bind_socket_and_port(int type, int ip_family, const char *self_ip_address, uint32_t scope_id,
-                         uint16_t *port, int *sock) {
+// if port range is specified, bind to next port in that range
+// otherwise, bind to any port
+int bind_socket_and_port(int type, int protocol, int ip_family, const char *self_ip_address,
+                         uint32_t scope_id, uint16_t *port, int *sock) {
   int ret = 0; // no error
-  int local_socket = socket(ip_family, type, 0);
+  int local_socket = socket(ip_family, type, protocol);
   if (local_socket == -1)
     ret = errno;
   if (ret == 0) {
     SOCKADDR myaddr;
-    memset(&myaddr, 0, sizeof(myaddr));
-    if (ip_family == AF_INET) {
-      struct sockaddr_in *sa = (struct sockaddr_in *)&myaddr;
-      sa->sin_family = AF_INET;
-      sa->sin_port = ntohs(*port);
-      inet_pton(AF_INET, self_ip_address, &(sa->sin_addr));
-      ret = bind(local_socket, (struct sockaddr *)sa, sizeof(struct sockaddr_in));
-    }
+    int tryCount = 0;
+    uint16_t desired_port;
+    do {
+      tryCount++;
+      desired_port = nextFreePort();
+      memset(&myaddr, 0, sizeof(myaddr));
+      if (ip_family == AF_INET) {
+        struct sockaddr_in *sa = (struct sockaddr_in *)&myaddr;
+        sa->sin_family = AF_INET;
+        sa->sin_port = ntohs(desired_port);
+        inet_pton(AF_INET, self_ip_address, &(sa->sin_addr));
+        ret = bind(local_socket, (struct sockaddr *)sa, sizeof(struct sockaddr_in));
+      }
 #ifdef AF_INET6
-    if (ip_family == AF_INET6) {
-      struct sockaddr_in6 *sa6 = (struct sockaddr_in6 *)&myaddr;
-      sa6->sin6_family = AF_INET6;
-      sa6->sin6_port = ntohs(*port);
-      inet_pton(AF_INET6, self_ip_address, &(sa6->sin6_addr));
-      sa6->sin6_scope_id = scope_id;
-      ret = bind(local_socket, (struct sockaddr *)sa6, sizeof(struct sockaddr_in6));
-    }
+      if (ip_family == AF_INET6) {
+        struct sockaddr_in6 *sa6 = (struct sockaddr_in6 *)&myaddr;
+        sa6->sin6_family = AF_INET6;
+        sa6->sin6_port = ntohs(desired_port);
+        inet_pton(AF_INET6, self_ip_address, &(sa6->sin6_addr));
+        sa6->sin6_scope_id = scope_id;
+        ret = bind(local_socket, (struct sockaddr *)sa6, sizeof(struct sockaddr_in6));
+      }
 #endif
+    } while ((ret < 0) && (errno == EADDRINUSE) && (desired_port != 0) &&
+           (tryCount < config.airplay_port_range));
     if (ret < 0) {
       ret = errno;
       close(local_socket);
@@ -348,82 +355,19 @@ int bind_socket_and_port(int type, int ip_family, const char *self_ip_address, u
   return ret;
 }
 
-uint16_t bind_UDP_port(int ip_family, const char *self_ip_address, uint32_t scope_id, int *sock) {
+void bind_UDP_port(int ip_family, const char *self_ip_address, uint32_t scope_id,
+                       uint16_t *port, int *sock) {
   // look for a port in the range, if any was specified.
-  int ret = 0;
-
-  int local_socket = socket(ip_family, SOCK_DGRAM, IPPROTO_UDP);
-  if (local_socket == -1)
-    die("Could not allocate a socket.");
-
-  /*
-    int val = 1;
-    ret = setsockopt(local_socket, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
-    if (ret < 0) {
-      char errorstring[1024];
-      strerror_r(errno, (char *)errorstring, sizeof(errorstring));
-      debug(1, "Error %d: \"%s\". Couldn't set SO_REUSEADDR");
-    }
-  */
-
-  SOCKADDR myaddr;
-  int tryCount = 0;
-  uint16_t desired_port;
-  do {
-    tryCount++;
-    desired_port = nextFreeUDPPort();
-    memset(&myaddr, 0, sizeof(myaddr));
-    if (ip_family == AF_INET) {
-      struct sockaddr_in *sa = (struct sockaddr_in *)&myaddr;
-      sa->sin_family = AF_INET;
-      sa->sin_port = ntohs(desired_port);
-      inet_pton(AF_INET, self_ip_address, &(sa->sin_addr));
-      ret = bind(local_socket, (struct sockaddr *)sa, sizeof(struct sockaddr_in));
-    }
-#ifdef AF_INET6
-    if (ip_family == AF_INET6) {
-      struct sockaddr_in6 *sa6 = (struct sockaddr_in6 *)&myaddr;
-      sa6->sin6_family = AF_INET6;
-      sa6->sin6_port = ntohs(desired_port);
-      inet_pton(AF_INET6, self_ip_address, &(sa6->sin6_addr));
-      sa6->sin6_scope_id = scope_id;
-      ret = bind(local_socket, (struct sockaddr *)sa6, sizeof(struct sockaddr_in6));
-    }
-#endif
-
-  } while ((ret < 0) && (errno == EADDRINUSE) && (desired_port != 0) &&
-           (tryCount < config.udp_port_range));
-
-  // debug(1,"UDP port chosen: %d.",desired_port);
-
+  int ret = bind_socket_and_port(SOCK_DGRAM, IPPROTO_UDP, ip_family, self_ip_address, scope_id,
+                                 port, sock);
   if (ret < 0) {
-    close(local_socket);
     char errorstring[1024];
     strerror_r(errno, (char *)errorstring, sizeof(errorstring));
-    die("error %d: \"%s\". Could not bind a UDP port! Check the udp_port_range is large enough -- "
-        "it must be "
-        "at least 3, and 10 or more is suggested -- or "
-        "check for restrictive firewall settings or a bad router! UDP base is %u, range is %u and "
-        "current suggestion is %u.",
-        errno, errorstring, config.udp_port_base, config.udp_port_range, desired_port);
+    die("error %d: \"%s\". Could not bind a UDP port! Check the airplay_port_range is large enough "
+        "-- it must be at least 3, and 10 or more is suggested -- or "
+        "check for restrictive firewall settings or a bad router! UDP base is %u, range is %u",
+        errno, errorstring, config.airplay_port_base, config.airplay_port_range);
   }
-
-  uint16_t sport;
-  SOCKADDR local;
-  socklen_t local_len = sizeof(local);
-  getsockname(local_socket, (struct sockaddr *)&local, &local_len);
-#ifdef AF_INET6
-  if (local.SAFAMILY == AF_INET6) {
-    struct sockaddr_in6 *sa6 = (struct sockaddr_in6 *)&local;
-    sport = ntohs(sa6->sin6_port);
-  } else
-#endif
-  {
-    struct sockaddr_in *sa = (struct sockaddr_in *)&local;
-    sport = ntohs(sa->sin_port);
-  }
-  *sock = local_socket;
-  return sport;
 }
 
 int get_requested_connection_state_to_output() { return requested_connection_state_to_output; }
