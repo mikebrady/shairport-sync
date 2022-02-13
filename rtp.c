@@ -1051,12 +1051,12 @@ void rtp_setup(SOCKADDR *local, SOCKADDR *remote, uint16_t cport, uint16_t tport
     conn->remote_control_port = cport;
     conn->remote_timing_port = tport;
 
-    conn->local_control_port = bind_UDP_port(conn->connection_ip_family, conn->self_ip_string,
-                                             conn->self_scope_id, &conn->control_socket);
-    conn->local_timing_port = bind_UDP_port(conn->connection_ip_family, conn->self_ip_string,
-                                            conn->self_scope_id, &conn->timing_socket);
-    conn->local_audio_port = bind_UDP_port(conn->connection_ip_family, conn->self_ip_string,
-                                           conn->self_scope_id, &conn->audio_socket);
+    bind_UDP_port(conn->connection_ip_family, conn->self_ip_string, conn->self_scope_id,
+                  &conn->local_control_port, &conn->control_socket);
+    bind_UDP_port(conn->connection_ip_family, conn->self_ip_string, conn->self_scope_id,
+                  &conn->local_timing_port, &conn->timing_socket);
+    bind_UDP_port(conn->connection_ip_family, conn->self_ip_string, conn->self_scope_id,
+                  &conn->local_audio_port, &conn->audio_socket);
 
     debug(3, "listening for audio, control and timing on ports %d, %d, %d.", conn->local_audio_port,
           conn->local_control_port, conn->local_timing_port);

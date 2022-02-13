@@ -157,6 +157,8 @@ typedef struct {
   int port;
   int udp_port_base;
   int udp_port_range;
+  int tcp_port_base;
+  int tcp_port_range;
   int ignore_volume_control;
   int volume_max_db_set; // set to 1 if a maximum volume db has been set
   int volume_max_db;
@@ -352,6 +354,7 @@ int64_t r64i();
 
 void resetFreeUDPPort();
 uint16_t nextFreeUDPPort();
+uint16_t nextFreeTCPPort();
 
 extern volatile int debuglev;
 
@@ -471,7 +474,8 @@ void *memdup(const void *mem, size_t size);
 int bind_socket_and_port(int type, int ip_family, const char *self_ip_address, uint32_t scope_id,
                          uint16_t *port, int *sock);
 
-uint16_t bind_UDP_port(int ip_family, const char *self_ip_address, uint32_t scope_id, int *sock);
+void bind_UDP_port(int ip_family, const char *self_ip_address, uint32_t scope_id, uint16_t *port,
+                   int *sock);
 
 void socket_cleanup(void *arg);
 void mutex_unlock(void *arg);

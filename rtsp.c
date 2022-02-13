@@ -2797,7 +2797,6 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
             plist_dict_set_item(setupResponsePlist, "timingPeerInfo", timingPeerInfoPlist);
             // get a port to use as an event port
             // bind a new TCP port and get a socket
-            conn->local_event_port = 0; // any port
             int err = bind_socket_and_port(SOCK_STREAM, conn->connection_ip_family,
                                            conn->self_ip_string, conn->self_scope_id,
                                            &conn->local_event_port, &conn->event_socket);
@@ -2851,7 +2850,6 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
 
           // get a port to use as an event port
           // bind a new TCP port and get a socket
-          conn->local_event_port = 0; // any port
           int err = bind_socket_and_port(SOCK_STREAM, conn->connection_ip_family,
                                          conn->self_ip_string, conn->self_scope_id,
                                          &conn->local_event_port, &conn->event_socket);
@@ -2908,7 +2906,6 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
       // set up a UDP control stream and thread and a UDP or TCP audio stream and thread
 
       // bind a new UDP port and get a socket
-      conn->local_ap2_control_port = 0; // any port
       err = bind_socket_and_port(SOCK_DGRAM, conn->connection_ip_family, conn->self_ip_string,
                                  conn->self_scope_id, &conn->local_ap2_control_port,
                                  &conn->ap2_control_socket);
@@ -2979,7 +2976,6 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
         // get_play_lock(conn);
         conn->airplay_stream_type = realtime_stream;
         // bind a new UDP port and get a socket
-        conn->local_realtime_audio_port = 0; // any port
         err = bind_socket_and_port(SOCK_DGRAM, conn->connection_ip_family, conn->self_ip_string,
                                    conn->self_scope_id, &conn->local_realtime_audio_port,
                                    &conn->realtime_audio_socket);
@@ -3035,7 +3031,6 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
         // get needed stuff
 
         // bind a new TCP port and get a socket
-        conn->local_buffered_audio_port = 0; // any port
         err = bind_socket_and_port(SOCK_STREAM, conn->connection_ip_family, conn->self_ip_string,
                                    conn->self_scope_id, &conn->local_buffered_audio_port,
                                    &conn->buffered_audio_socket);

@@ -586,6 +586,25 @@ int parse_options(int argc, char **argv) {
           config.udp_port_range = value;
       }
 
+      /* Get the TCP port base setting. */
+      if (config_lookup_int(config.cfg, "general.tcp_port_base", &value)) {
+        if ((value < 0) || (value > 65535))
+          die("Invalid port number  \"%sd\". It should be between 0 and 65535, default is 6001",
+              value);
+        else
+          config.tcp_port_base = value;
+      }
+
+      /* Get the TCP port range setting. This is number of ports that will be tried for free ports ,
+       * starting at the port base. */
+      if (config_lookup_int(config.cfg, "general.tcp_port_range", &value)) {
+        if ((value < 3) || (value > 65535))
+          die("Invalid port range  \"%sd\". It should be between 3 and 65535, default is 10",
+              value);
+        else
+          config.tcp_port_range = value;
+      }
+
       /* Get the password setting. */
       if (config_lookup_string(config.cfg, "general.password", &str))
         config.password = (char *)str;
@@ -1721,6 +1740,8 @@ int main(int argc, char **argv) {
   config.audio_backend_buffer_desired_length = 0.15; // seconds
   config.udp_port_base = 6001;
   config.udp_port_range = 10;
+  config.tcp_port_base = 6001;
+  config.tcp_port_range = 10;
   config.output_format = SPS_FORMAT_S16_LE; // default
   config.output_format_auto_requested = 1;  // default auto select format
   config.output_rate = 44100;               // default
@@ -2042,6 +2063,8 @@ int main(int argc, char **argv) {
   debug(1, "rtsp listening port is %d.", config.port);
   debug(1, "udp base port is %d.", config.udp_port_base);
   debug(1, "udp port range is %d.", config.udp_port_range);
+  debug(1, "tcp base port is %d.", config.tcp_port_base);
+  debug(1, "tcp port range is %d.", config.tcp_port_range);
   debug(1, "player name is \"%s\".", config.service_name);
   debug(1, "backend is \"%s\".", config.output_name);
   debug(1, "run_this_before_play_begins action is \"%s\".", strnull(config.cmd_start));

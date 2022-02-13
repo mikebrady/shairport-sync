@@ -96,10 +96,10 @@ You have to allow connections to your Shairport Sync device from remote devices.
 ```
 sudo ufw allow 3689/tcp
 sudo ufw allow 5353
-sudo ufw allow 5000/tcp
-sudo ufw allow 7000/tcp
-sudo ufw allow 6000:6009/udp
-sudo ufw allow 35000:65535/udp
+sudo ufw allow 5000/tcp  # if using Airplay 1
+sudo ufw allow 7000/tcp  # if using Airplay 2
+sudo ufw allow 6001:6010/udp
+sudo ufw allow 6001:6010/tcp  # if using AirPlay 2
 ```
 
 You can check UFW config by typing `sudo ufw status` in shell. Please make sure that UFW is active, especially if you have deactivated it previously for testing purposes. Check out the [ufw man pages](http://manpages.ubuntu.com/manpages/man8/ufw.8.html) for more.
