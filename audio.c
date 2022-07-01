@@ -38,6 +38,9 @@ extern audio_output audio_jack;
 #ifdef CONFIG_SNDIO
 extern audio_output audio_sndio;
 #endif
+#ifdef CONFIG_SUN
+extern audio_output audio_sun;
+#endif
 #ifdef CONFIG_AO
 extern audio_output audio_ao;
 #endif
@@ -69,6 +72,9 @@ static audio_output *outputs[] = {
 #endif
 #ifdef CONFIG_SNDIO
     &audio_sndio,
+#endif
+#ifdef CONFIG_SUN
+    &audio_sun,
 #endif
 #ifdef CONFIG_PIPEWIRE
     &audio_pw,

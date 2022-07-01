@@ -278,6 +278,14 @@ if test "x$with_sndio" = "xyes" ; then
 fi
 AM_CONDITIONAL([USE_SNDIO], [test "x$with_sndio" = "xyes"])
 
+# Look for SUN flag
+AC_ARG_WITH(sun, [AS_HELP_STRING([--with-sun],[choose Sun/NetBSD audio API support])])
+if test "x$with_sun" = "xyes" ; then
+  AC_DEFINE([CONFIG_SUN], 1, [Include a Sun-compatible audio backend.])
+  AC_CHECK_HEADER([sys/audioio.h], , AC_MSG_ERROR(Sun audio support requires the sys/audioio.h header))
+fi
+AM_CONDITIONAL([USE_SUN], [test "x$with_sun" = "xyes"])
+
 # Look for AO flag
 AC_ARG_WITH(ao, [AS_HELP_STRING([--with-ao],[choose AO (Audio Output?) API support. N.B. no synchronisation -- so underflow or overflow is inevitable!])])
 if test "x$with_ao" = "xyes" ; then
