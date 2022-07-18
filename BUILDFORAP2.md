@@ -5,6 +5,7 @@ Building Shairport Sync for AirPlay 2
 * Be very careful with audio systems capable of very high volume output -- the volume control in this software may not be reliable!
 * Shairport Sync relies on a companion program called [`nqptp`](https://github.com/mikebrady/nqptp) to monitor timing signals. This program uses ports 319 and 320 and replaces any PTP service you have on the computer. 
  FYI, most computers do not have a PTP service running. They often use a (totally different) [Network Timing Protocol (NTP)](http://www.ntp.org) service to keep the system clock synchronised with civil time. The POSIX Shared Memory Interface (SMI) Version numbers of `nqptp` and Shairport Sync must match. If they don't, you'll get a message in the logs. It means that one of the programs is out of date with respect to the other.
+* If you would like for Shairport Sync to decode Apple ALAC streams, the additional module, [`alac`](https://github.com/mikebrady/alac) is needed.
 
 Instructions
 ==
@@ -60,6 +61,9 @@ First, install the packages needed by Shairport Sync:
 ### nqptp ###
 Download, install, enable and start `nqptp` from [here](https://github.com/mikebrady/nqptp).
 
+### alac ###
+If you would like for Shairport Sync to decode Apple ALAC streams, the additional module, [`alac`](https://github.com/mikebrady/alac) is needed. Use the guide in the repository to install it.
+
 ### Shairport Sync
 
 #### Please use `git` to clone the repository!
@@ -85,6 +89,7 @@ $ make -j
 # make install
 ```
 By the way, the `autoreconf` step may take quite a while -- be patient!
+If you installed [`alac`](https://github.com/mikebrady/alac) add the `--with-apple-alac` flag to the ./configure command.
 
 #### Configure
 Now to configure Shairport Sync. In this walkthrough, it is configured for an `alsa` output device.
