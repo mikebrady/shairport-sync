@@ -1,8 +1,14 @@
 #!/command/with-contenv sh
-sleep 5
-while [ ! -f /var/run/dbus.pid ]; do
-  "dbus is not running, sleeping for 5 seconds before trying to start avahi"
+
+if [ "$ENABLE_AVAHI" = "1" ]; then
   sleep 5
-done
-echo "Starting avahi"
-exec avahi-daemon --no-chroot
+  while [ ! -f /var/run/dbus.pid ]; do
+    "dbus is not running, sleeping for 5 seconds before trying to start avahi"
+    sleep 5
+  done
+  echo "Starting avahi"
+  exec avahi-daemon --no-chroot
+else
+  echo "Avahi disabled, not starting avahi-daemon"
+  exec sleep infinity
+fi

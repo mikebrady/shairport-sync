@@ -1,4 +1,10 @@
 #!/command/with-contenv sh
-rm -rf /var/run/dbus.pid
-echo "Starting dbus"
-exec dbus-daemon --system --nofork
+
+if [ "$ENABLE_AVAHI" = "1" ]; then
+  rm -rf /var/run/dbus.pid
+  echo "Starting dbus"
+  exec dbus-daemon --system --nofork
+else
+  echo "Avahi disabled, not starting dbus-daemon"
+  exec sleep infinity
+fi
