@@ -946,13 +946,13 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn) {
 
                 // clang-format off
                 // Now we have to work out if the flush frame is in the buffer.
-                
+
                 // If it is later than the end of the buffer, flush everything and keep the
                 // request active.
-                
+
                 // If it is in the buffer, we need to flush part of the buffer.
                 // (Actually we flush the entire buffer and drop the request.)
-                
+
                 // If it is before the buffer, no flush is needed. Drop the request.
                 // clang-format on
 
@@ -1087,7 +1087,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn) {
           local_time_to_frame(time_to_aim_for, &should_be_frame, conn);
           // debug(1,"should_be frame is %u.",should_be_frame);
           int32_t frame_difference = thePacket->given_timestamp - should_be_frame;
-          if (frame_difference < 0) {
+          if (config.keep_old_packets == 0 && frame_difference < 0) {
             debug(2, "Dropping out of date packet %u with timestamp %u. Lead time is %f seconds.",
                   conn->ab_read, thePacket->given_timestamp,
                   frame_difference * 1.0 / 44100.0 + desired_lead_time * 0.000000001);

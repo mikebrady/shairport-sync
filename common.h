@@ -160,7 +160,7 @@ typedef struct {
   int mqtt_enable_remote;
   char *mqtt_empty_payload_substitute;
 #endif
-  uint8_t ap1_prefix[6]; 
+  uint8_t ap1_prefix[6];
   uint8_t hw_addr[8]; // only needs 6 but 8 is handy when converting this to a number
   int port;
   int udp_port_base;
@@ -186,6 +186,7 @@ typedef struct {
   uint32_t userSuppliedLatency; // overrides all other latencies -- use with caution
   uint32_t fixedLatencyOffset;  // add this to all automatic latencies supplied to get the actual
                                 // total latency
+  int keep_old_packets;    // set to 1 if you want to keep old packets (default is 0: drop)
 // the total latency will be limited to the min and max-latency values, if supplied
 #ifdef CONFIG_LIBDAEMON
   int daemonise;

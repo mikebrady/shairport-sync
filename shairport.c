@@ -969,6 +969,17 @@ int parse_options(int argc, char **argv) {
                dvalue, config.missing_port_dacp_scan_interval_seconds);
       }
 
+      if (config_lookup_string(config.cfg, "general.keep_old_packets", &str)) {
+        if (strcasecmp(str, "no") == 0)
+          config.keep_old_packets = 0;
+        else if (strcasecmp(str, "yes") == 0)
+          config.keep_old_packets = 1;
+        else
+          die("Invalid general keep_old_packets option choice \"%s\". It should be \"yes\" or "
+              "\"no\"",
+              str);
+      }
+
       /* Get the default latency. Deprecated! */
       if (config_lookup_int(config.cfg, "latencies.default", &value))
         config.userSuppliedLatency = value;
