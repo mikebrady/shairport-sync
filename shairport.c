@@ -325,6 +325,8 @@ void usage(char *progname) {
     printf("    --log-to-syslog         Send debug and statistics information through syslog\n");
     printf("                            If used, this should be the first command line argument.\n");
     printf("    -u, --use-stderr        [Deprecated] This setting is not needed -- stderr is now used by default and syslog is selected using --log-to-syslog.\n");
+    printf("    -I, --deviceId=I        set airplay_device_id.\n");
+    printf("    -O, --deviceIdOffset=I  set airplay_device_id_offset.\n");
     printf("\n");
     mdns_ls_backends();
     printf("\n");
@@ -345,6 +347,8 @@ int parse_options(int argc, char **argv) {
   // int i = 0;                     /* used for tracking options */
   int fResyncthreshold = (int)(config.resyncthreshold * 44100);
   int fTolerance = (int)(config.tolerance * 44100);
+  uint64_t cli_device_id;
+  uint64_t cli_device_id_offset;
   poptContext optCon; /* context for parsing command-line options */
   struct poptOption optionsTable[] = {
       {"verbose", 'v', POPT_ARG_NONE, NULL, 'v', NULL, NULL},
@@ -371,6 +375,8 @@ int parse_options(int argc, char **argv) {
       {"tolerance", 'z', POPT_ARG_INT, &fTolerance, 0, NULL, NULL},
       {"use-stderr", 'u', POPT_ARG_NONE, NULL, 'u', NULL, NULL},
       {"log-to-syslog", 0, POPT_ARG_NONE, &log_to_syslog_selected, 0, NULL, NULL},
+      {"deviceId", 'I', POPT_ARG_LONG, &cli_device_id, 0, NULL, NULL},
+      {"deviceIdOffset", 'O', POPT_ARG_LONG, &cli_device_id_offset, 0, NULL, NULL},
 #ifdef CONFIG_METADATA
       {"metadata-enable", 'M', POPT_ARG_NONE, &config.metadata_enabled, 'M', NULL, NULL},
       {"metadata-pipename", 0, POPT_ARG_STRING, &config.metadata_pipename, 0, NULL, NULL},
@@ -1291,6 +1297,14 @@ int parse_options(int argc, char **argv) {
 #endif
   }
 
+  // Override config device ID with CLI options if present
+  if(cli_device_id) {
+    temporary_airplay_id = cli_device_id;
+  }
+  if(cli_device_id_offset) {
+    temporary_airplay_id += cli_device_id_offset;
+  }
+
   // now, do the command line options again, but this time do them fully -- it's a unix convention
   // that command line
   // arguments have precedence over configuration file settings.
@@ -1364,7 +1378,7 @@ int parse_options(int argc, char **argv) {
            config.appName, temporary_airplay_id);
   // debug(1, "smi name: \"%s\"", shared_memory_interface_name);
 
-  config.nqptp_shared_memory_interface_name = strdup(NQPTP_INTERFACE_NAME);
+  config.nqptp_shared_memory_interface_name = strdup(shared_memory_interface_name);
 
   char apids[6 * 2 + 5 + 1]; // six pairs of digits, 5 colons and a NUL
   apids[6 * 2 + 5] = 0;      // NUL termination
@@ -1380,6 +1394,7 @@ int parse_options(int argc, char **argv) {
   }
 
   config.airplay_device_id = strdup(apids);
+  fprintf(stderr, "airplay_device_id: %s\n", config.airplay_device_id);
 
 #ifdef CONFIG_METADATA
   // If we are asking for metadata, turn on the relevant bits

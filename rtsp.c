@@ -1270,15 +1270,15 @@ ssize_t timed_read_from_rtsp_connection(rtsp_conn_info *conn, uint64_t wait_time
 }
 
 #ifdef CONFIG_AIRPLAY_2
-void set_client_as_ptp_clock(rtsp_conn_info *conn) {
-  char timing_list_message[4096] = "";
-  strncat(timing_list_message, "T ", sizeof(timing_list_message) - 1 - strlen(timing_list_message));
-  strncat(timing_list_message, (const char *)&conn->client_ip_string,
-          sizeof(timing_list_message) - 1 - strlen(timing_list_message));
-  ptp_send_control_message_string(timing_list_message);
-}
+// void set_client_as_ptp_clock(rtsp_conn_info *conn) {
+//   char timing_list_message[4096] = "";
+//   strncat(timing_list_message, "T ", sizeof(timing_list_message) - 1 - strlen(timing_list_message));
+//   strncat(timing_list_message, (const char *)&conn->client_ip_string,
+//           sizeof(timing_list_message) - 1 - strlen(timing_list_message));
+//   ptp_send_control_message_string(timing_list_message);
+// }
 
-void clear_ptp_clock() { ptp_send_control_message_string("T"); }
+// void clear_ptp_clock() { ptp_send_control_message_string("T"); }
 #endif
 
 ssize_t read_from_rtsp_connection(rtsp_conn_info *conn, void *buf, size_t count) {
@@ -2710,7 +2710,7 @@ void teardown_phase_two(rtsp_conn_info *conn) {
       conn->dacp_active_remote = NULL;
     }
     release_play_lock(conn);
-    clear_ptp_clock();
+    // clear_ptp_clock();
   }
 }
 
@@ -3049,8 +3049,8 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
             freeifaddrs(addrs);
 
             // debug(1,"initial timing peer command: \"%s\".", timing_list_message);
-            // ptp_send_control_message_string(timing_list_message);
-            set_client_as_ptp_clock(conn);
+            ptp_send_control_message_string(timing_list_message);
+            // set_client_as_ptp_clock(conn);
             plist_dict_set_item(timingPeerInfoPlist, "Addresses", addresses);
             plist_dict_set_item(timingPeerInfoPlist, "ID", plist_new_string(conn->self_ip_string));
             plist_dict_set_item(setupResponsePlist, "timingPeerInfo", timingPeerInfoPlist);
