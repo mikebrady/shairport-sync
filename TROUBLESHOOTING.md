@@ -15,6 +15,8 @@ If you are using the default ALSA backend, don't forget to check two simple thin
 
 You can use `alsamixer` for both of these checks. A muted output has the letter(s) `M` as its value. Select it and type `M` again to unmute. 
 
+3. Check Normalize the volume level of your audio is set to off: Go to Settings > Music, then turn off Sound Check.
+
 ### Sync is slightly off!
 Please see [Adjusting Sync](./ADVANCED%20TOPICS/AdjustingSync.md).
 
