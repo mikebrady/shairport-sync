@@ -2108,18 +2108,6 @@ int main(int argc, char **argv) {
   // parse arguments into config -- needed to locate pid_dir
   int audio_arg = parse_options(argc, argv);
 
-#ifdef COMPILE_FOR_OPENBSD
-  /* Drop "proc exec" unless external commands are to be run. */
-  if ((config.cmd_active_start == NULL) &&
-      (config.cmd_active_stop == NULL) &&
-      (config.cmd_start == NULL) &&
-      (config.cmd_stop == NULL) &&
-      (config.cmd_set_volume == NULL)) {
-    if (pledge("stdio rpath wpath cpath dpath inet unix dns audio", NULL) == -1)
-      die("pledge");
-  }
-#endif
-
   // mDNS supports maximum of 63-character names (we append 13).
   if (strlen(config.service_name) > 50) {
     warn("The service name \"%s\" is too long (max 50 characters) and has been truncated.",
@@ -2253,6 +2241,18 @@ int main(int argc, char **argv) {
     /* end libdaemon stuff */
   }
 
+#endif
+
+#ifdef COMPILE_FOR_OPENBSD
+  /* Drop "proc exec" unless external commands are to be run. */
+  if ((config.cmd_active_start == NULL) &&
+      (config.cmd_active_stop == NULL) &&
+      (config.cmd_start == NULL) &&
+      (config.cmd_stop == NULL) &&
+      (config.cmd_set_volume == NULL)) {
+    if (pledge("stdio rpath wpath cpath dpath inet unix dns audio", NULL) == -1)
+      die("pledge");
+  }
 #endif
 
 #ifdef CONFIG_AIRPLAY_2
