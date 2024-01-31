@@ -1929,6 +1929,12 @@ void _display_config(const char *filename, const int linenumber, __attribute__((
 #define display_config(argc, argv) _display_config(__FILE__, __LINE__, argc, argv)
 
 int main(int argc, char **argv) {
+#ifdef COMPILE_FOR_OPENBSD
+  /* Start with the superset of all possible promises. */
+  if (pledge("stdio rpath wpath cpath dpath inet unix dns proc exec audio", NULL) == -1)
+    die("pledge");
+#endif
+
   memset(&config, 0, sizeof(config)); // also clears all strings, BTW
   /* Check if we are called with -V or --version parameter */
   if (argc >= 2 && ((strcmp(argv[1], "-V") == 0) || (strcmp(argv[1], "--version") == 0))) {
@@ -2101,6 +2107,18 @@ int main(int argc, char **argv) {
 #endif
   // parse arguments into config -- needed to locate pid_dir
   int audio_arg = parse_options(argc, argv);
+
+#ifdef COMPILE_FOR_OPENBSD
+  /* Drop "proc exec" unless external commands are to be run. */
+  if ((config.cmd_active_start == NULL) &&
+      (config.cmd_active_stop == NULL) &&
+      (config.cmd_start == NULL) &&
+      (config.cmd_stop == NULL) &&
+      (config.cmd_set_volume == NULL)) {
+    if (pledge("stdio rpath wpath cpath dpath inet unix dns audio", NULL) == -1)
+      die("pledge");
+  }
+#endif
 
   // mDNS supports maximum of 63-character names (we append 13).
   if (strlen(config.service_name) > 50) {
