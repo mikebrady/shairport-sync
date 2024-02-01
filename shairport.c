@@ -1931,7 +1931,7 @@ void _display_config(const char *filename, const int linenumber, __attribute__((
 int main(int argc, char **argv) {
 #ifdef COMPILE_FOR_OPENBSD
   /* Start with the superset of all potentially required promises. */
-  if (pledge("stdio rpath wpath cpath dpath inet unix dns proc exec audio", NULL) == -1)
+  if (pledge("stdio rpath wpath cpath dpath inet unix dns proc exec unveil audio", NULL) == -1)
     die("pledge");
 #endif
 
@@ -2122,7 +2122,7 @@ int main(int argc, char **argv) {
 # else
   if (!run_cmds)
 #endif
-    if (pledge("stdio rpath wpath cpath dpath inet unix dns audio", NULL) == -1)
+    if (pledge("stdio rpath wpath cpath dpath inet unix dns unveil audio", NULL) == -1)
       die("pledge");
 #endif
 
@@ -2262,7 +2262,7 @@ int main(int argc, char **argv) {
 # ifdef COMPILE_FOR_OPENBSD
   /* Drop "proc exec", if possible. */
   if (!run_cmds)
-    if (pledge("stdio rpath wpath cpath dpath inet unix dns audio", NULL) == -1)
+    if (pledge("stdio rpath wpath cpath dpath inet unix dns unveil audio", NULL) == -1)
       die("pledge");
 # endif
 
@@ -2393,18 +2393,49 @@ int main(int argc, char **argv) {
     /* Do not bother with "*path" as long as "proc exec" can do everything. */
   } else {
     /*
+     * unveil(2) TODO:
+     * - assume system D-Bus, hoist setup/defer unveil
+     * - glib2 locale (not critical!)
+     * - MQTT?
+     */
+# if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
+    if (unveil("/var/run/dbus/system_bus_socket", "rw") == -1)
+      die("unveil D-Bus");
+# endif
+    if (unveil("/usr/local/share/locale", "r") == -1)
+      die("unveil locale");
+
+    /*
      * Only coverart cache is created/written.
      * Only metadata pipe is special.
      */
     int need_cpath_dpath = 0;
 # ifdef CONFIG_METADATA
-    if (config.metadata_enabled)
+    if (config.metadata_enabled) {
       need_cpath_dpath = 1;
+#  ifdef CONFIG_METADATA_HUB
+      int do_cache =
+        config.cover_art_cache_dir != NULL &&
+        config.cover_art_cache_dir[0] != '\0';
+
+      if (do_cache)
+        if (unveil(config.cover_art_cache_dir, "wc") == -1)
+          die("unveil %s", config.cover_art_cache_dir);
+#  endif
+      if (unveil(config.metadata_pipename, "wc") == -1)
+        die("unveil %s", config.metadata_pipename);
+    }
 # endif
-    /* Drop "cpath dpath". */
-    if (!need_cpath_dpath)
+
+    /* Drop "unveil". */
+    if (need_cpath_dpath) {
+      if (pledge("stdio rpath wpath cpath dpath inet unix dns audio", NULL) == -1)
+        die("pledge");
+    } else {
+      /* Drop "cpath dpath". */
       if (pledge("stdio rpath wpath inet unix dns audio", NULL) == -1)
         die("pledge");
+    }
   }
 #endif
 
