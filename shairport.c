@@ -2414,6 +2414,10 @@ int main(int argc, char **argv) {
     if (config.metadata_enabled) {
       need_cpath_dpath = 1;
 #  ifdef CONFIG_METADATA_HUB
+      /*
+       * XXX unveiling default /tmp/shairport-sync/.cache/coverart may fail
+       * as parent directories do not exist.
+       */
       int do_cache =
         config.cover_art_cache_dir != NULL &&
         config.cover_art_cache_dir[0] != '\0';
