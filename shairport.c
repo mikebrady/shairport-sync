@@ -114,6 +114,10 @@
 #include <FFTConvolver/convolver.h>
 #endif
 
+#ifdef CONFIG_OPENBSD
+#include <string.h>	// strerror
+#endif
+
 pid_t pid;
 #ifdef CONFIG_LIBDAEMON
 int this_is_the_daemon_process = 0;
@@ -1932,7 +1936,7 @@ int main(int argc, char **argv) {
 #ifdef COMPILE_FOR_OPENBSD
   /* Start with the superset of all potentially required promises. */
   if (pledge("stdio rpath wpath cpath dpath inet unix dns proc exec unveil audio", NULL) == -1)
-    die("pledge");
+    die("pledge: %s", strerror(errno));
 #endif
 
   memset(&config, 0, sizeof(config)); // also clears all strings, BTW
@@ -2121,9 +2125,9 @@ int main(int argc, char **argv) {
   if (!run_cmds && !config.daemonise)
 # else
   if (!run_cmds)
-#endif
+# endif
     if (pledge("stdio rpath wpath cpath dpath inet unix dns unveil audio", NULL) == -1)
-      die("pledge");
+      die("pledge: %s", strerror(errno));
 #endif
 
   // mDNS supports maximum of 63-character names (we append 13).
@@ -2263,7 +2267,7 @@ int main(int argc, char **argv) {
   /* Drop "proc exec", if possible. */
   if (!run_cmds)
     if (pledge("stdio rpath wpath cpath dpath inet unix dns unveil audio", NULL) == -1)
-      die("pledge");
+      die("pledge: %s", strerror(errno));
 # endif
 
 #endif
@@ -2400,9 +2404,9 @@ int main(int argc, char **argv) {
      */
 # if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
     if (unveil("/var/run/dbus/system_bus_socket", "rw") == -1)
-      die("unveil D-Bus");
+      die("unveil D-Bus: %s", strerror(errno));
     if (unveil("/usr/local/share/locale", "r") == -1)
-      die("unveil locale");
+      die("unveil locale: %s", strerror(errno));
 # endif
 
     /*
@@ -2424,21 +2428,21 @@ int main(int argc, char **argv) {
 
       if (do_cache)
         if (unveil(config.cover_art_cache_dir, "wc") == -1)
-          die("unveil %s", config.cover_art_cache_dir);
+          die("unveil %s: %s", config.cover_art_cache_dir, strerror(errno));
 #  endif
       if (unveil(config.metadata_pipename, "wc") == -1)
-        die("unveil %s", config.metadata_pipename);
+        die("unveil %s: %s", config.metadata_pipename, strerror(errno));
     }
 # endif
 
     /* Drop "unveil". */
     if (need_cpath_dpath) {
       if (pledge("stdio rpath wpath cpath dpath inet unix dns audio", NULL) == -1)
-        die("pledge");
+        die("pledge: %s", strerror(errno));
     } else {
       /* Drop "cpath dpath". */
       if (pledge("stdio rpath wpath inet unix dns audio", NULL) == -1)
-        die("pledge");
+        die("pledge: %s", strerror(errno));
     }
   }
 #endif
