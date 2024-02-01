@@ -1930,7 +1930,7 @@ void _display_config(const char *filename, const int linenumber, __attribute__((
 
 int main(int argc, char **argv) {
 #ifdef COMPILE_FOR_OPENBSD
-  /* Start with the superset of all possible promises. */
+  /* Start with the superset of all potentially required promises. */
   if (pledge("stdio rpath wpath cpath dpath inet unix dns proc exec audio", NULL) == -1)
     die("pledge");
 #endif
@@ -2108,6 +2108,24 @@ int main(int argc, char **argv) {
   // parse arguments into config -- needed to locate pid_dir
   int audio_arg = parse_options(argc, argv);
 
+#ifdef COMPILE_FOR_OPENBSD
+  int run_cmds =
+    config.cmd_active_start != NULL ||
+    config.cmd_active_stop != NULL ||
+    config.cmd_set_volume != NULL ||
+    config.cmd_start != NULL ||
+    config.cmd_stop != NULL;
+
+  /* Drop "proc exec" immediately, if possible. */
+# if CONFIG_LIBDAEMON
+  if (!run_cmds && !config.daemonise)
+# else
+  if (!run_cmds)
+#endif
+    if (pledge("stdio rpath wpath cpath dpath inet unix dns audio", NULL) == -1)
+      die("pledge");
+#endif
+
   // mDNS supports maximum of 63-character names (we append 13).
   if (strlen(config.service_name) > 50) {
     warn("The service name \"%s\" is too long (max 50 characters) and has been truncated.",
@@ -2241,18 +2259,13 @@ int main(int argc, char **argv) {
     /* end libdaemon stuff */
   }
 
-#endif
-
-#ifdef COMPILE_FOR_OPENBSD
-  /* Drop "proc exec" unless external commands are to be run. */
-  if ((config.cmd_active_start == NULL) &&
-      (config.cmd_active_stop == NULL) &&
-      (config.cmd_start == NULL) &&
-      (config.cmd_stop == NULL) &&
-      (config.cmd_set_volume == NULL)) {
+# ifdef COMPILE_FOR_OPENBSD
+  /* Drop "proc exec", if possible. */
+  if (!run_cmds)
     if (pledge("stdio rpath wpath cpath dpath inet unix dns audio", NULL) == -1)
       die("pledge");
-  }
+# endif
+
 #endif
 
 #ifdef CONFIG_AIRPLAY_2
