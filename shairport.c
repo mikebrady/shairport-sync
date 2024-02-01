@@ -2383,6 +2383,31 @@ int main(int argc, char **argv) {
   }
   config.output->init(argc - audio_arg, argv + audio_arg);
 
+#ifdef COMPILE_FOR_OPENBSD
+  /*
+   * At this point, the first and last sio_open(3) call was made, i.e.
+   * the sndio(7) cookie is dealt with and only "audio" is needed.
+   */
+
+  if (run_cmds) {
+    /* Do not bother with "*path" as long as "proc exec" can do everything. */
+  } else {
+    /*
+     * Only coverart cache is created/written.
+     * Only metadata pipe is special.
+     */
+    int need_cpath_dpath = 0;
+# ifdef CONFIG_METADATA
+    if (config.metadata_enabled)
+      need_cpath_dpath = 1;
+# endif
+    /* Drop "cpath dpath". */
+    if (!need_cpath_dpath)
+      if (pledge("stdio rpath wpath inet unix dns audio", NULL) == -1)
+        die("pledge");
+  }
+#endif
+
   // pthread_cleanup_push(main_cleanup_handler, NULL);
 
   // daemon_log(LOG_NOTICE, "startup");
