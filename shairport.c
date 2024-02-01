@@ -2395,15 +2395,15 @@ int main(int argc, char **argv) {
     /*
      * unveil(2) TODO:
      * - assume system D-Bus, hoist setup/defer unveil
-     * - glib2 locale (not critical!)
+     *   - glib2 locale (not critical!)
      * - MQTT?
      */
 # if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
     if (unveil("/var/run/dbus/system_bus_socket", "rw") == -1)
       die("unveil D-Bus");
-# endif
     if (unveil("/usr/local/share/locale", "r") == -1)
       die("unveil locale");
+# endif
 
     /*
      * Only coverart cache is created/written.
