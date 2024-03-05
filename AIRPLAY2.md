@@ -1,5 +1,9 @@
 # AirPlay 2
-Shairport Sync offers AirPlay 2 support for audio sources on iOS devices, Macs from macOS 10.15 (Catalina) onwards, HomePod minis and Apple TVs.
+**Shairport Sync** (as of [v4.1](https://github.com/mikebrady/shairport-sync/releases/tag/4.1) and newer) offers **AirPlay 2** support for audio sources on:
+- iOS devices,
+- Macs from macOS 10.15 (Catalina) onwards,
+- HomePod minis,
+- and Apple TVs.
 
 ## What Works
 - AirPlay 2 audio for iOS, HomePod mini, AppleTV and Mac players.
