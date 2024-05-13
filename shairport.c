@@ -291,7 +291,7 @@ void usage(char *progname) {
     printf("    -c, --configfile=FILE   Read configuration settings from FILE. Default is %s.\n", configuration_file_path);
     printf("    -a, --name=NAME         Set service name. Default is the hostname with first letter capitalised.\n");
     printf("    --password=PASSWORD     Require PASSWORD to connect. Default is no password. (Classic AirPlay only.)\n");
-    printf("    -p, --port=PORT         Set RTSP listening port. Default 5000; 7000 for AirPlay 2./\n");
+    printf("    -p, --port=PORT         Set RTSP listening port. Default 5000; 7000 for AirPlay 2.\n");
     printf("    -L, --latency=FRAMES    [Deprecated] Set the latency for audio sent from an unknown device.\n");
     printf("                            The default is to set it automatically.\n");
     printf("    -S, --stuffing=MODE     Set how to adjust current latency to match desired latency, where:\n");
