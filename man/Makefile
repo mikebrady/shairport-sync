@@ -9,5 +9,3 @@ all: shairport-sync.7 shairport-sync.html
 clean:
 	rm shairport-sync.7
 	rm shairport-sync.html
-
-.DELETE_ON_ERROR:
