@@ -41,7 +41,7 @@
 #define RATE 44100
 
 // Four seconds buffer -- should be plenty
-#define buffer_allocation 44100 * 4 * 2 * 2
+#define buffer_allocation RATE * 4 * 2 * 2
 
 static pthread_mutex_t buffer_mutex = PTHREAD_MUTEX_INITIALIZER;
 

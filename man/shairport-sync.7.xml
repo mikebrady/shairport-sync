@@ -353,7 +353,7 @@
 	  <option>
 		<p><opt>--statistics</opt></p>
 		<optdesc><p>
-		Print some performance information to <file>STDERR</file>, or to <opt>syslog</opt> if the <opt>-log-to-syslog</opt> command line option is also chosen.
+		Print some performance information to <file>STDERR</file>, or to <opt>syslog</opt> if the <opt>--log-to-syslog</opt> command line option is also chosen.
 		</p></optdesc>
 	  </option>
 
@@ -416,7 +416,7 @@
 	  <option>
 		<p><opt>-v | --verbose</opt></p>
 		<optdesc><p>
-		Print debug information to the <file>STDERR</file>, or to <opt>syslog</opt> if the <opt>-log-to-syslog</opt> command line option is also chosen.
+		Print debug information to the <file>STDERR</file>, or to <opt>syslog</opt> if the <opt>--log-to-syslog</opt> command line option is also chosen.
 		Repeat up to three times (i.e. <opt>-vv</opt> or <opt>-vvv</opt>) for more detail. You should use <opt>-vvv</opt> very sparingly -- it is really noisy.
 		</p></optdesc>
 	  </option>
