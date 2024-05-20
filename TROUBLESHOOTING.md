@@ -8,12 +8,23 @@ In this brief document will be listed some problems and some solutions, some pro
 2. If you have set `interpolation` in the `general` section of the configuration file to to `soxr`, comment it out or set it to `auto` or `basic` as the `soxr` setting can cause lower-powered devices to bog down at critical times, e.g. see [this report](https://github.com/mikebrady/shairport-sync/issues/631#issuecomment-366305203).
 
 ### No/Low Sound
+#### ALSA
 Let's say you've just installed or updated Shairport Sync and you are testing it for the first time after installing or updating.
 If you are using the default ALSA backend, don't forget to check two simple things:
 1. Check that the volume on the output device is turned up. If the output device has a "mixer" i.e. a volume control, Shairport Sync does not, by default, try to control it. Therefore, if it happens to be very low or even at zero, you might not hear audio that is actually coming through to the device. (You can get Shairport Sync to control a mixer -- see [here](https://github.com/mikebrady/spsdoc/blob/main/ADVANCED%20TOPICS/InitialConfiguration.md) for some hints.)
 2. Check that the output device is not muted. Some audio applications (including very old versions of Shairport Sync) leave the output device mixer in a muted state after use to minimise the possibility of noise. However, this is not generally compatible with other audio players using the same device, as they generally expect the device to be unmuted. 
 
 You can use `alsamixer` for both of these checks. A muted output has the letter(s) `M` as its value. Select it and type `M` again to unmute. 
+
+#### JACK
+If you’re using the JACK backend, check that you have connected your inputs and outputs. You do have to connect them yourself.
+
+#### Network issues
+If the audio end looks fine, there are a couple of simple things on the network end worth checking:
+
+1. Is the wi-fi interface up?
+2. Are Shairport Sync and the Apple device on the same wi-fi network?
+3. Is the Apple device reachable from the system running Shairport Sync? (That is, are there any routing issues?) It *is* possible for the mDNS multicast to reach Shairport Sync even though the two devices can’t actually talk to each other.
 
 ### Sync is slightly off!
 Please see [Adjusting Sync](./ADVANCED%20TOPICS/AdjustingSync.md).
