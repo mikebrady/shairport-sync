@@ -1198,7 +1198,7 @@ ssize_t timed_read_from_rtsp_connection(rtsp_conn_info *conn, uint64_t wait_time
 }
 
 #ifdef CONFIG_AIRPLAY_2
-void set_client_as_ptp_clock(rtsp_conn_info *conn) {
+static void control_ptp_clients(rtsp_conn_info *conn) {
   char timing_list_message[4096] = "";
   strncat(timing_list_message, "T ", sizeof(timing_list_message) - 1 - strlen(timing_list_message));
   strncat(timing_list_message, (const char *)&conn->client_ip_string,
@@ -1206,7 +1206,9 @@ void set_client_as_ptp_clock(rtsp_conn_info *conn) {
   ptp_send_control_message_string(timing_list_message);
 }
 
-void clear_ptp_clock() { ptp_send_control_message_string("T"); }
+// Control PTP clock per client
+void set_client_as_ptp_clock(rtsp_conn_info *conn) { control_ptp_clients(conn); }
+void clear_ptp_clock(rtsp_conn_info *conn) { control_ptp_clients(conn); }
 #endif
 
 ssize_t read_from_rtsp_connection(rtsp_conn_info *conn, void *buf, size_t count) {
@@ -2705,7 +2707,7 @@ void teardown_phase_two(rtsp_conn_info *conn) {
       free(conn->dacp_active_remote);
       conn->dacp_active_remote = NULL;
     }
-    clear_ptp_clock();
+    clear_ptp_clock(conn);
   }
 
   // only update these things if you're (still) the principal conn
@@ -2957,7 +2959,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
             if (ptp_shm_interface_open() !=
                 0) // it should be open already, but just in case it isn't...
               die("Can not access the NQPTP service. Has it stopped running?");
-            // clear_ptp_clock();
+            // clear_ptp_clock(conn);
             debug_log_rtsp_message(3, "SETUP \"PTP\" message", req);
             plist_t groupUUID = plist_dict_get_item(messagePlist, "groupUUID");
             if (groupUUID) {
