@@ -1436,6 +1436,7 @@ int get_ptp_anchor_local_time_info(rtsp_conn_info *conn, uint32_t *anchorRTP,
       debug(1, "Connection %d: NQPTP clock is not synchronised.", conn->connection_number);
       break;
     case clock_not_valid:
+      //Here
       debug(2, "Connection %d: NQPTP clock information is not valid.", conn->connection_number);
       break;
     default:

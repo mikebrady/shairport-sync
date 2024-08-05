@@ -560,7 +560,11 @@ static int actual_open_alsa_device(int do_auto_setup) {
     return ret;
   }
 
-  ret = snd_pcm_hw_params_set_channels(alsa_handle, alsa_params, 2);
+  int channels = 2;
+  if (config.playback_mode == ST_one_channel){
+    channels = 1;
+  }
+  ret = snd_pcm_hw_params_set_channels(alsa_handle, alsa_params, channels);
   if (ret < 0) {
     die("audio_alsa: Channels count (2) not available for device \"%s\": %s", alsa_out_dev,
         snd_strerror(ret));

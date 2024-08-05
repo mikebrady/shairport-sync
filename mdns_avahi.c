@@ -256,9 +256,26 @@ static void register_service(AvahiClient *c) {
       selected_interface = config.interface_index;
     else
       selected_interface = AVAHI_IF_UNSPEC;
+    //Both eth0 and eth0:1 are 2?
+    debug(1, "avahi:ERROR: selected interface %d", selected_interface);
+    char *host = "192.168.1.241";
+    host = NULL;
+    host = "piamp2_henry.local";
+
+    if (strcmp(config.service_name, "dinning") == 0 ){
+      debug(1, "Here 1" );
+      //something else
+      host = "piamp2_dinning.local";
+    }else{
+      //Something
+      debug(1, "Here 2" );
+      host = "piamp2_henry.local";
+    }
+    //https://andrewdupont.net/2022/01/27/using-mdns-aliases-within-your-home-network/
+    ///usr/bin/avahi-publish -a homebridge.home.local -R 192.168.1.99
     if (ap2_text_record_string_list) {
       ret = avahi_entry_group_add_service_strlst(group, selected_interface, AVAHI_PROTO_UNSPEC, 0,
-                                                 ap2_service_name, config.regtype2, NULL, NULL,
+                                                 ap2_service_name, config.regtype2, NULL, host,
                                                  port, ap2_text_record_string_list);
       if (ret == AVAHI_ERR_COLLISION) {
         die("Error: AirPlay 2 name \"%s\" is already in use.", ap2_service_name);
@@ -266,7 +283,7 @@ static void register_service(AvahiClient *c) {
     }
     if ((ret == 0) && (text_record_string_list)) {
       ret = avahi_entry_group_add_service_strlst(group, selected_interface, AVAHI_PROTO_UNSPEC, 0,
-                                                 service_name, config.regtype, NULL, NULL, port,
+                                                 service_name, config.regtype, NULL, host, port,
                                                  text_record_string_list);
       if (ret == AVAHI_ERR_COLLISION) {
         die("Error: AirPlay 1 name \"%s\" is already in use.", service_name);

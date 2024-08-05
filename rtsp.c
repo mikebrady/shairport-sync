@@ -2860,7 +2860,7 @@ static void check_and_send_plist_metadata(plist_t messagePlist, const char *plis
 
 void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
   int err;
-  debug(2, "Connection %d: SETUP (AirPlay 2)", conn->connection_number);
+  debug(1, "Connection %d: SETUP (AirPlay 2)", conn->connection_number);
   debug_log_rtsp_message(3, "SETUP (AirPlay 2) SETUP incoming message", req);
 
   plist_t messagePlist = plist_from_rtsp_content(req);
@@ -2954,7 +2954,9 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
             send_ssnc_metadata('svip', conn->self_ip_string, strlen(conn->self_ip_string), 1);
 #endif
 
-            if (ptp_shm_interface_open() !=
+            //Here
+            ptp_shm_interface_close();
+            if (ptp_shm_interface_open(conn->client_ip_string) !=
                 0) // it should be open already, but just in case it isn't...
               die("Can not access the NQPTP service. Has it stopped running?");
             // clear_ptp_clock();
@@ -5474,6 +5476,23 @@ void *rtsp_listen_loop(__attribute((unused)) void *arg) {
         ret |= setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &yes, sizeof(yes));
       }
 #endif
+      struct sockaddr_in *sa;
+      sa = (void*)p->ai_addr;
+      int ai_addrlen = p->ai_addrlen;
+      unsigned char ipbuff [sizeof(struct in6_addr)];
+      if (p->ai_family == AF_INET6) {
+
+      }else{
+        if (strcmp(config.service_name, "dinning") == 0 ){
+          debug(1, "Here 1" );
+          //something else
+          inet_pton(AF_INET, "192.168.1.116", &sa->sin_addr);
+        }else{
+          //Something
+          debug(1, "Here 2" );
+          inet_pton(AF_INET, "192.168.1.241", &sa->sin_addr);
+        }
+      }
 
       if (!ret)
         ret = bind(fd, p->ai_addr, p->ai_addrlen);

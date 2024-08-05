@@ -893,6 +893,8 @@ int parse_options(int argc, char **argv) {
           config.playback_mode = ST_left_only;
         else if (strcasecmp(str, "both right") == 0)
           config.playback_mode = ST_right_only;
+        else if (strcasecmp(str, "one_channel") == 0)
+          config.playback_mode = ST_one_channel;
         else
           die("Invalid playback_mode choice \"%s\". It should be \"stereo\" (default), \"mono\", "
               "\"reverse stereo\", \"both left\", \"both right\"",
@@ -2652,7 +2654,7 @@ int main(int argc, char **argv) {
   int64_t time_spent_waiting = 0;
   do {
     continue_waiting = 0;
-    response = ptp_shm_interface_open();
+    response = ptp_shm_interface_open(NULL);
     if ((response == -1) && (errno == ENOENT)) {
       time_spent_waiting = get_absolute_time_in_ns() - nqptp_start_waiting_time;
       if (time_spent_waiting < 10000000000L) {

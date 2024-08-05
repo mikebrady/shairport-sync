@@ -1133,6 +1133,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn) {
             conn->ab_read++;
           } else {
             if (conn->first_packet_timestamp == 0)
+              //Here??
               debug(2, "Accepting packet %u with timestamp %u. Lead time is %f seconds.",
                     conn->ab_read, thePacket->given_timestamp,
                     frame_difference * 1.0 / 44100.0 + desired_lead_time * 0.000000001);
@@ -2357,6 +2358,7 @@ void *player_thread_func(void *arg) {
               // also, raise the 16-bit samples to 32 bits.
 
               switch (config.playback_mode) {
+              case ST_one_channel:
               case ST_mono: {
                 int32_t lsl = ls;
                 int32_t rsl = rs;
@@ -2396,7 +2398,8 @@ void *player_thread_func(void *arg) {
 
               for (j = 0; j < conn->output_sample_ratio; j++) {
                 *outpl++ = ll;
-                *outpl++ = rl;
+                if (config.playback_mode != ST_one_channel)
+                  *outpl++ = rl;
               }
             }
           } break;
@@ -2413,6 +2416,7 @@ void *player_thread_func(void *arg) {
               // here, do the mode stuff -- mono / reverse stereo / leftonly / rightonly
 
               switch (config.playback_mode) {
+              case ST_one_channel:
               case ST_mono: {
                 int64_t lsl = ls;
                 int64_t rsl = rs;
@@ -2444,7 +2448,8 @@ void *player_thread_func(void *arg) {
 
               for (j = 0; j < conn->output_sample_ratio; j++) {
                 *outpl++ = ll;
-                *outpl++ = rl;
+                if (config.playback_mode != ST_one_channel)
+                  *outpl++ = rl;
               }
             }
           } break;
@@ -2705,6 +2710,7 @@ void *player_thread_func(void *arg) {
                 if ((resp != -EBUSY) &&
                     (resp != -ENODEV)) // delay and not-there errors can be reported if the device
                                        // is (hopefully temporarily) busy or unavailable
+                  //Here ??
                   debug(1, "Delay error %d when checking running latency.", resp);
               }
             }

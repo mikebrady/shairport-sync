@@ -160,9 +160,10 @@ int ptp_get_clock_info(uint64_t *actual_clock_id, uint64_t *time_of_sample, uint
   return response;
 }
 
-int ptp_shm_interface_open() {
+int ptp_shm_interface_open(char *ip) {
   int response = 0;
-  debug(2, "ptp_shm_interface_open with mapped_addr = %" PRIuPTR "", mapped_addr);
+  debug(1, "ptp_shm_interface_open with %s mapped_addr = %" PRIuPTR "",
+        ip ? ip : "0.0.0.0", mapped_addr);
   if ((mapped_addr == NULL) || (mapped_addr == MAP_FAILED)) {
     response = -1;
     if (mapped_addr == NULL)
@@ -171,9 +172,20 @@ int ptp_shm_interface_open() {
       debug(3, "ptp_shm_interface_open is MAP_FAILED");
 
     if (strcmp(config.nqptp_shared_memory_interface_name, "") != 0) {
+      char fname[120];
       response = 0;
+      if(ip){
+        snprintf( fname, sizeof(fname), "%s_%s", config.nqptp_shared_memory_interface_name, ip);
+      }else{
+        snprintf( fname, sizeof(fname), "%s", config.nqptp_shared_memory_interface_name);
+      }
       int shared_memory_file_descriptor =
-          shm_open(config.nqptp_shared_memory_interface_name, O_RDONLY, 0);
+          shm_open(fname, O_RDONLY, 0);
+      if (shared_memory_file_descriptor < 0) {
+        snprintf( fname, sizeof(fname), "%s", config.nqptp_shared_memory_interface_name);
+        shared_memory_file_descriptor =
+          shm_open(fname, O_RDONLY, 0);
+      }
       if (shared_memory_file_descriptor >= 0) {
         mapped_addr =
             // needs to be PROT_READ | PROT_WRITE to allow the mapped memory to be writable for the
