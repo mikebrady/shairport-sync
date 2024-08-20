@@ -893,6 +893,8 @@ int parse_options(int argc, char **argv) {
           config.playback_mode = ST_left_only;
         else if (strcasecmp(str, "both right") == 0)
           config.playback_mode = ST_right_only;
+        else if (strcasecmp(str, "one_channel") == 0)
+          config.playback_mode = ST_one_channel;
         else
           die("Invalid playback_mode choice \"%s\". It should be \"stereo\" (default), \"mono\", "
               "\"reverse stereo\", \"both left\", \"both right\"",
@@ -2377,6 +2379,12 @@ int main(int argc, char **argv) {
         config.output_name == NULL ? "<unspecified>" : config.output_name);
   }
   config.output->init(argc - audio_arg, argv + audio_arg);
+  /* Also do an early open of the device to see it is correct */
+  if ((config.output) && (config.output->prepare)){
+    config.output->prepare();
+    if (config.output->deinit)
+      config.output->deinit();
+  }
 
 #ifdef COMPILE_FOR_OPENBSD
   /* Past first and last sio_open(3), sndio(7) only needs "audio". */
