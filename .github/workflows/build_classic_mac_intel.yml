@@ -1,0 +1,25 @@
+name: Build classic Airplay for macOS on Intel
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Dependencies
+        run: |
+          brew install automake
+          brew install popt
+          brew install libconfig
+          brew install libao
+          brew install libsorx
+          brew install libalac
+      - name: Configure
+        run: |
+          autoreconf -fi
+          ./configure --with-os=darwin --with-ao --with-pipe --with-soxr --with-apple-alac --with-stdout --with-dns_sd --with-ssl=openssl
+      - name: Make
+        run: |
+          make
