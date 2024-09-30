@@ -1,0 +1,40 @@
+name: Build classic Airplay for Linux on ARMv7
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build classic Airplay for Linux on ARMv7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: uraimo/run-on-arch-action@v2
+        name: Run Commands
+        id: runcmd
+        with:
+          arch: armv7
+          distro: ubuntu22.04
+          setup: |
+            mkdir -p "${PWD}/artifacts"
+          dockerRunArgs: |
+            --volume "${PWD}/artifacts:/artifacts"
+
+          # Not required, but speeds up builds by storing container images in
+          # a GitHub package registry.
+          githubToken: ${{ github.token }}
+
+          run: |
+            apt-get -y --no-install-recommends install build-essential git xmltoman autoconf automake libtool libpopt-dev libconfig-dev libasound2-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev libplist-dev libsodium-dev libavutil-dev libavcodec-dev libavformat-dev uuid-dev libgcrypt-dev xxd
+            mkdir build
+            cd build
+            autoreconf -i ..
+            ../configure --sysconfdir=/etc --with-alsa --with-pipe  --with-soxr --with-dns_sd --with-ssl=openssl
+            make -j
+            cp shairport-sync /artifacts
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: classic_linux_armv7
+          path: artifacts/shairport-sync
