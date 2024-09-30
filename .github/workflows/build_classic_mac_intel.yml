@@ -15,7 +15,6 @@ jobs:
           brew install libconfig
           brew install libao
           brew install libsoxr
-          brew install libalac
       - name: Configure
         run: |
           autoreconf -fi
