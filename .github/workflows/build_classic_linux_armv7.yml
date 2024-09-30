@@ -30,7 +30,7 @@ jobs:
             mkdir build
             cd build
             autoreconf -i ..
-            ../configure --sysconfdir=/etc --with-alsa --with-pipe  --with-soxr --with-dns_sd --with-ssl=openssl
+            ../configure --sysconfdir=/etc --with-alsa --with-pipe  --with-soxr --with-avahi --with-ssl=openssl
             make -j
             cp shairport-sync /artifacts
 
