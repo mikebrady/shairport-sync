@@ -14,7 +14,7 @@ jobs:
           brew install popt
           brew install libconfig
           brew install libao
-          brew install libsorx
+          brew install libsoxr
           brew install libalac
       - name: Configure
         run: |
