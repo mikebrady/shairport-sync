@@ -18,7 +18,7 @@ jobs:
       - name: Configure
         run: |
           autoreconf -fi
-          ./configure --with-os=darwin --with-ao --with-pipe --with-soxr --with-apple-alac --with-stdout --with-dns_sd --with-ssl=openssl
+          ./configure --with-os=darwin --with-ao --with-pipe --with-soxr --with-stdout --with-dns_sd --with-ssl=openssl
       - name: Make
         run: |
           make
