@@ -23,7 +23,7 @@ jobs:
         run: |
           make
       - name: Upload Artifact
-        uses: actions/upload-artifact@4
+        uses: actions/upload-artifact@v4
         with:
           name: classic_mac_intel
           path: shairport-sync
