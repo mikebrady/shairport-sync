@@ -68,6 +68,7 @@ typedef enum {
   ST_reverse_stereo,
   ST_left_only,
   ST_right_only,
+  ST_one_channel,
 } playback_mode_type;
 
 typedef enum {
