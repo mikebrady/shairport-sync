@@ -2362,7 +2362,8 @@ void *player_thread_func(void *arg) {
               // also, raise the 16-bit samples to 32 bits.
 
               switch (config.playback_mode) {
-              case ST_mono: {
+              case ST_mono:
+              case ST_one_channel: {
                 int32_t lsl = ls;
                 int32_t rsl = rs;
                 int32_t both = lsl + rsl;
@@ -2401,7 +2402,8 @@ void *player_thread_func(void *arg) {
 
               for (j = 0; j < conn->output_sample_ratio; j++) {
                 *outpl++ = ll;
-                *outpl++ = rl;
+                if (config.playback_mode != ST_one_channel)
+                  *outpl++ = rl;
               }
             }
           } break;
@@ -2418,7 +2420,8 @@ void *player_thread_func(void *arg) {
               // here, do the mode stuff -- mono / reverse stereo / leftonly / rightonly
 
               switch (config.playback_mode) {
-              case ST_mono: {
+              case ST_mono:
+              case ST_one_channel: {
                 int64_t lsl = ls;
                 int64_t rsl = rs;
                 int64_t both = lsl + rsl;
@@ -2449,7 +2452,8 @@ void *player_thread_func(void *arg) {
 
               for (j = 0; j < conn->output_sample_ratio; j++) {
                 *outpl++ = ll;
-                *outpl++ = rl;
+                if (config.playback_mode != ST_one_channel)
+                  *outpl++ = rl;
               }
             }
           } break;
