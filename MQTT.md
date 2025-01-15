@@ -199,3 +199,24 @@ mqtt:
       value_template: "{{ value |  regex_findall_index(find='^(.+?),', index=0, ignorecase=False) | float / 30 + 1  }}"
       unit_of_measurement: 'percent'
 ```
+
+### [Homebridge](https://homebridge.io/) [Mqttthing](https://github.com/arachnetech/homebridge-mqttthing#readme) Examples
+
+While Mqttthing has a speaker characteristic, it does not appear to be recognized by HomeKit. The contact sensor, however, is a suitable characteristic to represent Shairport Sync’s ‘active’ status in HomeKit and trigger automations accordingly.
+
+```json
+{
+    "type": "contactSensor",
+    "name": "Shairport",
+    "url": "hostname:1883",
+    "username": "user",
+    "password": "password",
+    "topics": {
+        "getContactSensorState": "shairport/active"
+    },
+    "onValue": "1",
+    "offValue": "0",
+    "otherValueOff": false,
+    "accessory": "mqttthing"
+}
+```
