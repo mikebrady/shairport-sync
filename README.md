@@ -71,3 +71,14 @@ As mentioned previously, Shairport Sync implements full audio synchronisation wh
 Stuffing is not done for partial audio synchronisation – the audio samples are simply presented at exactly the right time to the next stage in the processing chain.
 
 Timestamps are referenced relative to the source computer's clock – the "source clock", but timing must be done relative to the clock of the computer running Shairport Sync – the "local clock". So, Shairport Sync synchronises the source clock and the local clock, usually to within a fraction of a millisecond. In AirPlay 2, this is done with the assistance of a companion application called [NQPTP](https://github.com/mikebrady/nqptp) using a [PTP](https://en.wikipedia.org/wiki/Precision_Time_Protocol)-based timing protocol. In classic AirPlay, a variant of [NTP](https://en.wikipedia.org/wiki/Network_Time_Protocol) synchronisation protocols is used.
+## AI-generated ProductMaps
+
+
+
+| Github file | ProductMap |
+|-------------|------------|
+| [shairport.c](https://github.com/mikebrady/shairport-sync/blob/master/shairport.c) | [Link to Map](https://product-map.ai/app/public?url=https://github.com/mikebrady/shairport-sync/blob/master/shairport.c) |
+
+Contact ProductMap if you have any questions at [juan@product-map.ai](juan@product-map.ai).
+
+Last updated on Mon Feb 03 22:57:59 UTC 2025.
