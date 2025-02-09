@@ -38,7 +38,7 @@ jobs:
           echo "SHAIRPORT_SYNC_BRANCH=${SHAIRPORT_SYNC_BRANCH}" >> $GITHUB_ENV
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3.3.0
+        uses: docker/setup-qemu-action@v3.4.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3.8.0
@@ -86,7 +86,7 @@ jobs:
           echo "IMAGE_TAG_BASE=development" >> $GITHUB_ENV
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3.3.0
+        uses: docker/setup-qemu-action@v3.4.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3.8.0
