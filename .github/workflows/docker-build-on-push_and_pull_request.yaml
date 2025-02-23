@@ -44,7 +44,7 @@ jobs:
         uses: docker/setup-buildx-action@v3.8.0
 
       - name: Build (classic)
-        uses: docker/build-push-action@v6.13.0
+        uses: docker/build-push-action@v6.14.0
         with:
           context: ./
           file: ./docker/classic/Dockerfile
@@ -53,7 +53,7 @@ jobs:
             SHAIRPORT_SYNC_BRANCH=${{ env.SHAIRPORT_SYNC_BRANCH }}
  
       - name: Build
-        uses: docker/build-push-action@v6.13.0
+        uses: docker/build-push-action@v6.14.0
         with:
           context: ./
           file: ./docker/Dockerfile
@@ -99,7 +99,7 @@ jobs:
           password: ${{ secrets.DOCKER_REGISTRY_TOKEN }}
 
       - name: Build and push (classic)
-        uses: docker/build-push-action@v6.13.0
+        uses: docker/build-push-action@v6.14.0
         with:
           context: ./
           file: ./docker/classic/Dockerfile
@@ -110,7 +110,7 @@ jobs:
             SHAIRPORT_SYNC_BRANCH=${{ env.SHAIRPORT_SYNC_BRANCH }}
  
       - name: Build and push
-        uses: docker/build-push-action@v6.13.0
+        uses: docker/build-push-action@v6.14.0
         with:
           context: ./
           file: ./docker/Dockerfile
