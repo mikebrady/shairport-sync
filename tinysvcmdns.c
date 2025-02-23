@@ -6,7 +6,7 @@
  * tinysvcmdns - a tiny MDNS implementation for publishing services
  * Copyright (C) 2011 Darell Tan
  * All rights reserved.
- * Updated many times by Mike Brady (c) 2014 -- 2019
+ * Updated many times by Mike Brady (c) 2014--2025
  * Includes fixes for CVE-12087 and CVE-2017-12130
  *
  * Redistribution and use in source and binary forms, with or without
@@ -1725,7 +1725,8 @@ struct mdnsd *mdnsd_start() {
   pthread_attr_init(&attr);
   pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
-  if (pthread_create(&tid, &attr, (void *(*)(void *)) & main_loop, (void *)server) != 0) {
+  if (named_pthread_create(&tid, &attr, (void *(*)(void *)) & main_loop, (void *)server,
+                           "tinysvcmdns") != 0) {
     pthread_mutex_destroy(&server->data_lock);
     free(server);
     return NULL;

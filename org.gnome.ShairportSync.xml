@@ -26,7 +26,7 @@
     <property name="Protocol" type="s" access="read" />
     <property name="ServiceName" type="s" access="read" />
     <property name="OutputFormat" type="s" access="read" />
-    <property name="OutputRate" type="i" access="read" />
+    <property name="SourceFormat" type="s" access="read" />
     <property name="FirstFramePosition" type="s" access="read" />
     <property name="FramePosition" type="s" access="read" />
     <method name="SetFramePositionUpdateInterval">

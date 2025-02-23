@@ -1,0 +1,9 @@
+[Unit]
+Description=Shairport Sync - AirPlay Audio Receiver
+After=sound.target
+
+[Service]
+ExecStart=/usr/local/bin/shairport-sync --log-to-syslog
+
+[Install]
+WantedBy=default.target

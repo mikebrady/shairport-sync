@@ -44,13 +44,13 @@ static const int host_bigendian = 0;
 
 #define _Swap32(v)                                                                                 \
   do {                                                                                             \
-    v = (((v)&0x000000FF) << 0x18) | (((v)&0x0000FF00) << 0x08) | (((v)&0x00FF0000) >> 0x08) |     \
-        (((v)&0xFF000000) >> 0x18);                                                                \
+    v = (((v) & 0x000000FF) << 0x18) | (((v) & 0x0000FF00) << 0x08) |                              \
+        (((v) & 0x00FF0000) >> 0x08) | (((v) & 0xFF000000) >> 0x18);                               \
   } while (0)
 
 #define _Swap16(v)                                                                                 \
   do {                                                                                             \
-    v = (((v)&0x00FF) << 0x08) | (((v)&0xFF00) >> 0x08);                                           \
+    v = (((v) & 0x00FF) << 0x08) | (((v) & 0xFF00) >> 0x08);                                       \
   } while (0)
 
 struct {
@@ -436,15 +436,15 @@ static void predictor_decompress_fir_adapt(int32_t *error_buffer, int32_t *buffe
 
   /* read warm-up samples */
   if (predictor_coef_num > 0) {
-    int i;
-    for (i = 0; i < predictor_coef_num; i++) {
+    int li;
+    for (li = 0; li < predictor_coef_num; li++) {
       int32_t val;
 
-      val = buffer_out[i] + error_buffer[i + 1];
+      val = buffer_out[li] + error_buffer[li + 1];
 
       val = SIGN_EXTENDED32(val, readsamplesize);
 
-      buffer_out[i + 1] = val;
+      buffer_out[li + 1] = val;
     }
   }
 
@@ -603,11 +603,11 @@ static void deinterlace_24(int32_t *buffer_a, int32_t *buffer_b, int uncompresse
         right |= uncompressed_bytes_buffer_b[i] & mask;
       }
 
-      ((uint8_t *)buffer_out)[i * numchannels * 3] = (left)&0xFF;
+      ((uint8_t *)buffer_out)[i * numchannels * 3] = (left) & 0xFF;
       ((uint8_t *)buffer_out)[i * numchannels * 3 + 1] = (left >> 8) & 0xFF;
       ((uint8_t *)buffer_out)[i * numchannels * 3 + 2] = (left >> 16) & 0xFF;
 
-      ((uint8_t *)buffer_out)[i * numchannels * 3 + 3] = (right)&0xFF;
+      ((uint8_t *)buffer_out)[i * numchannels * 3 + 3] = (right) & 0xFF;
       ((uint8_t *)buffer_out)[i * numchannels * 3 + 4] = (right >> 8) & 0xFF;
       ((uint8_t *)buffer_out)[i * numchannels * 3 + 5] = (right >> 16) & 0xFF;
     }
@@ -631,11 +631,11 @@ static void deinterlace_24(int32_t *buffer_a, int32_t *buffer_b, int uncompresse
       right |= uncompressed_bytes_buffer_b[i] & mask;
     }
 
-    ((uint8_t *)buffer_out)[i * numchannels * 3] = (left)&0xFF;
+    ((uint8_t *)buffer_out)[i * numchannels * 3] = (left) & 0xFF;
     ((uint8_t *)buffer_out)[i * numchannels * 3 + 1] = (left >> 8) & 0xFF;
     ((uint8_t *)buffer_out)[i * numchannels * 3 + 2] = (left >> 16) & 0xFF;
 
-    ((uint8_t *)buffer_out)[i * numchannels * 3 + 3] = (right)&0xFF;
+    ((uint8_t *)buffer_out)[i * numchannels * 3 + 3] = (right) & 0xFF;
     ((uint8_t *)buffer_out)[i * numchannels * 3 + 4] = (right >> 8) & 0xFF;
     ((uint8_t *)buffer_out)[i * numchannels * 3 + 5] = (right >> 16) & 0xFF;
   }
@@ -721,9 +721,9 @@ void alac_decode_frame(alac_file *alac, unsigned char *inbuffer, void *outbuffer
       }
 
       if (uncompressed_bytes) {
-        int i;
-        for (i = 0; i < outputsamples; i++) {
-          alac->uncompressed_bytes_buffer_a[i] = readbits(alac, uncompressed_bytes * 8);
+        int li;
+        for (li = 0; li < outputsamples; li++) {
+          alac->uncompressed_bytes_buffer_a[li] = readbits(alac, uncompressed_bytes * 8);
         }
       }
 
@@ -798,7 +798,7 @@ void alac_decode_frame(alac_file *alac, unsigned char *inbuffer, void *outbuffer
           sample |= alac->uncompressed_bytes_buffer_a[i] & mask;
         }
 
-        ((uint8_t *)outbuffer)[i * alac->numchannels * 3] = (sample)&0xFF;
+        ((uint8_t *)outbuffer)[i * alac->numchannels * 3] = (sample) & 0xFF;
         ((uint8_t *)outbuffer)[i * alac->numchannels * 3 + 1] = (sample >> 8) & 0xFF;
         ((uint8_t *)outbuffer)[i * alac->numchannels * 3 + 2] = (sample >> 16) & 0xFF;
       }
@@ -896,10 +896,10 @@ void alac_decode_frame(alac_file *alac, unsigned char *inbuffer, void *outbuffer
 
       /*********************/
       if (uncompressed_bytes) { /* see mono case */
-        int i;
-        for (i = 0; i < outputsamples; i++) {
-          alac->uncompressed_bytes_buffer_a[i] = readbits(alac, uncompressed_bytes * 8);
-          alac->uncompressed_bytes_buffer_b[i] = readbits(alac, uncompressed_bytes * 8);
+        int li;
+        for (li = 0; li < outputsamples; li++) {
+          alac->uncompressed_bytes_buffer_a[li] = readbits(alac, uncompressed_bytes * 8);
+          alac->uncompressed_bytes_buffer_b[li] = readbits(alac, uncompressed_bytes * 8);
         }
       }
 

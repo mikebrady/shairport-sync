@@ -44,7 +44,7 @@ void loudness_set_volume(float volume) {
   if (gain < 0)
     gain = 0;
 
-  debug(2, "Volume: %.1f dB - Loudness gain @10Hz: %.1f dB", volume, gain);
+  debug(3, "Volume: %.1f dB - Loudness gain @10Hz: %.1f dB", volume, gain);
   _loudness_set_volume(&loudness_l, volume);
   _loudness_set_volume(&loudness_r, volume);
 }

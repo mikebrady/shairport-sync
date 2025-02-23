@@ -20,48 +20,6 @@ env:
   NQPTP_BRANCH: main
 
 jobs:
-  test-build-on-pull-request:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout Repo
-        uses: actions/checkout@v4.2.2
-        with:
-          fetch-depth: 0
-          ref: ${{github.event.pull_request.head.ref}}
-          repository: ${{github.event.pull_request.head.repo.full_name}}
-  
-      - name: Set SHAIRPORT_SYNC_BRANCH env
-        run: |
-          SHAIRPORT_SYNC_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-          echo "Current SHAIRPORT_SYNC_BRANCH set to ${SHAIRPORT_SYNC_BRANCH}"
-          echo "SHAIRPORT_SYNC_BRANCH=${SHAIRPORT_SYNC_BRANCH}" >> $GITHUB_ENV
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3.3.0
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3.8.0
-
-      - name: Build (classic)
-        uses: docker/build-push-action@v6.14.0
-        with:
-          context: ./
-          file: ./docker/classic/Dockerfile
-          push: false
-          build-args: |
-            SHAIRPORT_SYNC_BRANCH=${{ env.SHAIRPORT_SYNC_BRANCH }}
- 
-      - name: Build
-        uses: docker/build-push-action@v6.14.0
-        with:
-          context: ./
-          file: ./docker/Dockerfile
-          push: false
-          build-args: |
-            SHAIRPORT_SYNC_BRANCH=${{ env.SHAIRPORT_SYNC_BRANCH }}
-            NQPTP_BRANCH=${{ env.NQPTP_BRANCH }}
-
   build-and-publish:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-22.04
@@ -86,10 +44,10 @@ jobs:
           echo "IMAGE_TAG_BASE=development" >> $GITHUB_ENV
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3.3.0
+        uses: docker/setup-qemu-action@v3.4.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3.8.0
+        uses: docker/setup-buildx-action@v3.9.0
 
       - name: Login to Docker Registry
         uses: docker/login-action@v3.3.0
@@ -98,7 +56,7 @@ jobs:
           username: ${{ secrets.DOCKER_REGISTRY_USER }}
           password: ${{ secrets.DOCKER_REGISTRY_TOKEN }}
 
-      - name: Build and push (classic)
+      - name: Build and Push (Classic)
         uses: docker/build-push-action@v6.14.0
         with:
           context: ./
@@ -109,7 +67,7 @@ jobs:
           build-args: |
             SHAIRPORT_SYNC_BRANCH=${{ env.SHAIRPORT_SYNC_BRANCH }}
  
-      - name: Build and push
+      - name: Build and Push (AirPlay 2)
         uses: docker/build-push-action@v6.14.0
         with:
           context: ./

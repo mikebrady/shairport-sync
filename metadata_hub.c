@@ -5,7 +5,7 @@
  * then you need a metadata hub,
  * where everything is stored
  * This file is part of Shairport Sync.
- * Copyright (c) Mike Brady 2017--2022
+ * Copyright (c) Mike Brady 2017--2025
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -138,14 +138,14 @@ void _metadata_hub_modify_prolog(const char *filename, const int linenumber) {
   // debug(1, "locking metadata hub for writing");
   if (pthread_rwlock_trywrlock(&metadata_hub_re_lock) != 0) {
     if (last_metadata_hub_modify_prolog_file)
-      debug(2, "Metadata_hub write lock at \"%s:%d\" is already taken at \"%s:%d\" -- must wait.",
+      debug(3, "Metadata_hub write lock at \"%s:%d\" is already taken at \"%s:%d\" -- must wait.",
             filename, linenumber, last_metadata_hub_modify_prolog_file,
             last_metadata_hub_modify_prolog_line);
     else
       debug(2, "Metadata_hub write lock is already taken by unknown -- must wait.");
     metadata_hub_re_lock_access_is_delayed = 0;
     pthread_rwlock_wrlock(&metadata_hub_re_lock);
-    debug(2, "Okay -- acquired the metadata_hub write lock at \"%s:%d\".", filename, linenumber);
+    debug(3, "Okay -- acquired the metadata_hub write lock at \"%s:%d\".", filename, linenumber);
   } else {
     if (last_metadata_hub_modify_prolog_file) {
       free(last_metadata_hub_modify_prolog_file);
@@ -357,13 +357,13 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       // get the one-byte number as an unsigned number
       int song_data_kind = data[0];           // one byte
       song_data_kind = song_data_kind & 0xFF; // unsigned
-      debug(2, "MH Song Data Kind seen: \"%d\" of length %u.", song_data_kind, length);
+      debug(3, "MH Song Data Kind seen: \"%d\" of length %u.", song_data_kind, length);
       if ((song_data_kind != metadata_store.song_data_kind) ||
           (metadata_store.song_data_kind_is_valid == 0)) {
         metadata_store.song_data_kind = song_data_kind;
         metadata_store.song_data_kind_changed = 1;
         metadata_store.song_data_kind_is_valid = 1;
-        debug(2, "MH Song Data Kind set to: \"%d\"", metadata_store.song_data_kind);
+        debug(3, "MH Song Data Kind set to: \"%d\"", metadata_store.song_data_kind);
         metadata_packet_item_changed = 1;
       }
     } break;
@@ -373,31 +373,31 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       vl = vl << 32;                          // shift them into the correct location
       uint64_t ul = ntohl(*(uint32_t *)(data + sizeof(uint32_t))); // and the low order 32 bits
       vl = vl + ul;
-      debug(2, "MH Item ID seen: \"%" PRIx64 "\" of length %u.", vl, length);
+      debug(3, "MH Item ID seen: \"%" PRIx64 "\" of length %u.", vl, length);
       if ((vl != metadata_store.item_id) || (metadata_store.item_id_is_valid == 0)) {
         metadata_store.item_id = vl;
         metadata_store.item_id_changed = 1;
         metadata_store.item_id_is_valid = 1;
-        debug(2, "MH Item ID set to: \"%" PRIx64 "\"", metadata_store.item_id);
+        debug(3, "MH Item ID set to: \"%" PRIx64 "\"", metadata_store.item_id);
         metadata_packet_item_changed = 1;
       }
     } break;
     case 'astm': {
       uint32_t ui = ntohl(*(uint32_t *)data);
-      debug(2, "MH Song Time seen: \"%u\" of length %u.", ui, length);
+      debug(3, "MH Song Time seen: \"%u\" of length %u.", ui, length);
       if ((ui != metadata_store.songtime_in_milliseconds) ||
           (metadata_store.songtime_in_milliseconds_is_valid == 0)) {
         metadata_store.songtime_in_milliseconds = ui;
         metadata_store.songtime_in_milliseconds_changed = 1;
         metadata_store.songtime_in_milliseconds_is_valid = 1;
-        debug(2, "MH Song Time set to: \"%u\"", metadata_store.songtime_in_milliseconds);
+        debug(3, "MH Song Time set to: \"%u\"", metadata_store.songtime_in_milliseconds);
         metadata_packet_item_changed = 1;
       }
     } break;
     case 'asal':
       cs = strndup(data, length);
       if (string_update(&metadata_store.album_name, &metadata_store.album_name_changed, cs)) {
-        debug(2, "MH Album name set to: \"%s\"", metadata_store.album_name);
+        debug(3, "MH Album name set to: \"%s\"", metadata_store.album_name);
         metadata_packet_item_changed = 1;
       }
       free(cs);
@@ -405,7 +405,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     case 'asar':
       cs = strndup(data, length);
       if (string_update(&metadata_store.artist_name, &metadata_store.artist_name_changed, cs)) {
-        debug(2, "MH Artist name set to: \"%s\"", metadata_store.artist_name);
+        debug(3, "MH Artist name set to: \"%s\"", metadata_store.artist_name);
         metadata_packet_item_changed = 1;
       }
       free(cs);
@@ -414,7 +414,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       cs = strndup(data, length);
       if (string_update(&metadata_store.album_artist_name,
                         &metadata_store.album_artist_name_changed, cs)) {
-        debug(2, "MH Album Artist name set to: \"%s\"", metadata_store.album_artist_name);
+        debug(3, "MH Album Artist name set to: \"%s\"", metadata_store.album_artist_name);
         metadata_packet_item_changed = 1;
       }
       free(cs);
@@ -422,7 +422,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     case 'ascm':
       cs = strndup(data, length);
       if (string_update(&metadata_store.comment, &metadata_store.comment_changed, cs)) {
-        debug(2, "MH Comment set to: \"%s\"", metadata_store.comment);
+        debug(3, "MH Comment set to: \"%s\"", metadata_store.comment);
         metadata_packet_item_changed = 1;
       }
       free(cs);
@@ -430,7 +430,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     case 'asgn':
       cs = strndup(data, length);
       if (string_update(&metadata_store.genre, &metadata_store.genre_changed, cs)) {
-        debug(2, "MH Genre set to: \"%s\"", metadata_store.genre);
+        debug(3, "MH Genre set to: \"%s\"", metadata_store.genre);
         metadata_packet_item_changed = 1;
       }
       free(cs);
@@ -438,7 +438,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     case 'minm':
       cs = strndup(data, length);
       if (string_update(&metadata_store.track_name, &metadata_store.track_name_changed, cs)) {
-        debug(2, "MH Track Name set to: \"%s\"", metadata_store.track_name);
+        debug(3, "MH Track Name set to: \"%s\"", metadata_store.track_name);
         metadata_packet_item_changed = 1;
       }
       free(cs);
@@ -446,7 +446,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     case 'ascp':
       cs = strndup(data, length);
       if (string_update(&metadata_store.composer, &metadata_store.composer_changed, cs)) {
-        debug(2, "MH Composer set to: \"%s\"", metadata_store.composer);
+        debug(3, "MH Composer set to: \"%s\"", metadata_store.composer);
         metadata_packet_item_changed = 1;
       }
       free(cs);
@@ -455,7 +455,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       cs = strndup(data, length);
       if (string_update(&metadata_store.song_description, &metadata_store.song_description_changed,
                         cs)) {
-        debug(2, "MH Song Description set to: \"%s\"", metadata_store.song_description);
+        debug(3, "MH Song Description set to: \"%s\"", metadata_store.song_description);
       }
       free(cs);
       break;
@@ -463,7 +463,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       cs = strndup(data, length);
       if (string_update(&metadata_store.song_album_artist,
                         &metadata_store.song_album_artist_changed, cs)) {
-        debug(2, "MH Song Album Artist set to: \"%s\"", metadata_store.song_album_artist);
+        debug(3, "MH Song Album Artist set to: \"%s\"", metadata_store.song_album_artist);
         metadata_packet_item_changed = 1;
       }
       free(cs);
@@ -471,7 +471,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     case 'assn':
       cs = strndup(data, length);
       if (string_update(&metadata_store.sort_name, &metadata_store.sort_name_changed, cs)) {
-        debug(2, "MH Sort Name set to: \"%s\"", metadata_store.sort_name);
+        debug(3, "MH Sort Name set to: \"%s\"", metadata_store.sort_name);
         metadata_packet_item_changed = 1;
       }
       free(cs);
@@ -479,7 +479,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     case 'assa':
       cs = strndup(data, length);
       if (string_update(&metadata_store.sort_artist, &metadata_store.sort_artist_changed, cs)) {
-        debug(2, "MH Sort Artist set to: \"%s\"", metadata_store.sort_artist);
+        debug(3, "MH Sort Artist set to: \"%s\"", metadata_store.sort_artist);
         metadata_packet_item_changed = 1;
       }
       free(cs);
@@ -487,7 +487,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     case 'assu':
       cs = strndup(data, length);
       if (string_update(&metadata_store.sort_album, &metadata_store.sort_album_changed, cs)) {
-        debug(2, "MH Sort Album set to: \"%s\"", metadata_store.sort_album);
+        debug(3, "MH Sort Album set to: \"%s\"", metadata_store.sort_album);
         metadata_packet_item_changed = 1;
       }
       free(cs);
@@ -495,7 +495,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     case 'assc':
       cs = strndup(data, length);
       if (string_update(&metadata_store.sort_composer, &metadata_store.sort_composer_changed, cs)) {
-        debug(2, "MH Sort Composer set to: \"%s\"", metadata_store.sort_composer);
+        debug(3, "MH Sort Composer set to: \"%s\"", metadata_store.sort_composer);
         metadata_packet_item_changed = 1;
       }
       free(cs);
@@ -528,18 +528,18 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     case 'pcen':
       break;
     case 'mdst':
-      debug(2, "MH Metadata stream processing start.");
+      debug(3, "MH Metadata stream processing start.");
       metadata_packet_item_changed = 0;
       break;
     case 'mden':
       if (metadata_packet_item_changed != 0)
-        debug(2, "MH Metadata stream processing end with changes.");
+        debug(3, "MH Metadata stream processing end with changes.");
       else
-        debug(2, "MH Metadata stream processing end without changes.");
+        debug(3, "MH Metadata stream processing end without changes.");
       changed = metadata_packet_item_changed;
       break;
     case 'PICT':
-      debug(2, "MH Picture received, length %u bytes.", length);
+      debug(3, "MH Picture received, length %u bytes.", length);
 
       char uri[2048];
       if ((length > 16) &&
@@ -567,7 +567,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       cs = strndup(data, length);
       if (string_update(&metadata_store.client_ip, &metadata_store.client_ip_changed, cs)) {
         changed = 1;
-        debug(2, "MH Client IP set to: \"%s\"", metadata_store.client_ip);
+        debug(3, "MH Client IP set to: \"%s\"", metadata_store.client_ip);
       }
       free(cs);
       break;
@@ -575,7 +575,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       cs = strndup(data, length);
       if (string_update(&metadata_store.client_name, &metadata_store.client_name_changed, cs)) {
         changed = 1;
-        debug(2, "MH Client Name set to: \"%s\"", metadata_store.client_name);
+        debug(3, "MH Client Name set to: \"%s\"", metadata_store.client_name);
       }
       free(cs);
       break;
@@ -584,7 +584,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       if (string_update(&metadata_store.progress_string, &metadata_store.progress_string_changed,
                         cs)) {
         changed = 1;
-        debug(2, "MH Progress String set to: \"%s\"", metadata_store.progress_string);
+        debug(3, "MH Progress String set to: \"%s\"", metadata_store.progress_string);
       }
       free(cs);
       break;
@@ -593,7 +593,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       if (string_update(&metadata_store.frame_position_string,
                         &metadata_store.frame_position_string_changed, cs)) {
         changed = 1;
-        debug(2, "MH Frame Position String set to: \"%s\"", metadata_store.frame_position_string);
+        debug(3, "MH Frame Position String set to: \"%s\"", metadata_store.frame_position_string);
       }
       free(cs);
       break;
@@ -602,7 +602,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       if (string_update(&metadata_store.first_frame_position_string,
                         &metadata_store.first_frame_position_string_changed, cs)) {
         changed = 1;
-        debug(2, "MH First Frame Position String set to: \"%s\"",
+        debug(3, "MH First Frame Position String set to: \"%s\"",
               metadata_store.first_frame_position_string);
       }
       free(cs);
@@ -611,7 +611,23 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       cs = strndup(data, length);
       if (string_update(&metadata_store.stream_type, &metadata_store.stream_type_changed, cs)) {
         changed = 1;
-        debug(2, "MH Stream Type set to: \"%s\"", metadata_store.stream_type);
+        debug(3, "MH Stream Type set to: \"%s\"", metadata_store.stream_type);
+      }
+      free(cs);
+      break;
+    case 'sdsc':
+      cs = strndup(data, length);
+      if (string_update(&metadata_store.source_format, &metadata_store.source_format_changed, cs)) {
+        changed = 1;
+        debug(3, "MH Source Format set to: \"%s\"", metadata_store.source_format);
+      }
+      free(cs);
+      break;
+    case 'odsc':
+      cs = strndup(data, length);
+      if (string_update(&metadata_store.output_format, &metadata_store.output_format_changed, cs)) {
+        changed = 1;
+        debug(3, "MH Output Format set to: \"%s\"", metadata_store.output_format);
       }
       free(cs);
       break;
@@ -619,7 +635,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       cs = strndup(data, length);
       if (string_update(&metadata_store.server_ip, &metadata_store.server_ip_changed, cs)) {
         changed = 1;
-        debug(2, "MH Server IP set to: \"%s\"", metadata_store.server_ip);
+        debug(3, "MH Server IP set to: \"%s\"", metadata_store.server_ip);
       }
       free(cs);
       break;

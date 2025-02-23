@@ -204,7 +204,7 @@ pair_verify_response2(struct pair_verify_context *vctx, const uint8_t *in, size_
  * create a ciphering context.
  */
 struct pair_cipher_context *
-pair_cipher_new(enum pair_type type, int channel, const uint8_t *shared_secret, size_t shared_secret_len);
+pair_cipher_new(enum pair_type type, int channel, const uint8_t *shared_secret, size_t shared_secret_len, const char *dynamic_salt_suffix);
 void
 pair_cipher_free(struct pair_cipher_context *cctx);
 

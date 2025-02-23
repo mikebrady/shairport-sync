@@ -11,7 +11,7 @@ Please note that Android phones and tablets can not, so far, do this trick of us
 
 If you are updating an existing installation, please refer to the [updating](#updating) section below.
 
-In this example, a Raspberry Pi Zero 2 W and a Pimoroni PHAT DAC are used. Shairport Sync will be built for AirPlay 2 operation, but you can build it for "classic" AirPlay (aka AirPlay 1) operation if you prefer. A Pi Zero W is powerful enough for classic AirPlay.
+In this example, a Raspberry Pi Zero with WiFi and a Pimoroni PHAT DAC are used. Shairport Sync will be built for AirPlay 2 operation, but you can build it for "classic" AirPlay (aka AirPlay 1) operation if you prefer.
 
 Please note that some of the details of setting up networks are specific to the version of Linux used.
 
@@ -20,7 +20,7 @@ Please note that some of the details of setting up networks are specific to the 
 * Before writing the image to the card, use the Settings control on `Raspberry Pi Imager` to set hostname, enable SSH and provide a username and password to use while building the system. Similarly, you can specify a wireless network the Pi will connect to while building the system. Later on, the Pi will be configured to start its own isolated network.
 * The next few steps are to add the overlay needed for the sound card. This may not be necessary in your case, but in this example a Pimoroni PHAT is being used. If you do not need to add an overlay, skip these steps.
   * Mount the card on a Linux machine. Two drives should appear – a `boot` drive and a `rootfs` drive.
-  * `cd` to the `boot` drive (since my username is `mike`, it will be `$ cd /media/mike/boot`).
+  * `cd` to the `firmware` director on the `boot` drive (since my username is `mike`, it will be `$ cd /media/mike/boot/firmware`).
   * Edit the `config.txt` file to add the overlay needed for the sound card. This may not be necessary in your case, but in this example a Pimoroni PHAT is being used and it needs the following entry to be added:
     ```
     dtoverlay=hifiberry-dac
@@ -41,16 +41,17 @@ The first thing to do on a Pi would be to use the `raspi-config` tool to expand 
 Let's get the tools and libraries for building and installing Shairport Sync (and NQPTP).
 
 ```
-# apt install --no-install-recommends build-essential git xmltoman autoconf automake libtool \
+# apt install --no-install-recommends build-essential git autoconf automake libtool \
     libpopt-dev libconfig-dev libasound2-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev \
-    libplist-dev libsodium-dev libavutil-dev libavcodec-dev libavformat-dev uuid-dev libgcrypt-dev xxd
+    libplist-dev libsodium-dev uuid-dev libgcrypt-dev xxd libplist-utils \
+    libavutil-dev libavcodec-dev libavformat-dev
 ```
 If you are building classic Shairport Sync, the list of packages is shorter:
 ```
-# apt-get install --no-install-recommends build-essential git xmltoman autoconf automake libtool \
-    libpopt-dev libconfig-dev libasound2-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev
+# apt-get install --no-install-recommends build-essential git autoconf automake libtool \
+    libpopt-dev libconfig-dev libasound2-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev \
+    libavutil-dev libavcodec-dev libavformat-dev
 ```
-
 #### NQPTP
 Skip this section if you are building classic Shairport Sync – NQPTP is not needed for classic Shairport Sync.
 
@@ -59,19 +60,18 @@ Download, install, enable and start NQPTP from [here](https://github.com/mikebra
 #### Shairport Sync
 Download Shairport Sync, configure, compile and install it.
 
-* Omit the `--with-airplay-2` from the `./configure` options if you are building classic Shairport Sync.
+* Replace the `--with-airplay-2` with `--with-ffmpeg` in the `./configure` options if you are building classic Shairport Sync.
 
 ```
 $ git clone https://github.com/mikebrady/shairport-sync.git
 $ cd shairport-sync
-$ autoreconf -fi
+$ autoreconf -fi # about 1.5 minutes on a Raspberry Pi B
 $ ./configure --sysconfdir=/etc --with-alsa \
     --with-soxr --with-avahi --with-ssl=openssl --with-systemd --with-airplay-2
-$ make
+$ make # about 6 minutes on a Raspberry Pi B
 # make install
 # systemctl enable shairport-sync
 ```
-The `autoreconf` step may take quite a while – please be patient!
 
 ### Configure Shairport Sync
 Here are the important options for the Shairport Sync configuration file at `/etc/shairport-sync.conf`:
@@ -160,7 +160,9 @@ INTERFACESv4="wlan0"
 INTERFACESv6=""
 ```
 ### Set up the Startup Sequence
-Configure the startup sequence by adding commands to `/etc/rc.local` to start `hostapd` and the `dhcp` automatically after startup. Its contents should look like this:
+Firstly, if the file `/etc/rc.local` doesn't already exist, create it, ensure it is owned by `root` and set its permissions are `755`; otherwise, it won't be executed at startup.
+
+Now, configure the startup sequence by adding commands to `/etc/rc.local` to start `hostapd` and the `dhcp` automatically after startup. Its contents should look like this:
 ```
 #!/bin/sh -e
 #
@@ -211,7 +213,7 @@ Some services are not necessary for this setup and can be disabled as follows:
 
 
 #### Disable Unused Services - Mandatory
-You now need to disable some services; that is, you need to stop them starting automatically on power-up. This is because they either interfere with the system's operation in WiFi Access Point mode, or because they won't work when the system isn't connected to the Internet. Only one of the `NetworkManager` and the `dhcpcd` service will be present in your system, but it's no harm to try to disable both.
+You now need to disable some services; that is, you need to stop them starting automatically on power-up. This is because they either interfere with the system's operation in WiFi Access Point mode, or because they won't work when the system isn't connected to the Internet. Only one of the `NetworkManager` and the `dhcpcd` services will be present in your system, but it's no harm to try to disable both.
 ```
 # systemctl disable dhcpcd
 # systemctl disable NetworkManager
@@ -240,13 +242,13 @@ When the power source is switched on -- typically when you start the car -- it w
 ## Updating
 From time to time, you may wish to update this installation. Assuming you haven't deleted your original WiFi network credentials, the easiest thing is to temporarily reconnect to the network you used when you created the system. You can then update the operating system and libraries in the normal way and then update Shairport Sync.
 
-However, if you're *upgrading* the operating system to e.g. from Bullseye to Bookworm, the names and index numbers of the output devices may change, and the names of the mixer controls may also change. You can use [`sps-alsa-explore`](https://github.com/mikebrady/sps-alsa-explore) to discover device names and mixer names.
+However, if you're *upgrading* the operating system to e.g. from Bullseye to Bookworm, the names and index numbers of the output devices may change, and the names of the mixer controls may also change. You can use [`dacquery`](https://github.com/mikebrady/dacquery) to discover device names and mixer names.
 
 #### Exit Raspberry Pi Read-Only Mode
 If it's a Raspberry Pi and you have optionally enabled the read-only mode, you must take the device out of Read-only mode:  
 Run `sudo raspi-config` and then choose `Performance Options` > `Overlay Filesystem` and choose to disable the overlay filesystem and to set the boot partition not to be write-protected. This is so that changes can be written to the file system; you can make the filesystem read-only again later. Save the changes and reboot the system.
 #### Undo Optimisations
-If you have disabled any of the services listed in the [Disable Unused Services - Optional](#disable-unused-services---optional) section, you should re-enable them. (But *do not* re-eneable `NetworkManager`, `dhcpcd`, `wpa_supplicant` or `systemd-timesyncd` -- they are handled specially by the startup script.)
+If you have disabled any of the services listed in the [Disable Unused Services - Optional](#disable-unused-services---optional) section, you should re-enable them. (But *do not* re-enable `NetworkManager`, `dhcpcd`, `wpa_supplicant` or `systemd-timesyncd` -- they are handled specially by the startup script.)
 #### Perform Legacy Updates
 Over time, the arrangements by which the system is prepared for operation has changed to make it easier to revert to normal operation when necessary for maintenance, updates, etc. A small number of the old settings need to be changed to bring them up to date with the present arrangements. Once the required changes have been made, your system will be ready for the update process detailed below. Here are those legacy changes you need to make, just once:
 
@@ -260,7 +262,7 @@ Over time, the arrangements by which the system is prepared for operation has ch
    
 2. Replace the contents of the file `/etc/rc.local` with the new contents given [above](#set-up-the-startup-sequence).
 
-3. Disable a number of services as follows. Only one of the `NetworkManager` and the `dhcpcd` service will be present in your system, but it's no harm to try to disable both.
+3. Disable a number of services as follows. Only one of the `NetworkManager` and the `dhcpcd` services will be present in your system, but it's no harm to try to disable both.
    ```
    # systemctl disable dhcpcd
    # systemctl disable NetworkManager

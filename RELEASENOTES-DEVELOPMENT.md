@@ -1,3 +1,29 @@
+Version 5.0-dev
+==
+This is a major update adding exciting new features and improvements to Shairport Sync:
+* 48k operation;
+* 48k lossless stereo from Apple devices e.g. Homepod mini, Apple TV 4K;
+* 48k 5.1 and 7.1 surround sound from Apple devices e.g. Homepod mini, Apple TV 4K;
+* Full FFmpeg integration for flexibility and security;
+* Multichannel ALSA, PipeWire, PulseAudio, FreeBSD, stdout and unix pipe output backends;
+* Flexible, controllable, automatic matching of output format to input format;
+* Improved synchronization;
+* A new "vernier" resampling and interpolation method for low-power CPUs;
+* Lower powered devices operation, including the original Raspberry Pi B;
+* Reduced Docker image sizes;
+* A `systemd` user startup script.
+* Many bug fixes.
+
+44.1k operation is retained.
+
+**Warning:** This is a breaking update. That means you probably can not simply update an existing installation of Shairport Sync without a little bit of work. To update correctly you must:
+* Remove the Shairport Sync device from Apple Home -- you can add it back later;
+* Review the list of libraries needed for building Shairport Sync -- there are some extras;
+* Review configuration flags when building Shairport Sync -- some names have changed, e.g. `--with-systemd` becomes `--with-systemd-startup`;
+* Fully delete and reinstall Shairport Sync and NQPTP, along with all their service files;
+* Review and update settings:
+  * Some of the names of the setting sections have changed, e.g. the `pa` section becomes the `pulseaudio` section;
+  * The behaviour of Shairport Sync backends has changed, e.g. rates and channel counts can change dynamically.
 
 Version 4.3.7-dev-24-gbc5001eb
 ==

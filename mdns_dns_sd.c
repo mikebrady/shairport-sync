@@ -1,6 +1,7 @@
 /*
  * Embedded dns-sd client. This file is part of Shairport.
  * Copyright (c) Paul Lietar 2013
+ * Copyright (c) Mike Brady 2014--2025
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person

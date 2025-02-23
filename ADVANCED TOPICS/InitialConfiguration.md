@@ -2,7 +2,7 @@
 When you complete the instructions in [BUILD.md](../BUILD.md), you have a basic functioning Shairport Sync installation. If you want more control – for example, if you want to use a specific DAC, or if you want AirPlay to control the DAC's volume control – you can use settings in the configuration file (recommended) or you can use command-line options.
 
 ## The Configuration File
-Shairport Sync reads settings from a configuration file at `/etc/shairport-sync.conf` (note that in FreeBSD it will be at `/usr/local/etc/shairport-sync.conf`). When you run `$sudo make install`, a sample configuration file  called `shairport-sync.conf.sample` is always installed or updated. This contains all the setting groups and all the settings available, but they all are commented out (comments begin with `//`) so that default values are used. The file contains explanations of the settings, useful hints and suggestions.
+Shairport Sync reads settings from a configuration file at `/etc/shairport-sync.conf` (in FreeBSD it will be at `/usr/local/etc/shairport-sync.conf`). When you run `$sudo make install`, a sample configuration file  called `shairport-sync.conf.sample` is always installed or updated. This contains all the setting groups and all the settings available, but they all are commented out (comments begin with `//`) so that default values are used. The file contains explanations of the settings, useful hints and suggestions.
 
 ## Specifying the Output Device and Mixer Control
 If you have followed the [BUILD.md](../BUILD.md) instructions, audio received by Shairport Sync will be sent to the `default` device. Depending on the configuration of your system, you may be able to specify a specific hardware output DAC and use its built-in mixer to control volume levels. This would be desirable because (1) the `default` device may be doing further processing on the audio before sending it to the hardware output device, degrading its fidelity, and (2) using the real device's hardware mixer to control volume would give Shairport Sync complete control of the volume range.
@@ -29,7 +29,7 @@ Settings and options for the audio backend "alsa":
 ```
 In this system, you can see that there are three hardware output devices, `"hw:Headphones"`, `"hw:sndrpihifiberry"` and `"hw:vc4hdmi"`.
 
-Using a tool like `alsamixer`, an output device can be checked to find the name of the volume control mixer. For the first device, the name of the mixer is `"Headphone"`.
+Using a tool like [`dacquery`](https://github.com/mikebrady/dacquery) or `alsamixer`, an output device can be checked to find the name of the volume control mixer. For the first device, the name of the mixer is `"Headphone"`.
 
 These setting can be entered into the configuration file, in the `alsa` section, as follows:
 ```
@@ -37,7 +37,7 @@ These setting can be entered into the configuration file, in the `alsa` section,
 alsa =
 {
 	output_device = "hw:Headphones"; // the name of the alsa output device. Use "shairport-sync -h" to discover the names of ALSA hardware devices. Use "alsamixer" or "aplay" to find out the names of devices, mixers, etc.
-	mixer_control_name = "Headphone"; // the name of the mixer to use to adjust output volume. If not specified, volume in adjusted in software.
+	mixer_control_name = "PCM"; // the name of the mixer to use to adjust output volume. If not specified, volume in adjusted in software.
 ...
 }
 ```
@@ -45,9 +45,7 @@ Make sure to uncomment entries you wish to make active, and restart Shairport Sy
 
 If you make a syntax error, Shairport Sync will not start and will leave a message in the log.  See more details below and in the comments in the configuration file.
 
-Please note that if your system has a sound server such as PulseAudio or PipeWire (most desktop linuxes have one of these), you may not be able to access the sound hardware directly, so you may only be able to use the `default` output.
-
-
+Please note that if your system has a sound server such as PipeWire or PulseAudio (most desktop Linuxes have one of these), you may not be able to access the sound hardware directly, so you may only be able to use the `default` output.
 
 ## More about Configuration Settings
 Settings in the configuration file are grouped. For instance, there is a `general` group within which you can use the `name` tag to set the service name. Suppose you wanted to set the name of the service to `Front Room` and give the service the password `secret`, then you should do the following:
@@ -67,9 +65,9 @@ The password setting is only valid for classic Shairport Sync.
 
 **Important:** You should *never* use an important password as the AirPlay password for a Shairport Sync player – the password is stored in Shairport Sync's configuration file in plain text and is thus completely vulnerable.
 
-No backend is specified here, so it will default to the `alsa` backend if more than one back end has been compiled. To route the output to PulseAudio, set:
+No backend is specified here, so it will default to the `alsa` backend if more than one back end has been compiled. To route the output to PipeWire, set:
 ```
-  output_backend = "pa";
+  output_backend = "pipewire";
 ```
 in the `general` group.
 
@@ -89,9 +87,9 @@ alsa =
 };
 ```
 
-The `pa` group is used to specify settings relevant to the PulseAudio backend. You can set the "Application Name" that will appear in the "Sound" control panel.
+The `pipewire` group is used to specify settings relevant to the PipeWire backend. You can set the "Application Name" that will appear in the "Sound" control panel.
 
-Note: Shairport Sync can take configuration settings from command line options. This is mainly for backward compatibility, but sometimes still useful. For normal use, it is  recommended that you use the configuration file method.
+Note: Shairport Sync can take configuration settings from command line options. This is mainly for backward compatibility, but sometimes still useful. Where possible, it is recommended that you use the configuration file method.
 
 ### Raspberry Pi
 
@@ -100,7 +98,7 @@ To make Shairport Sync output to the built-in audio DAC and use its hardware mix
 alsa =
 {
   output_device = "hw:Headphones"; // the name of the alsa output device. Use "alsamixer" or "aplay" to find out the names of devices, mixers, etc.
-  mixer_control_name = "Headphone"; // the name of the mixer to use to adjust output volume. If not specified, volume in adjusted in software.
+  mixer_control_name = "PCM"; // the name of the mixer to use to adjust output volume. If not specified, volume in adjusted in software.
   // ... other alsa settings
 ```
 (Remember to uncomment the lines by removing the `//` at the start of each.) When these changes have been made, restart Shairport Sync or simply reboot the system.
@@ -125,7 +123,7 @@ alsa = {
 
 This gives the service the name "Joe's Stereo" and specifies that audio device `hw:0` be used.
 
-For best results with the `alsa` backend — including getting true mute and instant response to volume control and pause commands — you should access the hardware volume controls. Use `amixer` or `alsamixer` or similar to discover the name of the mixer control to be used as the `mixer_control_name`.
+For best results with the `alsa` backend — including getting true mute and instant response to volume control and pause commands — you should access the hardware volume controls. Use [`dacquery`](https://github.com/mikebrady/dacquery)`amixer` or `alsamixer` or similar to discover the name of the mixer control to be used as the `mixer_control_name`.
 
 Here is an example for for a Raspberry Pi using its internal soundcard — device hw:0 — that drives the headphone jack:
 ```
@@ -221,7 +219,7 @@ If synchronisation is lost — say due to a busy source or a congested network �
 * You can vary the resync threshold, or turn resync off completely, with the `general` `resync_threshold_in_seconds` setting.
 
 ### Tolerance
-Playback synchronisation is allowed to wander — to "drift" — a small amount before attempting to correct it. The default is 0.002 seconds, i.e. 2 ms. The smaller the tolerance, the  more  likely it is that overcorrection will occur. Overcorrection is when more corrections (insertions and deletions) are made than are strictly necessary to keep the stream in sync. Use the `statistics` setting to monitor correction levels. Corrections should not greatly exceed net corrections.
+Playback synchronisation is allowed to wander — to "drift" — a small amount before attempting to correct it. The default is 0.002 seconds, i.e. 2 ms. The smaller the tolerance, the  more likely it is that overcorrection will occur. Overcorrection is when more corrections (insertions and deletions) are made than are strictly necessary to keep the stream in sync. Use the `statistics` setting to monitor correction levels. Corrections should not greatly exceed net corrections.
 * You can vary the tolerance with the `general` `drift_tolerance_in_seconds` setting.
 
 ## Command Line Arguments

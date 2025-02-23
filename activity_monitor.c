@@ -7,7 +7,7 @@
  *
  *
  * This file is part of Shairport Sync.
- * Copyright (c) Mike Brady 2019
+ * Copyright (c) Mike Brady 2019--2025
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -234,7 +234,8 @@ enum am_state activity_status() { return (state); }
 
 void activity_monitor_start() {
   // debug(1,"activity_monitor_start");
-  pthread_create(&activity_monitor_thread, NULL, activity_monitor_thread_code, NULL);
+  named_pthread_create(&activity_monitor_thread, NULL, activity_monitor_thread_code, NULL,
+                       "activity_mon");
   activity_monitor_running = 1;
 }
 

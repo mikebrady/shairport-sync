@@ -1,66 +1,59 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Comment -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>audioLatencies</key>
-	<array>
-		<dict>
-			<key>inputLatencyMicros</key>
-			<integer>0</integer>
-			<key>outputLatencyMicros</key>
-			<integer>400000</integer>
-			<key>type</key>
-			<integer>100</integer>
-		</dict>
-		<dict>
-			<key>audioType</key>
-			<string>default</string>
-			<key>inputLatencyMicros</key>
-			<integer>0</integer>
-			<key>outputLatencyMicros</key>
-			<integer>400000</integer>
-			<key>type</key>
-			<integer>100</integer>
-		</dict>
-		<dict>
-			<key>audioType</key>
-			<string>media</string>
-			<key>inputLatencyMicros</key>
-			<integer>0</integer>
-			<key>outputLatencyMicros</key>
-			<integer>400000</integer>
-			<key>type</key>
-			<integer>100</integer>
-		</dict>
-		<dict>
-			<key>audioType</key>
-			<string>media</string>
-			<key>inputLatencyMicros</key>
-			<integer>0</integer>
-			<key>outputLatencyMicros</key>
-			<integer>400000</integer>
-			<key>type</key>
-			<integer>102</integer>
-		</dict>
-	</array>
-	<key>keepAliveLowPower</key>
-	<true/>
+	<key>vv</key>
+	<integer>2</integer>
+	<key>playbackCapabilities</key>
+	<dict>
+		<key>supportsInterstitials</key>
+		<false/>
+		<key>supportsFPSSecureStop</key>
+		<false/>
+		<key>supportsUIForAudioOnlyContent</key>
+		<false/>
+	</dict>
+	<key>canRecordScreenStream</key>
+	<false/>
 	<key>keepAliveSendStatsAsBody</key>
-	<true/>
-	<key>manufacturer</key>
-	<string>Shairport Sync</string>
-	<key>nameIsFactoryDefault</key>
 	<false/>
 	<key>protocolVersion</key>
 	<string>1.1</string>
-	<key>sdk</key>
-	<string>AirPlay;2.0.2</string>
-	<key>sourceVersion</key>
-	<string>366.0</string>
-	<key>statusFlags</key>
-	<integer>4</integer>
-	<!-- key values for deviceID, features, pi, name, model and a txtAirPlay data field are added programatically -->
+	<key>volumeControlType</key>
+	<integer>3</integer>
+	<!-- <key>senderAddress</key> --> <!-- hoping we don't need this -->
+	<!-- <string>192.168.50.63:45008</string> -->
+	<key>screenDemoMode</key>
+	<false/>
+	<!--  <key>initialVolume</key> --> <!-- added programmatically -->
+	<!--  <real>-18.612697601318359</real> -->
+	<!--  <key>featuresEx</key> -->
+	<!-- <string>AMp/StBLNbw</string> --> <!-- added programmatically -->
+	<!--  <key>supportedFormats</key> --> <!-- added programmatically -->
+	<!--  <dict> -->
+	<!--  	<key>audioStream</key> -->
+		<!--<integer>21235712</integer>  --> <!-- looks like: 0x1440800 -->
+		<!--<key>bufferStream</key> -->
+		<!-- This seems to tell the client what formats it supports. -->
+		<!-- See https://emanuelecozzi.net/docs/airplay2/audio for an incomplete list -->
+		<!--  <integer>4017212516896604160></integer>  --> <!-- looks like: 0x37C0018000E00000, from ATV4K: lots of unknown + AAC-LC/48K/F24/7.1, AAC-LC/48K/F24/5.1, ALAC/48000/S24/2, AAC-LC/48000/F24/2 and AAC-LC/44100/F24/2 -->
+		<!-- <integer>2190448001024</integer>  --> <!-- looks like: 0x1FE00E00000, lots of guesses of unknowns + AAC-LC/48K/F24/7.1, AAC-LC/48K/F24/5.1, ALAC/48000/S24/2, AAC-LC/48000/F24/2 and AAC-LC/44100/F24/2 -->
+		<!-- <integer>1649282121728</integer>  --> <!-- looks like: 0x18000E00000, AAC-LC/48K/F24/7.1, AAC-LC/48K/F24/5.1, ALAC/48000/S24/2, AAC-LC/48000/F24/2 and AAC-LC/44100/F24/2 -->
+		<!-- <integer>-577021992845180928</integer>  --> <!-- looks like: 0xF7FE 018E 00E0 0000, from HPm 16.3.2 -->
+		<!-- 0x10000000000 is AAC-LC/48K/F24/7.1 -->
+		<!-- 0x08000000000 is AAC-LC/48K/F24/5.1 -->
+		<!-- 0x00000800000 is AAC-LC/48K/F24/2 -->
+		<!-- 0x00000400000 is AAC-LC/44.1K/F24/2 -->
+		<!-- 0x00000200000 is ALAC/48K/F24/2 -->
+
+	</dict>
+	<!-- <key>sourceVersion</key> --> <!-- added programmatically -->
+	<!-- <string>620.8.2</string> -->
+	<!-- <key>macAddress</key> --> <!-- hoping we don't need this -->
+	<!-- <string>b8:27:eb:82:d0:87</string> -->
+	<key>receiverHDRCapability</key>
+	<string>4k60</string>
+	<!-- key values for initialVolume, sourceVersion, deviceID, features, pi, name, model, featuresEx and a txtAirPlay data field are added programatically -->
 	<!-- key values for firmwareBuildDate (string), build (string) and PTPInfo (string)
 	 should be added programatically -->
 </dict>

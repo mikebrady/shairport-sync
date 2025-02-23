@@ -1,9 +1,7 @@
 # Advanced Topics
 Here you will find links to some advanced features and things you can do with Shairport Sync.
-* [Finish Setting Up](InitialConfiguration.md).
-* [Working with PulseAudio or PipeWire](https://github.com/mikebrady/shairport-sync/blob/development/ADVANCED%20TOPICS/PulseAudioAndPipeWire.md).
+* [Working with PulseAudio or PipeWire](PulseAudioAndPipeWire.md).
 * [Adjusting Sync](AdjustingSync.md) – advance or delay the timing of the output from Shairport Sync to compensate for amplifier delays.
-* [Get The Best](GetTheBest.md) from your system.
 * [Metadata](Metadata.md).
 * [Events](Events.md).
 * [Statistics](Statistics.md).

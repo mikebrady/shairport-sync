@@ -26,6 +26,16 @@ void metadata_stop(void);
 // e.g. if it's malloced, to free it, etc.
 // nothing is done automatically
 
-int send_ssnc_metadata(uint32_t code, char *data, uint32_t length, int block);
+int send_ssnc_metadata(const uint32_t code, const char *data, const uint32_t length,
+                       const int block);
+
+#ifdef CONFIG_AIRPLAY_2
+ssize_t read_encrypted(int fd, pair_cipher_bundle *ctx, void *buf, size_t count);
+ssize_t write_encrypted(int fd, pair_cipher_bundle *ctx, const void *buf, size_t count);
+
+void generateTxtDataValueInfo(rtsp_conn_info *conn, void **response, size_t *responseLength);
+plist_t generateInfoPlist(rtsp_conn_info *conn);
+char *plist_as_xml_text(plist_t the_plist); // caller must free the returned NUL-terminated string
+#endif
 
 #endif // _RTSP_H

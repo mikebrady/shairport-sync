@@ -25,7 +25,6 @@ int frame_to_local_time(uint32_t timestamp, uint64_t *time, rtsp_conn_info *conn
 int local_time_to_frame(uint64_t time, uint32_t *frame, rtsp_conn_info *conn);
 
 #ifdef CONFIG_AIRPLAY_2
-void *rtp_data_receiver(void *arg);
 void *rtp_event_receiver(void *arg);
 void *rtp_ap2_control_receiver(void *arg);
 void *rtp_realtime_audio_receiver(void *arg);

@@ -1,7 +1,7 @@
 /*
  * mDNS registration handler. This file is part of Shairport.
  * Copyright (c) James Laird 2013
- * Modifications, updates and additions (c) Mike Brady 2014 -- 2020
+ * Modifications, updates and additions (c) Mike Brady 2014--2025
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person

@@ -34,7 +34,7 @@ static void write_callback(struct SoundIoOutStream *outstream, int frame_count_m
   if (frame_count_min > fill_count) {
     int frame_count = frame_count_min;
     if ((err = soundio_outstream_begin_write(outstream, &areas, &frame_count))) {
-      debug(0, "[--->>] begin write error: %s", soundio_strerror(err));
+      debug(1, "[--->>] begin write error: %s", soundio_strerror(err));
     }
     for (int frame = 0; frame < frame_count; frame += 1) {
       for (int ch = 0; ch < outstream->layout.channel_count; ch += 1) {
@@ -43,7 +43,7 @@ static void write_callback(struct SoundIoOutStream *outstream, int frame_count_m
       }
     }
     if ((err = soundio_outstream_end_write(outstream)))
-      debug(0, "[--->>] end write error: %s", soundio_strerror(err));
+      debug(1, "[--->>] end write error: %s", soundio_strerror(err));
     return;
   }
 
@@ -54,7 +54,7 @@ static void write_callback(struct SoundIoOutStream *outstream, int frame_count_m
     int frame_count = frames_left;
 
     if ((err = soundio_outstream_begin_write(outstream, &areas, &frame_count)))
-      debug(0, "[--->>] begin write error: %s", soundio_strerror(err));
+      debug(1, "[--->>] begin write error: %s", soundio_strerror(err));
 
     if (frame_count <= 0)
       break;
@@ -68,7 +68,7 @@ static void write_callback(struct SoundIoOutStream *outstream, int frame_count_m
     }
 
     if ((err = soundio_outstream_end_write(outstream)))
-      debug(0, "[--->>] end write error: %s", soundio_strerror(err));
+      debug(1, "[--->>] end write error: %s", soundio_strerror(err));
 
     frames_left -= frame_count;
   }
@@ -79,7 +79,7 @@ static void write_callback(struct SoundIoOutStream *outstream, int frame_count_m
 
 static void underflow_callback(__attribute__((unused)) struct SoundIoOutStream *outstream) {
   static int count = 0;
-  debug(0, "underflow %d\n", ++count);
+  debug(1, "underflow %d\n", ++count);
 }
 
 static int init(__attribute__((unused)) int argc, __attribute__((unused)) char **argv) {
@@ -88,36 +88,34 @@ static int init(__attribute__((unused)) int argc, __attribute__((unused)) char *
   config.audio_backend_buffer_desired_length = 2.0;
   config.audio_backend_latency_offset = 0;
 
-  // get settings from settings file
-
-  // do the "general" audio  options. Note, these options are in the "general" stanza!
-  parse_general_audio_options();
+  // this ensures that the Shairport Sync system will provide only 44100/S16/2 to this backend.
+  parse_audio_options(NULL, (1 << SPS_FORMAT_S16_LE), (1 << SPS_RATE_44100), (1 << 2));
 
   // get the specific settings
 
   soundio = soundio_create();
   if (!soundio) {
-    debug(0, "out of memory\n");
+    debug(1, "out of memory\n");
     return 1;
   }
-  if ((err = soundio_connect_backend(soundio, SoundIoBackendCoreAudio))) {
-    debug(0, "error connecting: %s", soundio_strerror(err));
+  if ((err = soundio_connect_backend(soundio, SoundIoBackendAlsa))) {
+    debug(1, "error connecting: %s", soundio_strerror(err));
     return 1;
   }
   soundio_flush_events(soundio);
 
   int default_out_device_index = soundio_default_output_device_index(soundio);
   if (default_out_device_index < 0) {
-    debug(0, "no output device found");
+    debug(1, "no output device found");
     return 1;
   }
 
   device = soundio_get_output_device(soundio, default_out_device_index);
   if (!device) {
-    debug(0, "out of memory");
+    debug(1, "out of memory");
     return 1;
   }
-  debug(0, "Output device: %s\n", device->name);
+  debug(1, "Output device: %s\n", device->name);
   return 0;
 }
 
@@ -125,7 +123,7 @@ static void deinit(void) {
   soundio_ring_buffer_destroy(ring_buffer);
   soundio_device_unref(device);
   soundio_destroy(soundio);
-  debug(0, "soundio audio deinit\n");
+  debug(1, "soundio audio deinit\n");
 }
 
 static void start(int sample_rate, int sample_format) {
@@ -141,24 +139,24 @@ static void start(int sample_rate, int sample_format) {
   outstream->layout.channel_count = 2;
   outstream->write_callback = write_callback;
   outstream->underflow_callback = underflow_callback;
-  // outstream->software_latency = 0;
+  outstream->software_latency = 0;
 
   if ((err = soundio_outstream_open(outstream))) {
-    debug(0, "unable to open device: %s", soundio_strerror(err));
+    debug(1, "unable to open device: %s", soundio_strerror(err));
   }
   if (outstream->layout_error)
-    debug(0, "unable to set channel layout: %s\n", soundio_strerror(outstream->layout_error));
+    debug(1, "unable to set channel layout: %s\n", soundio_strerror(outstream->layout_error));
 
   int capacity = outstream->sample_rate * outstream->bytes_per_frame;
   ring_buffer = soundio_ring_buffer_create(soundio, capacity);
   if (!ring_buffer)
-    debug(0, "unable to create ring buffer: out of memory");
+    debug(1, "unable to create ring buffer: out of memory");
   char *buf = soundio_ring_buffer_write_ptr(ring_buffer);
   memset(buf, 0, capacity);
   soundio_ring_buffer_advance_write_ptr(ring_buffer, capacity);
 
   if ((err = soundio_outstream_start(outstream))) {
-    debug(0, "unable to start outstream: %s", soundio_strerror(err));
+    debug(1, "unable to start outstream: %s", soundio_strerror(err));
   }
 
   debug(1, "libsoundio output started\n");
@@ -188,15 +186,6 @@ static int play(void *buf, int samples, __attribute__((unused)) int sample_type,
   return 0;
 }
 
-static void parameters(audio_parameters *info) {
-  info->minimum_volume_dB = -30.0;
-  info->maximum_volume_dB = 0.0;
-  debug(2, "Parameters\n");
-  debug(2, "Current Volume dB: %f\n", info->current_volume_dB);
-  debug(2, "Minimum Volume dB: %d\n", info->minimum_volume_dB);
-  debug(2, "Maximum Volume dB: %d\n", info->maximum_volume_dB);
-}
-
 static void stop(void) {
   soundio_outstream_destroy(outstream);
   soundio_ring_buffer_clear(ring_buffer);
@@ -212,7 +201,7 @@ audio_output audio_soundio = {.name = "soundio",
                               .help = NULL,
                               .init = &init,
                               .deinit = &deinit,
-                              .prepare = NULL,
+                              .configure = NULL,
                               .start = &start,
                               .stop = &stop,
                               .is_running = NULL,
@@ -221,5 +210,5 @@ audio_output audio_soundio = {.name = "soundio",
                               .stats = NULL,
                               .play = &play,
                               .volume = NULL,
-                              .parameters = &parameters,
+                              .parameters = NULL,
                               .mute = NULL};
