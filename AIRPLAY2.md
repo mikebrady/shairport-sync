@@ -76,7 +76,7 @@ Here are some guidelines:
 #### An Ideal System
 For the highest quality audio with the highest fidelty and a minimum of audio processing, an ideal system would be a bare Linux system without a GUI and without PipeWire or PulseAudio, such as Raspberry Pi OS (Lite) or similar. In this case, Shairport Sync connects directly to the ALSA output DAC. For testing, the build-in DAC or a low-cost USB DAC is usually sufficient.
 
-A problem with this setup is that Shairport Sync expects exclusive access to the audio device. If you have other audio sources, this can be problematic. In such a situation, an otherwise-bare system as described above, but with PipeWire added, can be used, so that all audio sources output to the PipeWire system, which takes care of mixing. (At the time of writing, PipeWire does not work well on the 32-bit version of Raspberry Pi OS)
+A problem with this setup is that Shairport Sync expects exclusive access to the audio device. If you have other audio sources, this can be problematic. In such a situation, an otherwise-bare system as described above, but with PipeWire added, can be used, so that all audio sources output to the PipeWire system, which takes care of mixing. Take care to ensure that the Unix users running the audio applications that use PipeWire are members of the `pipewire` group. 
 
 ## Guides
 * A building guide is available at [BUILD.md](BUILD.md).
