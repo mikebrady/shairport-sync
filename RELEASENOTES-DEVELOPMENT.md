@@ -18,7 +18,7 @@ This is a major update adding exciting new features and improvements to Shairpor
 
 **Warning:** This is a breaking update. That means you probably can not simply update an existing installation of Shairport Sync without a little bit of work. To update correctly you must:
 * Remove the Shairport Sync device from Apple Home -- you can add it back later;
-* Review the list of libraries needed for building Shairport Sync -- there are some extras;
+* Review the list of libraries needed for building Shairport Sync, as there are some extras -- see the updated [BUILD.md](BUILD.md) guide;
 * Review configuration flags when building Shairport Sync -- some names have changed, e.g. `--with-systemd` becomes `--with-systemd-startup`;
 * Fully delete and reinstall Shairport Sync and NQPTP, along with all their service files;
 * Review and update settings:
