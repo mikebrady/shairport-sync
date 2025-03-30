@@ -57,7 +57,7 @@ void on_message(__attribute__((unused)) struct mosquitto *mosq,
   // All recognized commands
   char *commands[] = {"command",    "beginff",       "beginrew",   "mutetoggle", "nextitem",
                       "previtem",   "pause",         "playpause",  "play",       "stop",
-                      "playresume", "shuffle_songs", "volumedown", "volumeup",   NULL};
+                      "playresume", "shuffle_songs", "volumedown", "volumeup",   "disconnect",   NULL};
 
   int it = 0;
 
@@ -65,8 +65,14 @@ void on_message(__attribute__((unused)) struct mosquitto *mosq,
   while (commands[it] != NULL) {
     if ((size_t)msg->payloadlen >= strlen(commands[it]) &&
         strncmp(msg->payload, commands[it], strlen(commands[it])) == 0) {
-      debug(2, "[MQTT]: DACP Command: %s\n", commands[it]);
-      send_simple_dacp_command(commands[it]);
+      debug(2, "[MQTT]: Received Recognized Command: %s\n", commands[it]);
+      if (strcmp(commands[it], "disconnect") == 0) {
+        debug(2, "[MQTT]: Disconnect Command: %s\n", commands[it]);
+        get_play_lock(NULL, 1); // stop any current session and don't replace it
+      } else {
+        debug(2, "[MQTT]: DACP Command: %s\n", commands[it]);
+        send_simple_dacp_command(commands[it]);
+      }
       break;
     }
     it++;
