@@ -50,3 +50,6 @@ build
 
 # vscode
 .vscode
+
+# IntelliJ/JetBrains
+.idea/
