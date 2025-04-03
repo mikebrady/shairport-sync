@@ -21,6 +21,14 @@ Remove it as follows:
 # rm /usr/local/bin/shairport-sync
 ```
 Do this until no more copies of `shairport-sync` are found.
+#### Remove Old Configuration Files
+If you want to preserve any configuration settings you have made, you should make a note of them and then delete the configuration file.
+This is suggested because there may be new configuration options available, which will be present but disabled in the
+updated configuration filethat will be installed.
+You can then apply your previous settings to the updated configuration file.
+
+The configuration file is typically at `/etc/shairport-sync.conf` or `/usr/local/etc/shairport-sync.conf`.
+
 #### Remove Old Service Files
 You should also remove any of the following service files that may be present:
 * `/etc/systemd/system/shairport-sync.service`
