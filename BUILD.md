@@ -44,7 +44,7 @@ New service files will be installed if necessary at the `# make install` stage.
 
 (In FreeBSD, there is no need to remove the file at `/usr/local/etc/rc.d/shairport-sync` – it's always replaced in the `make install` step.)
 #### Reboot after Cleaning Up
-If you removed any installations of Shairport Sync or any of its service files in the last two steps, you should reboot.
+If you removed any installations of Shairport Sync or any of its service or configuration files in the last three steps, you should reboot.
 
 ## 2. Get Tools and Libraries
 Okay, now let's get the tools and libraries for building and installing Shairport Sync (and NQPTP).
