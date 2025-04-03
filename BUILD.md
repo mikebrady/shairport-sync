@@ -212,13 +212,15 @@ If PipeWire or PulseAudio is installed, you must enable Shairport Sync as a _use
 
 To enable Shairport Sync as a user service that starts automatically when the user logs in, ensure you are logged in as that user and enter:
 ```
-$ systemctl --user enable shairport-sync
+$ systemctl --user enable --now shairport-sync
 ```
+This will also attempt to start Shairport Sync immediately.
 #### Enable Shairport Sync as a System Service
 To enable Shairport Sync as a system service that starts automatically when the system starts up, enter:
 ```
-# systemctl enable shairport-sync
+# systemctl enable --now shairport-sync
 ```
+This will also attempt to start Shairport Sync immediately.
 #### User Service Limitations.
 1. If Shairport Sync is installed as a user service, it is activated when that user logs in and deactivated when the user logs out.
 On an unattended system, this difficulty can be overcome by using automatic user login.
