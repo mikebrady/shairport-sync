@@ -63,7 +63,7 @@ Building on Ubuntu 24.10, and possibly other distributions, requires `systemd-de
 ```
 
 ### Fedora (Fedora 40)
-For AirPlay 2 operation, _before you install the libraries_, please ensure the you have [enabled](https://docs.fedoraproject.org/en-US/quick-docs/rpmfusion-setup) RPM Fusion software repositories to the "Nonfree" level. If this is not done, the FFmpeg libraries will lack a suitable AAC decoder, preventing Shairport Sync from working in AirPlay 2 mode. 
+Important: to get the correct version of FFmpeg, _before you install the libraries_, please ensure the you have [enabled](https://docs.fedoraproject.org/en-US/quick-docs/rpmfusion-setup) RPM Fusion software repositories to the "Nonfree" level. If this is not done, the FFmpeg libraries will lack a suitable AAC decoder, preventing Shairport Sync from working in AirPlay 2 mode. 
 ```
 # yum update
 # yum install --allowerasing make automake gcc gcc-c++ \
