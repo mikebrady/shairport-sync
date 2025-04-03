@@ -20,7 +20,7 @@ Remove it as follows:
 ```
 # rm /usr/local/bin/shairport-sync
 ```
-Do this until no more copies of `shairport-sync` are found.
+Do this until no more copies of `shairport-sync` are found. Shairport Sync could also be found in `/usr/bin/shairport-sync` or elsewhere.
 #### Remove Old Configuration Files
 If you want to preserve any configuration settings you have made, you should make a note of them and then delete the configuration file.
 This is suggested because there may be new configuration options available, which will be present but disabled in the
