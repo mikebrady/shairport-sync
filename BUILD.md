@@ -27,6 +27,8 @@ You should also remove any of the following service files that may be present:
 * `/etc/systemd/user/shairport-sync.service`
 * `/lib/systemd/system/shairport-sync.service`
 * `/lib/systemd/user/shairport-sync.service`
+* `/etc/dbus-1/system.d/shairport-sync-dbus.conf`
+* `/etc/dbus-1/system.d/shairport-sync-mpris.conf`
 * `/etc/init.d/shairport-sync`
 * `~/.config/systemd/user/shairport-sync.service`
   
