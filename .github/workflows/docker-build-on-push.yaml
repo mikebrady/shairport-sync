@@ -4,7 +4,7 @@
 # 'master'      - rolling, rolling-classic
 # 'development' - development, development-classic
 
-name: Build and push docker (push/pull request)
+name: docker-build-on-push.yaml
 
 on:
   workflow_dispatch:
