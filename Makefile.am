@@ -294,15 +294,6 @@ $(INSTALL_SYSTEMD_TARGET): scripts/$(SYSTEMD_SERVICE) $(INSTALL_USER_TARGET)
 	install -d $(DESTDIR)$(systemdsystemunitdir)
 	[ -e $(DESTDIR)$(systemdsystemunitdir)/shairport-sync.service ] || install -m 0644 scripts/$(SYSTEMD_SERVICE) $(DESTDIR)$(systemdsystemunitdir)/shairport-sync.service
 
-SYSTEMD_USER_SERVICE = shairport-sync.user.service
-
-INSTALL_SYSTEMD_USER_TARGET = install-systemd-user-local
-
-# Install a user service script into the current user's ~/.config/systemd/user folder, but don't replace an existing script
-$(INSTALL_SYSTEMD_USER_TARGET): scripts/$(SYSTEMD_USER_SERVICE) $(INSTALL_USER_TARGET)
-	install -d $(DESTDIR)$(homedir)/.config/systemd/user
-	[ -e $(DESTDIR)$(homedir)/.config/systemd/user/shairport-sync.service ] || install -m 0644 $(top_srcdir)/scripts/$(SYSTEMD_USER_SERVICE) $(DESTDIR)$(homedir)/.config/systemd/user/shairport-sync.service
-
 endif # INSTALL_SYSTEMD_STARTUP
 
 if INSTALL_FREEBSD_STARTUP
