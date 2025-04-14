@@ -1,3 +1,17 @@
+Version 5.0-dev-25-ge05448ae
+==
+**Bug fixes and Enhancements**
+* A convenience script [`user-service-install.sh`](user-service-install.sh) has been added to install a `systemd` user service startup script.
+  * Associated with this, a user service startup script is no longer installed at the `# make install` step in a `systemd` based Linux. This is because:
+    * The user service startup script would be owned by `root` and therefore would not be editable or removable by the user,
+    * The user service startup script would be only be installed correctly if the command was `$ sudo make install` and would not work properly if the command was `# make install` because the script would be installed in the wrong place.
+  * Update the [BUILD.md](BUILD.md) guide to reflect the introduction of the new script.
+  * Thanks to [petcol](https://github.com/petcol) for their [help and persistence](https://github.com/mikebrady/shairport-sync/issues/2003) in identifying and resolving this problem.
+* Ignore empty configuration setting strings. Specifically, log a warning and behave as if the configuration setting was not given. Thanks to [mantheman](https://github.com/mantheman) for the initial report.
+* Add a `disconnect` command to the MQTT interface. Thanks to [Jordan Zucker](https://github.com/jzucker2) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2001).
+* In the Docker images, remove any left-over `pid` files before starting the D-Bus and Avahi services. Thanks to [Kir Belevich](https://github.com/deepsweet) for the [report](https://github.com/mikebrady/shairport-sync/issues/2009).
+
+
 Version 5.0-dev
 ==
 This is a major update adding exciting new features and improvements to Shairport Sync:
