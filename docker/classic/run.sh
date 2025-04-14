@@ -3,7 +3,8 @@
 # exist if any command returns a non-zero result
 set -e
 
-rm -rf /var/run/dbus.pid
+rm -rf /run/dbus/dbus.pid
+rm -rf /run/avahi-daemon/pid
 
 dbus-uuidgen --ensure
 dbus-daemon --system
