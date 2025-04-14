@@ -117,6 +117,15 @@ if [ -d "$USER_SYSTEMD_DIR" ] && [ ! -w "$USER_SYSTEMD_DIR" ]; then
     exit 1
 fi
 
+
+# If the service file already exists, check that we can replace it
+
+if [ -f "$SERVICE_DEST" ] && [ ! -w "$SERVICE_DEST" ]; then
+    echo "[FAIL] The existing $SERVICE_DEST can not be replaced due to its ownership or permissions." >&2
+    echo "  [ADVICE] Please delete $SERVICE_DEST or ensure it is owned and writable by user \"$(whoami)\" before proceeding." >&2
+    exit 1
+fi
+
 # Create the service file
 
 if [ "$DRY_RUN" -eq 0 ]; then
