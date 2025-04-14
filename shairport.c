@@ -650,7 +650,7 @@ int parse_options(int argc, char **argv) {
       config.cfg = &config_file_stuff;
 
       /* Get the Service Name. */
-      if (config_lookup_string(config.cfg, "general.name", &str)) {
+      if (config_lookup_non_empty_string(config.cfg, "general.name", &str)) {
         raw_service_name = (char *)str;
       }
 #ifdef CONFIG_LIBDAEMON
@@ -662,16 +662,16 @@ int parse_options(int argc, char **argv) {
                              &daemonisewithout);
 
       /* Get the directory path for the pid file created when the program is daemonised. */
-      if (config_lookup_string(config.cfg, "sessioncontrol.daemon_pid_dir", &str))
+      if (config_lookup_non_empty_string(config.cfg, "sessioncontrol.daemon_pid_dir", &str))
         config.piddir = (char *)str;
 #endif
 
       /* Get the mdns_backend setting. */
-      if (config_lookup_string(config.cfg, "general.mdns_backend", &str))
+      if (config_lookup_non_empty_string(config.cfg, "general.mdns_backend", &str))
         config.mdns_name = (char *)str;
 
       /* Get the output_backend setting. */
-      if (config_lookup_string(config.cfg, "general.output_backend", &str))
+      if (config_lookup_non_empty_string(config.cfg, "general.output_backend", &str))
         config.output_name = (char *)str;
 
       /* Get the port setting. */
@@ -708,7 +708,7 @@ int parse_options(int argc, char **argv) {
       }
 
       /* Get the password setting. */
-      if (config_lookup_string(config.cfg, "general.password", &str))
+      if (config_lookup_non_empty_string(config.cfg, "general.password", &str))
         config.password = (char *)str;
 
       if (config_lookup_string(config.cfg, "general.interpolation", &str)) {
@@ -918,7 +918,7 @@ int parse_options(int argc, char **argv) {
         }
       }
 
-      if (config_lookup_string(config.cfg, "general.run_this_when_volume_is_set", &str)) {
+      if (config_lookup_non_empty_string(config.cfg, "general.run_this_when_volume_is_set", &str)) {
         config.cmd_set_volume = (char *)str;
       }
 
@@ -960,11 +960,9 @@ int parse_options(int argc, char **argv) {
       /* Get the interface to listen on, if specified Default is all interfaces */
       /* we keep the interface name and the index */
 
-      if (config_lookup_string(config.cfg, "general.interface", &str))
-        config.interface = strdup(str);
-
       if (config_lookup_string(config.cfg, "general.interface", &str)) {
 
+        config.interface = strdup(str);
         config.interface_index = if_nametoindex(config.interface);
 
         if (config.interface_index == 0) {
@@ -978,7 +976,7 @@ int parse_options(int argc, char **argv) {
 
       /* Get the regtype -- the service type and protocol, separated by a dot. Default is
        * "_raop._tcp" */
-      if (config_lookup_string(config.cfg, "general.regtype", &str))
+      if (config_lookup_non_empty_string(config.cfg, "general.regtype", &str))
         config.regtype = strdup(str);
 
       /* Get the volume range, in dB, that should be used If not set, it means you just use the
@@ -1091,7 +1089,7 @@ int parse_options(int argc, char **argv) {
               str);
       }
 
-      if (config_lookup_string(config.cfg, "metadata.pipe_name", &str)) {
+      if (config_lookup_non_empty_string(config.cfg, "metadata.pipe_name", &str)) {
         config.metadata_pipename = (char *)str;
       }
 
@@ -1099,7 +1097,7 @@ int parse_options(int argc, char **argv) {
         config.metadata_progress_interval = dvalue;
       }
 
-      if (config_lookup_string(config.cfg, "metadata.socket_address", &str)) {
+      if (config_lookup_non_empty_string(config.cfg, "metadata.socket_address", &str)) {
         config.metadata_sockaddr = (char *)str;
       }
       if (config_lookup_int(config.cfg, "metadata.socket_port", &value)) {
@@ -1113,7 +1111,7 @@ int parse_options(int argc, char **argv) {
 #endif
 
 #ifdef CONFIG_METADATA_HUB
-      if (config_lookup_string(config.cfg, "metadata.cover_art_cache_directory", &str)) {
+      if (config_lookup_non_empty_string(config.cfg, "metadata.cover_art_cache_directory", &str)) {
         config.cover_art_cache_dir = (char *)str;
       }
 
@@ -1129,20 +1127,20 @@ int parse_options(int argc, char **argv) {
       }
 #endif
 
-      if (config_lookup_string(config.cfg, "sessioncontrol.run_this_before_play_begins", &str)) {
+      if (config_lookup_non_empty_string(config.cfg, "sessioncontrol.run_this_before_play_begins", &str)) {
         config.cmd_start = (char *)str;
       }
 
-      if (config_lookup_string(config.cfg, "sessioncontrol.run_this_after_play_ends", &str)) {
+      if (config_lookup_non_empty_string(config.cfg, "sessioncontrol.run_this_after_play_ends", &str)) {
         config.cmd_stop = (char *)str;
       }
 
-      if (config_lookup_string(config.cfg, "sessioncontrol.run_this_before_entering_active_state",
+      if (config_lookup_non_empty_string(config.cfg, "sessioncontrol.run_this_before_entering_active_state",
                                &str)) {
         config.cmd_active_start = (char *)str;
       }
 
-      if (config_lookup_string(config.cfg, "sessioncontrol.run_this_after_exiting_active_state",
+      if (config_lookup_non_empty_string(config.cfg, "sessioncontrol.run_this_after_exiting_active_state",
                                &str)) {
         config.cmd_active_stop = (char *)str;
       }
@@ -1156,7 +1154,7 @@ int parse_options(int argc, char **argv) {
           config.active_state_timeout = dvalue;
       }
 
-      if (config_lookup_string(config.cfg,
+      if (config_lookup_non_empty_string(config.cfg,
                                "sessioncontrol.run_this_if_an_unfixable_error_is_detected", &str)) {
         config.cmd_unfixable = (char *)str;
       }
@@ -1241,7 +1239,7 @@ int parse_options(int argc, char **argv) {
           die("dsp.convolution_max_length must be within 1 and 200000");
       }
 
-      if (config_lookup_string(config.cfg, "dsp.convolution_ir_file", &str)) {
+      if (config_lookup_non_empty_string(config.cfg, "dsp.convolution_ir_file", &str)) {
         config.convolution_ir_file = strdup(str);
         config.convolver_valid =
             convolver_init(config.convolution_ir_file, config.convolution_max_length);
@@ -1272,7 +1270,7 @@ int parse_options(int argc, char **argv) {
               dvalue);
       }
 
-      if (config.loudness == 1 && config_lookup_string(config.cfg, "alsa.mixer_control_name", &str))
+      if (config.loudness == 1 && config_lookup_non_empty_string(config.cfg, "alsa.mixer_control_name", &str))
         die("Loudness activated but hardware volume is active. You must remove "
             "\"alsa.mixer_control_name\" to use the loudness filter.");
 
@@ -1318,7 +1316,7 @@ int parse_options(int argc, char **argv) {
     if (config.mqtt_enabled && !config.metadata_enabled) {
       die("You need to have metadata enabled in order to use mqtt");
     }
-    if (config_lookup_string(config.cfg, "mqtt.hostname", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "mqtt.hostname", &str)) {
       config.mqtt_hostname = (char *)str;
       // TODO: Document that, if this is false, whole mqtt func is disabled
     }
@@ -1331,28 +1329,28 @@ int parse_options(int argc, char **argv) {
         config.mqtt_port = value;
     }
 
-    if (config_lookup_string(config.cfg, "mqtt.username", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "mqtt.username", &str)) {
       config.mqtt_username = (char *)str;
     }
-    if (config_lookup_string(config.cfg, "mqtt.password", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "mqtt.password", &str)) {
       config.mqtt_password = (char *)str;
     }
     int capath = 0;
-    if (config_lookup_string(config.cfg, "mqtt.capath", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "mqtt.capath", &str)) {
       config.mqtt_capath = (char *)str;
       capath = 1;
     }
-    if (config_lookup_string(config.cfg, "mqtt.cafile", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "mqtt.cafile", &str)) {
       if (capath)
         die("Supply either mqtt cafile or mqtt capath -- you have supplied both!");
       config.mqtt_cafile = (char *)str;
     }
     int certkeynum = 0;
-    if (config_lookup_string(config.cfg, "mqtt.certfile", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "mqtt.certfile", &str)) {
       config.mqtt_certfile = (char *)str;
       certkeynum++;
     }
-    if (config_lookup_string(config.cfg, "mqtt.keyfile", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "mqtt.keyfile", &str)) {
       config.mqtt_keyfile = (char *)str;
       certkeynum++;
     }
@@ -1362,7 +1360,7 @@ int parse_options(int argc, char **argv) {
           "If you do not want to use TLS Client Authentication, leave both empty.");
     }
 
-    if (config_lookup_string(config.cfg, "mqtt.topic", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "mqtt.topic", &str)) {
       config.mqtt_topic = (char *)str;
     }
     config_set_lookup_bool(config.cfg, "mqtt.publish_raw", &config.mqtt_publish_raw);
@@ -1373,11 +1371,11 @@ int parse_options(int argc, char **argv) {
     }
     config_set_lookup_bool(config.cfg, "mqtt.enable_autodiscovery",
                            &config.mqtt_enable_autodiscovery);
-    if (config_lookup_string(config.cfg, "mqtt.autodiscovery_prefix", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "mqtt.autodiscovery_prefix", &str)) {
       config.mqtt_autodiscovery_prefix = (char *)str;
     }
     config_set_lookup_bool(config.cfg, "mqtt.enable_remote", &config.mqtt_enable_remote);
-    if (config_lookup_string(config.cfg, "mqtt.empty_payload_substitute", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "mqtt.empty_payload_substitute", &str)) {
       if (strlen(str) == 0)
         config.mqtt_empty_payload_substitute = NULL;
       else
@@ -2696,7 +2694,7 @@ int main(int argc, char **argv) {
     }
   }
 
-  if ((config.cfg != NULL) && (config_lookup_string(config.cfg, "general.mixdown", &str))) {
+  if ((config.cfg != NULL) && (config_lookup_non_empty_string(config.cfg, "general.mixdown", &str))) {
     if ((strcasecmp(str, "off") == 0) || (strcasecmp(str, "no") == 0)) {
       config.mixdown_enable = 0; // 0 on initialisation
       debug(1, "mixdown disabled.", str);
@@ -2730,7 +2728,7 @@ int main(int argc, char **argv) {
   const char *str;
 
   if ((config.cfg != NULL) &&
-      (config_lookup_string(config.cfg, "general.eight_channel_mode", &str))) {
+      (config_lookup_non_empty_string(config.cfg, "general.eight_channel_mode", &str))) {
     if ((strcasecmp(str, "off") == 0) || (strcasecmp(str, "no") == 0)) {
       config.eight_channel_layout = 0; // 0 on initialisation
     } else if ((strcasecmp(str, "on") == 0) || (strcasecmp(str, "yes") == 0)) {
@@ -2752,7 +2750,7 @@ int main(int argc, char **argv) {
   }
 
   if ((config.cfg != NULL) &&
-      (config_lookup_string(config.cfg, "general.six_channel_mode", &str))) {
+      (config_lookup_non_empty_string(config.cfg, "general.six_channel_mode", &str))) {
     if ((strcasecmp(str, "off") == 0) || (strcasecmp(str, "no") == 0)) {
       config.six_channel_layout = 0; // 0 on initialisation
     } else if ((strcasecmp(str, "on") == 0) || (strcasecmp(str, "yes") == 0)) {
@@ -2773,7 +2771,7 @@ int main(int argc, char **argv) {
     }
   }
 
-  if ((config.cfg != NULL) && (config_lookup_string(config.cfg, "general.mixdown", &str))) {
+  if ((config.cfg != NULL) && (config_lookup_non_empty_string(config.cfg, "general.mixdown", &str))) {
     if ((strcasecmp(str, "off") == 0) || (strcasecmp(str, "no") == 0)) {
       config.mixdown_enable = 0; // 0 on initialisation
     } else if (strcasecmp(str, "auto") == 0) {

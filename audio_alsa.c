@@ -1224,25 +1224,25 @@ static int init(int argc, char **argv) {
     double dvalue;
 
     /* Get the Output Device Name. */
-    if (config_lookup_string(config.cfg, "alsa.output_device", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "alsa.output_device", &str)) {
       alsa_out_dev = (char *)str;
     }
 
     /* Get the Mixer Type setting. */
 
-    if (config_lookup_string(config.cfg, "alsa.mixer_type", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "alsa.mixer_type", &str)) {
       inform("The alsa mixer_type setting is deprecated and has been ignored. "
              "FYI, using the \"mixer_control_name\" setting automatically "
              "chooses a hardware mixer.");
     }
 
     /* Get the Mixer Device Name. */
-    if (config_lookup_string(config.cfg, "alsa.mixer_device", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "alsa.mixer_device", &str)) {
       alsa_mix_dev = (char *)str;
     }
 
     /* Get the Mixer Control Name. */
-    if (config_lookup_string(config.cfg, "alsa.mixer_control_name", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "alsa.mixer_control_name", &str)) {
       alsa_mix_ctrl = (char *)str;
     }
 

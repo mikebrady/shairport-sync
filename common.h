@@ -535,6 +535,7 @@ extern int type_of_exit_cleanup; // normal, emergency, dbus requested...
 
 extern uint64_t minimum_dac_queue_size;
 
+int config_lookup_non_empty_string(const config_t * the_config, const char * path, const char ** value);
 int config_set_lookup_bool(config_t *cfg, char *where, int *dst);
 int check_string_or_list_setting(config_setting_t *setting, const char *item);
 int check_int_or_list_setting(config_setting_t *setting, const int item);

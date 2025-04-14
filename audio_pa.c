@@ -500,13 +500,13 @@ static int init(__attribute__((unused)) int argc, __attribute__((unused)) char *
     const char *str;
 
     /* Get the PulseAudio server name. */
-    if (config_lookup_string(config.cfg, "pulseaudio.server", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "pulseaudio.server", &str)) {
       config.pa_server = (char *)str;
     }
 
     // get the default channel mapping setting basis -- native ("no") or pa ("yes").
 
-    if (config_lookup_string(config.cfg, "pulseaudio", &default_channel_layouts)) {
+    if (config_lookup_non_empty_string(config.cfg, "pulseaudio", &default_channel_layouts)) {
       if ((strcasecmp(default_channel_layouts, "alsa") == 0) ||
           (strcasecmp(default_channel_layouts, "pulseaudio") == 0)) {
         debug(1, "pulseaudio default_channel_layouts setting: \"%s\".", default_channel_layouts);
@@ -518,12 +518,12 @@ static int init(__attribute__((unused)) int argc, __attribute__((unused)) char *
     };
 
     /* Get the Application Name. */
-    if (config_lookup_string(config.cfg, "pulseaudio.application_name", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "pulseaudio.application_name", &str)) {
       config.pa_application_name = (char *)str;
     }
 
     /* Get the PulseAudio sink name. */
-    if (config_lookup_string(config.cfg, "pulseaudio.sink", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "pulseaudio.sink", &str)) {
       config.pa_sink = (char *)str;
     }
   }

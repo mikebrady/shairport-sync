@@ -397,7 +397,7 @@ static int init(int argc, char **argv) {
   // get specific settings
   int value;
   if (config.cfg != NULL) {
-    if (!config_lookup_string(config.cfg, "sndio.device", &output_device_name))
+    if (!config_lookup_non_empty_string(config.cfg, "sndio.device", &output_device_name))
       output_device_name = SIO_DEVANY;
 
     if (config_lookup_int(config.cfg, "sndio.bufsz", &value)) {

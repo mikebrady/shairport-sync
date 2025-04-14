@@ -196,14 +196,14 @@ static int jack_init(__attribute__((unused)) int argc, __attribute__((unused)) c
   // Now the options specific to the backend, from the "jack" stanza:
   if (config.cfg != NULL) {
     const char *str;
-    if (config_lookup_string(config.cfg, "jack.client_name", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "jack.client_name", &str)) {
       config.jack_client_name = (char *)str;
     }
-    if (config_lookup_string(config.cfg, "jack.autoconnect_pattern", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "jack.autoconnect_pattern", &str)) {
       config.jack_autoconnect_pattern = (char *)str;
     }
 #ifdef CONFIG_SOXR
-    if (config_lookup_string(config.cfg, "jack.soxr_resample_quality", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "jack.soxr_resample_quality", &str)) {
       debug(1, "SOXR quality %s", str);
       config.jack_soxr_resample_quality = parse_soxr_quality_name(str);
     }

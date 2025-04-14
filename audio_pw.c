@@ -209,17 +209,17 @@ static int init(__attribute__((unused)) int argc, __attribute__((unused)) char *
     const char *str;
 
     // Get the optional Application Name, if provided.
-    if (config_lookup_string(config.cfg, "pipewire.application_name", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "pipewire.application_name", &str)) {
       config.pw_application_name = (char *)str;
     }
 
     // Get the optional PipeWire node name, if provided.
-    if (config_lookup_string(config.cfg, "pipewire.node_name", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "pipewire.node_name", &str)) {
       config.pw_node_name = (char *)str;
     }
 
     // Get the optional PipeWire sink target name, if provided.
-    if (config_lookup_string(config.cfg, "pipewire.sink_target", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "pipewire.sink_target", &str)) {
       config.pw_sink_target = (char *)str;
     }
   }

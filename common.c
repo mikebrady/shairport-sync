@@ -1216,6 +1216,18 @@ uint8_t *rsa_apply(uint8_t *input, int inlen, int *outlen, int mode) {
 }
 #endif
 
+
+int config_lookup_non_empty_string(const config_t * the_config, const char * path, const char ** value) {
+  int response = config_lookup_string(the_config, path, value);
+  if (response == CONFIG_TRUE) {
+    if ((value != NULL) && ((*value == NULL) || (*value[0] == 0))) {
+      warn("The \"%s\" parameter is an empty string and has been ignored.", path);
+      response = CONFIG_FALSE;
+    }
+  }
+  return response;
+}
+
 int config_set_lookup_bool(config_t *cfg, char *where, int *dst) {
   const char *str = 0;
   if (config_lookup_string(cfg, where, &str)) {

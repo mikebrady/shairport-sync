@@ -116,8 +116,10 @@ static int init(int argc, char **argv) {
   if (config.cfg != NULL) {
     /* Get the Output Pipename. */
     const char *str;
-    if (config_lookup_string(config.cfg, "pipe.name", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "pipe.name", &str)) {
       pipename = (char *)str;
+    } else {
+      die("pipename needed");
     }
   }
 
