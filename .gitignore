@@ -54,3 +54,6 @@ classic
 
 # vscode
 .vscode
+
+# IntelliJ/JetBrains
+.idea/
