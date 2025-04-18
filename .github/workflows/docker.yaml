@@ -82,8 +82,8 @@ jobs:
           platforms: ${{ env.DOCKER_PLATFORMS }}
           push: true
           tags: |
-            mikebrady/sps-private:${{ env.GIT_TAG }}
-            mikebrady/sps-private:latest
+            ${{ secrets.DOCKER_IMAGE_NAME }}:${{ env.GIT_TAG }}
+            ${{ env.LATEST_TAG == 'true' && format('{0}:latest', secrets.DOCKER_IMAGE_NAME) || '' }}
           build-args: |
             SHAIRPORT_SYNC_BRANCH=${{ env.SHAIRPORT_SYNC_BRANCH }}
             NQPTP_BRANCH=${{ env.NQPTP_BRANCH }}
