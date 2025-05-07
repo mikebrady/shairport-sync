@@ -10,15 +10,23 @@ name: Build and push Docker images...
 on:
   workflow_dispatch:
   push:
+    branches: # Will run when development or master branch get a push
+      - development 
+      - master
     tags:
-      - '[0-9]+'                 # X
-      - '[0-9]+\.[0-9]+'         # X.Y
-      - '[0-9]+\.[0-9]+\.[0-9]+' # X.Y.Z
+      - '[0-9]+'                 # X
+      - '[0-9]+\.[0-9]+'         # X.Y
+      - '[0-9]+\.[0-9]+\.[0-9]+' # X.Y.Z
+
+# need to define
+# secret: DOCKER_REGISTRY_TOKEN
+# vars: DOCKER_REGISTRY_USER, DOCKER_REPO_NAME
 
 env:
   DOCKER_PLATFORMS: linux/386,linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64
   NQPTP_BRANCH: main
   LATEST_TAG: false
+  DOCKER_IMAGE_NAME: ${{ format('{0}/{1}', vars.DOCKER_REGISTRY_USER, vars.DOCKER_REPO_NAME) }} # creates: username/repo for later use!
 
 jobs:
   main:
@@ -58,9 +66,14 @@ jobs:
         uses: docker/login-action@v3.4.0
         with:
           # registry: docker.io # default
-          username: ${{ secrets.DOCKER_REGISTRY_USER }}
+          username: ${{ vars.DOCKER_REGISTRY_USER }}
           password: ${{ secrets.DOCKER_REGISTRY_TOKEN }}
-
+          
+      - name: Print used image name and tag
+        run: |
+          echo "DOCKER_IMAGE_NAME: ${{ env.DOCKER_IMAGE_NAME }}"
+          echo "Final tag: ${{ env.DOCKER_IMAGE_NAME }}:${{ env.GIT_TAG }}-classic"
+          
       - name: Build and push (classic)
         uses: docker/build-push-action@v6.15.0
         with:
@@ -69,11 +82,11 @@ jobs:
           platforms: ${{ env.DOCKER_PLATFORMS }}
           push: true
           tags: |
-            ${{ secrets.DOCKER_IMAGE_NAME }}:${{ env.GIT_TAG }}-classic
-            ${{ env.LATEST_TAG == 'true' && format('{0}:classic', secrets.DOCKER_IMAGE_NAME) || '' }}
+            ${{ env.DOCKER_IMAGE_NAME }}:${{ env.GIT_TAG }}-classic
+            ${{ env.LATEST_TAG == 'true' && format('{0}:classic', env.DOCKER_IMAGE_NAME) || '' }}
           build-args: |
             SHAIRPORT_SYNC_BRANCH=${{ env.SHAIRPORT_SYNC_BRANCH }}
- 
+     
       - name: Build and Push AirPlay 2 Version
         uses: docker/build-push-action@v6.15.0
         with:
@@ -82,8 +95,8 @@ jobs:
           platforms: ${{ env.DOCKER_PLATFORMS }}
           push: true
           tags: |
-            mikebrady/sps-private:${{ env.GIT_TAG }}
-            mikebrady/sps-private:latest
+            ${{ env.DOCKER_IMAGE_NAME }}:${{ env.GIT_TAG }}
+            ${{ env.LATEST_TAG == 'true' && format('{0}:latest', env.DOCKER_IMAGE_NAME) || '' }}
           build-args: |
             SHAIRPORT_SYNC_BRANCH=${{ env.SHAIRPORT_SYNC_BRANCH }}
             NQPTP_BRANCH=${{ env.NQPTP_BRANCH }}
