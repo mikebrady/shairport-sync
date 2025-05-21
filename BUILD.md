@@ -49,6 +49,10 @@ If you are building classic Shairport Sync, the list of packages is shorter:
 # apt-get install --no-install-recommends build-essential git autoconf automake libtool \
     libpopt-dev libconfig-dev libasound2-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev
 ```
+Building on Ubuntu 24.10, and possibly other distributions, requires systemd-dev. It does no harm to attempt to install it -- it will simply fail if the package doesn't exist:
+```
+# apt install --no-install-recommends systemd-dev # it's okay if this fails because the package doesn't exist
+```
 ### Fedora (Fedora 40)
 For AirPlay 2 operation, _before you install the libraries_, please ensure the you have [enabled](https://docs.fedoraproject.org/en-US/quick-docs/rpmfusion-setup) RPM Fusion software repositories to the "Nonfree" level. If this is not done, the FFmpeg libraries will lack a suitable AAC decoder, preventing Shairport Sync from working in AirPlay 2 mode. 
 ```
