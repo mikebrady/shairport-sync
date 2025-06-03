@@ -223,11 +223,13 @@ On an unattended system, this difficulty can be overcome by using automatic user
 
 #### Enable Shairport Sync as a System Service
 
-If your system does not have either PipeWire or PulseAudio installed (see how to check above), then you you can enable Shairport Sync as a system service that starts automatically when the system boots up. To do so -- assuming you have followed the build guide successfully -- enter the following command:
+If your system does not have either PipeWire or PulseAudio installed (see how to check above), then you can enable Shairport Sync as a system service that starts automatically when the system boots up. To do so -- assuming you have followed the build guide successfully -- enter the following command:
 ```
 # systemctl enable shairport-sync
 ```
 This enables Shairport Sync to start automatically when the system boots up. Please remember, this will not work if PipeWire or PulseAudio are installed on your system.
+
+You should not enable Shairport Sync as a user service and a system service at the same time!
 
 ### FreeBSD
 To make the `shairport-sync` daemon load at startup, add the following line to `/etc/rc.conf`:
