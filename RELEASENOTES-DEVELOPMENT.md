@@ -30,6 +30,8 @@ This is a major update adding exciting new features and improvements to Shairpor
 
 44.1k operation is retained.
 
+**Deprecation Note** The stand-alone ALAC decoder by John Hammerton, used in all versions of Shairport Sync until now, and Apple's own ALAC decoder, optional for Shairport Sync, are now deprecated due to maintainance and security issues. You may find it be necessary to use one of them (for classic AirPlay reception only) in devices with very restricted storage, but security considerations mean that these decoders will be fully dropped in future. 
+
 **Warning:** This is a breaking update. That means you probably can not simply update an existing installation of Shairport Sync without a little bit of work. To update correctly you must:
 * Remove the Shairport Sync device from Apple Home -- you can add it back later;
 * Review the list of libraries needed for building Shairport Sync, as there are some extras -- see the updated [BUILD.md](BUILD.md) guide;
