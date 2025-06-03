@@ -216,11 +216,18 @@ $ sh user-service-install.sh
 ```
 This will run a few checks, install a user startup script and start Shairport Sync immediately. (Run `$ sh user-service-install.sh --dry-run` initially if you prefer...)
 
-#### User Service Limitations.
+##### User Service Limitations.
 1. If Shairport Sync is installed as a user service, it is activated when that user logs in and deactivated when the user logs out.
 On an unattended system, this difficulty can be overcome by using automatic user login.
 2. If your system has a GUI (that is, if it's a "desktop Linux"), then audio will only be routed to the speakers when the user is logged in through the GUI.
 
+#### Enable Shairport Sync as a System Service
+
+If your system does not have either PipeWire or PulseAudio installed (see how to check above), then you you can enable Shairport Sync as a system service that starts automatically when the system boots up. To do so -- assuming you have followed the build guide successfully -- enter the following command:
+```
+# systemctl enable shairport-sync
+```
+This enables Shairport Sync to start automatically when the system boots up. Please remember, this will not work if PipeWire or PulseAudio are installed on your system.
 
 ### FreeBSD
 To make the `shairport-sync` daemon load at startup, add the following line to `/etc/rc.conf`:
