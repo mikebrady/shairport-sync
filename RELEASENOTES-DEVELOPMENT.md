@@ -1,3 +1,8 @@
+Version 5.0-dev-39-g77d0deec
+==
+**Dependabot Updates**
+* A number of deferred Dependabot-originated updates have been accepted. They all relate to (limited) automated testing and Docker image creation.
+
 Version 5.0-dev-34-ga5a54621
 ==
 **Bug Fix**
