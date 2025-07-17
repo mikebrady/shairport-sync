@@ -506,8 +506,8 @@ static int delay(long *the_delay) {
     debug(3, "pw_processor not running");
   }
 
-  if (stream_is_active == 0) {
-    debug(1, "stream not active but on_process_is_running is 1!");
+  if ((stream_is_active == 0) && (on_process_is_running != 0)) {
+    debug(3, "stream not active but on_process_is_running is true.");
   }
   if (on_process_is_running != 0) {
 
