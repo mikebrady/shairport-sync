@@ -333,8 +333,8 @@ uint32_t get_rate_settings(const char *stanza_name, const char *setting_name) {
           rate_set = SPS_RATE_NON_FFMPEG_SET;
 #endif
         } else {
-          warn("in the \"%s\" setting in the \"%s\" section of the configuration file, an invalid "
-               "setting: \"%s\" has been detected.",
+          warn("In the \"%s\" setting in the \"%s\" section of the configuration file, an invalid "
+               "character string -- \"%s\" -- has been detected. (Note that numbers must not be enclosed in quotes.)",
                setting_name, stanza_name, config_setting_get_string(rate_setting));
         }
       } else {
@@ -357,7 +357,7 @@ uint32_t get_rate_settings(const char *stanza_name, const char *setting_name) {
                 if (((1 << r) & SPS_RATE_NON_FFMPEG_SET) != 0) {
                   rate_set |= (1 << r);
                 } else {
-                  warn("in the \"%s\" setting in the \"%s\" section of the configuration file, "
+                  warn("In the \"%s\" setting in the \"%s\" section of the configuration file, "
                        "the rate selected -- %d -- can not be used because Shairport Sync has been "
                        "built without FFmpeg support.",
                        setting_name, stanza_name, rates[i]);
@@ -366,16 +366,16 @@ uint32_t get_rate_settings(const char *stanza_name, const char *setting_name) {
               }
             }
             if (valid == 0) {
-              warn("in the \"%s\" setting in the \"%s\" section of the configuration file, an "
+              warn("In the \"%s\" setting in the \"%s\" section of the configuration file, an "
                    "invalid rate: %d has been detected.",
                    setting_name, stanza_name, rates[i]);
             }
           }
           free(rates);
         } else {
-          debug(1,
+          warn(
                 "in the \"%s\" setting in the \"%s\" section of the configuration file, an error "
-                "has been detected at argument %d.",
+                "has been detected at argument %d. (Note that numbers must not be enclosed in quotes.)",
                 setting_name, stanza_name, -rate_settings_count);
         }
       }
