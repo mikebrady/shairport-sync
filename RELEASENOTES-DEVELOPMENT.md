@@ -1,6 +1,11 @@
+Version 5.0-dev-34-ga5a54621
+==
+**Bug Fix**
+* Fixed a bug whereby the volume setting was ignored if the input was not at 44100 FPS and the loudness DSP setting was enabled. Thanks to [microfx](https://github.com/microfx) for the [report](https://github.com/mikebrady/shairport-sync/issues/2039) and for helping to track down the issue.
+
 Version 5.0-dev-25-ge05448ae
 ==
-**Bug fixes and Enhancements**
+**Bug Fixes and Enhancements**
 * A convenience script [`user-service-install.sh`](user-service-install.sh) has been added to install a `systemd` user service startup script.
   * Associated with this, a user service startup script is no longer installed at the `# make install` step in a `systemd` based Linux. This is because:
     * The user service startup script would be owned by `root` and therefore would not be editable or removable by the user,
