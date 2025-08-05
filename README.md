@@ -1,5 +1,5 @@
 # Shairport Sync
-Shairport Sync is an [AirPlay](https://www.pocket-lint.com/speakers/news/apple/144646-apple-airplay-2-vs-airplay-what-s-the-difference) audio player for Linux, FreeBSD and OpenBSD. It plays audio streamed from Apple devices and from AirPlay sources such as [OwnTone](https://github.com/owntone/owntone-server) (formerly `forked-daapd`).
+Shairport Sync is an [AirPlay](https://www.pocket-lint.com/speakers/news/apple/144646-apple-airplay-2-vs-airplay-what-s-the-difference) audio player for Linux, FreeBSD, NetBSD, and OpenBSD. It plays audio streamed from Apple devices and from AirPlay sources such as [OwnTone](https://github.com/owntone/owntone-server) (formerly `forked-daapd`).
 
 Shairport Sync can be built as an AirPlay 2 player (with [some limitations](AIRPLAY2.md#features-and-limitations)) or as "classic" Shairport Sync – a player for the older, but still supported, AirPlay (aka "AirPlay 1") protocol.
 
@@ -31,9 +31,9 @@ Some features require configuration at build time – see [CONFIGURATION FLAGS.m
 # Status
 Shairport Sync was designed to [run best](ADVANCED%20TOPICS/GetTheBest.md) on stable, dedicated, stand-alone low-power "headless" systems with ALSA as the audio system and with a decent CD-quality Digital to Analog Converter (DAC).
 
-Shairport Sync runs on recent (2018 onwards) Linux systems, FreeBSD from 12.1 onwards and OpenBSD. It requires a system with the power of a Raspberry Pi B or better.
+Shairport Sync runs on recent (2018 onwards) Linux systems, FreeBSD from 12.1 onwards, NetBSD, and OpenBSD. It requires a system with the power of a Raspberry Pi B or better.
 
-Classic Shairport Sync runs on a wider variety of Linux sytems, including OpenWrt and Cygwin and it also runs on OpenBSD. Many embedded devices are powerful enough to power classic Shairport Sync.
+Classic Shairport Sync runs on a wider variety of Linux systems, including OpenWrt and Cygwin and it also runs on NetBSD and OpenBSD. Many embedded devices are powerful enough to power classic Shairport Sync.
 
 # Heritage and Acknowledgements
 The functionality offered by Shairport Sync is the result of study and analysis of the AirPlay and AirPlay 2 protocols by many people over the years. These protocols have not been officially published, and there is no assurance that Shairport Sync will continue to work in future.
