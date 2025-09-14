@@ -92,8 +92,9 @@ COPY --from=shairport-sync /shairport-sync/build/install/etc/dbus-1/system.d/sha
 # Shairport Sync Runtime System
 FROM crazymax/alpine-s6:3.20-3.2.0.2
 
-ENV S6_CMD_WAIT_FOR_SERVICES=1
-ENV S6_CMD_WAIT_FOR_SERVICES_MAXTIME=0
+ENV S6_CMD_WAIT_FOR_SERVICES=1 \
+    S6_CMD_WAIT_FOR_SERVICES_MAXTIME=0 \
+    ENABLE_AVAHI=1
 
 RUN apk -U add \
         alsa-lib \

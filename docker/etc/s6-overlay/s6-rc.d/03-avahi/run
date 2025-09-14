@@ -1,3 +1,12 @@
 #!/command/with-contenv sh
-echo "Starting avahi"
-exec s6-notifyoncheck avahi-daemon --no-chroot
+
+if [ "$ENABLE_AVAHI" = "1" ]; then
+  until [ -e /var/run/dbus/system_bus_socket ]; do
+    sleep 1s
+  done
+  echo "Starting Avahi daemon"
+  exec s6-notifyoncheck avahi-daemon --no-chroot
+else
+  echo "Avahi disabled, not starting avahi-daemon"
+  exec s6-notifyoncheck sleep infinity
+fi

@@ -1,7 +1,9 @@
 #!/command/with-contenv sh
 
-# Set the limit to the same value Docker has been using in earlier version.
-ulimit -n 1048576
-
-echo "Starting dbus"
-exec s6-notifyoncheck  dbus-daemon --system --nofork --nopidfile
+if [ "$ENABLE_AVAHI" = "1" ]; then
+  echo "Starting dbus-daemon"
+  exec s6-notifyoncheck dbus-daemon --system --nofork --nopidfile
+else
+  echo "Avahi disabled, not starting dbus-daemon"
+  exec s6-notifyoncheck sleep infinity
+fi
