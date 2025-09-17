@@ -1,3 +1,9 @@
+Version 5.0-dev-47-g03fb1d69
+===
+**Tiny Update**
+* Remove a redundant `s6-overlay` directory from the `docker` `etc` subdirectory. The directory was obsolete and wasn't copied into Docker images anyway...
+* Various Dependabot updates.
+  
 Version 5.0-dev-39-g77d0deec
 ==
 **Dependabot Updates**
