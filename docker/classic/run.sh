@@ -3,13 +3,14 @@
 # exist if any command returns a non-zero result
 set -e
 
-rm -rf /run/dbus/dbus.pid
-rm -rf /run/avahi-daemon/pid
+if [ -z ${ENABLE_AVAHI+x} ] || [ $ENABLE_AVAHI -eq 0 ]; then
+  rm -rf /run/dbus/dbus.pid
+  rm -rf /run/avahi-daemon/pid
 
 dbus-uuidgen --ensure
 dbus-daemon --system
 
-avahi-daemon --daemonize --no-chroot
+[ -z ${ENABLE_AVAHI+x} ] || [ $ENABLE_AVAHI -eq 0 ] || avahi-daemon --daemonize --no-chroot
 
 while [ ! -f /var/run/avahi-daemon/pid ]; do
   echo "Warning: avahi is not running, sleeping for 1 second before trying to start shairport-sync"

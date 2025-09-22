@@ -139,5 +139,5 @@ RUN apk --no-cache add \
 # Added the shairport-sync user to the pre-existing audio group, which has ID 29, for access to the ALSA stuff
 
 COPY --from=files / /
-
+ENV ENABLE_AVAHI=1
 ENTRYPOINT ["./run.sh"]
