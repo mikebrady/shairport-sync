@@ -1,3 +1,8 @@
+Version 5.0-dev-50-g10700356
+==
+**Docker Update**
+* Add an `ENABLE_AVAHI` environment variable to enable or disable `avahi` and `dbus` processes in the Docker image. The default is to enable both, an has always been the case. Thanks to [Adam Oleksy](https://github.com/admo) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2071).
+
 Version 5.0-dev-47-g03fb1d69
 ===
 **Tiny Update**
