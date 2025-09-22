@@ -1,0 +1,87 @@
+# Builds and pushes a docker image in the following scenarios:
+# When a commit is made to 'master' or 'development'.
+# Tag pattern
+# 'master'      - rolling, rolling-classic
+# 'development' - development, development-classic
+
+# When a tag is created.
+# Tag pattern: '[tag]' & '[tag]-classic'
+# 'latest' & 'classic' also, when master tagged.
+
+# Builds but does not push a docker image for PRs.
+
+name: Build and conditionally push docker image
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - development
+    tags:
+      - "*"
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  docker-vars:
+    uses: ./.github/workflows/docker-vars.yaml
+
+  build-docker-image-and-publish:
+    name: Build and conditionally push docker image
+    needs:
+      - docker-vars
+    runs-on: ubuntu-22.04
+
+    strategy:
+      matrix:
+        include:
+          - name: classic
+            dockerfile: ./docker/classic/Dockerfile
+            tag_suffix: -classic
+            build_args: |
+              SHAIRPORT_SYNC_BRANCH=${{ needs.docker-vars.outputs.shairport_sync_branch }}
+          - name: main
+            dockerfile: ./docker/Dockerfile
+            tag_suffix: ""
+            build_args: |
+              SHAIRPORT_SYNC_BRANCH=${{ needs.docker-vars.outputs.shairport_sync_branch }}
+              NQPTP_BRANCH=${{ needs.docker-vars.outputs.nqptp_branch }}
+
+    steps:
+      - name: Login to Docker Registry
+        uses: docker/login-action@v3.3.0
+        with:
+          registry: ${{ secrets.DOCKER_REGISTRY }}
+          username: ${{ secrets.DOCKER_REGISTRY_USER }}
+          password: ${{ secrets.DOCKER_REGISTRY_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3.3.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3.8.0
+
+      - name: Checkout shairport sync repo
+        uses: actions/checkout@v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Build and push ${{ matrix.name }}
+        uses: docker/build-push-action@v6.13.0
+        env:
+          registry_and_name: ${{ secrets.DOCKER_REGISTRY }}/${{ secrets.DOCKER_IMAGE_NAME }}
+          is_tag: ${{ github.ref_type == 'tag' }}
+          branch_name: ${{ needs.docker-vars.outputs.shairport_sync_branch }}
+        with:
+          context: ./
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ needs.docker-vars.outputs.docker_platforms }}
+          push: ${{ needs.docker-vars.outputs.push_docker_image == 'true' }}
+          tags: |
+            ${{ env.branch_name == 'development' && format('{0}:development{1}', env.registry_and_name, matrix.tag_suffix) || '' }}
+            ${{ env.branch_name == 'master' && format('{0}:rolling{1}', env.registry_and_name, matrix.tag_suffix) || '' }}
+            ${{ env.is_tag == 'true' && format('{0}:{1}{2}', env.registry_and_name, github.ref_name, matrix.tag_suffix) || '' }}
+            ${{ env.is_tag == 'true' && env.branch_name == 'master' && format('{0}:latest{1}', env.registry_and_name, matrix.tag_suffix) || '' }}
+          build-args: |
+            ${{ matrix.build_args }}
