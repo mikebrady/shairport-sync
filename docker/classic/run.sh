@@ -5,15 +5,15 @@ set -e
 
 echo "Shairport Sync Startup ($(date))"
 
-if [ -z ${ENABLE_AVAHI+x} ] || [ $ENABLE_AVAHI -eq 0 ]; then
+if [ -z ${ENABLE_AVAHI+x} ] || [ $ENABLE_AVAHI -eq 1 ]; then
   rm -rf /run/dbus/dbus.pid
   rm -rf /run/avahi-daemon/pid
 
   dbus-uuidgen --ensure
   dbus-daemon --system
-fi
 
-[ -z ${ENABLE_AVAHI+x} ] || [ $ENABLE_AVAHI -eq 0 ] || avahi-daemon --daemonize --no-chroot
+  avahi-daemon --daemonize --no-chroot
+fi
 
 while [ ! -f /var/run/avahi-daemon/pid ]; do
   echo "Warning: avahi is not running, sleeping for 5 seconds before trying to start shairport-sync"
