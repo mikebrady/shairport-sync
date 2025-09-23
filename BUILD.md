@@ -49,7 +49,8 @@ If you are building classic Shairport Sync, the list of packages is shorter:
 # apt-get install --no-install-recommends build-essential git autoconf automake libtool \
     libpopt-dev libconfig-dev libasound2-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev
 ```
-Building on Ubuntu 24.10, and possibly other distributions, requires systemd-dev. It does no harm to attempt to install it -- it will simply fail if the package doesn't exist:
+Building on Ubuntu 24.10 or Debian 13 ("Trixie") and later -- and possibly on other distributions -- requires `systemd-dev`. It does no harm to attempt to install it -- the install will simply fail if the package doesn't exist:
+
 ```
 # apt install --no-install-recommends systemd-dev # it's okay if this fails because the package doesn't exist
 ```
