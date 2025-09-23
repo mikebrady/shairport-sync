@@ -6,7 +6,8 @@
 
 # When a tag is created.
 # Tag pattern: '[tag]' & '[tag]-classic'
-# 'latest' & 'classic' also, when master tagged.
+
+# TODO: Does not currently push 'latest' or 'classic' tags.
 
 # Builds but does not push a docker image for PRs.
 
@@ -40,12 +41,12 @@ jobs:
             dockerfile: ./docker/classic/Dockerfile
             tag_suffix: -classic
             build_args: |
-              SHAIRPORT_SYNC_BRANCH=${{ needs.docker-vars.outputs.shairport_sync_branch }}
+              SHAIRPORT_SYNC_BRANCH=.
           - name: main
             dockerfile: ./docker/Dockerfile
             tag_suffix: ""
             build_args: |
-              SHAIRPORT_SYNC_BRANCH=${{ needs.docker-vars.outputs.shairport_sync_branch }}
+              SHAIRPORT_SYNC_BRANCH=.
               NQPTP_BRANCH=${{ needs.docker-vars.outputs.nqptp_branch }}
 
     steps:
@@ -72,17 +73,23 @@ jobs:
         uses: docker/build-push-action@v6.13.0
         env:
           registry_and_name: ${{ secrets.DOCKER_REGISTRY }}/${{ secrets.DOCKER_IMAGE_NAME }}
-          is_tag: ${{ github.ref_type == 'tag' }}
-          branch_name: ${{ needs.docker-vars.outputs.shairport_sync_branch }}
         with:
           context: ./
           file: ${{ matrix.dockerfile }}
           platforms: ${{ needs.docker-vars.outputs.docker_platforms }}
           push: ${{ needs.docker-vars.outputs.push_docker_image == 'true' }}
+          # Assign tags based on branch or tag type for clarity
           tags: |
-            ${{ env.branch_name == 'development' && format('{0}:development{1}', env.registry_and_name, matrix.tag_suffix) || '' }}
-            ${{ env.branch_name == 'master' && format('{0}:rolling{1}', env.registry_and_name, matrix.tag_suffix) || '' }}
-            ${{ env.is_tag == 'true' && format('{0}:{1}{2}', env.registry_and_name, github.ref_name, matrix.tag_suffix) || '' }}
-            ${{ env.is_tag == 'true' && env.branch_name == 'master' && format('{0}:latest{1}', env.registry_and_name, matrix.tag_suffix) || '' }}
+            ${{ github.ref_type == 'branch' && github.ref_name == 'development' 
+                && format('{0}:development{1}', env.registry_and_name, matrix.tag_suffix) || '' }}
+
+            ${{ github.ref_type == 'branch' && github.ref_name == 'master' 
+                && format('{0}:rolling{1}', env.registry_and_name, matrix.tag_suffix) || '' }}
+
+            ${{ github.ref_type == 'tag' 
+                && format('{0}:{1}{2}', env.registry_and_name, github.ref_name, matrix.tag_suffix) || '' }}
           build-args: |
             ${{ matrix.build_args }}
+
+# TODO: Fix pushing of 'latest' and 'classic' tags.
+# env.is_tag == 'true' && env.branch_name == 'master' && format('{0}:latest{1}', env.registry_and_name, matrix.tag_suffix) || ''

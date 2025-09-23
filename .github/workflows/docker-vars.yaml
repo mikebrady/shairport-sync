@@ -1,9 +1,6 @@
 on:
   workflow_call:
     outputs:
-      shairport_sync_branch:
-        description: "The SPS branch."
-        value: ${{ jobs.docker-vars.outputs.shairport_sync_branch }}
       docker_platforms:
         description: "The docker platforms to build for."
         value: ${{ jobs.docker-vars.outputs.docker_platforms }}
@@ -19,20 +16,13 @@ jobs:
     name: Set variables required for docker build.
     runs-on: ubuntu-22.04
     env:
-      SHAIRPORT_SYNC_BRANCH: ""
       NQPTP_BRANCH: main
       PUSH_DOCKER_IMAGE: "false"
     outputs:
-      shairport_sync_branch: ${{ env.SHAIRPORT_SYNC_BRANCH }}
       nqptp_branch: ${{ env.NQPTP_BRANCH }}
       push_docker_image: ${{ env.PUSH_DOCKER_IMAGE }}
       docker_platforms: linux/386,linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64
     steps:
-      - name: Set shairport_sync_branch to branch name.
-        id: set-branch
-        run: |
-          echo "SHAIRPORT_SYNC_BRANCH=${GITHUB_REF##*/}" >> "$GITHUB_ENV"
-
       - name: Push docker image if this is a tag.
         if: github.ref_type == 'tag'
         run: |
@@ -42,13 +32,15 @@ jobs:
         if: |
           github.ref_type == 'branch' &&
           (
-            env.SHAIRPORT_SYNC_BRANCH == 'master' ||
-            env.SHAIRPORT_SYNC_BRANCH == 'development'
+            github.ref_name == 'master' ||
+            github.ref_name == 'development'
           )
         run: |
           echo "PUSH_DOCKER_IMAGE=true" >> "$GITHUB_ENV"
 
       - name: If 'development' branch, set NQPTP_BRANCH to 'development'.
-        if: env.SHAIRPORT_SYNC_BRANCH == 'development'
+        if: |
+          github.ref_type == 'branch' &&
+          github.ref_name == 'development'
         run: |
           echo "NQPTP_BRANCH=development" >> "$GITHUB_ENV"
