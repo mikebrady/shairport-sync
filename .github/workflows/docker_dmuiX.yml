@@ -1,0 +1,122 @@
+# This is an improved workflow for building and pushing Docker images.
+#
+# Key Improvements from last version:
+# 1. Sequential Jobs: The 'build-and-push' job now uses 'needs: [sync-fork]' to wait
+#    for the sync to complete, ensuring builds use the latest code.
+# 2. Correct Checkout: The 'build-and-push' job now re-checks out the branch after the
+#    sync to get the newly fetched code.
+# 3. Smarter 'if' conditions: Jobs now run only when appropriate.
+# 4. Schedule Restored: The 'schedule' trigger has been added back to automate the sync.
+
+name: Sync, Build, and Push Docker images
+
+on:
+  workflow_dispatch:
+  # Added the schedule back in to run the sync job daily
+  schedule:
+    - cron: '0 0 * * *'  # daily at midnight UTC
+  push:
+    branches:
+      - development
+      - master
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - '[0-9]+.[0-9]+.[0-9]+'
+
+env:
+  REGISTRY: ghcr.io
+  DOCKER_PLATFORMS: linux/386,linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64
+
+jobs:
+  # This job syncs the fork, but only on a schedule or manual run.
+  # It is skipped entirely for direct pushes.
+  sync-fork:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout fork repository
+        uses: actions/checkout@v4
+        with:
+          # A PAT is needed here so the subsequent push can trigger other workflows
+          # or be seen by jobs in the same workflow.
+          token: ${{ secrets.PAT_TOKEN_FOR_SYNC || secrets.GITHUB_TOKEN }}
+
+      - name: Sync master/main branch
+        uses: tgymnich/fork-sync@v2.0
+        with:
+          owner: mikebrady # Corrected upstream owner
+          base: master
+          head: master
+
+      - name: Sync development branch
+        uses: tgymnich/fork-sync@v2.0
+        with:
+          owner: mikebrady # Corrected upstream owner
+          base: development
+          head: development
+
+  # This job builds the code. It waits for sync-fork to finish if it runs.
+  build-and-push:
+    runs-on: ubuntu-latest
+    # This 'needs' directive makes this job wait for 'sync-fork'
+    needs: [sync-fork]
+    # This 'if' condition ensures the job:
+    # 1. ALWAYS runs on a 'push' event.
+    # 2. ALSO runs after a successful 'sync-fork' on schedule/dispatch.
+    if: always()
+    strategy:
+      matrix:
+        include:
+          - name: airplay2
+            dockerfile: ./docker/Dockerfile
+            suffix: ""
+          - name: classic
+            dockerfile: ./docker/classic/Dockerfile
+            suffix: "-classic"
+
+    steps:
+      - name: Checkout repository (freshly)
+        uses: actions/checkout@v4
+        with:
+          # This ensures we check out the branch HEAD after the sync job pushed to it
+          ref: ${{ github.ref_name }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=sha,format=long
+          flavor: |
+            suffix=${{ matrix.suffix }}
+            latest=${{ github.ref == 'refs/heads/master' }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ env.DOCKER_PLATFORMS }}
+          push: ${{ github.event_name != 'pull_request' }} # Don't push on PRs
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            SHAIRPORT_SYNC_BRANCH=${{ github.ref_name }}
+            NQPTP_BRANCH=${{ (github.ref_name == 'development' && 'development') || 'main' }}
