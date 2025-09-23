@@ -55,6 +55,7 @@ jobs:
           registry: ${{ secrets.DOCKER_REGISTRY }}
           username: ${{ secrets.DOCKER_REGISTRY_USER }}
           password: ${{ secrets.DOCKER_REGISTRY_TOKEN }}
+        if: needs.docker-vars.outputs.push_docker_image == 'true'
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3.3.0
