@@ -1694,7 +1694,7 @@ static inline void process_sample(int32_t sample, char **outp, sps_format_t form
   int64_t hyper_sample = sample;
   int result = 0;
 
-  if (config.loudness) {
+  if ((config.loudness != 0) && (conn->input_rate == 44100)) {
     hyper_sample <<=
         32; // Do not apply volume as it has already been done with the Loudness DSP filter
   } else {

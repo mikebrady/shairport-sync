@@ -67,7 +67,7 @@ If you are building classic Shairport Sync, the list of packages is shorter:
     libavutil-dev libavcodec-dev libavformat-dev
 ```
 
-Building on Ubuntu 24.10, and possibly other distributions, requires `systemd-dev`. It does no harm to attempt to install it -- it will simply fail if the package doesn't exist:
+Building on Ubuntu 24.10 or Debian 13 ("Trixie") and later -- and possibly on other distributions -- requires `systemd-dev`. It does no harm to attempt to install it -- the install will simply fail if the package doesn't exist:
 ```
 # apt install --no-install-recommends systemd-dev # it's okay if this fails because the package doesn't exist
 ```
@@ -216,11 +216,20 @@ $ sh user-service-install.sh
 ```
 This will run a few checks, install a user startup script and start Shairport Sync immediately. (Run `$ sh user-service-install.sh --dry-run` initially if you prefer...)
 
-#### User Service Limitations.
+##### User Service Limitations.
 1. If Shairport Sync is installed as a user service, it is activated when that user logs in and deactivated when the user logs out.
 On an unattended system, this difficulty can be overcome by using automatic user login.
 2. If your system has a GUI (that is, if it's a "desktop Linux"), then audio will only be routed to the speakers when the user is logged in through the GUI.
 
+#### Enable Shairport Sync as a System Service
+
+If your system does not have either PipeWire or PulseAudio installed (see how to check above), then you can enable Shairport Sync as a system service that starts automatically when the system boots up. To do so -- assuming you have followed the build guide successfully -- enter the following command:
+```
+# systemctl enable shairport-sync
+```
+This enables Shairport Sync to start automatically when the system boots up. Please remember, this will not work if PipeWire or PulseAudio are installed on your system.
+
+You should not enable Shairport Sync as a user service and a system service at the same time!
 
 ### FreeBSD
 To make the `shairport-sync` daemon load at startup, add the following line to `/etc/rc.conf`:

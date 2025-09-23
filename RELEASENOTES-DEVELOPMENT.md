@@ -1,6 +1,27 @@
+Version 5.0-dev-50-g10700356
+==
+**Docker Update**
+* Add an `ENABLE_AVAHI` environment variable to enable or disable `avahi` and `dbus` processes in the Docker image. The default is to enable both, an has always been the case. Thanks to [Adam Oleksy](https://github.com/admo) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2071).
+
+Version 5.0-dev-47-g03fb1d69
+===
+**Tiny Update**
+* Remove a redundant `s6-overlay` directory from the `docker` `etc` subdirectory. The directory was obsolete and wasn't copied into Docker images anyway...
+* Various Dependabot updates.
+  
+Version 5.0-dev-39-g77d0deec
+==
+**Dependabot Updates**
+* A number of deferred Dependabot-originated updates have been accepted. They all relate to (limited) automated testing and Docker image creation.
+
+Version 5.0-dev-34-ga5a54621
+==
+**Bug Fix**
+* Fixed a bug whereby the volume setting was ignored if the input was not at 44100 FPS and the loudness DSP setting was enabled. Thanks to [microfx](https://github.com/microfx) for the [report](https://github.com/mikebrady/shairport-sync/issues/2039) and for helping to track down the issue.
+
 Version 5.0-dev-25-ge05448ae
 ==
-**Bug fixes and Enhancements**
+**Bug Fixes and Enhancements**
 * A convenience script [`user-service-install.sh`](user-service-install.sh) has been added to install a `systemd` user service startup script.
   * Associated with this, a user service startup script is no longer installed at the `# make install` step in a `systemd` based Linux. This is because:
     * The user service startup script would be owned by `root` and therefore would not be editable or removable by the user,
@@ -29,6 +50,8 @@ This is a major update adding exciting new features and improvements to Shairpor
 * Many bug fixes.
 
 44.1k operation is retained.
+
+**Deprecation Note** The stand-alone ALAC decoder by John Hammerton, used in all versions of Shairport Sync until now, and Apple's own ALAC decoder, optional for Shairport Sync, are now deprecated due to maintainance and security issues. You may find it be necessary to use one of them (for classic AirPlay reception only) in devices with very restricted storage, but security considerations mean that these decoders will be fully dropped in future. 
 
 **Warning:** This is a breaking update. That means you probably can not simply update an existing installation of Shairport Sync without a little bit of work. To update correctly you must:
 * Remove the Shairport Sync device from Apple Home -- you can add it back later;

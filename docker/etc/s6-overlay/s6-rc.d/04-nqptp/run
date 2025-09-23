@@ -1,3 +1,0 @@
-#!/command/with-contenv sh
-echo "Starting nqptp"
-exec /usr/local/bin/nqptp

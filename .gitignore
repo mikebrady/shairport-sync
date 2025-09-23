@@ -29,7 +29,8 @@ scripts/shairport-sync.service-avahi
 scripts/shairport-sync
 shairport-sync.core
 gitversion-stamp
-gitversion.h
+gitversion.*
+plist_xml_strings.*
 plists/*.c
 plists/*.h
 plists/*.x

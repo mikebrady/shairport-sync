@@ -1,7 +1,0 @@
-#!/command/with-contenv sh
-
-# Set the limit to the same value Docker has been using in earlier version.
-ulimit -n 1048576
-
-echo "Starting dbus"
-exec s6-notifyoncheck  dbus-daemon --system --nofork --nopidfile
