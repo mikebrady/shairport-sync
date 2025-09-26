@@ -1,0 +1,46 @@
+on:
+  workflow_call:
+    outputs:
+      docker_platforms:
+        description: "The docker platforms to build for."
+        value: ${{ jobs.docker-vars.outputs.docker_platforms }}
+      nqptp_branch:
+        description: "The NQPTP branch."
+        value: ${{ jobs.docker-vars.outputs.nqptp_branch }}
+      push_docker_image:
+        description: "Whether to push the docker image."
+        value: ${{ jobs.docker-vars.outputs.push_docker_image }}
+
+jobs:
+  docker-vars:
+    name: Set variables required for docker build.
+    runs-on: ubuntu-22.04
+    env:
+      NQPTP_BRANCH: main
+      PUSH_DOCKER_IMAGE: "false"
+    outputs:
+      nqptp_branch: ${{ env.NQPTP_BRANCH }}
+      push_docker_image: ${{ env.PUSH_DOCKER_IMAGE }}
+      docker_platforms: linux/386,linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64
+    steps:
+      - name: Push docker image if this is a tag.
+        if: github.ref_type == 'tag'
+        run: |
+          echo "PUSH_DOCKER_IMAGE=true" >> "$GITHUB_ENV"
+
+      - name: Push docker image if this is the "master" or "development" branch.
+        if: |
+          github.ref_type == 'branch' &&
+          (
+            github.ref_name == 'master' ||
+            github.ref_name == 'development'
+          )
+        run: |
+          echo "PUSH_DOCKER_IMAGE=true" >> "$GITHUB_ENV"
+
+      - name: If 'development' branch, set NQPTP_BRANCH to 'development'.
+        if: |
+          github.ref_type == 'branch' &&
+          github.ref_name == 'development'
+        run: |
+          echo "NQPTP_BRANCH=development" >> "$GITHUB_ENV"

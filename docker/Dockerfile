@@ -9,8 +9,8 @@ RUN apk -U add build-base git nasm pkgconf
 RUN mkdir -p /ffmpeg_sources /ffmpeg_build
 WORKDIR /ffmpeg_sources
 ARG FFMPEG_BRANCH
-RUN git clone --depth=1 -b "$FFMPEG_BRANCH" https://git.ffmpeg.org/ffmpeg.git
-WORKDIR /ffmpeg_sources/ffmpeg
+RUN git clone --depth=1 -b "$FFMPEG_BRANCH" https://github.com/FFmpeg/FFmpeg
+WORKDIR /ffmpeg_sources/FFmpeg
 RUN ./configure \
   --prefix="/ffmpeg_build" \
   --extra-libs="-lpthread -lm" \
@@ -146,8 +146,9 @@ RUN apk -U add \
         mosquitto \
         popt \
         soxr \
-        curl && \
-        rm -rfv /lib/apk/db/* && \
+        curl
+
+RUN rm -rfv /lib/apk/db/* && \
         rm -rfv /etc/avahi/services/*.service && \
         rm -rf /usr/share/man && \
         addgroup shairport-sync && \
