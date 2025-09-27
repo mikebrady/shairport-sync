@@ -44,6 +44,7 @@ jobs:
       - name: Sync master/main branch
         uses: tgymnich/fork-sync@v2.0
         with:
+          repository: shairport-sync
           owner: mikebrady # Corrected upstream owner
           base: master
           head: master
@@ -51,6 +52,7 @@ jobs:
       - name: Sync development branch
         uses: tgymnich/fork-sync@v2.0
         with:
+          repository: shairport-sync
           owner: mikebrady # Corrected upstream owner
           base: development
           head: development
