@@ -70,7 +70,7 @@ jobs:
           fetch-depth: 0
 
       - name: Build and push ${{ matrix.name }}
-        uses: docker/build-push-action@v6.13.0
+        uses: docker/build-push-action@v6.18.0
         env:
           registry_and_name: ${{ secrets.DOCKER_REGISTRY }}/${{ secrets.DOCKER_IMAGE_NAME }}
         with:
