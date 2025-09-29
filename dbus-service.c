@@ -48,6 +48,7 @@
 
 ShairportSync *shairportSyncSkeleton;
 
+static GBusType dbus_bus_type = G_BUS_TYPE_SYSTEM; // default is the dbus system message bus
 int service_is_running = 0;
 
 ShairportSyncDiagnostics *shairportSyncDiagnosticsSkeleton = NULL;
@@ -549,7 +550,7 @@ gboolean notify_convolution_callback(ShairportSync *skeleton,
     config.convolver_valid =
         convolver_init(config.convolution_ir_file, config.convolution_max_length);
   } else {
-    debug(1, ">> deactivate convolution filter");
+    debug(1, ">> deactivate convolution impulse response filter");
     config.convolution = 0;
   }
   return TRUE;
@@ -584,23 +585,30 @@ gboolean notify_convolution_gain_callback(__attribute__((unused)) ShairportSync 
 }
 #endif
 #ifdef CONFIG_CONVOLUTION
-gboolean
-notify_convolution_impulse_response_file_callback(ShairportSync *skeleton,
-                                                  __attribute__((unused)) gpointer user_data) {
+gboolean notify_convolution_impulse_response_file_callback(ShairportSync *skeleton,
+                                                           __attribute__((unused))
+                                                           gpointer user_data) {
   char *th = (char *)shairport_sync_get_convolution_impulse_response_file(skeleton);
-  if (config.convolution_ir_file)
-    free(config.convolution_ir_file);
-  config.convolution_ir_file = strdup(th);
-  debug(1, ">> set configuration impulse response filter file to \"%s\".",
-        config.convolution_ir_file);
-  config.convolver_valid =
-      convolver_init(config.convolution_ir_file, config.convolution_max_length);
+  if ((config.convolution_ir_file == 0) || (config.convolver_valid == 0) ||
+      (strcmp(config.convolution_ir_file, th) != 0)) {
+    if (config.convolution_ir_file != NULL) {
+      debug(1, ">> freeing current configuration impulse response filter file \"%s\".",
+            config.convolution_ir_file);
+      free(config.convolution_ir_file);
+    }
+    config.convolution_ir_file = strdup(th);
+    debug(1, ">> set configuration impulse response filter file to \"%s\".",
+          config.convolution_ir_file);
+    config.convolver_valid =
+        convolver_init(config.convolution_ir_file, config.convolution_max_length);
+  }
   return TRUE;
 }
 #else
-gboolean
-notify_convolution_impulse_response_file_callback(__attribute__((unused)) ShairportSync *skeleton,
-                                                  __attribute__((unused)) gpointer user_data) {
+gboolean notify_convolution_impulse_response_file_callback(__attribute__((unused))
+                                                           ShairportSync *skeleton,
+                                                           __attribute__((unused))
+                                                           gpointer user_data) {
   __attribute__((unused)) char *th =
       (char *)shairport_sync_get_convolution_impulse_response_file(skeleton);
   return TRUE;
@@ -728,7 +736,7 @@ gboolean notify_alacdecoder_callback(ShairportSync *skeleton,
 gboolean notify_interpolation_callback(ShairportSync *skeleton,
                                        __attribute__((unused)) gpointer user_data) {
   char *th = (char *)shairport_sync_get_interpolation(skeleton);
-// #ifdef CONFIG_SOXR
+  // #ifdef CONFIG_SOXR
   if (strcasecmp(th, "basic") == 0)
     config.packet_stuffing = ST_basic;
 #ifdef CONFIG_SOXR
@@ -746,10 +754,12 @@ gboolean notify_interpolation_callback(ShairportSync *skeleton,
     if (strcasecmp(th, "soxr") == 0) {
       warn("Soxr interpolation is not supported in this edition of Shairport Sync.");
     } else {
-      warn("An unrecognised interpolation method: \"%s\" was requested via the D-Bus interface.", th);
+      warn("An unrecognised interpolation method: \"%s\" was requested via the D-Bus interface.",
+           th);
     }
 #endif
-    // set the shairport_sync_set_interpolation on the D-Bus interface back to what it is in the setting.
+    // set the shairport_sync_set_interpolation on the D-Bus interface back to what it is in the
+    // setting.
     switch (config.packet_stuffing) {
     case ST_basic:
       shairport_sync_set_interpolation(skeleton, "basic");
@@ -894,9 +904,11 @@ static gboolean on_handle_drop_session(ShairportSync *skeleton, GDBusMethodInvoc
   return TRUE;
 }
 
-static gboolean on_handle_set_frame_position_update_interval(
-    ShairportSync *skeleton, GDBusMethodInvocation *invocation, const gdouble seconds,
-    __attribute__((unused)) gpointer user_data) {
+static gboolean on_handle_set_frame_position_update_interval(ShairportSync *skeleton,
+                                                             GDBusMethodInvocation *invocation,
+                                                             const gdouble seconds,
+                                                             __attribute__((unused))
+                                                             gpointer user_data) {
   debug(1, ">> set frame position update interval to %.6f.", seconds);
   config.metadata_progress_interval = seconds;
   shairport_sync_complete_set_frame_position_update_interval(skeleton, invocation);
@@ -906,7 +918,8 @@ static gboolean on_handle_set_frame_position_update_interval(
 static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name,
                                   __attribute__((unused)) gpointer user_data) {
 
-  debug(2, "Shairport Sync native D-Bus interface \"%s\" acquired on the %s bus.", name, (config.dbus_service_bus_type == DBT_session) ? "session" : "system");
+  debug(2, "Shairport Sync native D-Bus interface \"%s\" acquired on the %s bus.", name,
+        (dbus_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
 
   shairportSyncSkeleton = shairport_sync_skeleton_new();
   g_dbus_interface_skeleton_export(G_DBUS_INTERFACE_SKELETON(shairportSyncSkeleton), connection,
@@ -1082,15 +1095,19 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
   }
 
   if (config.loudness == 0) {
+    debug(1, ">> loudness set to \"off\"");
     shairport_sync_set_loudness(SHAIRPORT_SYNC(shairportSyncSkeleton), FALSE);
   } else {
+    debug(1, ">> loudness set to \"on\"");
     shairport_sync_set_loudness(SHAIRPORT_SYNC(shairportSyncSkeleton), TRUE);
   }
 
 #ifdef CONFIG_CONVOLUTION
   if (config.convolution == 0) {
+    debug(1, ">> convolution set to \"off\"");
     shairport_sync_set_convolution(SHAIRPORT_SYNC(shairportSyncSkeleton), FALSE);
   } else {
+    debug(1, ">> convolution set to \"on\"");
     shairport_sync_set_convolution(SHAIRPORT_SYNC(shairportSyncSkeleton), TRUE);
   }
   if (config.convolution_ir_file)
@@ -1169,27 +1186,34 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
                                                          "Not Available");
 
   debug(1, "Shairport Sync native D-Bus service started at \"%s\" on the %s bus.", name,
-        (config.dbus_service_bus_type == DBT_session) ? "session" : "system");
+        (dbus_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
   service_is_running = 1;
 }
 
 static void on_dbus_name_lost(__attribute__((unused)) GDBusConnection *connection,
-                                    __attribute__((unused)) const gchar *name,
-                                    __attribute__((unused)) gpointer user_data) {
+                              __attribute__((unused)) const gchar *name,
+                              __attribute__((unused)) gpointer user_data) {
   warn("could not acquire a Shairport Sync native D-Bus interface \"%s\" on the %s bus.", name,
-       (config.dbus_service_bus_type == DBT_session) ? "session" : "system");
+       (dbus_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
   ownerID = 0;
 }
 
 int start_dbus_service() {
-  //  shairportSyncSkeleton = NULL;
-  GBusType dbus_bus_type = G_BUS_TYPE_SYSTEM;
-  if (config.dbus_service_bus_type == DBT_session)
+
+  // set up default message bus
+  if (config.dbus_default_message_bus == DBT_session)
     dbus_bus_type = G_BUS_TYPE_SESSION;
+
+  // look for explicit overrides
+  if (config.dbus_service_bus_type == DBT_system)
+    dbus_bus_type = G_BUS_TYPE_SYSTEM;
+  else if (config.dbus_service_bus_type == DBT_session)
+    dbus_bus_type = G_BUS_TYPE_SESSION;
+
   debug(1,
         "Looking for a Shairport Sync native D-Bus interface \"org.gnome.ShairportSync\" on the %s "
         "bus.",
-        (config.dbus_service_bus_type == DBT_session) ? "session" : "system");
+        (dbus_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
   ownerID = g_bus_own_name(dbus_bus_type, "org.gnome.ShairportSync", G_BUS_NAME_OWNER_FLAGS_NONE,
                            NULL, on_dbus_name_acquired, on_dbus_name_lost, NULL, NULL);
   debug(2, "ownerID: %d.", ownerID);
