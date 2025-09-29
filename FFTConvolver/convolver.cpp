@@ -58,7 +58,7 @@ int convolver_init(const char *filename, int max_length) {
             success = 1;
           }
           debug(1,
-                "Convolution impulse response filter initialized from \"%s\" with %d channel%s and "
+                "convolution impulse response filter initialized from \"%s\" with %d channel%s and "
                 "%d samples",
                 filename, info.channels, info.channels == 1 ? "" : "s", size);
         } else {
@@ -74,7 +74,7 @@ int convolver_init(const char *filename, int max_length) {
       sf_close(file);
     } else {
       warn("Convolution impulse response filter file \"%s\" can not be opened. Please check that "
-           "it exists and has appropriate permissions.",
+           "it exists, is a valid sound file and has appropriate access permissions.",
            filename);
     }
   }
