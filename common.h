@@ -26,9 +26,10 @@ extern "C" {
 #if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
 #include <glib.h>
 typedef enum {
-  DBT_system = 0, // use the session bus
-  DBT_session,    // use the system bus
-} dbus_session_type;
+  DBT_default = 0,
+  DBT_system,     // use the system bus
+  DBT_session,    // use the session bus
+} dbus_message_bus_t;
 #endif
 
 typedef enum {
@@ -397,12 +398,13 @@ typedef struct {
   GMainLoop *glib_worker_loop;
   // for clean quitting from a dbus interface quit request (from the DBus or MPRIS interfaces)
   int quit_requested_from_glib_mainloop; // remember that it initialised to zero.
+  dbus_message_bus_t dbus_default_message_bus;
 
 #if defined(CONFIG_DBUS_INTERFACE)
-  dbus_session_type dbus_service_bus_type;
+  dbus_message_bus_t dbus_service_bus_type;
 #endif
 #if defined(CONFIG_MPRIS_INTERFACE)
-  dbus_session_type mpris_service_bus_type;
+  dbus_message_bus_t mpris_service_bus_type;
 #endif
 
 #endif
