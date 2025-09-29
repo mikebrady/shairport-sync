@@ -1,3 +1,15 @@
+Version 5.0-dev-65-g8545938d
+==
+**Enhancement**
+* Add a new command-line argument `dbus_default_message_bus` which can be `system` or `session`. This becomes the default message bus used both by the D-Bus native service and the MPRIS service. In its absence, the default is to use the system message bus. Example of use:
+  ```
+  $ shairport-sync ... --dbus_default_message_bus=session ....
+  ```
+* Add a warning if a convolution impulse response file can not be read, e.g. due to a bad path name or a permissions error.
+
+**Bug fix**
+* If the native D-Bus interface is active and a convolution impulse response file is specified, don't open it a second time on startup. (BTW, this is not known to have caused any problems.)
+
 Version 5.0-dev-50-g10700356
 ==
 **Docker Update**
