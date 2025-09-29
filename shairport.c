@@ -347,42 +347,50 @@ int parse_options(int argc, char **argv) {
   // strings will dangle.
   char *raw_service_name = NULL; /* Used to pick up the service name before possibly expanding it */
   char *stuffing = NULL;         /* used for picking up the stuffing option */
-  signed char c;                 /* used for argument parsing */
+#if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
+  char *dbus_default_message_bus =
+      NULL; /* used for picking the "system" or "session" bus as the default */
+#endif
+  signed char c; /* used for argument parsing */
   // int i = 0;                     /* used for tracking options */
   int resync_threshold_in_frames = 0;
   int tolerance_in_frames = 0;
   poptContext optCon; /* context for parsing command-line options */
   struct poptOption optionsTable[] = {
-      {"verbose", 'v', POPT_ARG_NONE, NULL, 'v', NULL, NULL},
-      {"kill", 'k', POPT_ARG_NONE, &killOption, 0, NULL, NULL},
-      {"daemon", 'd', POPT_ARG_NONE, &daemonisewith, 0, NULL, NULL},
-      {"justDaemoniseNoPIDFile", 'j', POPT_ARG_NONE, &daemonisewithout, 0, NULL, NULL},
-      {"configfile", 'c', POPT_ARG_STRING, &config.configfile, 0, NULL, NULL},
-      {"statistics", 0, POPT_ARG_NONE, &config.statistics_requested, 0, NULL, NULL},
-      {"logOutputLevel", 0, POPT_ARG_NONE, &config.logOutputLevel, 0, NULL, NULL},
-      {"version", 'V', POPT_ARG_NONE, NULL, 0, NULL, NULL},
-      {"displayConfig", 'X', POPT_ARG_NONE, &display_config_selected, 0, NULL, NULL},
-      {"port", 'p', POPT_ARG_INT, &config.port, 0, NULL, NULL},
-      {"name", 'a', POPT_ARG_STRING, &raw_service_name, 0, NULL, NULL},
-      {"output", 'o', POPT_ARG_STRING, &config.output_name, 0, NULL, NULL},
-      {"on-start", 'B', POPT_ARG_STRING, &config.cmd_start, 0, NULL, NULL},
-      {"on-stop", 'E', POPT_ARG_STRING, &config.cmd_stop, 0, NULL, NULL},
-      {"wait-cmd", 'w', POPT_ARG_NONE, &config.cmd_blocking, 0, NULL, NULL},
-      {"mdns", 'm', POPT_ARG_STRING, &config.mdns_name, 0, NULL, NULL},
-      {"latency", 'L', POPT_ARG_INT, &config.userSuppliedLatency, 0, NULL, NULL},
-      {"stuffing", 'S', POPT_ARG_STRING, &stuffing, 'S', NULL, NULL},
-      {"resync", 'r', POPT_ARG_INT, &resync_threshold_in_frames, 'r', NULL, NULL},
-      {"timeout", 't', POPT_ARG_INT, &config.timeout, 't', NULL, NULL},
-      {"password", 0, POPT_ARG_STRING, &config.password, 0, NULL, NULL},
-      {"tolerance", 'z', POPT_ARG_INT, &tolerance_in_frames, 'z', NULL, NULL},
-      {"use-stderr", 'u', POPT_ARG_NONE, NULL, 'u', NULL, NULL},
-      {"log-to-syslog", 0, POPT_ARG_NONE, &log_to_syslog_selected, 0, NULL, NULL},
-#ifdef CONFIG_METADATA
-      {"metadata-enable", 'M', POPT_ARG_NONE, &config.metadata_enabled, 'M', NULL, NULL},
-      {"metadata-pipename", 0, POPT_ARG_STRING, &config.metadata_pipename, 0, NULL, NULL},
-      {"get-coverart", 'g', POPT_ARG_NONE, &config.get_coverart, 'g', NULL, NULL},
+    {"verbose", 'v', POPT_ARG_NONE, NULL, 'v', NULL, NULL},
+    {"kill", 'k', POPT_ARG_NONE, &killOption, 0, NULL, NULL},
+    {"daemon", 'd', POPT_ARG_NONE, &daemonisewith, 0, NULL, NULL},
+    {"justDaemoniseNoPIDFile", 'j', POPT_ARG_NONE, &daemonisewithout, 0, NULL, NULL},
+    {"configfile", 'c', POPT_ARG_STRING, &config.configfile, 0, NULL, NULL},
+    {"statistics", 0, POPT_ARG_NONE, &config.statistics_requested, 0, NULL, NULL},
+    {"logOutputLevel", 0, POPT_ARG_NONE, &config.logOutputLevel, 0, NULL, NULL},
+    {"version", 'V', POPT_ARG_NONE, NULL, 0, NULL, NULL},
+    {"displayConfig", 'X', POPT_ARG_NONE, &display_config_selected, 0, NULL, NULL},
+    {"port", 'p', POPT_ARG_INT, &config.port, 0, NULL, NULL},
+    {"name", 'a', POPT_ARG_STRING, &raw_service_name, 0, NULL, NULL},
+    {"output", 'o', POPT_ARG_STRING, &config.output_name, 0, NULL, NULL},
+    {"on-start", 'B', POPT_ARG_STRING, &config.cmd_start, 0, NULL, NULL},
+    {"on-stop", 'E', POPT_ARG_STRING, &config.cmd_stop, 0, NULL, NULL},
+    {"wait-cmd", 'w', POPT_ARG_NONE, &config.cmd_blocking, 0, NULL, NULL},
+    {"mdns", 'm', POPT_ARG_STRING, &config.mdns_name, 0, NULL, NULL},
+    {"latency", 'L', POPT_ARG_INT, &config.userSuppliedLatency, 0, NULL, NULL},
+    {"stuffing", 'S', POPT_ARG_STRING, &stuffing, 'S', NULL, NULL},
+    {"resync", 'r', POPT_ARG_INT, &resync_threshold_in_frames, 'r', NULL, NULL},
+    {"timeout", 't', POPT_ARG_INT, &config.timeout, 't', NULL, NULL},
+    {"password", 0, POPT_ARG_STRING, &config.password, 0, NULL, NULL},
+#if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
+    {"dbus-default-message-bus", 0, POPT_ARG_STRING, &dbus_default_message_bus, 0, NULL, NULL},
 #endif
-      POPT_AUTOHELP{NULL, 0, 0, NULL, 0, NULL, NULL}};
+    {"tolerance", 'z', POPT_ARG_INT, &tolerance_in_frames, 'z', NULL, NULL},
+    {"use-stderr", 'u', POPT_ARG_NONE, NULL, 'u', NULL, NULL},
+    {"log-to-syslog", 0, POPT_ARG_NONE, &log_to_syslog_selected, 0, NULL, NULL},
+#ifdef CONFIG_METADATA
+    {"metadata-enable", 'M', POPT_ARG_NONE, &config.metadata_enabled, 'M', NULL, NULL},
+    {"metadata-pipename", 0, POPT_ARG_STRING, &config.metadata_pipename, 0, NULL, NULL},
+    {"get-coverart", 'g', POPT_ARG_NONE, &config.get_coverart, 'g', NULL, NULL},
+#endif
+    POPT_AUTOHELP{NULL, 0, 0, NULL, 0, NULL, NULL}
+  };
 
   // we have to parse the command line arguments to look for a config file
   int optind;
@@ -1127,21 +1135,23 @@ int parse_options(int argc, char **argv) {
       }
 #endif
 
-      if (config_lookup_non_empty_string(config.cfg, "sessioncontrol.run_this_before_play_begins", &str)) {
+      if (config_lookup_non_empty_string(config.cfg, "sessioncontrol.run_this_before_play_begins",
+                                         &str)) {
         config.cmd_start = (char *)str;
       }
 
-      if (config_lookup_non_empty_string(config.cfg, "sessioncontrol.run_this_after_play_ends", &str)) {
+      if (config_lookup_non_empty_string(config.cfg, "sessioncontrol.run_this_after_play_ends",
+                                         &str)) {
         config.cmd_stop = (char *)str;
       }
 
-      if (config_lookup_non_empty_string(config.cfg, "sessioncontrol.run_this_before_entering_active_state",
-                               &str)) {
+      if (config_lookup_non_empty_string(
+              config.cfg, "sessioncontrol.run_this_before_entering_active_state", &str)) {
         config.cmd_active_start = (char *)str;
       }
 
-      if (config_lookup_non_empty_string(config.cfg, "sessioncontrol.run_this_after_exiting_active_state",
-                               &str)) {
+      if (config_lookup_non_empty_string(
+              config.cfg, "sessioncontrol.run_this_after_exiting_active_state", &str)) {
         config.cmd_active_stop = (char *)str;
       }
 
@@ -1154,8 +1164,8 @@ int parse_options(int argc, char **argv) {
           config.active_state_timeout = dvalue;
       }
 
-      if (config_lookup_non_empty_string(config.cfg,
-                               "sessioncontrol.run_this_if_an_unfixable_error_is_detected", &str)) {
+      if (config_lookup_non_empty_string(
+              config.cfg, "sessioncontrol.run_this_if_an_unfixable_error_is_detected", &str)) {
         config.cmd_unfixable = (char *)str;
       }
 
@@ -1270,7 +1280,8 @@ int parse_options(int argc, char **argv) {
               dvalue);
       }
 
-      if (config.loudness == 1 && config_lookup_non_empty_string(config.cfg, "alsa.mixer_control_name", &str))
+      if (config.loudness == 1 &&
+          config_lookup_non_empty_string(config.cfg, "alsa.mixer_control_name", &str))
         die("Loudness activated but hardware volume is active. You must remove "
             "\"alsa.mixer_control_name\" to use the loudness filter.");
 
@@ -1473,6 +1484,21 @@ int parse_options(int argc, char **argv) {
   }
 
   poptFreeContext(optCon);
+
+#if defined(CONFIG_DBUS_INTERFACE) || (CONFIG_MPRIS_INTERFACE)
+  // now check to see if a dbus service bus was given
+  if (dbus_default_message_bus != NULL) {
+    if (strcasecmp(dbus_default_message_bus, "system") == 0)
+      config.dbus_default_message_bus = DBT_system;
+    else if (strcasecmp(dbus_default_message_bus, "session") == 0)
+      config.dbus_default_message_bus = DBT_session;
+    else
+      die("Invalid dbus_default_message_bus option choice \"%s\". It should be \"system\" "
+          "(default) or "
+          "\"session\".",
+          str);
+  }
+#endif
 
   // here, we are finally finished reading the options
 
@@ -1886,7 +1912,7 @@ void exit_function() {
     if (config.appName)
       free(config.appName);
 
-    // probably should be freeing malloc'ed memory here, including strdup-created strings...
+      // probably should be freeing malloc'ed memory here, including strdup-created strings...
 
 #ifdef CONFIG_LIBDAEMON
     if (this_is_the_daemon_process) { // this is the daemon that is exiting
@@ -2694,7 +2720,8 @@ int main(int argc, char **argv) {
     }
   }
 
-  if ((config.cfg != NULL) && (config_lookup_non_empty_string(config.cfg, "general.mixdown", &str))) {
+  if ((config.cfg != NULL) &&
+      (config_lookup_non_empty_string(config.cfg, "general.mixdown", &str))) {
     if ((strcasecmp(str, "off") == 0) || (strcasecmp(str, "no") == 0)) {
       config.mixdown_enable = 0; // 0 on initialisation
       debug(1, "mixdown disabled.", str);
@@ -2771,7 +2798,8 @@ int main(int argc, char **argv) {
     }
   }
 
-  if ((config.cfg != NULL) && (config_lookup_non_empty_string(config.cfg, "general.mixdown", &str))) {
+  if ((config.cfg != NULL) &&
+      (config_lookup_non_empty_string(config.cfg, "general.mixdown", &str))) {
     if ((strcasecmp(str, "off") == 0) || (strcasecmp(str, "no") == 0)) {
       config.mixdown_enable = 0; // 0 on initialisation
     } else if (strcasecmp(str, "auto") == 0) {
