@@ -541,23 +541,48 @@ gboolean notify_disable_standby_callback(ShairportSync *skeleton,
 }
 
 #ifdef CONFIG_CONVOLUTION
-gboolean notify_convolution_callback(ShairportSync *skeleton,
-                                     __attribute__((unused)) gpointer user_data) {
+gboolean notify_convolution_enabled_callback(ShairportSync *skeleton,
+                                             __attribute__((unused)) gpointer user_data) {
   // debug(1, "\"notify_convolution_callback\" called.");
-  if (shairport_sync_get_convolution(skeleton)) {
-    debug(1, ">> activate convolution filter");
-    config.convolution = 1;
-    config.convolver_valid =
-        convolver_init(config.convolution_ir_file, config.convolution_max_length);
+  if (shairport_sync_get_convolution_enabled(skeleton)) {
+    debug(1, ">> activate convolution impulse response filter");
+    config.convolution_enabled = 1;
   } else {
     debug(1, ">> deactivate convolution impulse response filter");
-    config.convolution = 0;
+    config.convolution_enabled = 0;
+    convolver_clear_state();
   }
   return TRUE;
 }
 #else
-gboolean notify_convolution_callback(__attribute__((unused)) ShairportSync *skeleton,
-                                     __attribute__((unused)) gpointer user_data) {
+gboolean notify_convolution_enabled_callback(__attribute__((unused)) ShairportSync *skeleton,
+                                             __attribute__((unused)) gpointer user_data) {
+  warn(">> Convolution support is not built in to this build of Shairport Sync.");
+  return TRUE;
+}
+#endif
+
+#ifdef CONFIG_CONVOLUTION
+gboolean notify_convolution_maximum_length_in_seconds_callback(ShairportSync *skeleton,
+                                                               __attribute__((unused))
+                                                               gpointer user_data) {
+
+  gdouble th = shairport_sync_get_convolution_maximum_length_in_seconds(skeleton);
+  if ((th >= 0.0) && (th <= 15.0)) {
+    debug(1, ">> set convolution maximum length in seconds to %f.", th);
+    config.convolution_max_length_in_seconds = th;
+  } else {
+    debug(1, ">> invalid convolution gain: %f. Ignored.", th);
+    shairport_sync_set_convolution_maximum_length_in_seconds(
+        skeleton, config.convolution_max_length_in_seconds);
+  }
+  return TRUE;
+}
+#else
+gboolean notify_convolution_maximum_length_in_seconds_callback(__attribute__((unused))
+                                                               ShairportSync *skeleton,
+                                                               __attribute__((unused))
+                                                               gpointer user_data) {
   warn(">> Convolution support is not built in to this build of Shairport Sync.");
   return TRUE;
 }
@@ -568,7 +593,7 @@ gboolean notify_convolution_gain_callback(ShairportSync *skeleton,
                                           __attribute__((unused)) gpointer user_data) {
 
   gdouble th = shairport_sync_get_convolution_gain(skeleton);
-  if ((th <= 0.0) && (th >= -100.0)) {
+  if ((th <= 18.0) && (th >= -60.0)) {
     debug(1, ">> set convolution gain to %f.", th);
     config.convolution_gain = th;
   } else {
@@ -585,45 +610,43 @@ gboolean notify_convolution_gain_callback(__attribute__((unused)) ShairportSync 
 }
 #endif
 #ifdef CONFIG_CONVOLUTION
-gboolean notify_convolution_impulse_response_file_callback(ShairportSync *skeleton,
-                                                           __attribute__((unused))
-                                                           gpointer user_data) {
-  char *th = (char *)shairport_sync_get_convolution_impulse_response_file(skeleton);
-  if ((config.convolution_ir_file == 0) || (config.convolver_valid == 0) ||
-      (strcmp(config.convolution_ir_file, th) != 0)) {
-    if (config.convolution_ir_file != NULL) {
-      debug(1, ">> freeing current configuration impulse response filter file \"%s\".",
-            config.convolution_ir_file);
-      free(config.convolution_ir_file);
-    }
-    config.convolution_ir_file = strdup(th);
-    debug(1, ">> set configuration impulse response filter file to \"%s\".",
-          config.convolution_ir_file);
-    config.convolver_valid =
-        convolver_init(config.convolution_ir_file, config.convolution_max_length);
+gboolean notify_convolution_impulse_response_files_callback(ShairportSync *skeleton,
+                                                            __attribute__((unused))
+                                                            gpointer user_data) {
+  char *th = (char *)shairport_sync_get_convolution_impulse_response_files(skeleton);
+  if (config.convolution_ir_files != NULL) {
+    debug(1, ">> freeing current configuration impulse response filter files.");
+    free_ir_filenames(config.convolution_ir_files, config.convolution_ir_file_count);
+    config.convolution_ir_files = NULL;
+    config.convolution_ir_file_count = 0;
   }
+  config.convolution_ir_files = parse_ir_filenames(th, &config.convolution_ir_file_count);
+  sanity_check_ir_files(1, config.convolution_ir_files, config.convolution_ir_file_count);
+  debug(1, ">> setting %d configuration impulse response filter%s",
+        config.convolution_ir_file_count, config.convolution_ir_file_count == 1 ? "" : "s");
+  config.convolution_ir_files_updated = 1;
   return TRUE;
 }
 #else
-gboolean notify_convolution_impulse_response_file_callback(__attribute__((unused))
-                                                           ShairportSync *skeleton,
-                                                           __attribute__((unused))
-                                                           gpointer user_data) {
+gboolean notify_convolution_impulse_response_files_callback(__attribute__((unused))
+                                                            ShairportSync *skeleton,
+                                                            __attribute__((unused))
+                                                            gpointer user_data) {
   __attribute__((unused)) char *th =
       (char *)shairport_sync_get_convolution_impulse_response_file(skeleton);
   return TRUE;
 }
 #endif
 
-gboolean notify_loudness_callback(ShairportSync *skeleton,
-                                  __attribute__((unused)) gpointer user_data) {
+gboolean notify_loudness_enabled_callback(ShairportSync *skeleton,
+                                          __attribute__((unused)) gpointer user_data) {
   // debug(1, "\"notify_loudness_callback\" called.");
-  if (shairport_sync_get_loudness(skeleton)) {
+  if (shairport_sync_get_loudness_enabled(skeleton)) {
     debug(1, ">> activate loudness filter");
-    config.loudness = 1;
+    config.loudness_enabled = 1;
   } else {
     debug(1, ">> deactivate loudness filter");
-    config.loudness = 0;
+    config.loudness_enabled = 0;
   }
   return TRUE;
 }
@@ -917,7 +940,7 @@ static gboolean on_handle_set_frame_position_update_interval(ShairportSync *skel
 
 static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name,
                                   __attribute__((unused)) gpointer user_data) {
-
+  const char *str = NULL;
   debug(2, "Shairport Sync native D-Bus interface \"%s\" acquired on the %s bus.", name,
         (dbus_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
 
@@ -950,14 +973,16 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
                    G_CALLBACK(notify_volume_control_profile_callback), NULL);
   g_signal_connect(shairportSyncSkeleton, "notify::disable-standby",
                    G_CALLBACK(notify_disable_standby_callback), NULL);
-  g_signal_connect(shairportSyncSkeleton, "notify::convolution",
-                   G_CALLBACK(notify_convolution_callback), NULL);
+  g_signal_connect(shairportSyncSkeleton, "notify::convolution-enabled",
+                   G_CALLBACK(notify_convolution_enabled_callback), NULL);
   g_signal_connect(shairportSyncSkeleton, "notify::convolution-gain",
                    G_CALLBACK(notify_convolution_gain_callback), NULL);
-  g_signal_connect(shairportSyncSkeleton, "notify::convolution-impulse-response-file",
-                   G_CALLBACK(notify_convolution_impulse_response_file_callback), NULL);
-  g_signal_connect(shairportSyncSkeleton, "notify::loudness", G_CALLBACK(notify_loudness_callback),
-                   NULL);
+  g_signal_connect(shairportSyncSkeleton, "notify::convolution-maximum-length-in-seconds",
+                   G_CALLBACK(notify_convolution_maximum_length_in_seconds_callback), NULL);
+  g_signal_connect(shairportSyncSkeleton, "notify::convolution-impulse-response-files",
+                   G_CALLBACK(notify_convolution_impulse_response_files_callback), NULL);
+  g_signal_connect(shairportSyncSkeleton, "notify::loudness-enabled",
+                   G_CALLBACK(notify_loudness_enabled_callback), NULL);
   g_signal_connect(shairportSyncSkeleton, "notify::loudness-threshold",
                    G_CALLBACK(notify_loudness_threshold_callback), NULL);
   g_signal_connect(shairportSyncSkeleton, "notify::drift-tolerance",
@@ -1094,28 +1119,33 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
     shairport_sync_set_disable_standby(SHAIRPORT_SYNC(shairportSyncSkeleton), TRUE);
   }
 
-  if (config.loudness == 0) {
-    debug(1, ">> loudness set to \"off\"");
-    shairport_sync_set_loudness(SHAIRPORT_SYNC(shairportSyncSkeleton), FALSE);
+  if (config.loudness_enabled == 0) {
+    debug(1, ">> loudness_enabled is false");
+    shairport_sync_set_loudness_enabled(SHAIRPORT_SYNC(shairportSyncSkeleton), FALSE);
   } else {
-    debug(1, ">> loudness set to \"on\"");
-    shairport_sync_set_loudness(SHAIRPORT_SYNC(shairportSyncSkeleton), TRUE);
+    debug(1, ">> loudness_enabled is true");
+    shairport_sync_set_loudness_enabled(SHAIRPORT_SYNC(shairportSyncSkeleton), TRUE);
   }
 
 #ifdef CONFIG_CONVOLUTION
-  if (config.convolution == 0) {
-    debug(1, ">> convolution set to \"off\"");
-    shairport_sync_set_convolution(SHAIRPORT_SYNC(shairportSyncSkeleton), FALSE);
+  if (config.convolution_enabled == 0) {
+    debug(1, ">> convolution_enabled is false");
+    shairport_sync_set_convolution_enabled(SHAIRPORT_SYNC(shairportSyncSkeleton), FALSE);
   } else {
-    debug(1, ">> convolution set to \"on\"");
-    shairport_sync_set_convolution(SHAIRPORT_SYNC(shairportSyncSkeleton), TRUE);
+    debug(1, ">> convolution_enabled is true");
+    shairport_sync_set_convolution_enabled(SHAIRPORT_SYNC(shairportSyncSkeleton), TRUE);
   }
-  if (config.convolution_ir_file)
-    shairport_sync_set_convolution_impulse_response_file(SHAIRPORT_SYNC(shairportSyncSkeleton),
-                                                         config.convolution_ir_file);
-//  else
-//    shairport_sync_set_convolution_impulse_response_file(SHAIRPORT_SYNC(shairportSyncSkeleton),
-//    NULL);
+
+  if ((config.cfg != NULL) &&
+      (config_lookup_non_empty_string(config.cfg, "dsp.convolution_ir_files", &str))) {
+    shairport_sync_set_convolution_impulse_response_files(SHAIRPORT_SYNC(shairportSyncSkeleton),
+                                                          str);
+  } else {
+    shairport_sync_set_convolution_impulse_response_files(SHAIRPORT_SYNC(shairportSyncSkeleton),
+                                                          NULL);
+  }
+  shairport_sync_set_convolution_maximum_length_in_seconds(
+      SHAIRPORT_SYNC(shairportSyncSkeleton), config.convolution_max_length_in_seconds);
 #endif
 
   shairport_sync_set_service_name(SHAIRPORT_SYNC(shairportSyncSkeleton), config.service_name);

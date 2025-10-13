@@ -124,7 +124,7 @@ shairport_sync_SOURCES += audio_pw.c
 endif
 
 if USE_CONVOLUTION
-shairport_sync_SOURCES += FFTConvolver/AudioFFT.cpp FFTConvolver/FFTConvolver.cpp FFTConvolver/Utilities.cpp FFTConvolver/convolver.cpp
+shairport_sync_SOURCES += FFTConvolver/AudioFFT.cpp FFTConvolver/FFTConvolver.cpp FFTConvolver/Utilities.cpp FFTConvolver/convolver.cpp FFTConvolver/ConvolverThreadPool.cpp
 AM_CXXFLAGS += -std=c++11
 endif
 

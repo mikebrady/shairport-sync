@@ -99,6 +99,11 @@
 #endif
 #endif
 
+#ifdef CONFIG_CONVOLUTION
+#include "FFTConvolver/convolver.h"
+#endif
+
+
 #ifdef CONFIG_DBUS_INTERFACE
 #include "dbus-service.h"
 #endif
@@ -2016,6 +2021,10 @@ void handle_setrateanchori(rtsp_conn_info *conn, rtsp_message *req, rtsp_message
         debug(2, "Connection %d: SETRATEANCHORI Pause playing.", conn->connection_number);
         conn->ap2_play_enabled = 0;
         activity_monitor_signify_activity(0);
+#ifdef CONFIG_CONVOLUTION
+        // convolver_clear_state();
+#endif
+
         // reset_anchor_info(conn);
 #ifdef CONFIG_METADATA
         send_ssnc_metadata('paus', NULL, 0, 1); // pause -- contains cancellation points

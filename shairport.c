@@ -155,20 +155,36 @@ void print_version(void) {
 
 #ifdef CONFIG_AIRPLAY_2
 int has_fltp_capable_aac_decoder(void) {
-
   // return 1 if the AAC decoder advertises fltp decoding capability, which
   // is needed for decoding Buffered Audio streams
+  debug(3, "checking availability of an  fltp-capable aac decoder");
   int has_capability = 0;
   const AVCodec *codec = avcodec_find_decoder(AV_CODEC_ID_AAC);
   if (codec != NULL) {
-    const enum AVSampleFormat *p = codec->sample_fmts;
-    if (p != NULL) {
-      while ((has_capability == 0) && (*p != AV_SAMPLE_FMT_NONE)) {
-        if (*p == AV_SAMPLE_FMT_FLTP)
+    const enum AVSampleFormat *formats = NULL;
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(61, 13, 100)
+    // New API (FFmpeg 7.1+) for getting formats
+    debug(3, "getting sample formats the new way");
+    int format_count = 0;
+    if ((avcodec_get_supported_config(NULL, codec, AV_CODEC_CONFIG_SAMPLE_FORMAT, 0,
+                                      (const void **)&formats, &format_count) < 0) ||
+        (format_count == 0))
+      formats = NULL; // not clear if the returned pointer is nulled on error or on zero items
+#else
+    debug(3, "getting sample formats the old way");
+    // older API
+    formats = codec->sample_fmts;
+#endif
+    if (formats != NULL) {
+      while ((has_capability == 0) && (*formats != AV_SAMPLE_FMT_NONE)) {
+        if (*formats == AV_SAMPLE_FMT_FLTP) {
           has_capability = 1;
-        p++;
+        }
+        formats++;
       }
     }
+  } else {
+    debug(3, "no AAC codec found.");
   }
   return has_capability;
 }
@@ -541,9 +557,12 @@ int parse_options(int argc, char **argv) {
 #endif
 
 #ifdef CONFIG_CONVOLUTION
-  config.convolution_max_length = 8192;
+  config.convolution_max_length_in_seconds = 1.0;
+  config.convolution_gain = -4.0;
+  config.convolution_threads = 1; // This is to merely to minimise potential power supply noise some
+                                  // CPUs make switching cores on and off. E.g. Pi 3.
 #endif
-  config.loudness_reference_volume_db = -20;
+  config.loudness_reference_volume_db = -16;
 
 #ifdef CONFIG_METADATA_HUB
   config.cover_art_cache_dir = "/tmp/shairport-sync/.cache/coverart";
@@ -637,7 +656,7 @@ int parse_options(int argc, char **argv) {
 #endif
 
   // config_setting_t *setting;
-  const char *str = 0;
+  const char *str = NULL;
   int value = 0;
   double dvalue = 0.0;
 
@@ -649,7 +668,7 @@ int parse_options(int argc, char **argv) {
   if (config_file_real_path == NULL) {
     debug(2, "can't resolve the configuration file \"%s\".", config.configfile);
   } else {
-    debug(2, "looking for configuration file at full path \"%s\"", config_file_real_path);
+    debug(1, "looking for configuration file at full path \"%s\"", config_file_real_path);
     /* Read the file. If there is an error, report it and exit. */
     if (config_read_file(&config_file_stuff, config_file_real_path)) {
       config_set_auto_convert(&config_file_stuff,
@@ -1222,54 +1241,93 @@ int parse_options(int argc, char **argv) {
       }
 
 #ifdef CONFIG_CONVOLUTION
+
       if (config_lookup_string(config.cfg, "dsp.convolution", &str)) {
         if (strcasecmp(str, "no") == 0)
-          config.convolution = 0;
+          config.convolution_enabled = 0;
         else if (strcasecmp(str, "yes") == 0) {
-          config.convolution = 1;
-#ifdef CONFIG_AIRPLAY_2
-          inform("Note that convolution currently only works on audio received at 44,100 frames "
-                 "per second.");
-#endif
+          config.convolution_enabled = 1;
+        }
+        warn("the \"dsp\" \"convolution\" setting is deprecated and will be removed due to its "
+             "potential ambiguity. Please use \"convolution_enabled\" instead.");
+      }
+
+      if (config_lookup_string(config.cfg, "dsp.convolution_enabled", &str)) {
+        if (strcasecmp(str, "no") == 0)
+          config.convolution_enabled = 0;
+        else if (strcasecmp(str, "yes") == 0) {
+          config.convolution_enabled = 1;
         } else
-          die("Invalid dsp.convolution setting \"%s\". It should be \"yes\" or \"no\"", str);
+          die("Invalid dsp.convolution_enabled setting \"%s\". It should be \"yes\" or \"no\"",
+              str);
+      }
+
+      if (config_lookup_int(config.cfg, "dsp.convolution_thread_pool_size", &value)) {
+        if ((value >= 1) && (value <= 64)) {
+          config.convolution_threads = value;
+        } else {
+          warn("Invalid value \"%u\" for \"convolution_thread_pool_size\". It must be between 1 and 64."
+               "The default of %u will be used instead.",
+               value, config.convolution_threads);
+        }
       }
 
       if (config_lookup_float(config.cfg, "dsp.convolution_gain", &dvalue)) {
         config.convolution_gain = dvalue;
-        if (dvalue > 10 || dvalue < -50)
-          die("Invalid value \"%f\" for dsp.convolution_gain. It should be between -50 and +10 dB",
+        if (dvalue > 18 || dvalue < -60)
+          die("Invalid value \"%f\" for dsp.convolution_gain. It should be between -60 and +18 dB",
               dvalue);
       }
 
       if (config_lookup_int(config.cfg, "dsp.convolution_max_length", &value)) {
-        config.convolution_max_length = value;
-
+        config.convolution_max_length_in_seconds = (double)value / 44100;
+        warn("the \"dsp\" \"convolution_max_length\" setting is deprecated, as it assumes a fixed "
+             "sample rate of 44,100. It will be removed. "
+             "Please use convolution_max_length_in_seconds instead.");
         if (value < 1 || value > 200000)
           die("dsp.convolution_max_length must be within 1 and 200000");
       }
 
-      if (config_lookup_non_empty_string(config.cfg, "dsp.convolution_ir_file", &str)) {
-        config.convolution_ir_file = strdup(str);
-        config.convolver_valid =
-            convolver_init(config.convolution_ir_file, config.convolution_max_length);
+      if (config_lookup_float(config.cfg, "dsp.convolution_max_length_in_seconds", &dvalue)) {
+
+        if (dvalue > 20 || dvalue < 0) {
+          warn("Invalid value \"%f\" for dsp.convolution_max_length_in_seconds -- ignored. It "
+               "should be between 0 and 20. It is set to %f.1.",
+               dvalue, config.convolution_max_length_in_seconds);
+        } else {
+          config.convolution_max_length_in_seconds = dvalue;
+        }
       }
 
-      if (config.convolution && config.convolution_ir_file == NULL) {
-        warn("Convolution enabled but no convolution_ir_file provided");
+      if (config_lookup_non_empty_string(config.cfg, "dsp.convolution_ir_file", &str)) {
+        warn(
+            "the \"dsp\" \"convolution_ir_file\" setting is deprecated and will be removed. Please "
+            "use \"convolution_ir_files\" instead, which allows multiple comma-separated files.");
+        config.convolution_ir_files = parse_ir_filenames(str, &config.convolution_ir_file_count);
+      }
+
+      if (config_lookup_non_empty_string(config.cfg, "dsp.convolution_ir_files", &str)) {
+        config.convolution_ir_files = parse_ir_filenames(str, &config.convolution_ir_file_count);
       }
 #endif
+
       if (config_lookup_string(config.cfg, "dsp.loudness", &str)) {
         if (strcasecmp(str, "no") == 0)
-          config.loudness = 0;
+          config.loudness_enabled = 0;
         else if (strcasecmp(str, "yes") == 0) {
-          config.loudness = 1;
-#ifdef CONFIG_AIRPLAY_2
-          inform("Note that the loudness filter currently only works on audio received at 44,100 "
-                 "frames per second.");
-#endif
+          config.loudness_enabled = 1;
+        }
+        warn("the \"dsp\" \"loudness\" setting is deprecated and will be removed due to its "
+             "potential ambiguity. Please use \"loudness_enabled\" instead.");
+      }
+
+      if (config_lookup_string(config.cfg, "dsp.loudness_enabled", &str)) {
+        if (strcasecmp(str, "no") == 0)
+          config.loudness_enabled = 0;
+        else if (strcasecmp(str, "yes") == 0) {
+          config.loudness_enabled = 1;
         } else
-          die("Invalid dsp.loudness \"%s\". It should be \"yes\" or \"no\"", str);
+          die("Invalid dsp.loudness_enabled \"%s\". It should be \"yes\" or \"no\"", str);
       }
 
       if (config_lookup_float(config.cfg, "dsp.loudness_reference_volume_db", &dvalue)) {
@@ -1280,10 +1338,11 @@ int parse_options(int argc, char **argv) {
               dvalue);
       }
 
-      if (config.loudness == 1 &&
+      if (config.loudness_enabled == 1 &&
           config_lookup_non_empty_string(config.cfg, "alsa.mixer_control_name", &str))
-        die("Loudness activated but hardware volume is active. You must remove "
-            "\"alsa.mixer_control_name\" to use the loudness filter.");
+        die("The loudness filter is activated but cannot be used because the volume is being "
+            "controlled by a hardware mixer. "
+            "You must not use a hardware mixer when using the loudness filter.");
 
     } else {
       if (config_error_type(&config_file_stuff) == CONFIG_ERR_FILE_IO)
@@ -1860,8 +1919,12 @@ void exit_function() {
 #endif
 
 #ifdef CONFIG_CONVOLUTION
-      if (config.convolution_ir_file)
-        free(config.convolution_ir_file);
+      if (config.convolution_ir_files) {
+        free_ir_filenames(config.convolution_ir_files, config.convolution_ir_file_count);
+        config.convolution_ir_files = NULL;
+        config.convolution_ir_file_count = 0;
+      }
+      convolver_pool_closedown();
 #endif
 
       if (config.regtype)
@@ -3056,12 +3119,16 @@ int main(int argc, char **argv) {
 #endif
 
 #ifdef CONFIG_CONVOLUTION
-  debug(option_print_level, "convolution is %d.", config.convolution);
-  debug(option_print_level, "convolution IR file is \"%s\"", config.convolution_ir_file);
-  debug(option_print_level, "convolution max length %d", config.convolution_max_length);
+  debug(option_print_level, "convolution_enabled is %s.",
+        config.convolution_enabled != 0 ? "true" : "false");
+  debug(option_print_level, "convolution maximum length is %f seconds.",
+        config.convolution_max_length_in_seconds);
   debug(option_print_level, "convolution gain is %f", config.convolution_gain);
+  sanity_check_ir_files(option_print_level, config.convolution_ir_files,
+                        config.convolution_ir_file_count);
 #endif
-  debug(option_print_level, "loudness is %d.", config.loudness);
+  debug(option_print_level, "loudness_enabled is %s.",
+        config.loudness_enabled != 0 ? "true" : "false");
   debug(option_print_level, "loudness reference level is %f", config.loudness_reference_volume_db);
 
 #ifdef CONFIG_SOXR
@@ -3234,6 +3301,9 @@ int main(int argc, char **argv) {
   send_ssnc_metadata('svna', config.service_name, strlen(config.service_name), 1);
 #endif
 
+#ifdef CONFIG_CONVOLUTION
+  convolver_pool_init(config.convolution_threads, 8); // 8 channels
+#endif
   activity_monitor_start();
   debug(3, "create an RTSP listener");
   named_pthread_create(&rtsp_listener_thread, NULL, &rtsp_listen_loop, NULL, "bonjour");

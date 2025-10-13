@@ -45,6 +45,7 @@
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
+
 #ifdef CONFIG_AIRPLAY_2
 // #include "plist_xml_strings.h"
 #include "ptp-utilities.h"
@@ -55,6 +56,11 @@
 #include <libswresample/swresample.h>
 #include <sodium.h>
 #endif
+
+#ifdef CONFIG_CONVOLUTION
+#include "FFTConvolver/convolver.h"
+#endif
+
 
 struct Nvll {
   char *name;
@@ -2484,6 +2490,9 @@ void *rtp_buffered_audio_processor(void *arg) {
       //     0; // This may be set to 1 by a flush, so don't zero it during start.
       packets_played_in_this_sequence = 0;
       new_buffer_needed = 0;
+#ifdef CONFIG_CONVOLUTION
+      convolver_clear_state();
+#endif
     }
 
     if ((play_enabled == 0) && (conn->ap2_play_enabled != 0)) {

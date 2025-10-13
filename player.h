@@ -345,6 +345,8 @@ typedef struct {
   uint32_t flush_rtp_timestamp;
   uint64_t time_of_last_audio_packet;
   seq_t ab_read, ab_write;
+  
+  int do_loudness; // if loudness is requested and there is no external mixer
 
 #ifdef CONFIG_MBEDTLS
   mbedtls_aes_context dctx;

@@ -23,12 +23,22 @@ extern "C" {
 #define SAFAMILY sa_family
 #endif
 
+#if defined(CONFIG_CONVOLUTION)
+typedef enum { ev_unchecked, ev_okay, ev_invalid } ir_file_evaluation;
+
+typedef struct {
+  unsigned int samplerate; // initialized to 0, will be filter frame rate
+  unsigned int channels;
+  char *filename; // the parsed filename
+} ir_file_info_t;
+#endif
+
 #if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
 #include <glib.h>
 typedef enum {
   DBT_default = 0,
-  DBT_system,     // use the system bus
-  DBT_session,    // use the session bus
+  DBT_system,  // use the system bus
+  DBT_session, // use the session bus
 } dbus_message_bus_t;
 #endif
 
@@ -320,14 +330,24 @@ typedef struct {
   uint32_t channel_set;
 
 #ifdef CONFIG_CONVOLUTION
-  int convolution;
-  int convolver_valid;
-  char *convolution_ir_file;
+  int convolution_enabled;
+  unsigned int convolution_rate; // 0 means the convolver has never been initialised, so ignore
+                                 // convolver_valid.
+  // but if this is the same as the current rate and convolver_valid is false, it means that an
+  // attempt to initialise the convolver has failed.
+  size_t convolution_block_size;
+  unsigned int convolution_ir_file_count;
+  ir_file_info_t *convolution_ir_files; // NULL or an array of information about all the impulse
+                                        // response files loaded
+  int convolution_ir_files_updated; // set to true if the convolution_ir_files are changed. Cleared
+                                    // when the convolver has been initialised
+  int convolver_valid;              // set to true if the convolver can be initialised
+  unsigned int convolution_threads; // number of threads in the convolver thread pool
   float convolution_gain;
-  int convolution_max_length;
+  double convolution_max_length_in_seconds;
 #endif
 
-  int loudness;
+  int loudness_enabled;
   float loudness_reference_volume_db;
   int alsa_use_hardware_mute;
   double alsa_maximum_stall_time;
@@ -537,7 +557,7 @@ extern int type_of_exit_cleanup; // normal, emergency, dbus requested...
 
 extern uint64_t minimum_dac_queue_size;
 
-int config_lookup_non_empty_string(const config_t * the_config, const char * path, const char ** value);
+int config_lookup_non_empty_string(const config_t *cfg, const char *path, const char **value);
 int config_set_lookup_bool(config_t *cfg, char *where, int *dst);
 int check_string_or_list_setting(config_setting_t *setting, const char *item);
 int check_int_or_list_setting(config_setting_t *setting, const int item);
@@ -644,6 +664,24 @@ void *memdup(const void *mem, size_t size);
 int get_device_id(uint8_t *id, int int_length);
 
 char *bnprintf(char *buffer, ssize_t max_bytes, const char *format, ...);
+
+#ifdef CONFIG_CONVOLUTION
+
+/* Parse comma-separated filenames with optional quotes from the input string
+ * Returns array of ir_file_info_t structs (caller must free both array and filenames)
+ * count is set to number of filenames found
+ * Returns NULL on error
+ */
+ir_file_info_t *parse_ir_filenames(const char *input, unsigned int *file_count);
+// Access: files[i].filename, files[i].rate, files[i].evaluation
+
+/* Do a quick sanity check on the files -- see if they can be opened as sound files */
+void sanity_check_ir_files(const int option_print_level, ir_file_info_t *files, unsigned int count);
+
+/* Free the array returned by parse_filenames */
+void free_ir_filenames(ir_file_info_t *files, unsigned int file_count);
+
+#endif
 
 #ifdef CONFIG_USE_GIT_VERSION_STRING
 extern char git_version_string[];

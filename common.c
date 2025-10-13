@@ -72,6 +72,11 @@
 #include <netinet/in.h>
 #endif
 
+#ifdef CONFIG_CONVOLUTION
+#include <ctype.h>
+#include <sndfile.h>
+#endif
+
 #ifdef CONFIG_OPENSSL
 #include <openssl/aes.h> // needed for older AES stuff
 #include <openssl/bio.h> // needed for BIO_new_mem_buf
@@ -1216,9 +1221,8 @@ uint8_t *rsa_apply(uint8_t *input, int inlen, int *outlen, int mode) {
 }
 #endif
 
-
-int config_lookup_non_empty_string(const config_t * the_config, const char * path, const char ** value) {
-  int response = config_lookup_string(the_config, path, value);
+int config_lookup_non_empty_string(const config_t *cfg, const char *path, const char **value) {
+  int response = config_lookup_string(cfg, path, value);
   if (response == CONFIG_TRUE) {
     if ((value != NULL) && ((*value == NULL) || (*value[0] == 0))) {
       warn("The \"%s\" parameter is an empty string and has been ignored.", path);
@@ -2650,3 +2654,221 @@ int named_pthread_create_with_priority(pthread_t *thread, int priority,
 #endif
   return ret;
 }
+
+#ifdef CONFIG_CONVOLUTION
+/* Parse comma-separated filenames with optional quotes
+ * Returns array of ir_file_info_t structs (caller must free both array and filenames)
+ * count is set to number of filenames found
+ * Returns NULL on error
+ */
+ir_file_info_t *parse_ir_filenames(const char *input, unsigned int *file_count) {
+  if (!input || !file_count)
+    return NULL;
+
+  *file_count = 0;
+  unsigned int capacity = 10;
+  ir_file_info_t *files = malloc(capacity * sizeof(ir_file_info_t));
+  if (!files)
+    return NULL;
+
+  const char *p = input;
+
+  while (*p) {
+    /* Skip whitespace before filename */
+    while (isspace((unsigned char)*p))
+      p++;
+    if (!*p)
+      break;
+
+    /* Check if we need to resize array */
+    if (*file_count >= capacity) {
+      capacity *= 2;
+      ir_file_info_t *temp = realloc(files, capacity * sizeof(ir_file_info_t));
+      if (!temp) {
+        for (unsigned int i = 0; i < *file_count; i++)
+          free(files[i].filename);
+        free(files);
+        return NULL;
+      }
+      files = temp;
+    }
+
+    /* Parse one filename */
+    char quote_char = 0;
+    char *buffer = NULL;
+    size_t buf_len = 0;
+    size_t buf_cap = 64;
+
+    if (*p == '"' || *p == '\'') {
+      /* Quoted filename */
+      quote_char = *p;
+      p++;
+
+      buffer = malloc(buf_cap);
+      if (!buffer) {
+        for (unsigned int i = 0; i < *file_count; i++)
+          free(files[i].filename);
+        free(files);
+        return NULL;
+      }
+
+      /* Parse quoted string with escape handling */
+      while (*p && *p != quote_char) {
+        if (*p == '\\' && *(p + 1)) {
+          /* Escape sequence */
+          p++;
+          if (buf_len >= buf_cap - 1) {
+            buf_cap *= 2;
+            char *temp = realloc(buffer, buf_cap);
+            if (!temp) {
+              free(buffer);
+              for (unsigned int i = 0; i < *file_count; i++)
+                free(files[i].filename);
+              free(files);
+              return NULL;
+            }
+            buffer = temp;
+          }
+          buffer[buf_len++] = *p++;
+        } else {
+          if (buf_len >= buf_cap - 1) {
+            buf_cap *= 2;
+            char *temp = realloc(buffer, buf_cap);
+            if (!temp) {
+              free(buffer);
+              for (unsigned int i = 0; i < *file_count; i++)
+                free(files[i].filename);
+              free(files);
+              return NULL;
+            }
+            buffer = temp;
+          }
+          buffer[buf_len++] = *p++;
+        }
+      }
+      buffer[buf_len] = '\0';
+      if (*p == quote_char)
+        p++; /* Skip closing quote */
+
+      files[*file_count].samplerate = 0;
+      // files[*file_count].evaluation = ev_unchecked;
+      files[*file_count].filename = buffer;
+      (*file_count)++;
+    } else {
+      /* Unquoted filename - read until comma or end, handle escapes */
+      buffer = malloc(buf_cap);
+      if (!buffer) {
+        for (unsigned int i = 0; i < *file_count; i++)
+          free(files[i].filename);
+        free(files);
+        return NULL;
+      }
+
+      while (*p && *p != ',') {
+        if (*p == '\\' && *(p + 1)) {
+          /* Escape sequence */
+          p++;
+          if (buf_len >= buf_cap - 1) {
+            buf_cap *= 2;
+            char *temp = realloc(buffer, buf_cap);
+            if (!temp) {
+              free(buffer);
+              for (unsigned int i = 0; i < *file_count; i++)
+                free(files[i].filename);
+              free(files);
+              return NULL;
+            }
+            buffer = temp;
+          }
+          buffer[buf_len++] = *p++;
+        } else {
+          if (buf_len >= buf_cap - 1) {
+            buf_cap *= 2;
+            char *temp = realloc(buffer, buf_cap);
+            if (!temp) {
+              free(buffer);
+              for (unsigned int i = 0; i < *file_count; i++)
+                free(files[i].filename);
+              free(files);
+              return NULL;
+            }
+            buffer = temp;
+          }
+          buffer[buf_len++] = *p++;
+        }
+      }
+
+      /* Trim trailing whitespace */
+      while (buf_len > 0 && isspace((unsigned char)buffer[buf_len - 1])) {
+        buf_len--;
+      }
+      buffer[buf_len] = '\0';
+
+      files[*file_count].samplerate = 0;
+      files[*file_count].channels = 0;
+      // files[*file_count].evaluation = ev_unchecked;
+      files[*file_count].filename = buffer;
+      (*file_count)++;
+    }
+
+    /* Skip comma and whitespace */
+    while (isspace((unsigned char)*p))
+      p++;
+    if (*p == ',') {
+      p++;
+      while (isspace((unsigned char)*p))
+        p++;
+    }
+  }
+
+  return files;
+}
+
+/* Do a quick sanity check on the files -- see if they can be opened as sound files */
+void sanity_check_ir_files(const int option_print_level, ir_file_info_t *files,
+                           unsigned int count) {
+  if (files != NULL) {
+    debug(option_print_level, "convolution impulse response files: %d found.", count);
+    for (unsigned int i = 0; i < count; i++) {
+
+      SF_INFO sfinfo = {};
+      // sfinfo.format = 0;
+      
+      SNDFILE *file = sf_open(files[i].filename, SFM_READ, &sfinfo);
+      if (file) {
+        // files[i].evaluation = ev_okay;
+        files[i].samplerate = sfinfo.samplerate;
+        files[i].channels = sfinfo.channels;
+        debug(
+            option_print_level,
+            "convolution impulse response file \"%s\": %" PRId64 " frames (%.1f seconds), %d channel%s at %d frames per second.",
+            files[i].filename,
+            sfinfo.frames,
+            (float) sfinfo.frames / sfinfo.samplerate,
+            sfinfo.channels,
+            sfinfo.channels == 1 ? "" : "s",
+            sfinfo.samplerate);
+        sf_close(file);
+      } else {
+        // files[i].evaluation = ev_invalid;
+        debug(option_print_level, "convolution impulse response file \"%s\" %s", files[i].filename,
+              sf_strerror(NULL));
+        warn("Error accessing the convolution impulse response file \"%s\". %s", files[i].filename,
+             sf_strerror(NULL));
+      }
+    }
+  } else {
+    debug(option_print_level, "no convolution impulse response files found.");
+  }
+}
+
+/* Free the array returned by parse_filenames */
+void free_ir_filenames(ir_file_info_t *files, unsigned int file_count) {
+  if (!files)
+    return;
+  for (unsigned int i = 0; i < file_count; i++) {
+    free(files[i].filename);
+  }
+  free(files);
+}
+#endif

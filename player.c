@@ -737,7 +737,7 @@ int setup_software_resampler(rtsp_conn_info *conn, ssrc_t ssrc) {
 
 #if LIBAVUTIL_VERSION_MAJOR >= 57
 
-    AVChannelLayout output_channel_layout;
+    AVChannelLayout output_channel_layout = {0};
     av_opt_get_chlayout(swr, "out_chlayout", 0, &output_channel_layout);
     conn->resampler_output_channels = output_channel_layout.nb_channels;
     for (c = 0; c < 64; c++) {
@@ -1694,7 +1694,7 @@ static inline void process_sample(int32_t sample, char **outp, sps_format_t form
   int64_t hyper_sample = sample;
   int result = 0;
 
-  if ((config.loudness != 0) && (conn->input_rate == 44100)) {
+  if (conn->do_loudness != 0) {
     hyper_sample <<=
         32; // Do not apply volume as it has already been done with the Loudness DSP filter
   } else {
@@ -2241,6 +2241,8 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
                 // we need to set up the output device to correspond to
                 // the input format w.r.t. rate, depth and channels
                 // because we'll be sending silence before the first real frame.
+                debug(3, "reset loudness filters.");
+                loudness_reset();
 #ifdef CONFIG_FFMPEG
                 // Set up the output chain, including the software resampler.
                 debug(2, "set up the output chain to %s for FFmpeg.",
@@ -3351,6 +3353,7 @@ void *player_thread_func(void *arg) {
   uint64_t time_of_last_metadata_progress_update =
       0; // the assignment is to stop a compiler warning...
 #endif
+  double highest_convolver_output_db = 0.0;
   uint64_t previous_frames_played = 0; // initialised to avoid a "possibly uninitialised" warning
   uint64_t previous_raw_measurement_time =
       0; // initialised to avoid a "possibly uninitialised" warning
@@ -3674,7 +3677,7 @@ void *player_thread_func(void *arg) {
                 malloc(sps_format_sample_size(
                            FORMAT_FROM_ENCODED_FORMAT(config.current_output_configuration)) *
                        CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration) *
-                       ((inframe->length) * conn->output_sample_ratio + +INTERPOLATION_LIMIT));
+                       ((inframe->length) * conn->output_sample_ratio + INTERPOLATION_LIMIT));
             if (conn->outbuf == NULL)
               die("Failed to allocate memory for an output buffer.");
 
@@ -3852,8 +3855,10 @@ void *player_thread_func(void *arg) {
 
             // now, before outputting anything to the output device, check the stats
 
-            uint32_t stats_logging_interval_in_frames = 8 * RATE_FROM_ENCODED_FORMAT(config.current_output_configuration);
-            if ((stats_logging_interval_in_frames != 0) && (frames_since_last_stats_logged > stats_logging_interval_in_frames)) {
+            uint32_t stats_logging_interval_in_frames =
+                8 * RATE_FROM_ENCODED_FORMAT(config.current_output_configuration);
+            if ((stats_logging_interval_in_frames != 0) &&
+                (frames_since_last_stats_logged > stats_logging_interval_in_frames)) {
 
               // here, calculate the input and output frame rates, where possible, even if
               // statistics have not been requested this is to calculate them in case they are
@@ -4253,14 +4258,12 @@ void *player_thread_func(void *arg) {
                       gap_to_fix = -inframe->timestamp_gap; // this is frames at the input rate
                       int64_t gap_to_fix_ns = (gap_to_fix * 1000000000) / conn->input_rate;
                       gap_to_fix = (gap_to_fix_ns *
-                              RATE_FROM_ENCODED_FORMAT(config.current_output_configuration)) /
-                             1000000000; // this is frames at the output rate
-                      // debug(3, "due to timstamp gap of %d frames, skip %" PRId64 " output frames.", inframe->timestamp_gap, gap_to_fix);
+                                    RATE_FROM_ENCODED_FORMAT(config.current_output_configuration)) /
+                                   1000000000; // this is frames at the output rate
+                      // debug(3, "due to timstamp gap of %d frames, skip %" PRId64 " output
+                      // frames.", inframe->timestamp_gap, gap_to_fix);
                     }
                   }
-                  
-                  
-                  
 
                   if (gap_to_fix > 0) {
                     // debug(1, "drop %u frames, timestamp: %u, skipping_frames_at_start_of_play is
@@ -4291,7 +4294,7 @@ void *player_thread_func(void *arg) {
                       sync_error_ns = 0; // don't invoke any sync checking
                       sync_error = 0;
                     }
-                  }                  
+                  }
                 }
                 // debug(1, "frames_to_skip: %u.", frames_to_skip);
                 // don't do any sync error calculations if you're skipping frames
@@ -4456,75 +4459,157 @@ void *player_thread_func(void *arg) {
 
                 // Apply DSP here
 
-                // check the state of loudness and convolution flags here and don't change them
-                // for the frame
+                loudness_update(conn);
 
-                int do_loudness = ((config.loudness != 0) && (conn->input_rate == 44100));
-
+                if (conn->do_loudness
 #ifdef CONFIG_CONVOLUTION
-                int do_convolution = 0;
-                if ((config.convolution) && (config.convolver_valid) && (conn->input_rate == 44100))
-                  do_convolution = 1;
-
-                // we will apply the convolution gain if convolution is enabled, even if there
-                // is no valid convolution happening
-
-                int convolution_is_enabled = 0;
-                if (config.convolution)
-                  convolution_is_enabled = 1;
-#endif
-
-                if (do_loudness
-#ifdef CONFIG_CONVOLUTION
-                    || convolution_is_enabled
+                    || config.convolution_enabled
 #endif
                 ) {
-                  int32_t *tbuf32 = (int32_t *)conn->tbuf;
-                  float fbuf_l[inbuflength];
-                  float fbuf_r[inbuflength];
+
+                  float(*fbufs)[1024] = malloc(conn->input_num_channels * sizeof(*fbufs));
+                  // debug(1, "size of array allocated is %d bytes.", conn->input_num_channels *
+                  // sizeof(*fbufs));
+                  int32_t *tbuf32 = conn->tbuf;
 
                   // Deinterleave, and convert to float
-                  int i;
-                  for (i = 0; i < inbuflength; ++i) {
-                    fbuf_l[i] = tbuf32[2 * i];
-                    fbuf_r[i] = tbuf32[2 * i + 1];
+                  unsigned int i, j;
+                  for (i = 0; i < inframe->length; i++) {
+                    for (j = 0; j < conn->input_num_channels; j++) {
+                      fbufs[j][i] = tbuf32[conn->input_num_channels * i + j];
+                    }
                   }
 
 #ifdef CONFIG_CONVOLUTION
                   // Apply convolution
-                  if (do_convolution) {
-                    convolver_process_l(fbuf_l, inbuflength);
-                    convolver_process_r(fbuf_r, inbuflength);
-                  }
-                  if (convolution_is_enabled) {
+                  // First, have we got the right convolution setup?
+
+                  static int convolver_is_valid = 0;
+                  static size_t current_convolver_block_size = 0;
+                  static unsigned int current_convolver_rate = 0;
+                  static unsigned int current_convolver_channels = 0;
+                  static double current_convolver_maximum_length_in_seconds = 0;
+
+                  if (config.convolution_enabled) {
+                    if (
+                        // if any of these are true, we need to create a new convolver
+                        // (conn->convolver_is_valid == 0) ||
+                        (current_convolver_block_size != inframe->length) ||
+                        (current_convolver_rate != conn->input_rate) ||
+                        !((current_convolver_channels == 1) ||
+                          (current_convolver_channels == conn->input_num_channels)) ||
+                        (current_convolver_maximum_length_in_seconds !=
+                         config.convolution_max_length_in_seconds) ||
+                        (config.convolution_ir_files_updated == 1)) {
+
+                      // look for a convolution ir file with a matching rate and channel count
+
+                      convolver_is_valid = 0; // declare any current convolver as invalid
+                      current_convolver_block_size = inframe->length;
+                      current_convolver_rate = conn->input_rate;
+                      current_convolver_channels = conn->input_num_channels;
+                      current_convolver_maximum_length_in_seconds =
+                          config.convolution_max_length_in_seconds;
+                      config.convolution_ir_files_updated = 0;
+                      debug(2, "try to initialise a %u/%u convolver.", current_convolver_rate,
+                            current_convolver_channels);
+                      char *convolver_file_found = NULL;
+                      unsigned int ir = 0;
+                      while ((ir < config.convolution_ir_file_count) &&
+                             (convolver_file_found == NULL)) {
+                        if ((config.convolution_ir_files[ir].samplerate ==
+                             current_convolver_rate) &&
+                            (config.convolution_ir_files[ir].channels ==
+                             current_convolver_channels)) {
+                          convolver_file_found = config.convolution_ir_files[ir].filename;
+                        } else {
+                          ir++;
+                        }
+                      }
+
+                      // if no luck, try for a single-channel IR file
+                      if (convolver_file_found == NULL) {
+                        current_convolver_channels = 1;
+                        ir = 0;
+                        while ((ir < config.convolution_ir_file_count) &&
+                               (convolver_file_found == NULL)) {
+                          if ((config.convolution_ir_files[ir].samplerate ==
+                               current_convolver_rate) &&
+                              (config.convolution_ir_files[ir].channels ==
+                               current_convolver_channels)) {
+                            convolver_file_found = config.convolution_ir_files[ir].filename;
+                          } else {
+                            ir++;
+                          }
+                        }
+                      }
+                      if (convolver_file_found != NULL) {
+                        // we have an apparently suitable convolution ir file, so lets initialise
+                        // a convolver
+                        convolver_is_valid = convolver_init(
+                            convolver_file_found, conn->input_num_channels,
+                            config.convolution_max_length_in_seconds, inframe->length);
+                        convolver_wait_for_all();
+                        // if (convolver_is_valid)
+                        // debug(1, "convolver_init for %u channels was successful.", conn->input_num_channels);
+                        // convolver_is_valid = convolver_init(
+                        //     convolver_file_found, conn->input_num_channels,
+                        //     config.convolution_max_length_in_seconds, inframe->length);
+                      }
+
+                      if (convolver_is_valid == 0)
+                        debug(1, "can not initialise a %u/%u convolver.", current_convolver_rate,
+                              conn->input_num_channels);
+                      else
+                        debug(1, "convolver: \"%s\".", convolver_file_found);
+                    }
+                    if (convolver_is_valid != 0) {
+                     for (j = 0; j < conn->input_num_channels; j++) {
+                        // convolver_process(j, fbufs[j], inframe->length);
+                        convolver_process(j, fbufs[j], inframe->length);
+                      }
+                      convolver_wait_for_all();
+                    }
+                    
+                                        // apply convolution gain even if no convolution is done...
                     float gain = pow(10.0, config.convolution_gain / 20.0);
-                    for (i = 0; i < inbuflength; ++i) {
-                      fbuf_l[i] *= gain;
-                      fbuf_r[i] *= gain;
+                    for (i = 0; i < inframe->length; ++i) {
+                      for (j = 0; j < conn->input_num_channels; j++) {
+                        float output_level_db = 0.0;
+                        if (fbufs[j][i] < 0.0)
+                          output_level_db = 20 * log10(fbufs[j][i] / (float)INT32_MIN * 1.0);
+                        else
+                          output_level_db = 20 * log10(fbufs[j][i] / (float)INT32_MAX);
+                        if (output_level_db > highest_convolver_output_db) {
+                          highest_convolver_output_db = output_level_db;
+                          if ((highest_convolver_output_db + config.convolution_gain) > 0.0)
+                            warn("clipping %.1f dB with convolution gain set to %.1f dB!", highest_convolver_output_db + config.convolution_gain, config.convolution_gain);
+                        }                     
+                        fbufs[j][i] *= gain;
+                      }
                     }
                   }
+                    
 #endif
-
-                  if (do_loudness) {
-                    // Apply volume and loudness
-                    // Volume must be applied here because the loudness filter will increase the
-                    // signal level and it would saturate the int32_t otherwise
-                    float gain = conn->fix_volume / 65536.0f;
-                    // float gain_db = 20 * log10(gain);
-                    // debug(1, "Applying soft volume dB: %f k: %f", gain_db, gain);
-
-                    for (i = 0; i < inbuflength; ++i) {
-                      fbuf_l[i] = loudness_process(&loudness_l, fbuf_l[i] * gain);
-                      fbuf_r[i] = loudness_process(&loudness_r, fbuf_r[i] * gain);
-                    }
+                  if (conn->do_loudness) {
+                    loudness_process_blocks((float *)fbufs, inframe->length,
+                                            conn->input_num_channels,
+                                            (float)conn->fix_volume / 65536);
                   }
 
                   // Interleave and convert back to int32_t
-                  for (i = 0; i < inbuflength; ++i) {
-                    tbuf32[2 * i] = fbuf_l[i];
-                    tbuf32[2 * i + 1] = fbuf_r[i];
+                  for (i = 0; i < inframe->length; i++) {
+                    for (j = 0; j < conn->input_num_channels; j++) {
+                      tbuf32[conn->input_num_channels * i + j] = fbufs[j][i];
+                    }
+                  }
+
+                  if (fbufs != NULL) {
+                    free(fbufs);
+                    fbufs = NULL;
                   }
                 }
+                // }
 #ifdef CONFIG_SOXR
                 double t = config.audio_backend_buffer_interpolation_threshold_in_seconds *
                            RATE_FROM_ENCODED_FORMAT(config.current_output_configuration);
@@ -4975,9 +5060,6 @@ void player_volume_without_notification(double airplay_volume, rtsp_conn_info *c
               software_attenuation, temp_fix_volume);
 
       conn->fix_volume = temp_fix_volume;
-
-      // if (config.loudness)
-      loudness_set_volume(software_attenuation / 100);
     }
     if (conn != NULL)
       debug(3, "Connection %d: AirPlay Volume set to %.3f, Output Level set to: %.2f dB.",
@@ -5028,6 +5110,9 @@ void do_flush(uint32_t timestamp, rtsp_conn_info *conn) {
 void player_flush(uint32_t timestamp, rtsp_conn_info *conn) {
   debug(3, "player_flush");
   do_flush(timestamp, conn);
+#ifdef CONFIG_CONVOLUTION
+  convolver_clear_state();
+#endif
 #ifdef CONFIG_METADATA
   // only send a flush metadata message if the first packet has been seen -- it's a bogus message
   // otherwise
@@ -5093,6 +5178,9 @@ int player_stop(rtsp_conn_info *conn) {
     }
     free(pt);
     // reset_anchor_info(conn); // say the clock is no longer valid
+#ifdef CONFIG_CONVOLUTION
+    convolver_clear_state();
+#endif
     response = 0; // deleted
   } else {
     debug(2, "Connection %d: no player thread.", conn->connection_number);

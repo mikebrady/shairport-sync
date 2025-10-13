@@ -343,6 +343,7 @@ if test "x$with_convolution" = "xyes" ; then
   else
     AC_CHECK_LIB([sndfile], [sf_open], , AC_MSG_ERROR(Convolution support requires the sndfile library -- libsndfile1-dev suggested!))
   fi
+  
 fi
 AM_CONDITIONAL([USE_CONVOLUTION], [test "x$with_convolution" = "xyes"])
 
