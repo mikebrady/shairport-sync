@@ -67,7 +67,7 @@ If you are building classic Shairport Sync, the list of packages is shorter:
     libavutil-dev libavcodec-dev libavformat-dev
 ```
 
-Building on Ubuntu 24.10 or Debian 13 ("Trixie") and later -- and possibly on other distributions -- requires `systemd-dev`. It does no harm to attempt to install it -- the install will simply fail if the package doesn't exist:
+Building on Ubuntu 24.10 or Debian 13 ("Trixie") and later may require `systemd-dev`. It does no harm to attempt to install it -- the install will simply fail if the package doesn't exist:
 ```
 # apt install --no-install-recommends systemd-dev # it's okay if this fails because the package doesn't exist
 ```
@@ -106,14 +106,16 @@ Enable and start the `avahi-daemon` service.
 # systemctl start avahi-daemon
 ```
 ### FreeBSD
-First, update everything:
+This is for FreeBSD 14.3. First, update everything:
 ```
 # freebsd-update fetch
 # freebsd-update install
-# pkg
 # pkg update
+# pkg upgrade
 ```
-Next, install the Avahi subsystem. FYI, `avahi-app` is chosen because it doesn’t require X11. `nss_mdns` is included to allow FreeBSD to resolve mDNS-originated addresses – it's not actually needed by Shairport Sync. Thanks to [reidransom](https://gist.github.com/reidransom/6033227) for this.
+Next, install the Avahi subsystem.
+FYI, `avahi-app` is chosen because it doesn’t require X11. If you are using a GUI with your FreeBSD system, select `avahi` rather than `avahi-app`. 
+`nss_mdns` is included to allow FreeBSD to resolve mDNS-originated addresses – it's not actually needed by Shairport Sync. Thanks to [reidransom](https://gist.github.com/reidransom/6033227) for this.
 ```
 # pkg install avahi-app nss_mdns
 ```
@@ -133,7 +135,7 @@ Next, install the packages that are needed for Shairport Sync and NQPTP. If you 
 If you are building Shairport Sync for AirPlay 2, install the following packages:
 ```
 # pkg install git autotools pkgconf popt libconfig openssl alsa-utils libsoxr \
-      libplist libsodium ffmpeg e2fsprogs-libuuid vim
+      libplist libsodium ffmpeg libuuid vim
 ```
 
 If you are building classic Shairport Sync, the list of packages is shorter:
