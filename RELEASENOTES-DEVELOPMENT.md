@@ -25,7 +25,7 @@ Version 5.0-dev-83-g38592252
 Version 5.0-dev-65-g8545938d
 ==
 **Enhancement**
-* Add a new command-line argument `dbus_default_message_bus` which can be `system` or `session`. This becomes the default message bus used both by the D-Bus native service and the MPRIS service. In its absence, the default is to use the system message bus. Example of use:
+* Add a new command-line argument `dbus_default_message_bus` which can be `system` or `session`. This becomes the default message bus used both by the D-Bus native service and the MPRIS service. In its absence, the default is to use the `system` message bus. Example of use:
   ```
   $ shairport-sync ... --dbus_default_message_bus=session ....
   ```
