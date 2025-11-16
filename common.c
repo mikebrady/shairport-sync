@@ -2833,21 +2833,17 @@ void sanity_check_ir_files(const int option_print_level, ir_file_info_t *files,
 
       SF_INFO sfinfo = {};
       // sfinfo.format = 0;
-      
+
       SNDFILE *file = sf_open(files[i].filename, SFM_READ, &sfinfo);
       if (file) {
         // files[i].evaluation = ev_okay;
         files[i].samplerate = sfinfo.samplerate;
         files[i].channels = sfinfo.channels;
-        debug(
-            option_print_level,
-            "convolution impulse response file \"%s\": %" PRId64 " frames (%.1f seconds), %d channel%s at %d frames per second.",
-            files[i].filename,
-            sfinfo.frames,
-            (float) sfinfo.frames / sfinfo.samplerate,
-            sfinfo.channels,
-            sfinfo.channels == 1 ? "" : "s",
-            sfinfo.samplerate);
+        debug(option_print_level,
+              "convolution impulse response file \"%s\": %" PRId64
+              " frames (%.1f seconds), %d channel%s at %d frames per second.",
+              files[i].filename, sfinfo.frames, (float)sfinfo.frames / sfinfo.samplerate,
+              sfinfo.channels, sfinfo.channels == 1 ? "" : "s", sfinfo.samplerate);
         sf_close(file);
       } else {
         // files[i].evaluation = ev_invalid;

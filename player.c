@@ -501,6 +501,25 @@ uint32_t get_ssrc_rate(ssrc_t ssrc) {
   return response;
 }
 
+size_t get_ssrc_block_length(ssrc_t ssrc) {
+  size_t response = 0;
+  switch (ssrc) {
+  case ALAC_44100_S16_2:
+  case ALAC_48000_S24_2:
+    response = 352;
+    break;
+  case AAC_44100_F24_2:
+  case AAC_48000_F24_2:
+  case AAC_48000_F24_5P1:
+  case AAC_48000_F24_7P1:
+    response = 1024;
+    break;
+  default:
+    break;
+  }
+  return response;
+}
+
 int setup_software_resampler(rtsp_conn_info *conn, ssrc_t ssrc) {
   int response = 0;
 
@@ -1073,6 +1092,12 @@ void prepare_decoding_chain(rtsp_conn_info *conn, ssrc_t ssrc) {
       pthread_cleanup_push(avcodec_open2_cleanup_handler, conn->codec_context);
 
       conn->input_rate = get_ssrc_rate(ssrc);
+      if ((ssrc == ALAC_48000_S24_2) || (ssrc == ALAC_44100_S16_2)) {
+        conn->frames_per_packet = 352;
+      } else {
+        conn->frames_per_packet = 1024;
+      }
+
       conn->codec_context->sample_rate = conn->input_rate;
 
       conn->ffmpeg_decoding_chain_initialised = 1;
@@ -2158,7 +2183,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
           if (thePacket == NULL)
             debug(2, "Connection %d: packet %u is empty.", conn->connection_number, conn->ab_read);
           else
-            debug(2, "Connection %d: packet %u not ready.", conn->connection_number, conn->ab_read);
+            debug(3, "Connection %d: packet %u not ready.", conn->connection_number, conn->ab_read);
           conn->ab_read++;
           conn->last_seqno_read++; // don' let it trigger the missing packet warning...
         }
@@ -3353,7 +3378,11 @@ void *player_thread_func(void *arg) {
   uint64_t time_of_last_metadata_progress_update =
       0; // the assignment is to stop a compiler warning...
 #endif
+
+#ifdef CONFIG_CONVOLUTION
   double highest_convolver_output_db = 0.0;
+#endif
+
   uint64_t previous_frames_played = 0; // initialised to avoid a "possibly uninitialised" warning
   uint64_t previous_raw_measurement_time =
       0; // initialised to avoid a "possibly uninitialised" warning
@@ -3379,10 +3408,14 @@ void *player_thread_func(void *arg) {
   conn->frames_per_packet = 352; // for ALAC -- will be changed if necessary
 
 #ifdef CONFIG_AIRPLAY_2
-  conn->ap2_flush_requested = 0;
-  conn->ap2_flush_from_valid = 0;
   conn->ap2_rate = 0;
   conn->ap2_play_enabled = 0;
+
+  unsigned int f = 0;
+  for (f = 0; f < MAX_DEFERRED_FLUSH_REQUESTS; f++) {
+    conn->ap2_deferred_flush_requests[f].inUse = 0;
+    conn->ap2_deferred_flush_requests[f].active = 0;
+  }
 #endif
 
   const unsigned int sync_history_length = 40;
@@ -4444,9 +4477,9 @@ void *player_thread_func(void *arg) {
                         inframe->timestamp, centered_sync_error_time * 1000, occ);
                   unsigned int s;
                   for (s = 0; s < conn->sync_samples_count; s++) {
-                    debug(2, "sample: %u, value: %.3f ms", s, sync_samples[s] * 0.000001);
+                    debug(3, "sample: %u, value: %.3f ms", s, sync_samples[s] * 0.000001);
                   }
-                  debug(2, "sync_history_length: %u, samples_count: %u, sample_index: %u",
+                  debug(3, "sync_history_length: %u, samples_count: %u, sample_index: %u",
                         sync_history_length, conn->sync_samples_count, last_sample_index);
                 }
                 sync_error_out_of_bounds = 0;
@@ -4551,8 +4584,8 @@ void *player_thread_func(void *arg) {
                             config.convolution_max_length_in_seconds, inframe->length);
                         convolver_wait_for_all();
                         // if (convolver_is_valid)
-                        // debug(1, "convolver_init for %u channels was successful.", conn->input_num_channels);
-                        // convolver_is_valid = convolver_init(
+                        // debug(1, "convolver_init for %u channels was successful.",
+                        // conn->input_num_channels); convolver_is_valid = convolver_init(
                         //     convolver_file_found, conn->input_num_channels,
                         //     config.convolution_max_length_in_seconds, inframe->length);
                       }
@@ -4564,14 +4597,14 @@ void *player_thread_func(void *arg) {
                         debug(1, "convolver: \"%s\".", convolver_file_found);
                     }
                     if (convolver_is_valid != 0) {
-                     for (j = 0; j < conn->input_num_channels; j++) {
+                      for (j = 0; j < conn->input_num_channels; j++) {
                         // convolver_process(j, fbufs[j], inframe->length);
                         convolver_process(j, fbufs[j], inframe->length);
                       }
                       convolver_wait_for_all();
                     }
-                    
-                                        // apply convolution gain even if no convolution is done...
+
+                    // apply convolution gain even if no convolution is done...
                     float gain = pow(10.0, config.convolution_gain / 20.0);
                     for (i = 0; i < inframe->length; ++i) {
                       for (j = 0; j < conn->input_num_channels; j++) {
@@ -4583,13 +4616,15 @@ void *player_thread_func(void *arg) {
                         if (output_level_db > highest_convolver_output_db) {
                           highest_convolver_output_db = output_level_db;
                           if ((highest_convolver_output_db + config.convolution_gain) > 0.0)
-                            warn("clipping %.1f dB with convolution gain set to %.1f dB!", highest_convolver_output_db + config.convolution_gain, config.convolution_gain);
-                        }                     
+                            warn("clipping %.1f dB with convolution gain set to %.1f dB!",
+                                 highest_convolver_output_db + config.convolution_gain,
+                                 config.convolution_gain);
+                        }
                         fbufs[j][i] *= gain;
                       }
                     }
                   }
-                    
+
 #endif
                   if (conn->do_loudness) {
                     loudness_process_blocks((float *)fbufs, inframe->length,

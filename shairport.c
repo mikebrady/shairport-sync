@@ -1266,7 +1266,8 @@ int parse_options(int argc, char **argv) {
         if ((value >= 1) && (value <= 64)) {
           config.convolution_threads = value;
         } else {
-          warn("Invalid value \"%u\" for \"convolution_thread_pool_size\". It must be between 1 and 64."
+          warn("Invalid value \"%u\" for \"convolution_thread_pool_size\". It must be between 1 "
+               "and 64."
                "The default of %u will be used instead.",
                value, config.convolution_threads);
         }

@@ -103,7 +103,6 @@
 #include "FFTConvolver/convolver.h"
 #endif
 
-
 #ifdef CONFIG_DBUS_INTERFACE
 #include "dbus-service.h"
 #endif
@@ -1196,11 +1195,11 @@ enum rtsp_read_request_response rtsp_read_request(rtsp_conn_info *conn, rtsp_mes
           } else if (nread == 0) {
             if (errno == 0) {
               // a blocking read that returns zero means eof -- implies connection closed by client
-              debug(3, "Connection %d closed by client.", conn->connection_number);
+              debug(1, "Connection %d closed by client.", conn->connection_number);
             } else {
               char errorstring[1024];
               strerror_r(errno, (char *)errorstring, sizeof(errorstring));
-              debug(3, "Connection %d closed by client with error %d: \"%s\".",
+              debug(1, "Connection %d closed by client with error %d: \"%s\".",
                     conn->connection_number, errno, (char *)errorstring);
             }
             reply = rtsp_read_request_response_channel_closed;
@@ -1892,40 +1891,46 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
     }
 
     debug_mutex_lock(&conn->flush_mutex, 1000, 1);
-    // a flush with from... components will not be followed by a setanchor (i.e. a play)
-    // if it's a flush that will be followed by a setanchor (i.e. a play) then stop play now.
-    if (flushFromValid == 0)
-      conn->ap2_play_enabled = 0;
 
-    // now, if it's an immediate flush, replace the existing request, if any
-    // but it if's a deferred flush and there is an existing deferred request,
-    // only update the flushUntil stuff -- that seems to preserve
-    // the intended semantics
-
-    // so, always replace these
-    conn->ap2_flush_until_sequence_number = flushUntilSeq & 0x7fffff;
-    conn->ap2_flush_until_rtp_timestamp = flushUntilTS;
-
-    if ((conn->ap2_flush_requested != 0) && (conn->ap2_flush_from_valid != 0) &&
-        (flushFromValid != 0)) {
-      // if there is a request already, and it's a deferred request, and the current request is also
-      // deferred... do nothing! -- leave the starting point in place. Yeah, yeah, we know de
-      // Morgan's Law, but this seems clearer
+    if (flushFromValid == 0) {
+      // an immediate flush is requested
+      conn->ap2_immediate_flush_requested = 1;
+      conn->ap2_immediate_flush_until_sequence_number = flushUntilSeq & 0x7fffff;
+      conn->ap2_immediate_flush_until_rtp_timestamp = flushUntilTS;
+      debug(2,
+            "Connection %d: immediate flush request created: flushUntilTS: %u, flushUntilSeq: %u.",
+            conn->connection_number, flushUntilTS, flushUntilSeq & 0x7fffff);
+      conn->ap2_play_enabled = 0; // stop trying to play audio
+      ptp_send_control_message_string(
+          "P"); // signify clock no longer valid and will be restarted by a subsequent play
     } else {
-      conn->ap2_flush_from_sequence_number = flushFromSeq & 0x7fffff;
-      conn->ap2_flush_from_rtp_timestamp = flushFromTS;
+      // look for a record slot that isn't in use
+      unsigned int i = 0;
+      unsigned int found = 0;
+      while ((i < MAX_DEFERRED_FLUSH_REQUESTS) && (found == 0)) {
+        if (conn->ap2_deferred_flush_requests[i].inUse == 0) {
+          found = 1;
+        } else {
+          i++;
+        }
+      }
+      if (found != 0) {
+        conn->ap2_deferred_flush_requests[i].inUse = 1;
+        conn->ap2_deferred_flush_requests[i].active = 0;
+        conn->ap2_deferred_flush_requests[i].flushFromSeq = flushFromSeq & 0x7fffff;
+        conn->ap2_deferred_flush_requests[i].flushFromTS = flushFromTS;
+        conn->ap2_deferred_flush_requests[i].flushUntilSeq = flushUntilSeq & 0x7fffff;
+        conn->ap2_deferred_flush_requests[i].flushUntilTS = flushUntilTS;
+        debug(2,
+              "Connection %d: deferred flush request created: flushFromSeq: %u, flushUntilSeq: %u.",
+              conn->connection_number, flushFromSeq, flushUntilSeq);
+      } else {
+        debug(1, "Connection %d: no more room for deferred flush request records",
+              conn->connection_number);
+      }
     }
 
-    conn->ap2_flush_from_valid = flushFromValid;
-    conn->ap2_flush_requested = 1;
-
     debug_mutex_unlock(&conn->flush_mutex, 3);
-
-    if (flushFromValid)
-      debug(2, "Deferred Flush Requested");
-    else
-      debug(2, "Immediate Flush Requested");
-
     plist_free(messagePlist);
   }
 
@@ -2077,7 +2082,7 @@ struct pairings {
   uint8_t public_key[32];
 
   struct pairings *next;
-} *pairings;
+} * pairings;
 
 static struct pairings *pairing_find(const char *device_id) {
   for (struct pairings *pairing = pairings; pairing; pairing = pairing->next) {
@@ -5364,7 +5369,7 @@ static void *rtsp_conversation_thread_func(void *pconn) {
       hdr = msg_get_header(req, "CSeq");
       if (hdr)
         msg_add_header(resp, "CSeq", hdr);
-      //      msg_add_header(resp, "Audio-Jack-Status", "connected; type=analog");
+        //      msg_add_header(resp, "Audio-Jack-Status", "connected; type=analog");
 #ifdef CONFIG_AIRPLAY_2
       char server_string[128];
       snprintf(server_string, sizeof(server_string), "AirTunes/%s", config.srcvers);

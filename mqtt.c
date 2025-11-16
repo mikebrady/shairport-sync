@@ -54,10 +54,10 @@ void on_message(__attribute__((unused)) struct mosquitto *mosq,
   debug(2, "[MQTT]: received Message on topic %s: %s\n", msg->topic, payload);
 
   // All recognized commands
-  char *commands[] = {"command",    "beginff",       "beginrew",   "mutetoggle", "nextitem",
-                      "previtem",   "pause",         "playpause",  "play",       "stop",
-                      "playresume", "shuffle_songs", "volumedown", "volumeup",   "disconnect",
-                      NULL};
+  char *commands[] = {"command",    "beginff",  "beginrew",   "mutetoggle",
+                      "nextitem",   "previtem", "pause",      "playpause",
+                      "play",       "stop",     "playresume", "shuffle_songs",
+                      "volumedown", "volumeup", "disconnect", NULL};
 
   int it = 0;
 

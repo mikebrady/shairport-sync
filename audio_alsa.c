@@ -255,7 +255,7 @@ static int get_permissible_configuration_settings() {
         int card_number = snd_pcm_info_get_card(local_alsa_info);
 
         if (card_number >= 0) {
-          debug(1, "output device is card %d.", card_number);
+          debug(2, "output device is card %d.", card_number);
           char device_name[64] = "";
           snprintf(device_name, sizeof(device_name) - 1, "hw:%d", card_number);
           snd_ctl_t *handle;
@@ -266,7 +266,7 @@ static int get_permissible_configuration_settings() {
             snd_ctl_card_info_alloca(&info);
             err = snd_ctl_card_info(handle, info);
             if (err == 0) {
-              debug(1, "card name: \"%s\", long name: \"%s\".", snd_ctl_card_info_get_name(info),
+              debug(2, "card name: \"%s\", long name: \"%s\".", snd_ctl_card_info_get_name(info),
                     snd_ctl_card_info_get_longname(info));
             }
             snd_ctl_close(handle);
@@ -274,7 +274,7 @@ static int get_permissible_configuration_settings() {
         }
 
         debug(
-            1, "device: \"%s\", name: \"%s\", type: \"%s\", id: \"%s\", CARD=%d,DEV=%u,SUBDEV=%u.",
+            2, "device: \"%s\", name: \"%s\", type: \"%s\", id: \"%s\", CARD=%d,DEV=%u,SUBDEV=%u.",
             alsa_out_dev, snd_pcm_info_get_name(local_alsa_info), device_types[device_type],
             snd_pcm_info_get_id(local_alsa_info), snd_pcm_info_get_card(local_alsa_info),
             snd_pcm_info_get_device(local_alsa_info), snd_pcm_info_get_subdevice(local_alsa_info));

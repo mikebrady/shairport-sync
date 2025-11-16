@@ -17,6 +17,7 @@
 #endif
 
 #ifdef CONFIG_AIRPLAY_2
+#define MAX_DEFERRED_FLUSH_REQUESTS 10
 #include "pair_ap/pair.h"
 #include <plist/plist.h>
 #endif
@@ -242,16 +243,14 @@ typedef struct {
   char *data_cipher_salt;
 } ap2_pairing;
 
-// flush requests are stored in order of flushFromSeq
-// on the basis that block numbers are monotonic modulo 2^24
-typedef struct flush_request_t {
-  int flushNow; // if true, the flushFrom stuff is invalid
-  uint32_t flushFromSeq;
+typedef struct {
+  uint32_t inUse;  // record free or contains a current flush record
+  uint32_t active; // set if blocks within the given range are being flushed.
   uint32_t flushFromTS;
-  uint32_t flushUntilSeq;
+  uint32_t flushFromSeq;
   uint32_t flushUntilTS;
-  struct flush_request_t *next;
-} flush_request_t;
+  uint32_t flushUntilSeq;
+} ap2_flush_request_t;
 
 #endif
 
@@ -345,7 +344,7 @@ typedef struct {
   uint32_t flush_rtp_timestamp;
   uint64_t time_of_last_audio_packet;
   seq_t ab_read, ab_write;
-  
+
   int do_loudness; // if loudness is requested and there is no external mixer
 
 #ifdef CONFIG_MBEDTLS
@@ -431,15 +430,15 @@ typedef struct {
   uint64_t last_anchor_time_of_update;
   uint64_t last_anchor_validity_start_time;
 
+  int ap2_immediate_flush_requested;
+  uint32_t ap2_immediate_flush_until_rtp_timestamp;
+  uint32_t ap2_immediate_flush_until_sequence_number;
+
+  ap2_flush_request_t ap2_deferred_flush_requests[MAX_DEFERRED_FLUSH_REQUESTS];
+
   ssize_t ap2_audio_buffer_size;
   ssize_t ap2_audio_buffer_minimum_size;
-  flush_request_t *flush_requests; // if non-null, there are flush requests, mutex protected
-  int ap2_flush_requested;
-  int ap2_flush_from_valid;
-  uint32_t ap2_flush_from_rtp_timestamp;
-  uint32_t ap2_flush_from_sequence_number;
-  uint32_t ap2_flush_until_rtp_timestamp;
-  uint32_t ap2_flush_until_sequence_number;
+
   int ap2_rate;         // protect with flush mutex, 0 means don't play, 1 means play
   int ap2_play_enabled; // protect with flush mutex
 
@@ -612,6 +611,8 @@ int64_t monotonic_timestamp(uint32_t timestamp,
 double suggested_volume(rtsp_conn_info *conn); // volume suggested for the connection
 
 const char *get_ssrc_name(ssrc_t ssrc);
+size_t get_ssrc_block_length(ssrc_t ssrc);
+
 int ssrc_is_recognised(ssrc_t ssrc);
 int ssrc_is_aac(ssrc_t ssrc); // used to decide if a mute might be needed (AAC only)
 void prepare_decoding_chain(rtsp_conn_info *conn, ssrc_t ssrc); // also sets up timing stuff

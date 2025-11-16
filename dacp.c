@@ -117,7 +117,8 @@ void response_body(void *opaque, const char *data, int size) {
 static void
 response_header(__attribute__((unused)) void *opaque, __attribute__((unused)) const char *ckey,
                 __attribute__((unused)) int nkey, __attribute__((unused)) const char *cvalue,
-                __attribute__((unused)) int nvalue) { /* example doesn't care about headers */ }
+                __attribute__((unused)) int nvalue) { /* example doesn't care about headers */
+}
 
 static void response_code(void *opaque, int code) {
   struct HttpResponse *response = (struct HttpResponse *)opaque;
@@ -505,7 +506,7 @@ void dacp_monitor_port_update_callback(char *dacp_id, uint16_t port) {
 void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
   //  #include <syscall.h>
   //  debug(1, "dacp_monitor_thread_code PID %d", syscall(SYS_gettid));
-  int scan_index = 0;
+  // int scan_index = 0;
   int always_use_revision_number_1 = 0;
   // char server_reply[10000];
   // debug(1, "DACP monitor thread started.");
@@ -582,7 +583,7 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
         mdns_dacp_monitor_set_id(dacp_server.dacp_id);
       }
     } else {
-      scan_index++;
+      // scan_index++;
       // debug(1,"DACP Scan Result: %d.", result);
 
       if ((result == 200) || (result == 400)) {

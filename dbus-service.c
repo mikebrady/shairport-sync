@@ -633,7 +633,7 @@ gboolean notify_convolution_impulse_response_files_callback(__attribute__((unuse
                                                             __attribute__((unused))
                                                             gpointer user_data) {
   __attribute__((unused)) char *th =
-      (char *)shairport_sync_get_convolution_impulse_response_file(skeleton);
+      (char *)shairport_sync_get_convolution_impulse_response_files(skeleton);
   return TRUE;
 }
 #endif
@@ -940,7 +940,6 @@ static gboolean on_handle_set_frame_position_update_interval(ShairportSync *skel
 
 static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name,
                                   __attribute__((unused)) gpointer user_data) {
-  const char *str = NULL;
   debug(2, "Shairport Sync native D-Bus interface \"%s\" acquired on the %s bus.", name,
         (dbus_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
 
@@ -1136,6 +1135,7 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
     shairport_sync_set_convolution_enabled(SHAIRPORT_SYNC(shairportSyncSkeleton), TRUE);
   }
 
+  const char *str = NULL;
   if ((config.cfg != NULL) &&
       (config_lookup_non_empty_string(config.cfg, "dsp.convolution_ir_files", &str))) {
     shairport_sync_set_convolution_impulse_response_files(SHAIRPORT_SYNC(shairportSyncSkeleton),

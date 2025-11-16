@@ -334,7 +334,8 @@ uint32_t get_rate_settings(const char *stanza_name, const char *setting_name) {
 #endif
         } else {
           warn("In the \"%s\" setting in the \"%s\" section of the configuration file, an invalid "
-               "character string -- \"%s\" -- has been detected. (Note that numbers must not be enclosed in quotes.)",
+               "character string -- \"%s\" -- has been detected. (Note that numbers must not be "
+               "enclosed in quotes.)",
                setting_name, stanza_name, config_setting_get_string(rate_setting));
         }
       } else {
@@ -373,10 +374,10 @@ uint32_t get_rate_settings(const char *stanza_name, const char *setting_name) {
           }
           free(rates);
         } else {
-          warn(
-                "in the \"%s\" setting in the \"%s\" section of the configuration file, an error "
-                "has been detected at argument %d. (Note that numbers must not be enclosed in quotes.)",
-                setting_name, stanza_name, -rate_settings_count);
+          warn("in the \"%s\" setting in the \"%s\" section of the configuration file, an error "
+               "has been detected at argument %d. (Note that numbers must not be enclosed in "
+               "quotes.)",
+               setting_name, stanza_name, -rate_settings_count);
         }
       }
     }

@@ -92,9 +92,9 @@ void loudness_process_blocks(float *fbufs, unsigned int channel_length,
 void loudness_reset() {
   unsigned int i;
   for (i = 0; i < MAXCHANNELS; i++) {
-    loudness_filters[i].i1  = 0.0;
-    loudness_filters[i].i2  = 0.0;
-    loudness_filters[i].o1  = 0.0;
-    loudness_filters[i].o2  = 0.0;
+    loudness_filters[i].i1 = 0.0;
+    loudness_filters[i].i2 = 0.0;
+    loudness_filters[i].o1 = 0.0;
+    loudness_filters[i].o2 = 0.0;
   }
 }
