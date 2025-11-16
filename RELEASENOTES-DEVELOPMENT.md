@@ -1,3 +1,8 @@
+Version 5.0-dev-87-ge12a3ed7
+==
+**Updates -- This is Significant**
+* To address some issues around AutoMix on AirPlay, a long-overdue rebuild of the buffered audio processor and been done, using everything we have figured out until now. It implements a cleaner method to handle both immediate and deferred flush requests. Lots of old flags and redundant code have been removed. Some diagnostics have been left in the code. The changes are pretty far-reaching, and it is possible that new issues have been inadventently introduced and old ones revived. Please let us know if you discover any issue, especially if you can readily cause the issue to occur. As you may know, it can be difficult to determine if an issue is caused by AirPlay 2 itself or by Shairport Sync.
+
 Version 5.0-dev-83-g38592252
 ==
 **Enhancements**
