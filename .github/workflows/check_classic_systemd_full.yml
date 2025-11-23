@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v5.0.0
+    - uses: actions/checkout@v6.0.0
     - name: Install Dependencies
       run: sudo apt-get -y --no-install-recommends install xmltoman libpipewire-0.3-dev libpopt-dev libconfig-dev libasound2-dev libao-dev libjack-dev libglib2.0-dev libmosquitto-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev libavutil-dev libavcodec-dev libavformat-dev
     - name: Configure
