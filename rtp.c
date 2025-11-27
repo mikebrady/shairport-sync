@@ -2227,7 +2227,7 @@ void *buffered_tcp_reader(void *arg) {
       descriptor->error_code = errno;
     } else if (nread == 0) {
       descriptor->closed = 1;
-      debug(1, "buffered audio port closed. Terminating the buffered_tcp_reader thread.");
+      debug(1, "buffered audio port closed by remote end. Terminating the buffered_tcp_reader thread.");
       finished = 1;
     } else if (nread > 0) {
       descriptor->eoq += nread;

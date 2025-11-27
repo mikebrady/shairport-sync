@@ -3187,7 +3187,7 @@ int ap2_buffered_nodelay_stream_statistics_print_profile[] = {0, 0, 0, 0, 0, 0, 
 // clang-format on
 
 void statistics_item(const char *heading, const char *format, ...) {
-  if (((statistics_print_profile[statistics_column] == 1) && (debuglev != 0)) ||
+  if (((statistics_print_profile[statistics_column] == 1) && (debug_level() != 0)) ||
       (statistics_print_profile[statistics_column] == 2)) { // include this column?
     if (was_a_previous_column != 0) {
       if (statistics_row == 0)

@@ -545,7 +545,7 @@ uint64_t get_absolute_time_in_ns(void);  // monotonic_raw or monotonic
 uint64_t get_monotonic_time_in_ns(void); // NTP-disciplined
 
 // time at startup for debugging timing
-extern uint64_t ns_time_at_startup, ns_time_at_last_debug_message;
+// extern uint64_t ns_time_at_startup, ns_time_at_last_debug_message;
 
 // this is for reading an unsigned 32 bit number, such as an RTP timestamp
 

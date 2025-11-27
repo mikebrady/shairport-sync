@@ -967,7 +967,7 @@ char *rtsp_plist_content(rtsp_message *message) {
 
 void _debug_log_rtsp_message(const char *filename, const int linenumber, int level, char *prompt,
                              rtsp_message *message) {
-  if (level > debuglev)
+  if (level > debug_level())
     return;
   if ((prompt) && (*prompt != '\0')) // okay to pass NULL or an empty list...
     _debug(filename, linenumber, level, prompt);
@@ -2805,9 +2805,9 @@ void teardown_phase_two(rtsp_conn_info *conn) {
 void handle_teardown_2(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *req,
                        rtsp_message *resp) {
 
-  debug(3, "Connection %d: TEARDOWN 2 %s.", conn->connection_number,
+  debug(2, "Connection %d: TEARDOWN 2 %s.", conn->connection_number,
         get_category_string(conn->airplay_stream_category));
-  debug_log_rtsp_message(3, "TEARDOWN: ", req);
+  debug_log_rtsp_message(2, "TEARDOWN: ", req);
   resp->respcode = 200;
   msg_add_header(resp, "Connection", "close");
   plist_t messagePlist = plist_from_rtsp_content(req);
@@ -5331,7 +5331,7 @@ static void *rtsp_conversation_thread_func(void *pconn) {
 
   while (conn->stop == 0) {
     pthread_testcancel();
-    int debug_level = 3; // for printing the request and response
+    int debug_level = 2; // for printing the request and response
 
     // check to see if a conn has been zeroed
 

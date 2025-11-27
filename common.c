@@ -130,11 +130,7 @@ void set_alsa_out_dev(char *);
 
 config_t config_file_stuff;
 int type_of_exit_cleanup;
-uint64_t ns_time_at_startup, ns_time_at_last_debug_message;
 uint64_t minimum_dac_queue_size;
-
-// always lock use this when accessing the ns_time_at_last_debug_message
-static pthread_mutex_t debug_timing_lock = PTHREAD_MUTEX_INITIALIZER;
 
 pthread_mutex_t the_conn_lock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -343,8 +339,6 @@ void log_to_syslog() {
 
 shairport_cfg config;
 
-volatile int debuglev = 0;
-
 sigset_t pselect_sigset;
 
 // note -- don't use this to shutdown from dbus -- see its own code in dbus-service.c
@@ -532,188 +526,11 @@ int get_requested_connection_state_to_output() { return requested_connection_sta
 
 void set_requested_connection_state_to_output(int v) { requested_connection_state_to_output = v; }
 
-char *generate_preliminary_string(char *buffer, size_t buffer_length, double tss, double tsl,
-                                  const char *filename, const int linenumber, const char *prefix) {
-  char *insertion_point = buffer;
-  if (config.debugger_show_elapsed_time) {
-    snprintf(insertion_point, buffer_length, "% 20.9f", tss);
-    insertion_point = insertion_point + strlen(insertion_point);
-  }
-  if (config.debugger_show_relative_time) {
-    snprintf(insertion_point, buffer_length, "% 20.9f", tsl);
-    insertion_point = insertion_point + strlen(insertion_point);
-  }
-  if (config.debugger_show_file_and_line) {
-    snprintf(insertion_point, buffer_length, " \"%s:%d\"", filename, linenumber);
-    insertion_point = insertion_point + strlen(insertion_point);
-  }
-  if (prefix) {
-    snprintf(insertion_point, buffer_length, "%s", prefix);
-    insertion_point = insertion_point + strlen(insertion_point);
-  }
-  return insertion_point;
-}
-
-void _die(const char *thefilename, const int linenumber, const char *format, ...) {
-  int oldState;
-  pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);
-
-  char b[16384];
-  b[0] = 0;
-  char *s;
-  if (debuglev) {
-    pthread_mutex_lock(&debug_timing_lock);
-    uint64_t time_now = get_absolute_time_in_ns();
-    uint64_t time_since_start = time_now - ns_time_at_startup;
-    uint64_t time_since_last_debug_message = time_now - ns_time_at_last_debug_message;
-    ns_time_at_last_debug_message = time_now;
-    pthread_mutex_unlock(&debug_timing_lock);
-    char *basec = strdup(thefilename);
-    char *filename = basename(basec);
-    s = generate_preliminary_string(b, sizeof(b), 1.0 * time_since_start / 1000000000,
-                                    1.0 * time_since_last_debug_message / 1000000000, filename,
-                                    linenumber, " *fatal error: ");
-    free(basec);
-  } else {
-    strncpy(b, "fatal error: ", sizeof(b));
-    s = b + strlen(b);
-  }
-  va_list args;
-  va_start(args, format);
-  vsnprintf(s, sizeof(b) - (s - b), format, args);
-  va_end(args);
-  sps_log(LOG_ERR, "%s", b);
-  pthread_setcancelstate(oldState, NULL);
-  type_of_exit_cleanup = TOE_emergency;
-  exit(EXIT_FAILURE);
-}
-
-void _warn(const char *thefilename, const int linenumber, const char *format, ...) {
-  int oldState;
-  pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);
-  char b[16384];
-  b[0] = 0;
-  char *s;
-  if (debuglev) {
-    pthread_mutex_lock(&debug_timing_lock);
-    uint64_t time_now = get_absolute_time_in_ns();
-    uint64_t time_since_start = time_now - ns_time_at_startup;
-    uint64_t time_since_last_debug_message = time_now - ns_time_at_last_debug_message;
-    ns_time_at_last_debug_message = time_now;
-    pthread_mutex_unlock(&debug_timing_lock);
-    char *basec = strdup(thefilename);
-    char *filename = basename(basec);
-    s = generate_preliminary_string(b, sizeof(b), 1.0 * time_since_start / 1000000000,
-                                    1.0 * time_since_last_debug_message / 1000000000, filename,
-                                    linenumber, " *warning: ");
-    free(basec);
-  } else {
-    strncpy(b, "warning: ", sizeof(b));
-    s = b + strlen(b);
-  }
-  va_list args;
-  va_start(args, format);
-  vsnprintf(s, sizeof(b) - (s - b), format, args);
-  va_end(args);
-  sps_log(LOG_WARNING, "%s", b);
-  pthread_setcancelstate(oldState, NULL);
-}
-
 void getErrorText(char *destinationString, size_t destinationStringLength) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-result"
   strerror_r(errno, destinationString, destinationStringLength);
 #pragma GCC diagnostic pop
-}
-
-void _debug(const char *thefilename, const int linenumber, int level, const char *format, ...) {
-  if (level > debuglev)
-    return;
-  int oldState;
-  pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);
-
-  char b[16384];
-  b[0] = 0;
-  pthread_mutex_lock(&debug_timing_lock);
-  uint64_t time_now = get_absolute_time_in_ns();
-  uint64_t time_since_start = time_now - ns_time_at_startup;
-  uint64_t time_since_last_debug_message = time_now - ns_time_at_last_debug_message;
-  ns_time_at_last_debug_message = time_now;
-  pthread_mutex_unlock(&debug_timing_lock);
-  char *basec = strdup(thefilename);
-  char *filename = basename(basec);
-  char *s = generate_preliminary_string(b, sizeof(b), 1.0 * time_since_start / 1000000000,
-                                        1.0 * time_since_last_debug_message / 1000000000, filename,
-                                        linenumber, " ");
-  free(basec);
-  va_list args;
-  va_start(args, format);
-  vsnprintf(s, sizeof(b) - (s - b), format, args);
-  va_end(args);
-  sps_log(LOG_INFO, b); // LOG_DEBUG is hard to read on macOS terminal
-  pthread_setcancelstate(oldState, NULL);
-}
-
-void _inform(const char *thefilename, const int linenumber, const char *format, ...) {
-  int oldState;
-  pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);
-  char b[16384];
-  b[0] = 0;
-  char *s;
-  if (debuglev) {
-    pthread_mutex_lock(&debug_timing_lock);
-    uint64_t time_now = get_absolute_time_in_ns();
-    uint64_t time_since_start = time_now - ns_time_at_startup;
-    uint64_t time_since_last_debug_message = time_now - ns_time_at_last_debug_message;
-    ns_time_at_last_debug_message = time_now;
-    pthread_mutex_unlock(&debug_timing_lock);
-    char *basec = strdup(thefilename);
-    char *filename = basename(basec);
-    s = generate_preliminary_string(b, sizeof(b), 1.0 * time_since_start / 1000000000,
-                                    1.0 * time_since_last_debug_message / 1000000000, filename,
-                                    linenumber, " ");
-    free(basec);
-  } else {
-    s = b;
-  }
-  va_list args;
-  va_start(args, format);
-  vsnprintf(s, sizeof(b) - (s - b), format, args);
-  va_end(args);
-  sps_log(LOG_INFO, "%s", b);
-  pthread_setcancelstate(oldState, NULL);
-}
-
-void _debug_print_buffer(const char *thefilename, const int linenumber, int level, void *vbuf,
-                         size_t buf_len) {
-  if (level > debuglev)
-    return;
-  char *buf = (char *)vbuf;
-  char *obf =
-      malloc(buf_len * 4 + 1); // to be on the safe side -- 4 characters on average for each byte
-  if (obf != NULL) {
-    char *obfp = obf;
-    unsigned int obfc;
-    for (obfc = 0; obfc < buf_len; obfc++) {
-      snprintf(obfp, 3, "%02X", buf[obfc]);
-      obfp += 2;
-      if (obfc != buf_len - 1) {
-        if (obfc % 32 == 31) {
-          snprintf(obfp, 5, " || ");
-          obfp += 4;
-        } else if (obfc % 16 == 15) {
-          snprintf(obfp, 4, " | ");
-          obfp += 3;
-        } else if (obfc % 4 == 3) {
-          snprintf(obfp, 2, " ");
-          obfp += 1;
-        }
-      }
-    };
-    *obfp = 0;
-    _debug(thefilename, linenumber, level, "%s", obf);
-    free(obf);
-  }
 }
 
 // The following two functions are adapted slightly and with thanks from Jonathan Leffler's sample
@@ -2039,7 +1856,7 @@ int sps_pthread_mutex_timedlock(pthread_mutex_t *mutex, useconds_t dally_time) {
 
 int _debug_mutex_lock(pthread_mutex_t *mutex, useconds_t dally_time, const char *mutexname,
                       const char *filename, const int line, int debuglevel) {
-  if ((debuglevel > debuglev) || (debuglevel == 0))
+  if ((debuglevel > debug_level()) || (debuglevel == 0))
     return pthread_mutex_lock(mutex);
   int oldState;
   pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);
@@ -2064,7 +1881,7 @@ int _debug_mutex_lock(pthread_mutex_t *mutex, useconds_t dally_time, const char 
 
 int _debug_mutex_unlock(pthread_mutex_t *mutex, const char *mutexname, const char *filename,
                         const int line, int debuglevel) {
-  if ((debuglevel > debuglev) || (debuglevel == 0))
+  if ((debuglevel > debug_level()) || (debuglevel == 0))
     return pthread_mutex_unlock(mutex);
   int oldState;
   pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);

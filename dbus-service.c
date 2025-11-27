@@ -516,13 +516,13 @@ gboolean notify_verbosity_callback(ShairportSyncDiagnostics *skeleton,
   if ((th >= 0) && (th <= 3)) {
     if (th == 0)
       debug(1, ">> set log verbosity to %d.", th);
-    if (((debuglev == 0) && (th != 0)) || ((debuglev != 0) && (th == 0)))
+    if (((debug_level() == 0) && (th != 0)) || ((debug_level() != 0) && (th == 0)))
       statistics_row = 0; // if the debug level changes, redraw the header line
-    debuglev = th;
+    set_debug_level(th);
     debug(1, ">> set log verbosity to %d.", th);
   } else {
     debug(1, ">> invalid log verbosity: %d. Ignored.", th);
-    shairport_sync_diagnostics_set_verbosity(skeleton, debuglev);
+    shairport_sync_diagnostics_set_verbosity(skeleton, debug_level());
   }
   return TRUE;
 }
@@ -1163,7 +1163,7 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
     free(vs);
 
   shairport_sync_diagnostics_set_verbosity(
-      SHAIRPORT_SYNC_DIAGNOSTICS(shairportSyncDiagnosticsSkeleton), debuglev);
+      SHAIRPORT_SYNC_DIAGNOSTICS(shairportSyncDiagnosticsSkeleton), debug_level());
 
   // debug(2,">> log verbosity is %d.",debuglev);
 
