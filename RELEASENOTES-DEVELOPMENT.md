@@ -1,3 +1,8 @@
+Version 5.0-dev-93-g1417cd6f
+==
+**Bug Fix**
+* Ensure old flush requests are deleted when a new play session starts. Thanks to [saujanyashah](https://github.com/saujanyashah) for the [report](https://github.com/mikebrady/shairport-sync/issues/2107).
+
 Version 5.0-dev-87-ge12a3ed7
 ==
 **Updates -- This is Significant**
