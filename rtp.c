@@ -2373,6 +2373,15 @@ void *rtp_buffered_audio_processor(void *arg) {
 
   conn->incoming_ssrc = 0; // reset
   conn->resampler_ssrc = 0;
+
+  // turn off all flush requests that might have been pending in the connection. Not sure if this is right...
+  unsigned int fr = 0;
+  for (fr = 0; fr < MAX_DEFERRED_FLUSH_REQUESTS; fr++) {
+    conn->ap2_deferred_flush_requests[fr].inUse = 0;
+    conn->ap2_deferred_flush_requests[fr].active = 0;
+  }
+  conn->ap2_immediate_flush_requested = 0;
+
   pthread_cleanup_push(rtp_buffered_audio_cleanup_handler, arg);
 
   pthread_t *buffered_reader_thread = malloc(sizeof(pthread_t));
