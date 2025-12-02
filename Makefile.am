@@ -27,7 +27,7 @@ noinst_LIBRARIES =
 
 # See below for the flags for the test client program
 
-shairport_sync_SOURCES = debug.c shairport.c rtsp.c mdns.c common.c rtp.c player.c audio.c loudness.c activity_monitor.c
+shairport_sync_SOURCES = utilities/debug.c shairport.c rtsp.c mdns.c common.c rtp.c player.c audio.c loudness.c activity_monitor.c
 
 if BUILD_FOR_DARWIN
   AM_CXXFLAGS = -I/usr/local/include -Wno-multichar -Wall -Wextra -Wno-deprecated-declarations -pthread -DSYSCONFDIR=\"$(sysconfdir)\"
@@ -42,7 +42,7 @@ if BUILD_FOR_OPENBSD
   AM_CFLAGS = -Wno-multichar -Wall -Wextra -pthread -DSYSCONFDIR=\"$(sysconfdir)\"
 else
   AM_CXXFLAGS = -Wshadow -fno-common -Wno-multichar -Wall -Wextra -Wno-clobbered -Wno-psabi -pthread -DSYSCONFDIR=\"$(sysconfdir)\"
-  AM_CFLAGS = --include=debug.h -Wshadow -fno-common -Wno-multichar -Wall -Wextra -Wno-clobbered -Wno-psabi -pthread -DSYSCONFDIR=\"$(sysconfdir)\"
+  AM_CFLAGS = --include=utilities/debug.h -Wshadow -fno-common -Wno-multichar -Wall -Wextra -Wno-clobbered -Wno-psabi -pthread -DSYSCONFDIR=\"$(sysconfdir)\"
 endif
 endif
 endif
@@ -148,7 +148,7 @@ lib_tinyhttp_a_SOURCES =  tinyhttp/chunk.c tinyhttp/header.c tinyhttp/http.c
 endif
 
 if USE_AIRPLAY_2
-shairport_sync_SOURCES += ptp-utilities.c plists/get_info_response.c
+shairport_sync_SOURCES += ap2_event_receiver.c ap2_rc_event_receiver.c ptp-utilities.c utilities/structured_buffer.c plists/get_info_response.c
 shairport_sync_LDADD += lib_pair_ap.a
 lib_pair_ap_a_SOURCES = pair_ap/pair.c pair_ap/pair_fruit.c pair_ap/pair_homekit.c pair_ap/pair-tlv.c
 noinst_LIBRARIES += lib_pair_ap.a
