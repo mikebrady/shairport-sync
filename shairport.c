@@ -44,6 +44,10 @@
 
 #include "config.h"
 
+#ifdef CONFIG_FFMPEG
+#include <libavutil/log.h>
+#endif
+
 #ifdef CONFIG_AIRPLAY_2
 #include "ptp-utilities.h"
 #include <gcrypt.h>
@@ -2712,6 +2716,8 @@ int main(int argc, char **argv) {
   config.output->init(argc - audio_arg, argv + audio_arg);
 
 #ifdef CONFIG_FFMPEG
+  if (debug_level() <= 1)  // keep FFmpeg stuff quiet unless verbosity is 2 or more
+    av_log_set_level(AV_LOG_QUIET);
 
 #if LIBAVUTIL_VERSION_MAJOR >= 57
 
