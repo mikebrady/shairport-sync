@@ -1324,7 +1324,8 @@ void handle_record_2(rtsp_conn_info *conn, __attribute((unused)) rtsp_message *r
   msg_add_header(resp, "Audio-Latency", "0");
   resp->respcode = 200;
 }
-#else
+#endif
+
 void handle_record(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
   debug(2, "Connection %d: RECORD", conn->connection_number);
   if ((conn != NULL) && (principal_conn == conn)) {
@@ -1374,7 +1375,6 @@ void handle_record(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) 
     resp->respcode = 451;
   }
 }
-#endif
 
 #ifdef CONFIG_AIRPLAY_2
 
