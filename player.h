@@ -424,6 +424,8 @@ typedef struct {
   pthread_t rtp_realtime_audio_thread;
   pthread_t rtp_buffered_audio_thread;
 
+  int ap2_event_receiver_exited;
+
   int last_anchor_info_is_valid;
   uint32_t last_anchor_rtptime;
   uint64_t last_anchor_local_time;
@@ -612,6 +614,8 @@ double suggested_volume(rtsp_conn_info *conn); // volume suggested for the conne
 
 const char *get_ssrc_name(ssrc_t ssrc);
 size_t get_ssrc_block_length(ssrc_t ssrc);
+
+const char *get_category_string(airplay_stream_c cat);
 
 int ssrc_is_recognised(ssrc_t ssrc);
 int ssrc_is_aac(ssrc_t ssrc); // used to decide if a mute might be needed (AAC only)

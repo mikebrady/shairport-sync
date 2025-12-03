@@ -328,9 +328,9 @@ static void free_audio_buffers(rtsp_conn_info *conn) {
 int first_possibly_missing_frame = -1;
 
 void reset_buffer(rtsp_conn_info *conn) {
-  debug_mutex_lock(&conn->ab_mutex, 30000, 0);
+  pthread_cleanup_debug_mutex_lock(&conn->ab_mutex, 30000, 0);
   ab_resync(conn);
-  debug_mutex_unlock(&conn->ab_mutex, 0);
+  pthread_cleanup_pop(1);
 #if CONFIG_FFMPEG
   avflush(conn);
 #endif
@@ -345,7 +345,7 @@ void reset_buffer(rtsp_conn_info *conn) {
 
 void get_audio_buffer_size_and_occupancy(unsigned int *size, unsigned int *occupancy,
                                          rtsp_conn_info *conn) {
-  debug_mutex_lock(&conn->ab_mutex, 30000, 0);
+  pthread_cleanup_debug_mutex_lock(&conn->ab_mutex, 30000, 0);
   *size = BUFFER_FRAMES;
   if (conn->ab_synced) {
     int16_t occ =
@@ -355,7 +355,32 @@ void get_audio_buffer_size_and_occupancy(unsigned int *size, unsigned int *occup
   } else {
     *occupancy = 0;
   }
-  debug_mutex_unlock(&conn->ab_mutex, 0);
+  pthread_cleanup_pop(1);
+}
+
+const char *get_category_string(airplay_stream_c cat) {
+  char *category;
+  switch (cat) {
+  case unspecified_stream_category:
+    category = "unspecified stream";
+    break;
+  case ptp_stream:
+    category = "PTP stream";
+    break;
+  case ntp_stream:
+    category = "NTP stream";
+    break;
+  case remote_control_stream:
+    category = "Remote Control stream";
+    break;
+  case classic_airplay_stream:
+    category = "Classic AirPlay stream";
+    break;
+  default:
+    category = "Unexpected stream code";
+    break;
+  }
+  return category;
 }
 
 #ifdef CONFIG_FFMPEG
@@ -1387,7 +1412,7 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
     debug_mutex_unlock(&conn->flush_mutex, 3);
   }
 
-  debug_mutex_lock(&conn->ab_mutex, 30000, 0);
+  pthread_cleanup_debug_mutex_lock(&conn->ab_mutex, 30000, 0);
   uint64_t time_now = get_absolute_time_in_ns();
   conn->packet_count++;
   conn->packet_count_since_flush++;
@@ -1687,9 +1712,9 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
             debug(3, "request resend of %d packets starting at seqno %u.", missing_frame_run_count,
                   start_of_missing_frame_run);
           if (config.disable_resend_requests == 0) {
-            debug_mutex_unlock(&conn->ab_mutex, 3);
+            // debug_mutex_unlock(&conn->ab_mutex, 3);
             rtp_request_resend(start_of_missing_frame_run, missing_frame_run_count, conn);
-            debug_mutex_lock(&conn->ab_mutex, 20000, 1);
+            // debug_mutex_lock(&conn->ab_mutex, 20000, 1);
             conn->resend_requests++;
           }
           start_of_missing_frame_run = -1;
@@ -1700,7 +1725,8 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
         first_possibly_missing_frame = conn->ab_write;
     }
   }
-  debug_mutex_unlock(&conn->ab_mutex, 0);
+  pthread_cleanup_pop(1);
+  // debug_mutex_unlock(&conn->ab_mutex, 0);
   return input_packets_used;
 }
 
@@ -1925,9 +1951,9 @@ static inline void process_sample(int32_t sample, char **outp, sps_format_t form
   *outp += result;
 }
 
-void buffer_get_frame_cleanup_handler(void *arg) {
-  rtsp_conn_info *conn = (rtsp_conn_info *)arg;
-  debug_mutex_unlock(&conn->ab_mutex, 0);
+void buffer_get_frame_cleanup_handler(__attribute__((unused)) void *arg) {
+  // rtsp_conn_info *conn = (rtsp_conn_info *)arg;
+  // debug_mutex_unlock(&conn->ab_mutex, 0);
 }
 
 // get the next frame, when available. return 0 if underrun/stream reset.
@@ -1947,7 +1973,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
   abuf_t *curframe = NULL;
   int notified_buffer_empty = 0; // diagnostic only
 
-  debug_mutex_lock(&conn->ab_mutex, 30000, 0);
+  pthread_cleanup_debug_mutex_lock(&conn->ab_mutex, 30000, 0);
 
   int wait;
   long dac_delay = 0; // long because alsa returns a long
@@ -2675,6 +2701,8 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
     curframe->ready = 0;
   }
   conn->ab_read++;
+
+  pthread_cleanup_pop(1); // unlock the ab_mutex
   pthread_cleanup_pop(1); // buffer_get_frame_cleanup_handler
   // debug(1, "Release frame %u.", curframe->timestamp);
 #ifdef CONFIG_FFMPEG
@@ -3330,7 +3358,7 @@ void player_thread_cleanup_handler(void *arg) {
     debug(3, "Audio thread terminated.");
 #ifdef CONFIG_AIRPLAY_2
   }
-  // ptp_send_control_message_string("T"); // remove all timing peers to force the master to 0
+  ptp_send_control_message_string("T");
   // reset_anchor_info(conn);
 #endif
 
