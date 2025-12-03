@@ -25,29 +25,70 @@
  */
 
 #include "ap2_event_receiver.h"
-#include "player.h"
+#include "bonjour_strings.h"
 #include "common.h"
+#include "player.h"
+#include "ptp-utilities.h"
 #include "rtsp.h"
 #include "utilities/structured_buffer.h"
 
 void ap2_event_receiver_cleanup_handler(void *arg) {
   rtsp_conn_info *conn = (rtsp_conn_info *)arg;
-  debug(2, "Connection %d: AP2 Event Receiver Cleanup.", conn->connection_number);
+  debug(1, "Connection %d: AP2 Event Receiver Cleanup start.", conn->connection_number);
+  // only update these things if you're (still) the principal conn
+
+#ifdef CONFIG_METADATA
+  // this is here to ensure it's only performed once during a teardown of a ptp stream
+  send_ssnc_metadata('disc', conn->client_ip_string, strlen(conn->client_ip_string), 1);
+#endif
+
+  if (conn->airplay_gid != NULL) {
+    free(conn->airplay_gid);
+    conn->airplay_gid = NULL;
+  }
+  conn->groupContainsGroupLeader = 0;
+  if (conn->dacp_active_remote != NULL) {
+    free(conn->dacp_active_remote);
+    conn->dacp_active_remote = NULL;
+  }
+  if (conn->ap2_client_name) {
+    free(conn->ap2_client_name);
+    conn->ap2_client_name = NULL;
+  }
+  pthread_rwlock_wrlock(&principal_conn_lock); // don't let the principal_conn be changed
+  pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
+  if (principal_conn == conn) {
+    config.airplay_statusflags &= (0xffffffff - (1 << 11)); // DeviceSupportsRelay
+    build_bonjour_strings(conn);
+    debug(1, "Connection %d: SETUP mdns_update on %s.", conn->connection_number,
+          get_category_string(conn->airplay_stream_category));
+    mdns_update(NULL, secondary_txt_records);
+    principal_conn = NULL;
+  }
+  pthread_cleanup_pop(1); // release the principal_conn lock
+  debug(1, "Connection %d: AP2 Event Receiver Cleanup exit.", conn->connection_number);
 }
 
 void *ap2_event_receiver(void *arg) {
   //  #include <syscall.h>
   //  debug(1, "rtp_event_receiver PID %d", syscall(SYS_gettid));
   rtsp_conn_info *conn = (rtsp_conn_info *)arg;
-  if (conn->airplay_stream_category == remote_control_stream)
-    debug(2, "Connection %d (RC): AP2 Event Receiver started", conn->connection_number);
-  else
-    debug(2, "Connection %d: AP2 Event Receiver started", conn->connection_number);
-
+  debug(2, "Connection %d: AP2 Event Receiver started", conn->connection_number);
   structured_buffer *sbuf = sbuf_new(4096);
   if (sbuf != NULL) {
     pthread_cleanup_push(sbuf_cleanup, sbuf);
-
+    // only update these things if you're (still) the principal conn
+    pthread_rwlock_wrlock(&principal_conn_lock); // don't let the principal_conn be changed
+    pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
+    if (principal_conn == conn) {
+      config.airplay_statusflags |= 1 << 11; // DeviceSupportsRelay
+      // config.airplay_statusflags |= 1 << 17; // ReceiverSessionIsActive
+      build_bonjour_strings(conn);
+      debug(2, "Connection %d: SETUP mdns_update on %s.", conn->connection_number,
+            get_category_string(conn->airplay_stream_category));
+      mdns_update(NULL, secondary_txt_records);
+    }
+    pthread_cleanup_pop(1); // release the principal_conn lock
     pthread_cleanup_push(ap2_event_receiver_cleanup_handler, arg);
 
     // listen(conn->event_socket, 5); // this is now done in the handle_setup_2 code
@@ -60,7 +101,7 @@ void *ap2_event_receiver(void *arg) {
 
     int fd = accept(conn->event_socket, (struct sockaddr *)&remote_addr, &addr_size);
     debug(2,
-          "Connection %d: rtp_event_receiver accepted a connection on socket %d and moved to a new "
+          "Connection %d: ap2_event_receiver accepted a connection on socket %d and moved to a new "
           "socket %d.",
           conn->connection_number, conn->event_socket, fd);
     intptr_t pfd = fd;
@@ -125,10 +166,9 @@ void *ap2_event_receiver(void *arg) {
         if (nread < 0) {
           char errorstring[1024];
           strerror_r(errno, (char *)errorstring, sizeof(errorstring));
-          debug(
-              1,
-              "Connection %d: error in ap2 rtp_event_receiver %d: \"%s\". Could not recv a packet.",
-              conn->connection_number, errno, errorstring);
+          debug(1,
+                "Connection %d: error in ap2_event_receiver %d: \"%s\". Could not recv a packet.",
+                conn->connection_number, errno, errorstring);
           // if ((config.diagnostic_drop_packet_fraction == 0.0) ||
           //     (drand48() > config.diagnostic_drop_packet_fraction)) {
         } else if (nread > 0) {
@@ -145,13 +185,16 @@ void *ap2_event_receiver(void *arg) {
       }
 
     } while (finished == 0);
+    debug(1, "Connection %d: AP2 Event Receiver RTP thread starting \"normal\" exit.",
+          conn->connection_number);
     pthread_cleanup_pop(1); // close the socket
     pthread_cleanup_pop(1); // do the cleanup
     pthread_cleanup_pop(1); // delete the structured buffer
-    debug(2, "Connection %d: AP2 Event Receiver RTP thread \"normal\" exit.",
+    debug(1, "Connection %d: AP2 Event Receiver RTP thread \"normal\" exit.",
           conn->connection_number);
   } else {
     debug(1, "Could not allocate a structured buffer!");
   }
+  conn->ap2_event_receiver_exited = 1;
   pthread_exit(NULL);
 }

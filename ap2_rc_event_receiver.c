@@ -25,8 +25,8 @@
  */
 
 #include "ap2_rc_event_receiver.h"
-#include "player.h"
 #include "common.h"
+#include "player.h"
 #include "rtsp.h"
 #include "utilities/structured_buffer.h"
 
@@ -60,7 +60,8 @@ void *ap2_rc_event_receiver(void *arg) {
 
     int fd = accept(conn->event_socket, (struct sockaddr *)&remote_addr, &addr_size);
     debug(2,
-          "Connection %d: ap2_rc_event_receiver accepted a connection on socket %d and moved to a new "
+          "Connection %d: ap2_rc_event_receiver accepted a connection on socket %d and moved to a "
+          "new "
           "socket %d.",
           conn->connection_number, conn->event_socket, fd);
     intptr_t pfd = fd;
@@ -135,7 +136,9 @@ void *ap2_rc_event_receiver(void *arg) {
 
           // ssize_t plen = nread;
           packet[nread] = '\0';
-          debug(3, "Connection %d: ap2_rc_event_receiver Packet Received on Event Port with contents: \"%s\".",
+          debug(2,
+                "Connection %d: ap2_rc_event_receiver Packet Received on Event Port with contents: "
+                "\"%s\".",
                 conn->connection_number, packet);
         } else {
           debug(1, "Connection %d: ap2_rc_event_receiver Event Port connection closed by client",
@@ -148,10 +151,10 @@ void *ap2_rc_event_receiver(void *arg) {
     pthread_cleanup_pop(1); // close the socket
     pthread_cleanup_pop(1); // do the cleanup
     pthread_cleanup_pop(1); // delete the structured buffer
-    debug(2, "Connection %d: AP2 ap2_rc_event_receiver  \"normal\" exit.",
-          conn->connection_number);
+    debug(2, "Connection %d: AP2 ap2_rc_event_receiver  \"normal\" exit.", conn->connection_number);
   } else {
     debug(1, "Could not allocate a structured buffer!");
   }
+  conn->ap2_event_receiver_exited = 1;
   pthread_exit(NULL);
 }

@@ -87,7 +87,6 @@ typedef struct {
   pthread_cond_t not_full_cv;
 } buffered_tcp_desc;
 
-
 /*
       char obf[4096];
       char *obfp = obf;
@@ -2015,7 +2014,9 @@ void *buffered_tcp_reader(void *arg) {
       descriptor->error_code = errno;
     } else if (nread == 0) {
       descriptor->closed = 1;
-      debug(1, "buffered audio port closed by remote end. Terminating the buffered_tcp_reader thread.");
+      debug(
+          1,
+          "buffered audio port closed by remote end. Terminating the buffered_tcp_reader thread.");
       finished = 1;
     } else if (nread > 0) {
       descriptor->eoq += nread;
@@ -2032,10 +2033,10 @@ void *buffered_tcp_reader(void *arg) {
       usleep(10000); // give other threads a chance to run...
   } while (finished == 0);
 
-  debug(3, "Buffered TCP Reader Thread Exit \"Normal\" Exit Begin.");
+  debug(1, "Buffered TCP Reader Thread Exit \"Normal\" Exit Begin.");
   pthread_cleanup_pop(1); // close the socket
   pthread_cleanup_pop(1); // cleanup
-  debug(2, "Buffered TCP Reader Thread Exit \"Normal\" Exit.");
+  debug(1, "Buffered TCP Reader Thread Exit \"Normal\" Exit.");
   pthread_exit(NULL);
 }
 
@@ -2132,7 +2133,7 @@ void rtp_buffered_audio_cleanup_handler(__attribute__((unused)) void *arg) {
   debug(1, "Connection %d: closing TCP Buffered Audio port: %u.", conn->connection_number,
         conn->local_buffered_audio_port);
   conn->buffered_audio_socket = 0;
-  debug(2, "Connection %d: Buffered Audio Receiver Cleanup Done.", conn->connection_number);
+  debug(1, "Connection %d: rtp_buffered_audio_processor exit.", conn->connection_number);
 }
 
 #define MOD_23BIT 0x7FFFFF // 2^23 - 1
@@ -2162,7 +2163,8 @@ void *rtp_buffered_audio_processor(void *arg) {
   conn->incoming_ssrc = 0; // reset
   conn->resampler_ssrc = 0;
 
-  // turn off all flush requests that might have been pending in the connection. Not sure if this is right...
+  // turn off all flush requests that might have been pending in the connection. Not sure if this is
+  // right...
   unsigned int fr = 0;
   for (fr = 0; fr < MAX_DEFERRED_FLUSH_REQUESTS; fr++) {
     conn->ap2_deferred_flush_requests[fr].inUse = 0;
@@ -2643,7 +2645,7 @@ void *rtp_buffered_audio_processor(void *arg) {
     }
   } while (finished == 0);
   debug(2, "Buffered Audio Receiver RTP thread \"normal\" exit.");
-  pthread_cleanup_pop(1); // thread creation
+  pthread_cleanup_pop(1); // buffered_tcp_reader thread creation
   pthread_cleanup_pop(1); // buffer malloc
   pthread_cleanup_pop(1); // not_full_cv
   pthread_cleanup_pop(1); // not_empty_cv
