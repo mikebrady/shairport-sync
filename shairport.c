@@ -1837,12 +1837,12 @@ const char *pid_file_proc(void) {
 #endif
 
 void exit_rtsp_listener() {
-  debug(3, "exit_rtsp_listener begins");
+  debug(1, "exit_rtsp_listener begins");
   if (type_of_exit_cleanup != TOE_emergency) {
     pthread_cancel(rtsp_listener_thread);
     pthread_join(rtsp_listener_thread, NULL); // not sure you need this
   }
-  debug(3, "exit_rtsp_listener ends");
+  debug(1, "exit_rtsp_listener ends");
 }
 
 void exit_function() {
@@ -2328,7 +2328,6 @@ int main(int argc, char **argv) {
   pid = getpid();
   config.log_fd = -1;
   conns = NULL; // no connections active
-  
 
 #ifdef CONFIG_LIBDAEMON
   daemon_set_verbosity(LOG_DEBUG);
@@ -2716,7 +2715,7 @@ int main(int argc, char **argv) {
   config.output->init(argc - audio_arg, argv + audio_arg);
 
 #ifdef CONFIG_FFMPEG
-  if (debug_level() <= 1)  // keep FFmpeg stuff quiet unless verbosity is 2 or more
+  if (debug_level() <= 1) // keep FFmpeg stuff quiet unless verbosity is 2 or more
     av_log_set_level(AV_LOG_QUIET);
 
 #if LIBAVUTIL_VERSION_MAJOR >= 57
