@@ -430,10 +430,10 @@ int get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) {
 
     if (principal_conn->fd > 0) {
       debug(1,
-            "Connection %d: get_play_lock forced termination. Closing RTSP connection socket %d: "
+            "Connection %d: get_play_lock forced termination in favour of connection %d. Closing RTSP connection socket %d: "
             "from %s:%u to self at "
             "%s:%u.",
-            principal_conn->connection_number, principal_conn->fd, principal_conn->client_ip_string,
+            principal_conn->connection_number, conn->connection_number, principal_conn->fd, principal_conn->client_ip_string,
             principal_conn->client_rtsp_port, principal_conn->self_ip_string,
             principal_conn->self_rtsp_port);
       close(principal_conn->fd);
@@ -2995,7 +2995,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
               // debug(1,"initial timing peer command: \"%s\".", timing_list_message);
               // ptp_send_control_message_string(timing_list_message);
               set_client_as_ptp_clock(conn);
-              // ptp_send_control_message_string("B"); // signify clock dependability period is
+              ptp_send_control_message_string("B"); // signify clock dependability period is
               // "B"eginning (or continuing)
               plist_dict_set_item(timingPeerInfoPlist, "Addresses", addresses);
               plist_dict_set_item(timingPeerInfoPlist, "ID",
@@ -3294,9 +3294,14 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
 
         activity_monitor_signify_activity(1);
 
+        debug(1, "Connection %d: create rtp_buffered_audio_thread", conn->connection_number);
+        
         named_pthread_create_with_priority(&conn->rtp_buffered_audio_thread, 2,
                                            &rtp_buffered_audio_processor, (void *)conn,
                                            "ap2_bat_%d", conn->connection_number);
+                                           
+                                           
+        usleep(1000000);
 
         plist_dict_set_item(stream0dict, "type", plist_new_uint(103));
         plist_dict_set_item(stream0dict, "dataPort",

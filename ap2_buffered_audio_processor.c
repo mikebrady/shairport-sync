@@ -99,10 +99,9 @@ void rtp_buffered_audio_cleanup_handler(__attribute__((unused)) void *arg) {
 }
 
 void *rtp_buffered_audio_processor(void *arg) {
-  //  #include <syscall.h>
-  //  debug(1, "rtp_buffered_audio_processor PID %d", syscall(SYS_gettid));
   rtsp_conn_info *conn = (rtsp_conn_info *)arg;
-
+#include <syscall.h>
+  debug(1, "Connection %d: rtp_buffered_audio_processor PID %d start", conn->connection_number, syscall(SYS_gettid));
   conn->incoming_ssrc = 0; // reset
   conn->resampler_ssrc = 0;
 
@@ -126,7 +125,8 @@ void *rtp_buffered_audio_processor(void *arg) {
   buffered_tcp_desc *buffered_audio = malloc(sizeof(buffered_tcp_desc));
   if (buffered_audio == NULL)
     debug(1, "cannot allocate a buffered_tcp_desc!");
-  // initialise the descriptor
+  // initialise the 
+  
   memset(buffered_audio, 0, sizeof(buffered_tcp_desc));
   pthread_cleanup_push(malloc_cleanup, &buffered_audio);
 
@@ -314,7 +314,7 @@ void *rtp_buffered_audio_processor(void *arg) {
 
       if (nread == 0) {
         // nread is 0 -- the port has been closed
-        debug(1, "buffered audio port closed!");
+        debug(1, "Connection %d: buffered audio port closed!", conn->connection_number);
         finished = 1;
       } else if (nread < 0) {
         char errorstring[1024];
@@ -516,7 +516,7 @@ void *rtp_buffered_audio_processor(void *arg) {
                   } else {
                     timestamp_difference = timestamp - expected_timestamp;
                     if (timestamp_difference != 0) {
-                      debug(2,
+                      debug(1,
                             "Connection %d: "
                             "unexpected timestamp in block %u. Actual: %u, expected: %u "
                             "difference: %d, "
@@ -541,7 +541,7 @@ void *rtp_buffered_audio_processor(void *arg) {
                     int32_t abs_timestamp_difference = -timestamp_difference;
                     if ((size_t)abs_timestamp_difference > get_ssrc_block_length(payload_ssrc)) {
                       skip_this_block = 1;
-                      debug(2,
+                      debug(1,
                             "skipping block %u because it was too far in the past. Timestamp "
                             "difference: %d, length of block: %u.",
                             seq_no, timestamp_difference, get_ssrc_block_length(payload_ssrc));
@@ -587,7 +587,7 @@ void *rtp_buffered_audio_processor(void *arg) {
       }
     }
   } while (finished == 0);
-  debug(2, "Buffered Audio Receiver RTP thread \"normal\" exit.");
+  debug(1, "Connection %d: rtp_buffered_audio_processor PID %d exiting", conn->connection_number, syscall(SYS_gettid));
   pthread_cleanup_pop(1); // buffered_tcp_reader thread creation
   pthread_cleanup_pop(1); // buffer malloc
   pthread_cleanup_pop(1); // not_full_cv
@@ -596,5 +596,6 @@ void *rtp_buffered_audio_processor(void *arg) {
   pthread_cleanup_pop(1); // descriptor malloc
   pthread_cleanup_pop(1); // pthread_t malloc
   pthread_cleanup_pop(1); // do the cleanup.
+  debug(1, "Connection %d: rtp_buffered_audio_processor PID %d finish", conn->connection_number, syscall(SYS_gettid));
   pthread_exit(NULL);
 }

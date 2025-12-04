@@ -92,7 +92,7 @@ ssize_t buffered_read(buffered_tcp_desc *descriptor, void *buf, size_t count,
 #define STANDARD_PACKET_SIZE 4096
 
 void buffered_tcp_reader_cleanup_handler(__attribute__((unused)) void *arg) {
-  debug(2, "Buffered TCP Reader Thread Exit via Cleanup.");
+  debug(1, "Buffered TCP Reader Thread Exit via Cleanup.");
 }
 
 void *buffered_tcp_reader(void *arg) {
