@@ -92,16 +92,17 @@ void rtp_buffered_audio_cleanup_handler(__attribute__((unused)) void *arg) {
   debug(2, "Buffered Audio Receiver Cleanup Start.");
   rtsp_conn_info *conn = (rtsp_conn_info *)arg;
   close(conn->buffered_audio_socket);
-  debug(1, "Connection %d: closing TCP Buffered Audio port: %u.", conn->connection_number,
+  debug(3, "Connection %d: closing TCP Buffered Audio port: %u.", conn->connection_number,
         conn->local_buffered_audio_port);
   conn->buffered_audio_socket = 0;
-  debug(1, "Connection %d: rtp_buffered_audio_processor exit.", conn->connection_number);
+  debug(2, "Connection %d: rtp_buffered_audio_processor exit.", conn->connection_number);
 }
 
 void *rtp_buffered_audio_processor(void *arg) {
   rtsp_conn_info *conn = (rtsp_conn_info *)arg;
-#include <syscall.h>
-  debug(1, "Connection %d: rtp_buffered_audio_processor PID %d start", conn->connection_number, syscall(SYS_gettid));
+  // #include <syscall.h>
+  // debug(1, "Connection %d: rtp_buffered_audio_processor PID %d start", conn->connection_number,
+        syscall(SYS_gettid));
   conn->incoming_ssrc = 0; // reset
   conn->resampler_ssrc = 0;
 
@@ -125,8 +126,8 @@ void *rtp_buffered_audio_processor(void *arg) {
   buffered_tcp_desc *buffered_audio = malloc(sizeof(buffered_tcp_desc));
   if (buffered_audio == NULL)
     debug(1, "cannot allocate a buffered_tcp_desc!");
-  // initialise the 
-  
+  // initialise the
+
   memset(buffered_audio, 0, sizeof(buffered_tcp_desc));
   pthread_cleanup_push(malloc_cleanup, &buffered_audio);
 
@@ -587,7 +588,8 @@ void *rtp_buffered_audio_processor(void *arg) {
       }
     }
   } while (finished == 0);
-  debug(1, "Connection %d: rtp_buffered_audio_processor PID %d exiting", conn->connection_number, syscall(SYS_gettid));
+  // debug(1, "Connection %d: rtp_buffered_audio_processor PID %d exiting", conn->connection_number,
+  //       syscall(SYS_gettid));
   pthread_cleanup_pop(1); // buffered_tcp_reader thread creation
   pthread_cleanup_pop(1); // buffer malloc
   pthread_cleanup_pop(1); // not_full_cv
@@ -596,6 +598,7 @@ void *rtp_buffered_audio_processor(void *arg) {
   pthread_cleanup_pop(1); // descriptor malloc
   pthread_cleanup_pop(1); // pthread_t malloc
   pthread_cleanup_pop(1); // do the cleanup.
-  debug(1, "Connection %d: rtp_buffered_audio_processor PID %d finish", conn->connection_number, syscall(SYS_gettid));
+  // debug(1, "Connection %d: rtp_buffered_audio_processor PID %d finish", conn->connection_number,
+  //       syscall(SYS_gettid));
   pthread_exit(NULL);
 }

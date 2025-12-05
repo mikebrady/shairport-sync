@@ -3183,12 +3183,6 @@ int stuff_buffer_soxr_32(int32_t *inptr, int length, sps_format_t l_output_forma
 }
 #endif
 
-void player_thread_initial_cleanup_handler(__attribute__((unused)) void *arg) {
-  rtsp_conn_info *conn = (rtsp_conn_info *)arg;
-  debug(3, "Connection %d: player thread main loop exit via player_thread_initial_cleanup_handler.",
-        conn->connection_number);
-}
-
 char line_of_stats[1024];
 int statistics_row; // statistics_line 0 means print the headings; anything else 1 means print the
                     // values. Set to 0 the first time out.
@@ -3314,7 +3308,6 @@ void player_thread_cleanup_handler(void *arg) {
 #ifdef CONFIG_AIRPLAY_2
   if (conn->airplay_type == ap_2) {
     debug(2, "Cancelling AP2 timing, control and audio threads...");
-
     if (conn->airplay_stream_type == realtime_stream) {
       debug(2, "Connection %d: Delete Realtime Audio Stream thread", conn->connection_number);
       pthread_cancel(conn->rtp_realtime_audio_thread);
@@ -3337,7 +3330,6 @@ void player_thread_cleanup_handler(void *arg) {
     debug(2, "Connection %d: Delete AirPlay 2 Control thread", conn->connection_number);
     pthread_cancel(conn->rtp_ap2_control_thread);
     pthread_join(conn->rtp_ap2_control_thread, NULL);
-
   } else {
     debug(2, "Cancelling AP1-compatible timing, control and audio threads...");
 #else
@@ -3358,10 +3350,10 @@ void player_thread_cleanup_handler(void *arg) {
     debug(3, "Join audio thread.");
     pthread_join(conn->rtp_audio_thread, NULL);
     debug(3, "Audio thread terminated.");
+
 #ifdef CONFIG_AIRPLAY_2
   }
-  ptp_send_control_message_string("T");
-  // reset_anchor_info(conn);
+  ptp_send_control_message_string("E");
 #endif
 
   if (conn->outbuf) {
@@ -3373,11 +3365,6 @@ void player_thread_cleanup_handler(void *arg) {
     conn->tbuf = NULL;
   }
 
-  // if (conn->statistics) {
-  //   free(conn->statistics);
-  //   conn->statistics = NULL;
-  // }
-
   free_audio_buffers(conn);
   if (conn->stream.type == ast_apple_lossless) {
 #ifdef CONFIG_APPLE_ALAC
@@ -3385,15 +3372,16 @@ void player_thread_cleanup_handler(void *arg) {
       apple_alac_terminate();
     }
 #endif
+
 #ifdef CONFIG_HAMMERTON
     if (config.decoder_in_use == 1 << decoder_hammerton) {
       alac_free(conn->decoder_info);
     }
 #endif
   }
-  // no need to flush the FFMPEG decoder...
 
   conn->rtp_running = 0;
+
   pthread_setcancelstate(oldState, NULL);
   debug(2, "Connection %d: player terminated.", conn->connection_number);
 }
@@ -3420,7 +3408,6 @@ void *player_thread_func(void *arg) {
       0; // initialised to avoid a "possibly uninitialised" warning
   int previous_frames_played_valid = 0;
 
-  // pthread_cleanup_push(player_thread_initial_cleanup_handler, arg);
   conn->latency_warning_issued =
       0; // be permitted to generate a warning each time a play is attempted
   conn->packet_count = 0;

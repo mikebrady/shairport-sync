@@ -430,12 +430,13 @@ int get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) {
 
     if (principal_conn->fd > 0) {
       debug(1,
-            "Connection %d: get_play_lock forced termination in favour of connection %d. Closing RTSP connection socket %d: "
+            "Connection %d: get_play_lock forced termination in favour of connection %d. Closing "
+            "RTSP connection socket %d: "
             "from %s:%u to self at "
             "%s:%u.",
-            principal_conn->connection_number, conn->connection_number, principal_conn->fd, principal_conn->client_ip_string,
-            principal_conn->client_rtsp_port, principal_conn->self_ip_string,
-            principal_conn->self_rtsp_port);
+            principal_conn->connection_number, conn->connection_number, principal_conn->fd,
+            principal_conn->client_ip_string, principal_conn->client_rtsp_port,
+            principal_conn->self_ip_string, principal_conn->self_rtsp_port);
       close(principal_conn->fd);
       // principal_conn->fd = 0;
     }
@@ -2538,6 +2539,7 @@ void handle_options(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *
                  "OPTIONS, POST, GET, PUT");
 }
 
+/*
 void teardown_phase_one(rtsp_conn_info *conn) {
   // this can be called more than once on the same connection --
   // by the player itself but also by the play session being killed
@@ -2632,6 +2634,7 @@ void teardown_phase_two(rtsp_conn_info *conn) {
   }
   pthread_cleanup_pop(1); // release the principal_conn lock
 }
+*/
 
 void handle_teardown_2(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *req,
                        rtsp_message *resp) {
@@ -2644,41 +2647,9 @@ void handle_teardown_2(rtsp_conn_info *conn, __attribute__((unused)) rtsp_messag
     player_stop(conn);                    // this nulls the player_thread and cancels the threads...
     activity_monitor_signify_activity(0); // inactive, and should be after command_stop()
   }
-  /*
-  // msg_add_header(resp, "Connection", "close");
-  plist_t messagePlist = plist_from_rtsp_content(req);
-  if (messagePlist != NULL) {
-    // now see if the incoming plist contains a "streams" array
-    plist_t streams = plist_dict_get_item(messagePlist, "streams");
-
-    if (streams) {
-      debug(1, "Connection %d: TEARDOWN %s Close the stream.", conn->connection_number,
-            get_category_string(conn->airplay_stream_category));
-      // we are being asked to close a stream
-
-      if (conn->player_thread) {
-        player_stop(conn);  // this nulls the player_thread and cancels the threads...
-        activity_monitor_signify_activity(0); // inactive, and should be after command_stop()
-      }
-
-      plist_free(streams);
-      debug(3, "Connection %d: TEARDOWN %s Close the stream complete", conn->connection_number,
-            get_category_string(conn->airplay_stream_category));
-    } else {
-      debug(1, "Connection %d: TEARDOWN %s Close the connection.", conn->connection_number,
-            get_category_string(conn->airplay_stream_category));
-      // teardown_phase_one(conn); // try to do phase one anyway
-      // teardown_phase_two(conn);
-    }
-
-    plist_free(messagePlist);
-    resp->respcode = 200;
-  } else {
-    debug(1, "Connection %d: missing plist!", conn->connection_number);
-    resp->respcode = 451; // don't know what to do here
-  }
-  */
   resp->respcode = 200;
+  msg_add_header(resp, "Connection", "close");
+
   // debug(1,"Bogus exit for valgrind -- remember to comment it out!.");
   // sps_shutdown(TOE_normal); // ask for a normal exit
 }
@@ -3120,6 +3091,12 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
     debug_log_rtsp_message(3, "SETUP (AirPlay 2) SETUP with streams incoming message", req);
     if (conn->airplay_stream_category == ptp_stream) {
 
+      if (conn->player_thread) {
+        debug(1, "stopping a running player during setup phase 2");
+        player_stop(conn); // this nulls the player_thread and cancels the threads...
+        activity_monitor_signify_activity(0); // inactive, and should be after command_stop()
+      }
+
       ptp_send_control_message_string(
           "B"); // signify clock dependability period is "B"eginning (or continuing)
       plist_t stream0 = plist_array_get_item(streams, 0);
@@ -3295,13 +3272,10 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
         activity_monitor_signify_activity(1);
 
         debug(1, "Connection %d: create rtp_buffered_audio_thread", conn->connection_number);
-        
+
         named_pthread_create_with_priority(&conn->rtp_buffered_audio_thread, 2,
                                            &rtp_buffered_audio_processor, (void *)conn,
                                            "ap2_bat_%d", conn->connection_number);
-                                           
-                                           
-        usleep(1000000);
 
         plist_dict_set_item(stream0dict, "type", plist_new_uint(103));
         plist_dict_set_item(stream0dict, "dataPort",
