@@ -1837,12 +1837,12 @@ const char *pid_file_proc(void) {
 #endif
 
 void exit_rtsp_listener() {
-  debug(1, "exit_rtsp_listener begins");
+  debug(3, "exit_rtsp_listener begins");
   if (type_of_exit_cleanup != TOE_emergency) {
     pthread_cancel(rtsp_listener_thread);
     pthread_join(rtsp_listener_thread, NULL); // not sure you need this
   }
-  debug(1, "exit_rtsp_listener ends");
+  debug(2, "exit_rtsp_listener ends");
 }
 
 void exit_function() {

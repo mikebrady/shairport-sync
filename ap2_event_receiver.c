@@ -34,7 +34,7 @@
 
 void ap2_event_receiver_cleanup_handler(void *arg) {
   rtsp_conn_info *conn = (rtsp_conn_info *)arg;
-  debug(1, "Connection %d: AP2 Event Receiver Cleanup start.", conn->connection_number);
+  debug(3, "Connection %d: AP2 Event Receiver Cleanup start.", conn->connection_number);
   // only update these things if you're (still) the principal conn
 
 #ifdef CONFIG_METADATA
@@ -60,13 +60,13 @@ void ap2_event_receiver_cleanup_handler(void *arg) {
   if (principal_conn == conn) {
     config.airplay_statusflags &= (0xffffffff - (1 << 11)); // DeviceSupportsRelay
     build_bonjour_strings(conn);
-    debug(1, "Connection %d: SETUP mdns_update on %s.", conn->connection_number,
+    debug(3, "Connection %d: SETUP mdns_update on %s.", conn->connection_number,
           get_category_string(conn->airplay_stream_category));
     mdns_update(NULL, secondary_txt_records);
     principal_conn = NULL;
   }
   pthread_cleanup_pop(1); // release the principal_conn lock
-  debug(1, "Connection %d: AP2 Event Receiver Cleanup exit.", conn->connection_number);
+  debug(2, "Connection %d: AP2 Event Receiver Cleanup exit.", conn->connection_number);
 }
 
 void *ap2_event_receiver(void *arg) {
@@ -178,19 +178,19 @@ void *ap2_event_receiver(void *arg) {
           debug(3, "Connection %d: Packet Received on Event Port with contents: \"%s\".",
                 conn->connection_number, packet);
         } else {
-          debug(1, "Connection %d: Event Port connection closed by client",
+          debug(2, "Connection %d: Event Port connection closed by client",
                 conn->connection_number);
           finished = 1;
         }
       }
 
     } while (finished == 0);
-    debug(1, "Connection %d: AP2 Event Receiver RTP thread starting \"normal\" exit.",
+    debug(3, "Connection %d: AP2 Event Receiver RTP thread starting \"normal\" exit.",
           conn->connection_number);
     pthread_cleanup_pop(1); // close the socket
     pthread_cleanup_pop(1); // do the cleanup
     pthread_cleanup_pop(1); // delete the structured buffer
-    debug(1, "Connection %d: AP2 Event Receiver RTP thread \"normal\" exit.",
+    debug(2, "Connection %d: AP2 Event Receiver RTP thread \"normal\" exit.",
           conn->connection_number);
   } else {
     debug(1, "Could not allocate a structured buffer!");

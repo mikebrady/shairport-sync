@@ -1001,8 +1001,6 @@ void set_client_as_ptp_clock(rtsp_conn_info *conn) {
           sizeof(timing_list_message) - 1 - strlen(timing_list_message));
   ptp_send_control_message_string(timing_list_message);
 }
-
-void clear_ptp_clock() { ptp_send_control_message_string("T"); }
 #endif
 
 enum rtsp_read_request_response rtsp_read_request(rtsp_conn_info *conn, rtsp_message **the_packet) {
@@ -1052,7 +1050,7 @@ enum rtsp_read_request_response rtsp_read_request(rtsp_conn_info *conn, rtsp_mes
             } else {
               char errorstring[1024];
               strerror_r(errno, (char *)errorstring, sizeof(errorstring));
-              debug(1, "Connection %d RTSP port closed by client with error %d: \"%s\".",
+              debug(2, "Connection %d RTSP port closed by client with error %d: \"%s\".",
                     conn->connection_number, errno, (char *)errorstring);
             }
             close(conn->fd); // close it from our end too...
@@ -2788,7 +2786,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
       plist_get_string_val(timingProtocol, &timingProtocolString);
       if (timingProtocolString) {
         if (strcmp(timingProtocolString, "PTP") == 0) {
-          debug(1, "Connection %d: AP2 PTP connection from %s:%u (\"%s\") to self at %s:%u.",
+          debug(2, "Connection %d: AP2 PTP connection from %s:%u (\"%s\") to self at %s:%u.",
                 conn->connection_number, conn->client_ip_string, conn->client_rtsp_port,
                 clientNameString, conn->self_ip_string, conn->self_rtsp_port);
           conn->airplay_stream_category = ptp_stream;
@@ -2854,7 +2852,6 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
             if (ptp_shm_interface_open() !=
                 0) // it should be open already, but just in case it isn't...
               die("Can not access the NQPTP service. Has it stopped running?");
-            // clear_ptp_clock();
             debug_log_rtsp_message(3, "SETUP \"PTP\" message", req);
             plist_t groupUUID = plist_dict_get_item(messagePlist, "groupUUID");
             if (groupUUID) {
@@ -3271,7 +3268,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
 
         activity_monitor_signify_activity(1);
 
-        debug(1, "Connection %d: create rtp_buffered_audio_thread", conn->connection_number);
+        // debug(1, "Connection %d: create rtp_buffered_audio_thread", conn->connection_number);
 
         named_pthread_create_with_priority(&conn->rtp_buffered_audio_thread, 2,
                                            &rtp_buffered_audio_processor, (void *)conn,
@@ -4979,7 +4976,7 @@ void rtsp_conversation_thread_cleanup_function(void *arg) {
     int oldState;
     pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);
 
-    debug(1, "Connection %d: %s rtsp_conversation_thread_func_cleanup_function called.",
+    debug(3, "Connection %d: %s rtsp_conversation_thread_func_cleanup_function called.",
           conn->connection_number, get_category_string(conn->airplay_stream_category));
 
     if (conn->player_thread) {
@@ -4989,7 +4986,7 @@ void rtsp_conversation_thread_cleanup_function(void *arg) {
 
     if (conn->fd > 0) {
       debug(
-          1,
+          2,
           "Connection %d: terminating -- closing RTSP connection socket %d: from %s:%u to self at "
           "%s:%u.",
           conn->connection_number, conn->fd, conn->client_ip_string, conn->client_rtsp_port,
@@ -5017,7 +5014,7 @@ void rtsp_conversation_thread_cleanup_function(void *arg) {
     free(conn->rtp_event_thread);
     conn->rtp_event_thread = NULL;
     conn->ap2_event_receiver_exited = 0;
-    debug(1, "Connection %d: %s event thread deleted.", conn->connection_number,
+    debug(3, "Connection %d: %s event thread deleted.", conn->connection_number,
           get_category_string(conn->airplay_stream_category));
 #endif
 
@@ -5116,7 +5113,7 @@ void rtsp_conversation_thread_cleanup_function(void *arg) {
     if (rc)
       debug(1, "Connection %d: error %d destroying flush_mutex.", conn->connection_number, rc);
 
-    debug(1, "Connection %d: Closed.", conn->connection_number);
+    debug(3, "Connection %d: Closed.", conn->connection_number);
     conn->running = 0; // for the garbage collector
     pthread_setcancelstate(oldState, NULL);
   }

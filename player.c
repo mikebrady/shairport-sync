@@ -3315,12 +3315,12 @@ void player_thread_cleanup_handler(void *arg) {
 
     } else if (conn->airplay_stream_type == buffered_stream) {
 
-      debug(1,
+      debug(3,
             "Connection %d: Delete Buffered Audio Stream thread by player_thread_cleanup_handler",
             conn->connection_number);
       pthread_cancel(conn->rtp_buffered_audio_thread);
       pthread_join(conn->rtp_buffered_audio_thread, NULL);
-      debug(1,
+      debug(3,
             "Connection %d: Deleted Buffered Audio Stream thread by player_thread_cleanup_handler",
             conn->connection_number);
     } else {

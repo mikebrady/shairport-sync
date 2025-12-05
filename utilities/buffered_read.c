@@ -92,7 +92,7 @@ ssize_t buffered_read(buffered_tcp_desc *descriptor, void *buf, size_t count,
 #define STANDARD_PACKET_SIZE 4096
 
 void buffered_tcp_reader_cleanup_handler(__attribute__((unused)) void *arg) {
-  debug(1, "Buffered TCP Reader Thread Exit via Cleanup.");
+  debug(2, "Buffered TCP Reader Thread Exit via Cleanup.");
 }
 
 void *buffered_tcp_reader(void *arg) {
@@ -160,7 +160,7 @@ void *buffered_tcp_reader(void *arg) {
     } else if (nread == 0) {
       descriptor->closed = 1;
       debug(
-          1,
+          2,
           "buffered audio port closed by remote end. Terminating the buffered_tcp_reader thread.");
       finished = 1;
     } else if (nread > 0) {
@@ -178,10 +178,10 @@ void *buffered_tcp_reader(void *arg) {
       usleep(10000); // give other threads a chance to run...
   } while (finished == 0);
 
-  debug(1, "Buffered TCP Reader Thread Exit \"Normal\" Exit Begin.");
+  debug(2, "Buffered TCP Reader Thread Exit \"Normal\" Exit Begin.");
   pthread_cleanup_pop(1); // close the socket
   pthread_cleanup_pop(1); // cleanup
-  debug(1, "Buffered TCP Reader Thread Exit \"Normal\" Exit.");
+  debug(2, "Buffered TCP Reader Thread Exit \"Normal\" Exit.");
   pthread_exit(NULL);
 }
 

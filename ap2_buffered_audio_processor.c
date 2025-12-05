@@ -102,7 +102,7 @@ void *rtp_buffered_audio_processor(void *arg) {
   rtsp_conn_info *conn = (rtsp_conn_info *)arg;
   // #include <syscall.h>
   // debug(1, "Connection %d: rtp_buffered_audio_processor PID %d start", conn->connection_number,
-        syscall(SYS_gettid));
+  //         syscall(SYS_gettid));
   conn->incoming_ssrc = 0; // reset
   conn->resampler_ssrc = 0;
 
