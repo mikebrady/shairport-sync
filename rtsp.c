@@ -487,22 +487,28 @@ static void track_thread(rtsp_conn_info *conn) {
 }
 
 // note: connection numbers start at 1, so an except_this_one value of zero means "all threads"
-void cancel_all_RTSP_threads(__attribute((unused)) airplay_stream_c stream_category, int except_this_one) {
+void cancel_all_RTSP_threads(airplay_stream_c stream_category, int except_this_one) {
   // if the stream category is unspecified_stream_category
   // all categories are elegible for cancellation
   // otherwise just the category itself
   debug_mutex_lock(&conns_lock, 1000000, 3);
   int i;
   for (i = 0; i < nconns; i++) {
-    if ((conns[i] != NULL) && (conns[i]->running != 0) &&
-        (conns[i]->connection_number != except_this_one)) {
+    if (
+        (conns[i] != NULL) && (conns[i]->running != 0) &&
+        (conns[i]->connection_number != except_this_one) &&
+        ((conns[i]->airplay_stream_category == stream_category) || (stream_category == unspecified_stream_category))
+       ) {
       pthread_cancel(conns[i]->thread);
       debug(1, "Connection %d: %s cancelled.", conns[i]->connection_number, get_category_string(conns[i]->airplay_stream_category));
     }
   }
   for (i = 0; i < nconns; i++) {
-    if ((conns[i] != NULL) &&
-        (conns[i]->connection_number != except_this_one)) {
+    if (
+        (conns[i] != NULL) &&
+        (conns[i]->connection_number != except_this_one) &&
+        ((conns[i]->airplay_stream_category == stream_category) || (stream_category == unspecified_stream_category))
+       ) {
       debug(1, "Connection %d: %s joining....", conns[i]->connection_number, get_category_string(conns[i]->airplay_stream_category));
       pthread_join(conns[i]->thread, NULL);
       debug(1, "Connection %d: %s joined.", conns[i]->connection_number, get_category_string(conns[i]->airplay_stream_category));
@@ -1827,11 +1833,7 @@ void handle_setrateanchori(rtsp_conn_info *conn, rtsp_message *req, rtsp_message
         debug(2, "Connection %d: SETRATEANCHORI Pause playing.", conn->connection_number);
         conn->ap2_play_enabled = 0;
         activity_monitor_signify_activity(0);
-#ifdef CONFIG_CONVOLUTION
-        // convolver_clear_state();
-#endif
 
-        // reset_anchor_info(conn);
 #ifdef CONFIG_METADATA
         send_ssnc_metadata('paus', NULL, 0, 1); // pause -- contains cancellation points
 #endif

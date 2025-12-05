@@ -517,7 +517,7 @@ void *rtp_buffered_audio_processor(void *arg) {
                   } else {
                     timestamp_difference = timestamp - expected_timestamp;
                     if (timestamp_difference != 0) {
-                      debug(1,
+                      debug(2,
                             "Connection %d: "
                             "unexpected timestamp in block %u. Actual: %u, expected: %u "
                             "difference: %d, "
@@ -542,8 +542,8 @@ void *rtp_buffered_audio_processor(void *arg) {
                     int32_t abs_timestamp_difference = -timestamp_difference;
                     if ((size_t)abs_timestamp_difference > get_ssrc_block_length(payload_ssrc)) {
                       skip_this_block = 1;
-                      debug(1,
-                            "skipping block %u because it was too far in the past. Timestamp "
+                      debug(2,
+                            "skipping block %u because it is too old. Timestamp "
                             "difference: %d, length of block: %u.",
                             seq_no, timestamp_difference, get_ssrc_block_length(payload_ssrc));
                     }
