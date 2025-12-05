@@ -429,7 +429,7 @@ int get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) {
     // important -- demote the principal conn before cancelling it
 
     if (principal_conn->fd > 0) {
-      debug(1,
+      debug(2,
             "Connection %d: get_play_lock forced termination in favour of connection %d. Closing "
             "RTSP connection socket %d: "
             "from %s:%u to self at "

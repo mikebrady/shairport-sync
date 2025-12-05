@@ -141,7 +141,7 @@ void *ap2_rc_event_receiver(void *arg) {
                 "\"%s\".",
                 conn->connection_number, packet);
         } else {
-          debug(1, "Connection %d: ap2_rc_event_receiver Event Port connection closed by client",
+          debug(2, "Connection %d: ap2_rc_event_receiver Event Port connection closed by client",
                 conn->connection_number);
           finished = 1;
         }
