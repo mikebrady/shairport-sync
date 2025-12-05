@@ -5241,9 +5241,12 @@ int player_stop(rtsp_conn_info *conn) {
   pthread_cleanup_pop(1); // release the player_create_delete_mutex
   if (response == 0) {    // if the thread was just stopped and deleted...
     conn->is_playing = 0;
+/*
+// this is done in the player cleanup handler
 #ifdef CONFIG_AIRPLAY_2
     ptp_send_control_message_string("E"); // signify play is "E"nding
 #endif
+*/
 #ifdef CONFIG_METADATA
     send_ssnc_metadata('pend', NULL, 0, 1); // contains cancellation points
 #endif

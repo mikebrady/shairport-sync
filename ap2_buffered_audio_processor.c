@@ -234,7 +234,7 @@ void *rtp_buffered_audio_processor(void *arg) {
       // here we read from the buffer that our thread has been reading
 
       size_t bytes_remaining_in_buffer;
-      nread = lread_sized_block(buffered_audio, &data_len, sizeof(data_len),
+      nread = read_sized_block(buffered_audio, &data_len, sizeof(data_len),
                                 &bytes_remaining_in_buffer);
       data_len = ntohs(data_len);
 
@@ -246,7 +246,7 @@ void *rtp_buffered_audio_processor(void *arg) {
       if (nread > 0) {
         // get the block itself
         // debug(1,"buffered audio packet of size %u detected.", data_len - 2);
-        nread = lread_sized_block(buffered_audio, packet, data_len - 2, &bytes_remaining_in_buffer);
+        nread = read_sized_block(buffered_audio, packet, data_len - 2, &bytes_remaining_in_buffer);
 
         // diagnostic
         if ((conn->ap2_audio_buffer_minimum_size < 0) ||
@@ -315,7 +315,7 @@ void *rtp_buffered_audio_processor(void *arg) {
 
       if (nread == 0) {
         // nread is 0 -- the port has been closed
-        debug(1, "Connection %d: buffered audio port closed!", conn->connection_number);
+        debug(2, "Connection %d: buffered audio port closed!", conn->connection_number);
         finished = 1;
       } else if (nread < 0) {
         char errorstring[1024];

@@ -487,7 +487,7 @@ static void track_thread(rtsp_conn_info *conn) {
 }
 
 // note: connection numbers start at 1, so an except_this_one value of zero means "all threads"
-void cancel_all_RTSP_threads(airplay_stream_c stream_category, int except_this_one) {
+void cancel_all_RTSP_threads(__attribute((unused)) airplay_stream_c stream_category, int except_this_one) {
   // if the stream category is unspecified_stream_category
   // all categories are elegible for cancellation
   // otherwise just the category itself
@@ -495,21 +495,17 @@ void cancel_all_RTSP_threads(airplay_stream_c stream_category, int except_this_o
   int i;
   for (i = 0; i < nconns; i++) {
     if ((conns[i] != NULL) && (conns[i]->running != 0) &&
-        (conns[i]->connection_number != except_this_one) &&
-        ((stream_category == unspecified_stream_category) ||
-         (stream_category == conns[i]->airplay_stream_category))) {
+        (conns[i]->connection_number != except_this_one)) {
       pthread_cancel(conns[i]->thread);
-      debug(1, "Connection %d: cancelled.", conns[i]->connection_number);
+      debug(1, "Connection %d: %s cancelled.", conns[i]->connection_number, get_category_string(conns[i]->airplay_stream_category));
     }
   }
   for (i = 0; i < nconns; i++) {
-    if ((conns[i] != NULL) && (conns[i]->running != 0) &&
-        (conns[i]->connection_number != except_this_one) &&
-        ((stream_category == unspecified_stream_category) ||
-         (stream_category == conns[i]->airplay_stream_category))) {
-      debug(1, "Connection %d: joining...", conns[i]->connection_number);
+    if ((conns[i] != NULL) &&
+        (conns[i]->connection_number != except_this_one)) {
+      debug(1, "Connection %d: %s joining....", conns[i]->connection_number, get_category_string(conns[i]->airplay_stream_category));
       pthread_join(conns[i]->thread, NULL);
-      debug(1, "Connection %d: joined.", conns[i]->connection_number);
+      debug(1, "Connection %d: %s joined.", conns[i]->connection_number, get_category_string(conns[i]->airplay_stream_category));
       free(conns[i]);
       conns[i] = NULL;
     }
@@ -934,31 +930,6 @@ ssize_t write_encrypted(int fd, pair_cipher_bundle *ctx, const void *buf, size_t
   return count;
 }
 
-/*
-static ssize_t write_encrypted(rtsp_conn_info *conn, const void *buf, size_t count) {
-  uint8_t *encrypted;
-  size_t encrypted_len;
-
-  ssize_t ret =
-      pair_encrypt(&encrypted, &encrypted_len, buf, count, conn->ap2_pairing_context.cipher_ctx);
-  if (ret < 0) {
-    debug(1, pair_cipher_errmsg(conn->ap2_pairing_context.cipher_ctx));
-    return -1;
-  }
-
-  size_t remain = encrypted_len;
-  while (remain > 0) {
-    ssize_t wrote = write(conn->fd, encrypted + (encrypted_len - remain), remain);
-    if (wrote <= 0) {
-      free(encrypted);
-      return wrote;
-    }
-    remain -= wrote;
-  }
-  free(encrypted);
-  return count;
-}
-*/
 #endif
 
 ssize_t read_from_rtsp_connection(rtsp_conn_info *conn, void *buf, size_t count) {
@@ -1732,7 +1703,7 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
             conn->connection_number, flushUntilTS, flushUntilSeq & 0x7fffff);
       conn->ap2_play_enabled = 0; // stop trying to play audio
       ptp_send_control_message_string(
-          "P"); // signify clock no longer valid and will be restarted by a subsequent play
+          "P"); // "P"ause signify clock no longer valid and will be restarted by a subsequent play
     } else {
       // look for a record slot that isn't in use
       unsigned int i = 0;
@@ -2537,103 +2508,6 @@ void handle_options(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *
                  "OPTIONS, POST, GET, PUT");
 }
 
-/*
-void teardown_phase_one(rtsp_conn_info *conn) {
-  // this can be called more than once on the same connection --
-  // by the player itself but also by the play session being killed
-  if (conn->player_thread) {
-    player_stop(conn);                    // this nulls the player_thread
-    activity_monitor_signify_activity(0); // inactive, and should be after command_stop()
-  }
-  if (conn->session_key) {
-    free(conn->session_key);
-    conn->session_key = NULL;
-  }
-}
-
-void teardown_phase_two(rtsp_conn_info *conn) {
-  // we are being asked to disconnect
-  // this can be called more than once on the same connection --
-  // by the player itself but also by the play seesion being killed
-  debug(3, "Connection %d: TEARDOWN %s connection.", conn->connection_number,
-        get_category_string(conn->airplay_stream_category));
-  // if (conn->airplay_stream_category == remote_control_stream) {
-  if (conn->rtp_data_thread) {
-    debug(3, "Connection %d: TEARDOWN %s Delete Data Thread.", conn->connection_number,
-          get_category_string(conn->airplay_stream_category));
-    pthread_cancel(*conn->rtp_data_thread);
-    pthread_join(*conn->rtp_data_thread, NULL);
-    free(conn->rtp_data_thread);
-    conn->rtp_data_thread = NULL;
-  }
-  if (conn->data_socket) {
-    debug(3, "Connection %d: TEARDOWN %s Close Data Socket.", conn->connection_number,
-          get_category_string(conn->airplay_stream_category));
-    close(conn->data_socket);
-    conn->data_socket = 0;
-  }
-  //}
-
-  if (conn->rtp_event_thread) {
-    debug(3, "Connection %d: TEARDOWN %s Delete Event Thread.", conn->connection_number,
-          get_category_string(conn->airplay_stream_category));
-    pthread_cancel(*conn->rtp_event_thread);
-    pthread_join(*conn->rtp_event_thread, NULL);
-    free(conn->rtp_event_thread);
-    debug(3, "Connection %d: TEARDOWN %s Event Thread deleted.", conn->connection_number,
-          get_category_string(conn->airplay_stream_category));
-    conn->rtp_event_thread = NULL;
-  }
-  if (conn->event_socket) {
-    debug(3, "Connection %d: TEARDOWN %s Close Event Socket.", conn->connection_number,
-          get_category_string(conn->airplay_stream_category));
-    close(conn->event_socket);
-    conn->event_socket = 0;
-  }
-
-  // if we are closing a PTP stream only, do this
-  if (conn->airplay_stream_category == ptp_stream) {
-    if (conn->airplay_gid != NULL) {
-      free(conn->airplay_gid);
-      conn->airplay_gid = NULL;
-
-#ifdef CONFIG_METADATA
-      // this is here to ensure it's only performed once during a teardown of a ptp stream
-      send_ssnc_metadata('disc', conn->client_ip_string, strlen(conn->client_ip_string), 1);
-#endif
-    }
-    conn->groupContainsGroupLeader = 0;
-    if (conn->dacp_active_remote != NULL) {
-      free(conn->dacp_active_remote);
-      conn->dacp_active_remote = NULL;
-    }
-    if (conn->ap2_client_name) {
-      free(conn->ap2_client_name);
-      conn->ap2_client_name = NULL;
-    }
-#ifdef CONFIG_FFMPEG
-    clear_decoding_chain(conn);
-#endif
-    clear_ptp_clock();
-  }
-
-  // only update these things if you're (still) the principal conn
-  pthread_rwlock_wrlock(&principal_conn_lock); // don't let the principal_conn be changed
-  pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
-  if (principal_conn == conn) {
-    if (conn->airplay_stream_category == ptp_stream) {
-      config.airplay_statusflags &= (0xffffffff - (1 << 11)); // DeviceSupportsRelay
-      build_bonjour_strings(conn);
-      debug(3, "Connection %d: teardown mdns_update on %s.", conn->connection_number,
-            get_category_string(conn->airplay_stream_category));
-      mdns_update(NULL, secondary_txt_records);
-    }
-    principal_conn = NULL; // stop being principal_conn
-  }
-  pthread_cleanup_pop(1); // release the principal_conn lock
-}
-*/
-
 void handle_teardown_2(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *req,
                        rtsp_message *resp) {
 
@@ -2653,10 +2527,16 @@ void handle_teardown_2(rtsp_conn_info *conn, __attribute__((unused)) rtsp_messag
 }
 #endif
 
-void teardown(rtsp_conn_info *conn) {
-  debug(2, "Connection %d: TEARDOWN (Classic AirPlay).", conn->connection_number);
-  player_stop(conn);
-  activity_monitor_signify_activity(0); // inactive, and should be after command_stop()
+void handle_teardown(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *req,
+                     rtsp_message *resp) {
+  debug(1, "Connection %d: TEARDOWN (Classic AirPlay)", conn->connection_number);
+  debug_log_rtsp_message(1, "TEARDOWN (Classic AirPlay) request", req);
+  
+  if (conn->player_thread) {
+    player_stop(conn);                    // this nulls the player_thread and cancels the threads...
+    activity_monitor_signify_activity(0); // inactive, and should be after command_stop()
+  }
+
   if (conn->dacp_active_remote != NULL) {
     free(conn->dacp_active_remote);
     conn->dacp_active_remote = NULL;
@@ -2673,17 +2553,7 @@ void teardown(rtsp_conn_info *conn) {
     principal_conn = NULL; // stop being principal_conn
   }
   pthread_cleanup_pop(1); // release the principal_conn lock
-}
-
-void handle_teardown(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *req,
-                     rtsp_message *resp) {
-  debug(1, "Connection %d: TEARDOWN", conn->connection_number);
-  debug_log_rtsp_message(1, "TEARDOWN request", req);
-
-  debug(3,
-        "TEARDOWN: synchronously terminating the player thread of RTSP conversation thread %d (2).",
-        conn->connection_number);
-  teardown(conn);
+  
 #ifdef CONFIG_FFMPEG
   clear_decoding_chain(conn);
 #endif
@@ -2962,8 +2832,9 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
 
               // debug(1,"initial timing peer command: \"%s\".", timing_list_message);
               // ptp_send_control_message_string(timing_list_message);
-              set_client_as_ptp_clock(conn);
-              ptp_send_control_message_string("B"); // signify clock dependability period is
+              // deferring this until play is about to start
+              // set_client_as_ptp_clock(conn);
+              // ptp_send_control_message_string("B"); // signify clock dependability period is
               // "B"eginning (or continuing)
               plist_dict_set_item(timingPeerInfoPlist, "Addresses", addresses);
               plist_dict_set_item(timingPeerInfoPlist, "ID",
@@ -3094,6 +2965,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
         activity_monitor_signify_activity(0); // inactive, and should be after command_stop()
       }
 
+      set_client_as_ptp_clock(conn);
       ptp_send_control_message_string(
           "B"); // signify clock dependability period is "B"eginning (or continuing)
       plist_t stream0 = plist_array_get_item(streams, 0);
@@ -5000,15 +4872,20 @@ void rtsp_conversation_thread_cleanup_function(void *arg) {
       free(conn->session_key);
       conn->session_key = NULL;
     }
-
+    
+    // give the event receiver a chance to exit normally
+    uint64_t event_receiver_start_wait_time = get_absolute_time_in_ns();
+    int64_t event_receiver_wait_time = 0;
+    do {
+      if (conn->ap2_event_receiver_exited == 0)
+        usleep(50000);
+      event_receiver_wait_time = get_absolute_time_in_ns() - event_receiver_start_wait_time;
+    } while ((conn->ap2_event_receiver_exited == 0) && (event_receiver_wait_time < 2000000000L));
+  
     if (conn->ap2_event_receiver_exited == 0) {
-      debug(3, "waiting for event receiver to exit");
-      usleep(2000000);
-      if (conn->ap2_event_receiver_exited == 0) {
-        debug(1, "Connection %d: %s event receiver has not exited, so cancelling it.",
-              conn->connection_number, get_category_string(conn->airplay_stream_category));
-        pthread_cancel(*conn->rtp_event_thread);
-      }
+      debug(1, "Connection %d: %s event receiver has not exited, so cancelling it.",
+            conn->connection_number, get_category_string(conn->airplay_stream_category));
+      pthread_cancel(*conn->rtp_event_thread);
     }
     pthread_join(*conn->rtp_event_thread, NULL);
     free(conn->rtp_event_thread);

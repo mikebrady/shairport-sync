@@ -59,7 +59,7 @@ ssize_t buffered_read(buffered_tcp_desc *descriptor, void *buf, size_t count,
     debug(1, "buffered_read: error %d.", errno);
     response = -1;
   } else if (descriptor->closed != 0) {
-    debug(1, "buffered_read: connection closed.");
+    debug(2, "buffered_read: connection closed.");
     errno = 0; // no error -- just closed
     response = 0;
   } else if (descriptor->buffer_occupancy != 0) {
@@ -187,7 +187,7 @@ void *buffered_tcp_reader(void *arg) {
 
 // this will read a block of the size specified to the buffer
 // and will return either with the block or on error
-ssize_t lread_sized_block(buffered_tcp_desc *descriptor, void *buf, size_t count,
+ssize_t read_sized_block(buffered_tcp_desc *descriptor, void *buf, size_t count,
                           size_t *bytes_remaining) {
   ssize_t response, nread;
   size_t inbuf = 0; // bytes already in the buffer
@@ -197,7 +197,7 @@ ssize_t lread_sized_block(buffered_tcp_desc *descriptor, void *buf, size_t count
     nread = buffered_read(descriptor, buf + inbuf, count - inbuf, bytes_remaining);
     if (nread == 0) {
       // a blocking read that returns zero means eof -- implies connection closed
-      debug(1, "read_sized_block connection closed.");
+      debug(2, "read_sized_block connection closed.");
       keep_trying = 0;
     } else if (nread < 0) {
       if (errno == EAGAIN) {

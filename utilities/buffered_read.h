@@ -16,7 +16,9 @@ typedef struct {
 } buffered_tcp_desc;
 
 void *buffered_tcp_reader(void *arg);
-ssize_t lread_sized_block(buffered_tcp_desc *descriptor, void *buf, size_t count,
+
+// read the number of bytes specified by "count".
+ssize_t read_sized_block(buffered_tcp_desc *descriptor, void *buf, size_t count,
                           size_t *bytes_remaining);
                           
 #endif // _BUFFERED_READ_H
