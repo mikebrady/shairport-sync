@@ -1312,6 +1312,7 @@ void handle_record(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) 
       debug(1, "Connection %d: Classic AirPlay connection from %s:%u to self at %s:%u.",
             conn->connection_number, conn->client_ip_string, conn->client_rtsp_port,
             conn->self_ip_string, conn->self_rtsp_port);
+      conn->airplay_stream_category = classic_airplay_stream;
       activity_monitor_signify_activity(1);
       player_play(conn); // the thread better be 0
     }
@@ -4849,9 +4850,22 @@ void rtsp_conversation_thread_cleanup_function(void *arg) {
   if (conn != NULL) {
     int oldState;
     pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);
-
     debug(3, "Connection %d: %s rtsp_conversation_thread_func_cleanup_function called.",
           conn->connection_number, get_category_string(conn->airplay_stream_category));
+    
+    // only update these things if you're (still) the principal conn
+    pthread_rwlock_wrlock(&principal_conn_lock); // don't let the principal_conn be changed
+    pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
+    if (principal_conn == conn) {
+#ifdef CONFIG_AIRPLAY_2
+      config.airplay_statusflags &= (0xffffffff - (1 << 11)); // DeviceSupportsRelay
+      build_bonjour_strings(conn);
+      mdns_update(NULL, secondary_txt_records);
+#endif
+      principal_conn = NULL; // stop being principal_conn
+    }
+    pthread_cleanup_pop(1); // release the principal_conn lock
+
 
     if (conn->player_thread) {
       player_stop(conn); // this nulls the player_thread and cancels the threads...
@@ -4897,31 +4911,22 @@ void rtsp_conversation_thread_cleanup_function(void *arg) {
           get_category_string(conn->airplay_stream_category));
 #endif
 
-#ifdef CONFIG_AIRPLAY_2
-    // AP2
-    // teardown_phase_one(conn);
-    // teardown_phase_two(conn);
-#else
-    // AP1
-    teardown(conn);
-#endif
-
     debug(3, "Connection %d: terminating  -- closing timing, control and audio sockets...",
           conn->connection_number);
     if (conn->control_socket) {
-      debug(1, "Connection %d: terminating  -- closing control_socket %d.", conn->connection_number,
+      debug(3, "Connection %d: terminating  -- closing control_socket %d.", conn->connection_number,
             conn->control_socket);
       close(conn->control_socket);
       conn->control_socket = 0;
     }
     if (conn->timing_socket) {
-      debug(1, "Connection %d: terminating  -- closing timing_socket %d.", conn->connection_number,
+      debug(3, "Connection %d: terminating  -- closing timing_socket %d.", conn->connection_number,
             conn->timing_socket);
       close(conn->timing_socket);
       conn->timing_socket = 0;
     }
     if (conn->audio_socket) {
-      debug(1, "Connection %d: terminating -- closing audio_socket %d.", conn->connection_number,
+      debug(3, "Connection %d: terminating -- closing audio_socket %d.", conn->connection_number,
             conn->audio_socket);
       close(conn->audio_socket);
       conn->audio_socket = 0;
@@ -4991,7 +4996,6 @@ void rtsp_conversation_thread_cleanup_function(void *arg) {
     rc = pthread_mutex_destroy(&conn->flush_mutex);
     if (rc)
       debug(1, "Connection %d: error %d destroying flush_mutex.", conn->connection_number, rc);
-
     debug(3, "Connection %d: Closed.", conn->connection_number);
     conn->running = 0; // for the garbage collector
     pthread_setcancelstate(oldState, NULL);
