@@ -34,7 +34,7 @@
 
 void ap2_event_receiver_cleanup_handler(void *arg) {
   rtsp_conn_info *conn = (rtsp_conn_info *)arg;
-  debug(3, "Connection %d: AP2 Event Receiver Cleanup start.", conn->connection_number);
+  debug(1, "Connection %d: AP2 Event Receiver Cleanup start.", conn->connection_number);
   // only update these things if you're (still) the principal conn
 
 #ifdef CONFIG_METADATA
@@ -55,18 +55,24 @@ void ap2_event_receiver_cleanup_handler(void *arg) {
     free(conn->ap2_client_name);
     conn->ap2_client_name = NULL;
   }
+  /*
   pthread_rwlock_wrlock(&principal_conn_lock); // don't let the principal_conn be changed
   pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
+  if (principal_conn)
+    debug(1, "principal_conn: %d.", principal_conn->connection_number);
+  else
+    debug(1, "principal_conn: is NULL.");
   if (principal_conn == conn) {
     config.airplay_statusflags &= (0xffffffff - (1 << 11)); // DeviceSupportsRelay
     build_bonjour_strings(conn);
-    debug(3, "Connection %d: SETUP mdns_update on %s.", conn->connection_number,
+    debug(1, "Connection %d: SETUP mdns_update on %s.", conn->connection_number,
           get_category_string(conn->airplay_stream_category));
     mdns_update(NULL, secondary_txt_records);
     principal_conn = NULL;
   }
   pthread_cleanup_pop(1); // release the principal_conn lock
-  debug(2, "Connection %d: AP2 Event Receiver Cleanup exit.", conn->connection_number);
+  */
+  debug(1, "Connection %d: AP2 Event Receiver Cleanup exit.", conn->connection_number);
 }
 
 void *ap2_event_receiver(void *arg) {
@@ -77,6 +83,8 @@ void *ap2_event_receiver(void *arg) {
   structured_buffer *sbuf = sbuf_new(4096);
   if (sbuf != NULL) {
     pthread_cleanup_push(sbuf_cleanup, sbuf);
+    
+    /*
     // only update these things if you're (still) the principal conn
     pthread_rwlock_wrlock(&principal_conn_lock); // don't let the principal_conn be changed
     pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
@@ -89,6 +97,7 @@ void *ap2_event_receiver(void *arg) {
       mdns_update(NULL, secondary_txt_records);
     }
     pthread_cleanup_pop(1); // release the principal_conn lock
+    */
     pthread_cleanup_push(ap2_event_receiver_cleanup_handler, arg);
 
     // listen(conn->event_socket, 5); // this is now done in the handle_setup_2 code
@@ -178,7 +187,7 @@ void *ap2_event_receiver(void *arg) {
           debug(3, "Connection %d: Packet Received on Event Port with contents: \"%s\".",
                 conn->connection_number, packet);
         } else {
-          debug(2, "Connection %d: Event Port connection closed by client",
+          debug(1, "Connection %d: Event Port connection closed by client",
                 conn->connection_number);
           finished = 1;
         }
