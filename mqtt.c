@@ -68,7 +68,7 @@ void on_message(__attribute__((unused)) struct mosquitto *mosq,
       debug(2, "[MQTT]: Received Recognized Command: %s\n", commands[it]);
       if (strcmp(commands[it], "disconnect") == 0) {
         debug(2, "[MQTT]: Disconnect Command: %s\n", commands[it]);
-        get_play_lock(NULL, 1); // stop any current session and don't replace it
+        release_play_lock(NULL); // stop any current session and don't replace it
       } else {
         debug(2, "[MQTT]: DACP Command: %s\n", commands[it]);
         send_simple_dacp_command(commands[it]);

@@ -234,8 +234,8 @@ void *rtp_buffered_audio_processor(void *arg) {
       // here we read from the buffer that our thread has been reading
 
       size_t bytes_remaining_in_buffer;
-      nread = read_sized_block(buffered_audio, &data_len, sizeof(data_len),
-                                &bytes_remaining_in_buffer);
+      nread =
+          read_sized_block(buffered_audio, &data_len, sizeof(data_len), &bytes_remaining_in_buffer);
       data_len = ntohs(data_len);
 
       // diagnostic

@@ -922,7 +922,7 @@ static gboolean on_handle_remote_command(ShairportSync *skeleton, GDBusMethodInv
 
 static gboolean on_handle_drop_session(ShairportSync *skeleton, GDBusMethodInvocation *invocation,
                                        __attribute__((unused)) gpointer user_data) {
-  get_play_lock(NULL, 1); // stop any current session and don't replace it
+  release_play_lock(NULL); // stop any current session and don't replace it
   shairport_sync_complete_drop_session(skeleton, invocation);
   return TRUE;
 }

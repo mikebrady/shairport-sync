@@ -83,7 +83,7 @@ void *ap2_event_receiver(void *arg) {
   structured_buffer *sbuf = sbuf_new(4096);
   if (sbuf != NULL) {
     pthread_cleanup_push(sbuf_cleanup, sbuf);
-    
+
     /*
     // only update these things if you're (still) the principal conn
     pthread_rwlock_wrlock(&principal_conn_lock); // don't let the principal_conn be changed

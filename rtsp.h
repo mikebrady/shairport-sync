@@ -12,8 +12,20 @@ void *rtsp_listen_loop(__attribute((unused)) void *arg);
 void lock_player();
 void unlock_player();
 
-// this can be used to forcibly stop a play session
-int get_play_lock(rtsp_conn_info *conn, int allow_session_interruption);
+// result of trying to acquire or release the play lock
+typedef enum {
+  play_lock_released,
+  play_lock_already_released,
+  play_lock_already_acquired,
+  play_lock_acquired_without_breaking_in,
+  play_lock_acquired_by_breaking_in,
+  play_lock_aquisition_failed
+} play_lock_r;
+
+// this can be used to [try to] forcibly stop a play session
+play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption);
+// this will release the play lock only if the conn has it or if the conn is NULL
+void release_play_lock(rtsp_conn_info *conn);
 
 // initialise and completely delete the metadata stuff
 
