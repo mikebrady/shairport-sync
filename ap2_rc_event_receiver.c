@@ -29,6 +29,7 @@
 #include "player.h"
 #include "rtsp.h"
 #include "utilities/structured_buffer.h"
+#include "utilities/network_utilities.h"
 
 void ap2_rc_event_receiver_cleanup_handler(void *arg) {
   rtsp_conn_info *conn = (rtsp_conn_info *)arg;
@@ -58,7 +59,7 @@ void *ap2_rc_event_receiver(void *arg) {
     memset(&remote_addr, 0, sizeof(remote_addr));
     socklen_t addr_size = sizeof(remote_addr);
 
-    int fd = accept(conn->event_socket, (struct sockaddr *)&remote_addr, &addr_size);
+    int fd = eintr_checked_accept(conn->event_socket, (struct sockaddr *)&remote_addr, &addr_size);
     debug(2,
           "Connection %d: ap2_rc_event_receiver accepted a connection on socket %d and moved to a "
           "new "

@@ -112,6 +112,7 @@
 #endif
 
 #include "mdns.h"
+#include "utilities/network_utilities.h"
 
 #define METADATA_SNDBUF (4 * 1024 * 1024)
 
@@ -457,7 +458,7 @@ play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) 
       // important -- demote the principal conn before cancelling it
       if (principal_conn->fd > 0) {
         debug(2,
-              "Connection %d: %s has acquired play_lock and is forcing termination of Connection "
+              "Connection %d: %s is acquiring play_lock and is forcing termination of Connection "
               "%d %s. Closing "
               "RTSP connection socket %d: "
               "from %s:%u to self at "
@@ -491,7 +492,7 @@ play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) 
 #endif
         response = play_lock_acquired_by_breaking_in;
       }
-      usleep(1000000); // don't know why this delay is needed.
+      // usleep(1000000); // don't know why this delay is needed.
     }
     if ((principal_conn != NULL) && (response != play_lock_already_acquired))
       debug(1, "Connection %d: %s has principal_conn.", conn->connection_number,
@@ -5410,7 +5411,7 @@ void *rtsp_listen_loop(__attribute((unused)) void *arg) {
 #endif
 
       socklen_t size_of_reply = sizeof(SOCKADDR);
-      conn->fd = accept(acceptfd, (struct sockaddr *)&conn->remote, &size_of_reply);
+      conn->fd = eintr_checked_accept(acceptfd, (struct sockaddr *)&conn->remote, &size_of_reply);
       if (conn->fd < 0) {
         debug(1, "Connection %d: New connection on port %d not accepted:", conn->connection_number,
               config.port);

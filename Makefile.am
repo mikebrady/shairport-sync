@@ -27,7 +27,7 @@ noinst_LIBRARIES =
 
 # See below for the flags for the test client program
 
-shairport_sync_SOURCES = utilities/debug.c shairport.c bonjour_strings.c rtsp.c mdns.c common.c rtp.c player.c audio.c loudness.c activity_monitor.c
+shairport_sync_SOURCES = shairport.c bonjour_strings.c rtsp.c mdns.c common.c rtp.c player.c audio.c loudness.c activity_monitor.c utilities/debug.c utilities/network_utilities.c
 
 if BUILD_FOR_DARWIN
   AM_CXXFLAGS = -I/usr/local/include -Wno-multichar -Wall -Wextra -Wno-deprecated-declarations -pthread -DSYSCONFDIR=\"$(sysconfdir)\"
