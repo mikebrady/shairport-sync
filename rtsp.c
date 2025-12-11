@@ -1933,7 +1933,7 @@ struct pairings {
   uint8_t public_key[32];
 
   struct pairings *next;
-} * pairings;
+} *pairings;
 
 static struct pairings *pairing_find(const char *device_id) {
   for (struct pairings *pairing = pairings; pairing; pairing = pairing->next) {
@@ -2532,7 +2532,6 @@ void handle_setpeersx(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *res
 }
 #endif
 
-#ifndef CONFIG_AIRPLAY_2
 void handle_options(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *req,
                     rtsp_message *resp) {
   debug_log_rtsp_message(2, "OPTIONS request", req);
@@ -2543,12 +2542,30 @@ void handle_options(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *
                  "PAUSE, FLUSH, TEARDOWN, "
                  "OPTIONS, GET_PARAMETER, SET_PARAMETER");
 }
-#endif
+
+void handle_teardown(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *req,
+                     rtsp_message *resp) {
+  debug(2, "Connection %d: TEARDOWN (Classic AirPlay)", conn->connection_number);
+  debug_log_rtsp_message(2, "TEARDOWN (Classic AirPlay) request", req);
+
+  // most of the cleanup here is done by the exiting player_thread, if any, and by the event
+  // receiver if and when it exits.
+
+  if (conn->player_thread) {
+    debug(1, "TEARDOWN is stopping a player...");
+    player_stop(conn);                    // this nulls the player_thread and cancels the threads...
+    activity_monitor_signify_activity(0); // inactive, and should be after command_stop()
+  }
+
+  resp->respcode = 200;
+  msg_add_header(resp, "Connection", "close");
+  // debug(1,"Bogus exit for valgrind -- remember to comment it out!.");
+  // exit(EXIT_SUCCESS);
+}
 
 #ifdef CONFIG_AIRPLAY_2
-
-void handle_options(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *req,
-                    rtsp_message *resp) {
+void handle_options_2(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *req,
+                      rtsp_message *resp) {
   debug_log_rtsp_message(2, "OPTIONS request", req);
   debug(3, "Connection %d: OPTIONS", conn->connection_number);
   resp->respcode = 200;
@@ -2578,26 +2595,6 @@ void handle_teardown_2(rtsp_conn_info *conn, __attribute__((unused)) rtsp_messag
   // sps_shutdown(TOE_normal); // ask for a normal exit
 }
 #endif
-
-void handle_teardown(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *req,
-                     rtsp_message *resp) {
-  debug(2, "Connection %d: TEARDOWN (Classic AirPlay)", conn->connection_number);
-  debug_log_rtsp_message(2, "TEARDOWN (Classic AirPlay) request", req);
-
-  // most of the cleanup here is done by the exiting player_thread, if any, and by the event
-  // receiver if and when it exits.
-
-  if (conn->player_thread) {
-    debug(1, "TEARDOWN is stopping a player...");
-    player_stop(conn);                    // this nulls the player_thread and cancels the threads...
-    activity_monitor_signify_activity(0); // inactive, and should be after command_stop()
-  }
-
-  resp->respcode = 200;
-  msg_add_header(resp, "Connection", "close");
-  // debug(1,"Bogus exit for valgrind -- remember to comment it out!.");
-  // exit(EXIT_SUCCESS);
-}
 
 void handle_flush(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
   debug_log_rtsp_message(2, "FLUSH request", req);
@@ -4358,7 +4355,8 @@ static void handle_announce(rtsp_conn_info *conn, rtsp_message *req, rtsp_messag
           conn->connection_number, conn->client_ip_string, conn->client_rtsp_port,
           conn->self_ip_string, conn->self_rtsp_port);
 #endif
-
+    conn->airplay_type = ap_1;
+    conn->timing_type = ts_ntp;
     conn->stream.type = ast_unknown;
     resp->respcode = 200; // presumed OK
     char *pssid = NULL;
@@ -4574,7 +4572,7 @@ static struct method_handler {
   char *method;
   void (*ap1_handler)(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp); // for AirPlay 1
   void (*ap2_handler)(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp); // for AirPlay 2
-} method_handlers[] = {{"OPTIONS", handle_options, handle_options},
+} method_handlers[] = {{"OPTIONS", handle_options, handle_options_2},
                        {"ANNOUNCE", handle_announce, handle_announce},
                        {"FLUSH", handle_flush, handle_flush},
                        {"TEARDOWN", handle_teardown, handle_teardown_2},
@@ -4905,23 +4903,25 @@ void rtsp_conversation_thread_cleanup_function(void *arg) {
       conn->session_key = NULL;
     }
 
-    // give the event receiver a chance to exit normally
-    uint64_t event_receiver_start_wait_time = get_absolute_time_in_ns();
-    int64_t event_receiver_wait_time = 0;
-    do {
-      if (conn->ap2_event_receiver_exited == 0)
-        usleep(50000);
-      event_receiver_wait_time = get_absolute_time_in_ns() - event_receiver_start_wait_time;
-    } while ((conn->ap2_event_receiver_exited == 0) && (event_receiver_wait_time < 2000000000L));
+    // give the event receiver a chance to exit normally, if it exists
+    if (conn->rtp_event_thread != NULL) {
+      uint64_t event_receiver_start_wait_time = get_absolute_time_in_ns();
+      int64_t event_receiver_wait_time = 0;
+      do {
+        if (conn->ap2_event_receiver_exited == 0)
+          usleep(50000);
+        event_receiver_wait_time = get_absolute_time_in_ns() - event_receiver_start_wait_time;
+      } while ((conn->ap2_event_receiver_exited == 0) && (event_receiver_wait_time < 2000000000L));
 
-    if (conn->ap2_event_receiver_exited == 0) {
-      debug(1, "Connection %d: %s event receiver has not exited, so cancelling it.",
-            conn->connection_number, get_category_string(conn->airplay_stream_category));
-      pthread_cancel(*conn->rtp_event_thread);
+      if (conn->ap2_event_receiver_exited == 0) {
+        debug(1, "Connection %d: %s event receiver has not exited, so cancelling it.",
+              conn->connection_number, get_category_string(conn->airplay_stream_category));
+        pthread_cancel(*conn->rtp_event_thread);
+      }
+      pthread_join(*conn->rtp_event_thread, NULL);
+      free(conn->rtp_event_thread);
+      conn->rtp_event_thread = NULL;
     }
-    pthread_join(*conn->rtp_event_thread, NULL);
-    free(conn->rtp_event_thread);
-    conn->rtp_event_thread = NULL;
     conn->ap2_event_receiver_exited = 0;
     debug(3, "Connection %d: %s event thread deleted.", conn->connection_number,
           get_category_string(conn->airplay_stream_category));
@@ -5065,7 +5065,7 @@ static void *rtsp_conversation_thread_func(void *pconn) {
 
   while (conn->stop == 0) {
     pthread_testcancel();
-    int debug_level = 2; // for printing the request and response
+    int debug_level = 1; // for printing the request and response
 
     // check to see if a conn has been zeroed
 
@@ -5402,10 +5402,14 @@ void *rtsp_listen_loop(__attribute((unused)) void *arg) {
       memset(conn, 0, sizeof(rtsp_conn_info));
       conn->connection_number = RTSP_connection_index++;
       debug(2, "Connection %d is at: 0x%" PRIxPTR ".", conn->connection_number, conn);
+
+      // this means that the OPTIONS string we send before getting an ANNOUNCE is for AirPlay 2
 #ifdef CONFIG_AIRPLAY_2
       conn->airplay_type = ap_2;  // changed if an ANNOUNCE is received
       conn->timing_type = ts_ptp; // changed if an ANNOUNCE is received
 #else
+      conn->airplay_type = ap_1;
+      conn->timing_type = ts_ntp;
       conn->airplay_stream_category =
           classic_airplay_stream; // really just used for debug messages in Classic AirPlay builds
 #endif
