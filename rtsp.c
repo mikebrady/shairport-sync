@@ -2739,7 +2739,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
           // airplay 2 always allows interruption, so should never return
           // play_lock_aquisition_failed
           if (get_play_lock(conn, 1) != play_lock_aquisition_failed) {
-            debug(1, "Connection %d: %s AP2 setup -- play lock acquired.", conn->connection_number,
+            debug(2, "Connection %d: %s AP2 setup -- play lock acquired.", conn->connection_number,
                   get_category_string(conn->airplay_stream_category));
 
 #ifdef CONFIG_METADATA
@@ -2910,7 +2910,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
 
             // since the GID from the client has been acquired, update the airplay bonjour strings.
             build_bonjour_strings(conn);
-            debug(1, "Connection %d: SETUP mdns_update on %s.", conn->connection_number,
+            debug(2, "Connection %d: SETUP mdns_update on %s.", conn->connection_number,
                   get_category_string(conn->airplay_stream_category));
             mdns_update(NULL, secondary_txt_records);
 

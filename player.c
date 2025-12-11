@@ -1034,7 +1034,7 @@ void prepare_decoding_chain(rtsp_conn_info *conn, ssrc_t ssrc) {
 
     if ((config.statistics_requested != 0) && (ssrc != SSRC_NONE) &&
         (conn->incoming_ssrc != SSRC_NONE)) {
-      debug(1, "Connection %d: incoming audio switching to \"%s\".", conn->connection_number,
+      debug(3, "Connection %d: incoming audio switching to \"%s\".", conn->connection_number,
             get_ssrc_name(ssrc));
 #ifdef CONFIG_METADATA
       send_ssnc_metadata('sdsc', get_ssrc_name(ssrc), strlen(get_ssrc_name(ssrc)), 1);
@@ -2728,8 +2728,8 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
           debug(2, "setting up software resampler for %s for the first time.",
                 get_ssrc_name(curframe->ssrc));
         } else {
-          debug(2, "SSRC has changed from %s to %s.", get_ssrc_name(conn->resampler_ssrc),
-                get_ssrc_name(curframe->ssrc));
+          debug(1, "Connection %d: incoming audio switching to \"%s\".", conn->connection_number,
+            get_ssrc_name(curframe->ssrc));
           clear_software_resampler(conn);
           // ask the backend if it can give us its best choice for an ffmpeg configuration:
         }

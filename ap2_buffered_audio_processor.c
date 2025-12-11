@@ -274,7 +274,7 @@ void *rtp_buffered_audio_processor(void *arg) {
 
           if (blocks_read_since_play_began == 1) {
             debug(2, "Preparing initial decoding chain for %s.", get_ssrc_name(payload_ssrc));
-            prepare_decoding_chain(conn, payload_ssrc);
+            prepare_decoding_chain(conn, payload_ssrc); // needed to set the input rate...
             sequence_number_for_player =
                 seq_no & 0xffff; // this is arbitrary -- the sequence_number_for_player numbers will
                                  // be sequential irrespective of seq_no jumps...
@@ -290,7 +290,7 @@ void *rtp_buffered_audio_processor(void *arg) {
                       "Reading a block: new encoding: %s, old encoding: %s. Preparing a new "
                       "decoding chain.",
                       get_ssrc_name(payload_ssrc), get_ssrc_name(previous_ssrc));
-                prepare_decoding_chain(conn, payload_ssrc);
+                // prepare_decoding_chain(conn, payload_ssrc);
               }
             }
 
@@ -441,7 +441,7 @@ void *rtp_buffered_audio_processor(void *arg) {
             int64_t lead_time = buffer_should_be_time - get_absolute_time_in_ns();
             payload_length = 0;
             if (ssrc_is_recognised(payload_ssrc) != 0) {
-              prepare_decoding_chain(conn, payload_ssrc);
+              // prepare_decoding_chain(conn, payload_ssrc);
               unsigned long long new_payload_length = 0;
               payload_pointer = m + leading_free_space_length;
               if ((lead_time < (int64_t)30000000000L) &&
@@ -517,7 +517,7 @@ void *rtp_buffered_audio_processor(void *arg) {
                   } else {
                     timestamp_difference = timestamp - expected_timestamp;
                     if (timestamp_difference != 0) {
-                      debug(2,
+                      debug(1,
                             "Connection %d: "
                             "unexpected timestamp in block %u. Actual: %u, expected: %u "
                             "difference: %d, "
@@ -542,7 +542,7 @@ void *rtp_buffered_audio_processor(void *arg) {
                     int32_t abs_timestamp_difference = -timestamp_difference;
                     if ((size_t)abs_timestamp_difference > get_ssrc_block_length(payload_ssrc)) {
                       skip_this_block = 1;
-                      debug(2,
+                      debug(1,
                             "skipping block %u because it is too old. Timestamp "
                             "difference: %d, length of block: %u.",
                             seq_no, timestamp_difference, get_ssrc_block_length(payload_ssrc));
