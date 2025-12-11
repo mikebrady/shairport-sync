@@ -422,7 +422,7 @@ void release_play_lock(rtsp_conn_info *conn) {
 play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) {
   play_lock_r response = play_lock_aquisition_failed;
   if (conn != NULL) {
-    debug(1, "Connection %d: %s get_play_lock with allow_session_interruption of %d.",
+    debug(2, "Connection %d: %s get_play_lock with allow_session_interruption of %d.",
           conn->connection_number, get_category_string(conn->airplay_stream_category),
           allow_session_interruption);
 
@@ -430,15 +430,15 @@ play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) 
     pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
 
     if (principal_conn == conn) {
-      debug(1, "Connection %d: %s already has principal_conn.", principal_conn->connection_number,
+      debug(2, "Connection %d: %s already has principal_conn.", principal_conn->connection_number,
             get_category_string(conn->airplay_stream_category));
     } else {
       if (principal_conn != NULL)
-        debug(1, "Connection %d: %s is requested to relinquish principal_conn.",
+        debug(2, "Connection %d: %s is requested to relinquish principal_conn.",
               principal_conn->connection_number,
               get_category_string(conn->airplay_stream_category));
       if (conn != NULL)
-        debug(1, "Connection %d: %s request to acquire principal_conn.", conn->connection_number,
+        debug(2, "Connection %d: %s request to acquire principal_conn.", conn->connection_number,
               get_category_string(conn->airplay_stream_category));
     }
 
@@ -495,7 +495,7 @@ play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) 
       // usleep(1000000); // don't know why this delay is needed.
     }
     if ((principal_conn != NULL) && (response != play_lock_already_acquired))
-      debug(1, "Connection %d: %s has principal_conn.", conn->connection_number,
+      debug(2, "Connection %d: %s has principal_conn.", conn->connection_number,
             get_category_string(conn->airplay_stream_category));
     pthread_cleanup_pop(1); // release the principal_conn lock
 
@@ -1070,7 +1070,7 @@ enum rtsp_read_request_response rtsp_read_request(rtsp_conn_info *conn, rtsp_mes
           } else if (nread == 0) {
             if (errno == 0) {
               // a blocking read that returns zero means eof -- implies connection closed by client
-              debug(1, "Connection %d RTSP closed by client.", conn->connection_number);
+              debug(2, "Connection %d RTSP closed by client.", conn->connection_number);
             } else {
               char errorstring[1024];
               strerror_r(errno, (char *)errorstring, sizeof(errorstring));
@@ -1356,10 +1356,6 @@ void handle_record(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) 
     if (conn->player_thread)
       warn("Connection %d: RECORD: Duplicate RECORD message -- ignored", conn->connection_number);
     else {
-      debug(1, "Connection %d: Classic AirPlay connection from %s:%u to self at %s:%u.",
-            conn->connection_number, conn->client_ip_string, conn->client_rtsp_port,
-            conn->self_ip_string, conn->self_rtsp_port);
-      conn->airplay_stream_category = classic_airplay_stream;
       activity_monitor_signify_activity(1);
       player_play(conn); // the thread better be 0
     }
@@ -4318,9 +4314,9 @@ static void handle_set_parameter(rtsp_conn_info *conn, rtsp_message *req, rtsp_m
 }
 
 static void handle_announce(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
-  debug(1, "Connection %d: ANNOUNCE", conn->connection_number);
+  debug(2, "Connection %d: ANNOUNCE", conn->connection_number);
 #ifdef CONFIG_AIRPLAY_2
-  conn->airplay_stream_category = classic_airplay_stream; // already set in Classic AirPLay build
+  conn->airplay_stream_category = classic_airplay_stream; // already set in Classic AirPlay build
   play_lock_r get_play_status = get_play_lock(
       conn, 1); // always allow interruption in the Classic-AirPlay-in-AirPlay-2 mode (?)
 #else
@@ -4332,7 +4328,7 @@ static void handle_announce(rtsp_conn_info *conn, rtsp_message *req, rtsp_messag
     // here. if this new session did not break in, then it's okay to reset the next UDP ports to the
     // start of the range
     if (get_play_status ==
-        play_lock_acquired_without_breaking_in) { // if it' safe to re-use original UDP ports
+        play_lock_acquired_without_breaking_in) { // if it's safe to re-use original UDP ports
       resetFreeUDPPort();
     }
 
@@ -4351,12 +4347,13 @@ static void handle_announce(rtsp_conn_info *conn, rtsp_message *req, rtsp_messag
 
 #ifdef CONFIG_AIRPLAY_2
     // In AirPlay 2, an ANNOUNCE signifies the start of an AirPlay 1 session.
-    debug(1, "Connection %d: Classic AirPlay connection from %s:%u to self at %s:%u.",
-          conn->connection_number, conn->client_ip_string, conn->client_rtsp_port,
+    debug(1, "Connection %d: %s connection from %s:%u to self at %s:%u.",
+          conn->connection_number, get_category_string(conn->airplay_stream_category), conn->client_ip_string, conn->client_rtsp_port,
           conn->self_ip_string, conn->self_rtsp_port);
-#endif
     conn->airplay_type = ap_1;
     conn->timing_type = ts_ntp;
+    conn->type = 96; // this is the AirPlay 2 code for Realtime Audio -- not sure it's right
+#endif
     conn->stream.type = ast_unknown;
     resp->respcode = 200; // presumed OK
     char *pssid = NULL;
@@ -5065,7 +5062,7 @@ static void *rtsp_conversation_thread_func(void *pconn) {
 
   while (conn->stop == 0) {
     pthread_testcancel();
-    int debug_level = 1; // for printing the request and response
+    int debug_level = 2; // for printing the request and response
 
     // check to see if a conn has been zeroed
 
@@ -5408,8 +5405,6 @@ void *rtsp_listen_loop(__attribute((unused)) void *arg) {
       conn->airplay_type = ap_2;  // changed if an ANNOUNCE is received
       conn->timing_type = ts_ptp; // changed if an ANNOUNCE is received
 #else
-      conn->airplay_type = ap_1;
-      conn->timing_type = ts_ntp;
       conn->airplay_stream_category =
           classic_airplay_stream; // really just used for debug messages in Classic AirPlay builds
 #endif

@@ -466,7 +466,7 @@ typedef struct {
   unsigned char *session_key; // needs to be free'd at the end
   char *ap2_client_name;      // needs to be free'd at teardown phase 2
   uint64_t frames_packet;
-  uint64_t type;
+  uint64_t type; // 96 (Realtime Audio), 103 (Buffered Audio), 130 (Remote Control)
   uint64_t networkTimeTimelineID;   // the clock ID used by the player
   uint8_t groupContainsGroupLeader; // information coming from the SETUP
   uint64_t compressionType;
