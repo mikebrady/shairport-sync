@@ -300,7 +300,7 @@ int pa_delay(long *the_delay) {
   pa_threaded_mainloop_lock(mainloop);
   int gl = pa_stream_get_latency(stream, &latency, &negative);
   pa_threaded_mainloop_unlock(mainloop);
-  if (gl == PA_ERR_NODATA) {
+  if (gl == -PA_ERR_NODATA) {
     // debug(1, "No latency data yet.");
     reply = -ENODEV;
   } else if (gl != 0) {
