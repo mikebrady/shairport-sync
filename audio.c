@@ -140,10 +140,11 @@ void parse_audio_options(const char *named_stanza, uint32_t default_format_set,
     /* Get the desired buffer size setting (deprecated). */
     if (config_lookup_int(config.cfg, "general.audio_backend_buffer_desired_length", &value)) {
       inform("The setting general.audio_backend_buffer_desired_length is no longer supported. "
-             "Please use alsa.audio_backend_buffer_desired_length_in_seconds instead.");
+             "Please use general.audio_backend_buffer_desired_length_in_seconds instead.");
     }
 
-    /* Get the desired buffer size setting in seconds. */
+    /* Get the desired backend buffer size setting in seconds. */
+    /* This is the size of the buffer in the output system, e.g. in the DAC itself in ALSA */
     if (config_lookup_float(config.cfg, "general.audio_backend_buffer_desired_length_in_seconds",
                             &dvalue)) {
       if (dvalue < 0) {
@@ -153,6 +154,21 @@ void parse_audio_options(const char *named_stanza, uint32_t default_format_set,
             dvalue, config.audio_backend_buffer_desired_length);
       } else {
         config.audio_backend_buffer_desired_length = dvalue;
+      }
+    }
+
+    /* Get the desired decoded buffer size setting in seconds. */
+    /* This is the size of the buffer of decoded and deciphered audio held in the player's output
+     * queue prior to sending it to the output system */
+    if (config_lookup_float(config.cfg, "general.audio_decoded_buffer_desired_length_in_seconds",
+                            &dvalue)) {
+      if (dvalue < 0) {
+        die("Invalid audio_decoded_buffer_desired_length_in_seconds value: \"%f\". It "
+            "should be 0.0 or greater."
+            " The default is %.3f seconds",
+            dvalue, config.audio_decoded_buffer_desired_length);
+      } else {
+        config.audio_decoded_buffer_desired_length = dvalue;
       }
     }
 

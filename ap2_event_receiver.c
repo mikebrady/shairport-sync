@@ -30,12 +30,12 @@
 #include "player.h"
 #include "ptp-utilities.h"
 #include "rtsp.h"
-#include "utilities/structured_buffer.h"
 #include "utilities/network_utilities.h"
+#include "utilities/structured_buffer.h"
 
 void ap2_event_receiver_cleanup_handler(void *arg) {
   rtsp_conn_info *conn = (rtsp_conn_info *)arg;
-  debug(1, "Connection %d: AP2 Event Receiver Cleanup start.", conn->connection_number);
+  // debug(1, "Connection %d: AP2 Event Receiver Cleanup start.", conn->connection_number);
   // only update these things if you're (still) the principal conn
 
 #ifdef CONFIG_METADATA
@@ -73,7 +73,7 @@ void ap2_event_receiver_cleanup_handler(void *arg) {
   }
   pthread_cleanup_pop(1); // release the principal_conn lock
   */
-  debug(1, "Connection %d: AP2 Event Receiver Cleanup exit.", conn->connection_number);
+  debug(2, "Connection %d: AP2 Event Receiver Cleanup is complete.", conn->connection_number);
 }
 
 void *ap2_event_receiver(void *arg) {

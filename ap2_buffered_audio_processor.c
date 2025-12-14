@@ -286,6 +286,8 @@ void *rtp_buffered_audio_processor(void *arg) {
               if (ssrc_is_recognised(payload_ssrc) == 0) {
                 debug(2, "Unrecognised SSRC: %u.", payload_ssrc);
               } else {
+                debug(1, "Connection %d: incoming audio switching to \"%s\".",
+                      conn->connection_number, get_ssrc_name(payload_ssrc));
                 debug(2,
                       "Reading a block: new encoding: %s, old encoding: %s. Preparing a new "
                       "decoding chain.",
@@ -420,16 +422,15 @@ void *rtp_buffered_audio_processor(void *arg) {
       // to decode it and pass it to the player
       if (new_audio_block_needed == 0) {
         // is there space in the player thread's buffer system?
-        unsigned int player_buffer_size, player_buffer_occupancy;
-        get_audio_buffer_size_and_occupancy(&player_buffer_size, &player_buffer_occupancy, conn);
+        size_t player_buffer_occupancy = get_audio_buffer_occupancy(conn);
         // debug(1,"player buffer size and occupancy: %u and %u", player_buffer_size,
         // player_buffer_occupancy);
 
         // If we are playing and there is room in the player buffer, go ahead and decode the block
         // and send it to the player. Otherwise, keep the block and sleep for a while.
         if ((play_enabled != 0) &&
-            (player_buffer_occupancy <= 2 * ((config.audio_backend_buffer_desired_length) *
-                                             conn->input_rate / conn->frames_per_packet))) {
+            (((1.0 * player_buffer_occupancy * conn->frames_per_packet) / conn->input_rate) <=
+             config.audio_decoded_buffer_desired_length)) {
           uint64_t buffer_should_be_time;
           frame_to_local_time(timestamp, &buffer_should_be_time, conn);
 
@@ -517,7 +518,7 @@ void *rtp_buffered_audio_processor(void *arg) {
                   } else {
                     timestamp_difference = timestamp - expected_timestamp;
                     if (timestamp_difference != 0) {
-                      debug(1,
+                      debug(2,
                             "Connection %d: "
                             "unexpected timestamp in block %u. Actual: %u, expected: %u "
                             "difference: %d, "
@@ -539,10 +540,31 @@ void *rtp_buffered_audio_processor(void *arg) {
                   }
                   int skip_this_block = 0;
                   if (timestamp_difference < 0) {
+
+                    // uncomment this to work back to replace buffers that have been already decoded
+                    // and placed in the player queue with the incoming new buffers this is a bit
+                    // trickier, but maybe the new buffers are better than the previous ones they
+                    // will replace (?)
+                    /*
+                    seq_t revised_seqno = get_revised_seqno(conn, timestamp);
+                    if (revised_seqno != sequence_number_for_player) {
+                      debug(1, "revised seqno calculated: conn->ab_read: %u, revised_seqno: %u,
+                    conn->ab_write: %u.", conn->ab_read, revised_seqno, conn->ab_write);
+                      clear_buffers_from(conn, revised_seqno);
+                      sequence_number_for_player = revised_seqno;
+                      timestamp_difference = 0;
+                    }
+                    */
+
+                    // uncomment this to drop incoming new buffers that are too old and for whose
+                    // timings buffers have already been decoded and placed in the player queue this
+                    // is easier, but maybe the new late buffers are better than the previous ones
+                    // (?)
+
                     int32_t abs_timestamp_difference = -timestamp_difference;
                     if ((size_t)abs_timestamp_difference > get_ssrc_block_length(payload_ssrc)) {
                       skip_this_block = 1;
-                      debug(1,
+                      debug(2,
                             "skipping block %u because it is too old. Timestamp "
                             "difference: %d, length of block: %u.",
                             seq_no, timestamp_difference, get_ssrc_block_length(payload_ssrc));

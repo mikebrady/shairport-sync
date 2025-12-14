@@ -343,19 +343,17 @@ void reset_buffer(rtsp_conn_info *conn) {
 // returns the total number of blocks and the number occupied, but not their size,
 // because the size is determined by the block size sent
 
-void get_audio_buffer_size_and_occupancy(unsigned int *size, unsigned int *occupancy,
-                                         rtsp_conn_info *conn) {
+size_t get_audio_buffer_occupancy(rtsp_conn_info *conn) {
+  size_t response = 0;
   pthread_cleanup_debug_mutex_lock(&conn->ab_mutex, 30000, 0);
-  *size = BUFFER_FRAMES;
   if (conn->ab_synced) {
     int16_t occ =
         conn->ab_write - conn->ab_read; // will be zero or positive if read and write are within
                                         // 2^15 of each other and write is at or after read
-    *occupancy = occ;
-  } else {
-    *occupancy = 0;
+    response = occ;
   }
   pthread_cleanup_pop(1);
+  return response;
 }
 
 const char *get_category_string(airplay_stream_c cat) {
@@ -1034,7 +1032,7 @@ void prepare_decoding_chain(rtsp_conn_info *conn, ssrc_t ssrc) {
 
     if ((config.statistics_requested != 0) && (ssrc != SSRC_NONE) &&
         (conn->incoming_ssrc != SSRC_NONE)) {
-      debug(3, "Connection %d: incoming audio switching to \"%s\".", conn->connection_number,
+      debug(2, "Connection %d: incoming audio switching to \"%s\".", conn->connection_number,
             get_ssrc_name(ssrc));
 #ifdef CONFIG_METADATA
       send_ssnc_metadata('sdsc', get_ssrc_name(ssrc), strlen(get_ssrc_name(ssrc)), 1);
@@ -1372,6 +1370,51 @@ int openssl_aes_decrypt_cbc(unsigned char *ciphertext, int ciphertext_len, unsig
 }
 #endif
 
+#ifdef CONFIG_AIRPLAY_2
+
+#ifdef CONFIG_AIRPLAY_2
+// This is a big dirty hack to try to accommodate packets that come in in sequence but are timed to
+// be earlier that what went before them. This happens when the feed is switching from AAC to ALAC.
+// So basically we will look back through the buffers in the queue until we find the last buffer
+// that predates the incoming one. We will make the subsequent buffer the revised_seqno. If we can't
+// find an older buffer, that means we can't go back far enough to find an older buffer and then the
+// ab_read buffer becomes the revised_seqno.
+seq_t get_revised_seqno(rtsp_conn_info *conn, uint32_t timestamp) {
+  // go back through the buffers to find the first buffer following a buffer that predates
+  // the given timestamp, if any.
+  seq_t revised_seqno = conn->ab_write;
+  pthread_cleanup_debug_mutex_lock(&conn->ab_mutex, 30000, 0);
+  int older_seqno_found = 0;
+  while ((older_seqno_found == 0) && (revised_seqno != conn->ab_read)) {
+    revised_seqno--;
+    abuf_t *tbuf = conn->audio_buffer + BUFIDX(revised_seqno);
+    if (tbuf->ready != 0) {
+      int32_t timestamp_difference = timestamp - tbuf->timestamp;
+      if (timestamp_difference >= 0) {
+        older_seqno_found = 1;
+      }
+    }
+  }
+  if (older_seqno_found)
+    revised_seqno++;
+
+  pthread_cleanup_pop(1);
+  return revised_seqno;
+}
+
+void clear_buffers_from(rtsp_conn_info *conn, seq_t from_here) {
+  seq_t bi = from_here;
+  while (bi != conn->ab_write) {
+    abuf_t *tbuf = conn->audio_buffer + BUFIDX(bi);
+    free_audio_buffer_payload(tbuf);
+    bi++;
+  }
+}
+
+#endif
+
+#endif
+
 #ifdef CONFIG_FFMPEG
 uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp, uint8_t *data,
                            size_t len, int mute, int32_t timestamp_gap, rtsp_conn_info *conn) {
@@ -1386,7 +1429,7 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
   // The timestamp_gap is the difference between the timestamp and the expected timestamp.
   // It should normally be zero.
 
-  // It can be decoded by the Hammerton or Apple ALAC decoders, or my the FFmpeg decoder.
+  // It can be decoded by the Hammerton or Apple ALAC decoders, or by the FFmpeg decoder.
 
   // The SSRC signifies the encoding used for that block of audio.
   // It is used to select the type of decoding to be done by the FFMPEG-based
@@ -2729,7 +2772,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
                 get_ssrc_name(curframe->ssrc));
         } else {
           debug(1, "Connection %d: incoming audio switching to \"%s\".", conn->connection_number,
-            get_ssrc_name(curframe->ssrc));
+                get_ssrc_name(curframe->ssrc));
           clear_software_resampler(conn);
           // ask the backend if it can give us its best choice for an ffmpeg configuration:
         }

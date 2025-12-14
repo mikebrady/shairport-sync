@@ -28,8 +28,8 @@
 #include "common.h"
 #include "player.h"
 #include "rtsp.h"
-#include "utilities/structured_buffer.h"
 #include "utilities/network_utilities.h"
+#include "utilities/structured_buffer.h"
 
 void ap2_rc_event_receiver_cleanup_handler(void *arg) {
   rtsp_conn_info *conn = (rtsp_conn_info *)arg;

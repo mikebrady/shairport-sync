@@ -301,6 +301,8 @@ typedef struct {
   double audio_backend_buffer_interpolation_threshold_in_seconds; // below this, soxr interpolation
                                                                   // will not occur -- it'll be
                                                                   // basic interpolation instead.
+  double audio_decoded_buffer_desired_length;    // the length of the buffer of fully decoded audio
+                                                 // prior to being sent to the output device
   double disable_standby_mode_silence_threshold; // below this, silence will be added to the output
                                                  // buffer
   double disable_standby_mode_silence_scan_interval; // check the threshold this often

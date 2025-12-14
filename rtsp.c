@@ -1929,7 +1929,7 @@ struct pairings {
   uint8_t public_key[32];
 
   struct pairings *next;
-} *pairings;
+} * pairings;
 
 static struct pairings *pairing_find(const char *device_id) {
   for (struct pairings *pairing = pairings; pairing; pairing = pairing->next) {
@@ -4347,9 +4347,9 @@ static void handle_announce(rtsp_conn_info *conn, rtsp_message *req, rtsp_messag
 
 #ifdef CONFIG_AIRPLAY_2
     // In AirPlay 2, an ANNOUNCE signifies the start of an AirPlay 1 session.
-    debug(1, "Connection %d: %s connection from %s:%u to self at %s:%u.",
-          conn->connection_number, get_category_string(conn->airplay_stream_category), conn->client_ip_string, conn->client_rtsp_port,
-          conn->self_ip_string, conn->self_rtsp_port);
+    debug(1, "Connection %d: %s connection from %s:%u to self at %s:%u.", conn->connection_number,
+          get_category_string(conn->airplay_stream_category), conn->client_ip_string,
+          conn->client_rtsp_port, conn->self_ip_string, conn->self_rtsp_port);
     conn->airplay_type = ap_1;
     conn->timing_type = ts_ntp;
     conn->type = 96; // this is the AirPlay 2 code for Realtime Audio -- not sure it's right
@@ -4911,7 +4911,7 @@ void rtsp_conversation_thread_cleanup_function(void *arg) {
       } while ((conn->ap2_event_receiver_exited == 0) && (event_receiver_wait_time < 2000000000L));
 
       if (conn->ap2_event_receiver_exited == 0) {
-        debug(1, "Connection %d: %s event receiver has not exited, so cancelling it.",
+        debug(2, "Connection %d: %s event receiver has not exited, so cancelling it.",
               conn->connection_number, get_category_string(conn->airplay_stream_category));
         pthread_cancel(*conn->rtp_event_thread);
       }

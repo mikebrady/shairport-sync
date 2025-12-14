@@ -2407,6 +2407,7 @@ int main(int argc, char **argv) {
   set_requested_connection_state_to_output(
       1); // we expect to be able to connect to the output device
   config.audio_backend_buffer_desired_length = 0.15; // seconds
+  config.audio_decoded_buffer_desired_length = 0.75; // seconds
   config.udp_port_base = 6001;
   config.udp_port_range = 10;
 
