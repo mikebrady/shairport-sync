@@ -409,7 +409,7 @@ void release_play_lock(rtsp_conn_info *conn) {
       build_bonjour_strings(principal_conn);
       mdns_update(NULL, secondary_txt_records);
 #endif
-      debug(1, "Connection %d: %s released principal_conn.", conn->connection_number,
+      debug(2, "Connection %d: %s released principal_conn.", conn->connection_number,
             get_category_string(conn->airplay_stream_category));
     }
     principal_conn = NULL; // let it go
@@ -2548,7 +2548,7 @@ void handle_teardown(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message 
   // receiver if and when it exits.
 
   if (conn->player_thread) {
-    debug(1, "TEARDOWN is stopping a player...");
+    debug(2, "TEARDOWN is stopping a player thread before exiting...");
     player_stop(conn);                    // this nulls the player_thread and cancels the threads...
     activity_monitor_signify_activity(0); // inactive, and should be after command_stop()
   }
@@ -2581,6 +2581,7 @@ void handle_teardown_2(rtsp_conn_info *conn, __attribute__((unused)) rtsp_messag
   debug_log_rtsp_message(2, "TEARDOWN 2: ", req);
 
   if (conn->player_thread) {
+    debug(2, "TEARDOWN 2 is stopping a player thread before exiting...");
     player_stop(conn);                    // this nulls the player_thread and cancels the threads...
     activity_monitor_signify_activity(0); // inactive, and should be after command_stop()
   }

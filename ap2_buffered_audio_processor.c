@@ -272,6 +272,10 @@ void *rtp_buffered_audio_processor(void *arg) {
           previous_ssrc = payload_ssrc;
           payload_ssrc = nctohl(&packet[8]);
 
+          if ((payload_ssrc != previous_ssrc) && (ssrc_is_recognised(payload_ssrc) == 0)) {
+              debug(2, "Unrecognised SSRC: %u.", payload_ssrc);
+          }
+
           if (blocks_read_since_play_began == 1) {
             debug(2, "Preparing initial decoding chain for %s.", get_ssrc_name(payload_ssrc));
             prepare_decoding_chain(conn, payload_ssrc); // needed to set the input rate...
@@ -282,19 +286,16 @@ void *rtp_buffered_audio_processor(void *arg) {
 
           if (blocks_read_since_play_began > 1) {
 
+/*
             if (payload_ssrc != previous_ssrc) {
               if (ssrc_is_recognised(payload_ssrc) == 0) {
                 debug(2, "Unrecognised SSRC: %u.", payload_ssrc);
               } else {
-                debug(1, "Connection %d: incoming audio switching to \"%s\".",
+                debug(2, "Connection %d: incoming audio switching to \"%s\".",
                       conn->connection_number, get_ssrc_name(payload_ssrc));
-                debug(2,
-                      "Reading a block: new encoding: %s, old encoding: %s. Preparing a new "
-                      "decoding chain.",
-                      get_ssrc_name(payload_ssrc), get_ssrc_name(previous_ssrc));
-                // prepare_decoding_chain(conn, payload_ssrc);
               }
             }
+*/
 
             uint32_t t_expected_seqno = (previous_seqno + 1) & 0x7fffff;
             if (t_expected_seqno != seq_no) {

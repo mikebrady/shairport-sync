@@ -188,7 +188,7 @@ void *ap2_event_receiver(void *arg) {
           debug(3, "Connection %d: Packet Received on Event Port with contents: \"%s\".",
                 conn->connection_number, packet);
         } else {
-          debug(1, "Connection %d: Event Port connection closed by client",
+          debug(2, "Connection %d: Event Port connection closed by client",
                 conn->connection_number);
           finished = 1;
         }
