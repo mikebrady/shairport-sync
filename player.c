@@ -426,7 +426,7 @@ void clear_decoding_chain(rtsp_conn_info *conn) {
     pthread_cleanup_pop(1); // avcodec_open2_cleanup_handler
     pthread_cleanup_pop(1); // deallocate the malloc
     pthread_cleanup_pop(1); // avcodec_alloc_context3_cleanup_handler
-    conn->incoming_ssrc = 0;
+    conn->incoming_ssrc = SSRC_NONE;
   }
 }
 
@@ -2771,7 +2771,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
           debug(2, "setting up software resampler for %s for the first time.",
                 get_ssrc_name(curframe->ssrc));
         } else {
-          debug(1, "Connection %d: incoming audio switching to \"%s\".", conn->connection_number,
+          debug(1, "Connection %d: queued audio buffers switching to \"%s\".", conn->connection_number,
                 get_ssrc_name(curframe->ssrc));
           clear_software_resampler(conn);
           // ask the backend if it can give us its best choice for an ffmpeg configuration:

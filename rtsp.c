@@ -546,7 +546,7 @@ void cancel_all_RTSP_threads(airplay_stream_c stream_category, int except_this_o
         ((conns[i]->airplay_stream_category == stream_category) ||
          (stream_category == unspecified_stream_category))) {
       pthread_cancel(conns[i]->thread);
-      debug(1, "Connection %d: %s cancelled.", conns[i]->connection_number,
+      debug(2, "Connection %d: %s cancelled.", conns[i]->connection_number,
             get_category_string(conns[i]->airplay_stream_category));
     }
   }
@@ -554,10 +554,10 @@ void cancel_all_RTSP_threads(airplay_stream_c stream_category, int except_this_o
     if ((conns[i] != NULL) && (conns[i]->connection_number != except_this_one) &&
         ((conns[i]->airplay_stream_category == stream_category) ||
          (stream_category == unspecified_stream_category))) {
-      debug(1, "Connection %d: %s joining....", conns[i]->connection_number,
+      debug(2, "Connection %d: %s joining....", conns[i]->connection_number,
             get_category_string(conns[i]->airplay_stream_category));
       pthread_join(conns[i]->thread, NULL);
-      debug(1, "Connection %d: %s joined.", conns[i]->connection_number,
+      debug(2, "Connection %d: %s joined.", conns[i]->connection_number,
             get_category_string(conns[i]->airplay_stream_category));
       free(conns[i]);
       conns[i] = NULL;

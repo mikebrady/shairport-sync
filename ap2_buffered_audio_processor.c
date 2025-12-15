@@ -338,20 +338,33 @@ void *rtp_buffered_audio_processor(void *arg) {
             debug(2, "immediate flush started at sequence number %u until sequence number of %u.",
                   seq_no, conn->ap2_immediate_flush_until_sequence_number);
           }
-          if ((blocks_read != 0) && (seq_no == conn->ap2_immediate_flush_until_sequence_number)) {
-            debug(2, "immediate flush complete at seq_no of %u.", seq_no);
+          if ((blocks_read != 0) && ((a_minus_b_mod23(seq_no, conn->ap2_immediate_flush_until_sequence_number) > 0))) {
+            debug(1, "immediate flush may have escaped its endpoint! Seq_no is %u, conn->ap2_immediate_flush_until_sequence_number is %u.", seq_no, conn->ap2_immediate_flush_until_sequence_number);
+          }
+          
+          if ((blocks_read != 0) && ((a_minus_b_mod23(seq_no, conn->ap2_immediate_flush_until_sequence_number) >= 0))) {
+            debug(2, "immediate flush completed at seq_no: %u, conn->ap2_immediate_flush_until_sequence_number: %u.", seq_no, conn->ap2_immediate_flush_until_sequence_number);
 
             conn->ap2_immediate_flush_requested = 0;
             ap2_immediate_flush_requested = 0;
 
-            /*
+            
             // turn off all deferred requests. Not sure if this is right...
             unsigned int f = 0;
             for (f = 0; f < MAX_DEFERRED_FLUSH_REQUESTS; f++) {
+              if ((conn->ap2_deferred_flush_requests[f].inUse != 0) && (conn->ap2_deferred_flush_requests[f].active = 0)) {
+                debug(1,
+                  "deferred flush cancelled by an immediate flush:  flushFromTS: %12u, flushFromSeq: %12u, "
+                  "flushUntilTS: %12u, flushUntilSeq: %12u, timestamp: %12u.",
+                  conn->ap2_deferred_flush_requests[f].flushFromTS,
+                  conn->ap2_deferred_flush_requests[f].flushFromSeq,
+                  conn->ap2_deferred_flush_requests[f].flushUntilTS,
+                  conn->ap2_deferred_flush_requests[f].flushUntilSeq, timestamp);
+              }
               conn->ap2_deferred_flush_requests[f].inUse = 0;
               conn->ap2_deferred_flush_requests[f].active = 0;
             }
-            */
+
 
           } else {
             debug(3, "immediate flush of block %u until block %u", seq_no,
