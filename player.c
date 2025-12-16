@@ -1567,7 +1567,7 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
         } else if (config.decoder_in_use == 1 << decoder_ffmpeg_alac) {
 #ifdef CONFIG_FFMPEG
           prepare_decoding_chain(conn, ALAC_44100_S16_2);
-          if (len > 8) {
+          // if (len > 8) {
             abuf->avframe = block_to_avframe(conn, data_to_use, len);
             abuf->ssrc = ALAC_44100_S16_2;
             if (abuf->avframe) {
@@ -1581,12 +1581,14 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
               av_frame_free(&abuf->avframe);
               abuf->avframe = NULL;
             }
-          } else {
-            debug(1,
-                  "Unrecognised audio packet of length %u -- replacing with %u frames of silence.",
-                  len, conn->frames_per_packet);
-            abuf->length = conn->frames_per_packet;
-            abuf->avframe = NULL;
+          // } else {
+        if (len <= 8) {
+          debug(1,
+                "Using the FFMPEG ALAC_44100_S16_2 decoder, a short audio packet %u, rtptime %u, of length %u has been decoded. Contents follow:", seqno,
+                actual_timestamp, len);
+          debug_print_buffer(1, data, len);
+            // abuf->length = conn->frames_per_packet;
+            // abuf->avframe = NULL;
           }
 #else
           debug(1, "FFMPEG support has not been built into this version Shairport Sync!");
@@ -1618,7 +1620,7 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
 
         prepare_decoding_chain(conn, ssrc); // dynamically set the decoding environment
 
-        if (len > 8) {
+        // if (len > 8) {
           abuf->avframe = block_to_avframe(conn, data, len);
           abuf->ssrc = ssrc; // tag the avframe with its specific SSRC
           if (abuf->avframe) {
@@ -1631,13 +1633,14 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
             av_frame_free(&abuf->avframe);
             abuf->avframe = NULL;
           }
-        } else {
+        //} else {
+        if (len <= 8) {
           debug(1,
-                "Unrecognised audio packet %u, rtptime %u, of length %u. Contents follow:", seqno,
+                "Using an FFMPEG decoder, a short audio packet %u, rtptime %u, of length %u has been decoded. Contents follow:", seqno,
                 actual_timestamp, len);
           debug_print_buffer(1, data, len);
-          abuf->length = 0;
-          abuf->avframe = NULL;
+          // abuf->length = 0;
+          // abuf->avframe = NULL;
         }
         abuf->ready = 1;
         abuf->status = 0; // signifying that it was received
