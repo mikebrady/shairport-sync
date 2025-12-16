@@ -269,8 +269,20 @@ void *rtp_buffered_audio_processor(void *arg) {
           previous_timestamp = timestamp;
           timestamp = nctohl(&packet[4]);
 
-          previous_ssrc = payload_ssrc;
+          if (payload_ssrc != SSRC_NONE)
+            previous_ssrc = payload_ssrc;
           payload_ssrc = nctohl(&packet[8]);
+          
+          
+
+          if ((payload_ssrc != previous_ssrc) && (payload_ssrc != SSRC_NONE)) {
+            if (ssrc_is_recognised(payload_ssrc) == 0) {
+              debug(2, "Unrecognised SSRC: %u.", payload_ssrc);
+            } else {
+              debug(2, "Connection %d: incoming audio encoding is%s \"%s\".",
+                    conn->connection_number, previous_ssrc == SSRC_NONE ? "" : " switching to", get_ssrc_name(payload_ssrc));
+            }
+          }
 
           if ((payload_ssrc != previous_ssrc) && (ssrc_is_recognised(payload_ssrc) == 0)) {
               debug(2, "Unrecognised SSRC: %u.", payload_ssrc);
@@ -285,17 +297,6 @@ void *rtp_buffered_audio_processor(void *arg) {
           }
 
           if (blocks_read_since_play_began > 1) {
-
-/*
-            if (payload_ssrc != previous_ssrc) {
-              if (ssrc_is_recognised(payload_ssrc) == 0) {
-                debug(2, "Unrecognised SSRC: %u.", payload_ssrc);
-              } else {
-                debug(2, "Connection %d: incoming audio switching to \"%s\".",
-                      conn->connection_number, get_ssrc_name(payload_ssrc));
-              }
-            }
-*/
 
             uint32_t t_expected_seqno = (previous_seqno + 1) & 0x7fffff;
             if (t_expected_seqno != seq_no) {

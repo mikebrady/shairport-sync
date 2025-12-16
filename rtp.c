@@ -1387,10 +1387,9 @@ int get_ptp_anchor_local_time_info(rtsp_conn_info *conn, uint32_t *anchorRTP,
         if ((previous_offset != 0) && (previous_clock_id == actual_clock_id) &&
             ((jitter > 3000000) || (jitter < -3000000)))
           debug(1,
-                "Clock jitter: %" PRId64 " ns. Time since sample: %" PRId64
-                " ns. Time since start of mastership: %f "
+                "Clock jitter: %.3f mS. Time since sample: %.3f mS. Time since start of mastership: %.3f "
                 "seconds.",
-                jitter, time_since_sample, time_since_start_of_mastership * 0.000000001);
+                jitter * 0.000001, time_since_sample * 0.000001, time_since_start_of_mastership * 0.000000001);
 
         previous_offset = actual_offset;
         previous_clock_id = actual_clock_id;
