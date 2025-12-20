@@ -967,15 +967,15 @@ uint8_t *rsa_apply(uint8_t *input, int inlen, int *outlen, int mode) {
     mbedtls_rsa_set_padding(trsa, MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);    
     outbuf = malloc(trsa->MBEDTLS_PRIVATE_V3_ONLY(len));
 #if MBEDTLS_VERSION_MAJOR == 3
-    rc = mbedtls_rsa_pkcs1_encrypt(trsa, mbedtls_ctr_drbg_random, &ctr_drbg,
-                                   inlen, input, outbuf);
+    rc = mbedtls_pk_sign(&pkctx, MBEDTLS_MD_NONE, input, inlen, outbuf, mbedtls_pk_get_len(&pkctx), &olen, mbedtls_ctr_drbg_random, &ctr_drbg);
+    *outlen = olen;
 #else
     rc = mbedtls_rsa_pkcs1_encrypt(trsa, mbedtls_ctr_drbg_random, &ctr_drbg, MBEDTLS_RSA_PRIVATE,
                                    inlen, input, outbuf);
+    *outlen = trsa->len;
 #endif
     if (rc != 0)
       debug(1, "mbedtls_pk_encrypt error %d.", rc);
-    *outlen = trsa->MBEDTLS_PRIVATE_V3_ONLY(len);
     break;
   case RSA_MODE_KEY:
     mbedtls_rsa_set_padding(trsa, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA1);
