@@ -3,7 +3,7 @@ Version 5.0-dev-100-ga1238882
 **Bug Fix**
 * Fixed a bug whereby Shairport Sync would not work with `mbedtls` library from version 3.4 (present on recent versions of Linux, e.g. Debian 13...).
 
-  Many Thanks to [Christian Beier](https://github.com/bk138) for [finding the bug](https://github.com/mikebrady/shairport-sync/issues/2115) and for [fixing it](https://github.com/mikebrady/shairport-sync/pull/2118).
+  Many thanks to [Christian Beier](https://github.com/bk138) for [finding the bug](https://github.com/mikebrady/shairport-sync/issues/2115) and for [fixing it](https://github.com/mikebrady/shairport-sync/pull/2118).
 
 Version 5.0-dev-93-g1417cd6f
 ==
