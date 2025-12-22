@@ -1,3 +1,8 @@
+Version 5.0-dev-106-gec0016fb
+==
+**Bug Fix**
+* Fix a bug in the PulseAudio backend so that `PA_ERR_NODATA` returns "No latency data yet". Thanks to [Vladimir Shakov](https://github.com/bogdad) for the [report and fix](https://github.com/mikebrady/shairport-sync/pull/2119).
+
 Version 5.0-dev-100-ga1238882
 ==
 **Bug Fix**
