@@ -1,3 +1,23 @@
+Version 5.0-dev-142-gfcacc4e5
+==
+**Updates**
+* Continuing to address some issues with AutoMix on AirPlay, skipping tracks, and other unreported issues, this update represents some "housekeeping" -- cleaning up some old code based on a better (?) understanding of protocols.
+
+  Your bug reports are welcome.
+  
+  Here are some of the details:
+  * Cleaned up `get_play_lock()` and `release_play_lock()` stuff and placed them in the right places for AP2, AP1 compatibiity and Classic AP.
+  * Fixed the setting of flags and GID in Bonjour.
+  * The `principal_conn` is correctly released when terminating a listener loop.
+  * The `airplay_stream_type` is correctly set for a classic airplay session.
+  * Moved NQPTP clock setup and start from Setup Phase 1 to Setup Phase 2.
+  * Stopped a player thread from resetting the NTPTP client clock when it finishes.
+  * Modified and greatly simplified the `TEARDOWN` handling in AP2 mode.
+  * Allowed threads to 'naturally' terminate when ports are closed by the client.
+  * Improved clearing of flush requests in new play sessions.
+  * Added, but disabled, code to removed previously decoded buffers of data from the player if replacement buffers come in later. (This happens when input changes from AAC to ALAC on the fly, and it's unclear whether this is an AirPlay 2 implementation bug or not.) It's unclear which buffers should have primacy -- the older ones or the newer ones -- so for simplicity new buffers that would replace buffers that are already decoded are simply dropped.
+
+
 Version 5.0-dev-106-gec0016fb
 ==
 **Bug Fix**
