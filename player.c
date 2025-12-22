@@ -1584,7 +1584,7 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
           // } else {
         if (len <= 8) {
           debug(1,
-                "Using the FFMPEG ALAC_44100_S16_2 decoder, a short audio packet %u, rtptime %u, of length %u has been decoded. Contents follow:", seqno,
+                "Using the FFMPEG ALAC_44100_S16_2 decoder, a short audio packet %u, rtptime %u, of length %u has been decoded but not discarded. Contents follow:", seqno,
                 actual_timestamp, len);
           debug_print_buffer(1, data, len);
             // abuf->length = conn->frames_per_packet;
@@ -1636,7 +1636,7 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
         //} else {
         if (len <= 8) {
           debug(1,
-                "Using an FFMPEG decoder, a short audio packet %u, rtptime %u, of length %u has been decoded. Contents follow:", seqno,
+                "Using an FFMPEG decoder, a short audio packet %u, rtptime %u, of length %u has been decoded but not discarded. Contents follow:", seqno,
                 actual_timestamp, len);
           debug_print_buffer(1, data, len);
           // abuf->length = 0;
