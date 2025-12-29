@@ -1019,7 +1019,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn) {
                         if (offset_to_flush_frame > 0) {
                           debug(2,
                                 "flush to %u request: flush buffer %u, from "
-                                "%u to %u. ab_write is: %u.",
+                                "%" PRIu32 "to %" PRIu32 ". ab_write is: %u.",
                                 conn->flush_rtp_timestamp, conn->ab_read,
                                 current_packet->given_timestamp,
                                 current_packet->given_timestamp + current_packet->length - 1,
@@ -1127,13 +1127,13 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn) {
           // debug(1,"should_be frame is %u.",should_be_frame);
           int32_t frame_difference = thePacket->given_timestamp - should_be_frame;
           if (frame_difference < 0) {
-            debug(2, "Dropping out of date packet %u with timestamp %u. Lead time is %f seconds.",
+            debug(2, "Dropping out of date packet %u with timestamp %" PRIu32 ". Lead time is %f seconds.",
                   conn->ab_read, thePacket->given_timestamp,
                   frame_difference * 1.0 / 44100.0 + desired_lead_time * 0.000000001);
             conn->ab_read++;
           } else {
             if (conn->first_packet_timestamp == 0)
-              debug(2, "Accepting packet %u with timestamp %u. Lead time is %f seconds.",
+              debug(2, "Accepting packet %u with timestamp %" PRIu32 ". Lead time is %f seconds.",
                     conn->ab_read, thePacket->given_timestamp,
                     frame_difference * 1.0 / 44100.0 + desired_lead_time * 0.000000001);
             out_of_date = 0;
@@ -1150,7 +1150,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn) {
           uint64_t should_be_time;
           frame_to_local_time(curframe->given_timestamp, &should_be_time, conn);
           int64_t time_difference = should_be_time - local_time_now;
-          debug(3, "Check packet from buffer %u, timestamp %u, %f seconds ahead.", conn->ab_read,
+          debug(3, "Check packet from buffer %u, timestamp %" PRIu32 ", %f seconds ahead.", conn->ab_read,
                 curframe->given_timestamp, 0.000000001 * time_difference);
         } else {
           debug(3, "Check packet from buffer %u, empty.", conn->ab_read);
@@ -1418,7 +1418,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn) {
                     "crazy time interval of %f seconds between time now: 0x%" PRIx64
                     " and time of packet: %" PRIx64 ".",
                     0.000000001 * time_difference, local_time_now, time_to_play);
-              debug(2, "packet rtptime: %u, reference_timestamp: %u", curframe->given_timestamp,
+              debug(2, "packet rtptime: %u, reference_timestamp: %" PRIu32 "", curframe->given_timestamp,
                     conn->anchor_rtptime);
 
               do_wait = 0; // let it go
@@ -2817,7 +2817,7 @@ void *player_thread_func(void *arg) {
                   send_ssnc_metadata('styp', "Classic", strlen("Classic"), 1);
 #endif
                   if (config.statistics_requested)
-                    inform("Connection %d: Playback started at frame %" PRId64
+                    inform("Connection %d: Playback started at frame %" PRIu32
                            " -- Classic AirPlay (\"AirPlay 1\") Compatible.",
                            conn->connection_number, inframe->given_timestamp);
                 } else {
@@ -2825,7 +2825,7 @@ void *player_thread_func(void *arg) {
                   send_ssnc_metadata('styp', "Realtime", strlen("Realtime"), 1);
 #endif
                   if (config.statistics_requested)
-                    inform("Connection %d: Playback started at frame %" PRId64
+                    inform("Connection %d: Playback started at frame %" PRIu32
                            " -- AirPlay 2 Realtime.",
                            conn->connection_number, inframe->given_timestamp);
                 }
@@ -2834,7 +2834,7 @@ void *player_thread_func(void *arg) {
                 send_ssnc_metadata('styp', "Buffered", strlen("Buffered"), 1);
 #endif
                 if (config.statistics_requested)
-                  inform("Connection %d: Playback started at frame %" PRId64
+                  inform("Connection %d: Playback started at frame %" PRIu32
                          " -- AirPlay 2 Buffered.",
                          conn->connection_number, inframe->given_timestamp);
               }
@@ -2843,7 +2843,7 @@ void *player_thread_func(void *arg) {
               send_ssnc_metadata('styp', "Classic", strlen("Classic"), 1);
 #endif
               if (config.statistics_requested)
-                inform("Connection %d: Playback started at frame %" PRId64
+                inform("Connection %d: Playback started at frame %" PRIu32
                        " -- Classic AirPlay (\"AirPlay 1\").",
                        conn->connection_number, inframe->given_timestamp);
 #endif
