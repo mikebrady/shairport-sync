@@ -1317,7 +1317,8 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn) {
                               silence, fs, config.output_format, conn->enable_dither,
                               conn->previous_random_number);
                           config.output->play(silence, fs, play_samples_are_untimed, 0, 0);
-                          debug(1, "Priming: Lead time is %f seconds. Sent %" PRId64 " frames of silence.", llead_time * 0.000000001, fs);
+                          debug(1, "Priming: Lead time is %f seconds. Sent %" PRId64 " frames of silence. DAC delay is %ld frames. Desired DAC buffer is %f frames.", llead_time * 0.000000001, fs, dac_delay, config.audio_backend_buffer_desired_length *
+                                    config.output_rate);
                           free(silence);
                           have_sent_prefiller_silence = 1;
                         }
