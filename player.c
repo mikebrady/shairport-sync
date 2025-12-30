@@ -2233,7 +2233,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
           // debug(1,"should_be frame is %u.",should_be_frame);
           int32_t frame_difference = thePacket->timestamp - should_be_frame;
           if (frame_difference < 0) {
-            debug(3,
+            debug(1,
                   "Connection %d: dropping-out-of-date packet %u with timestamp %u. Lead time is "
                   "%f seconds.",
                   conn->connection_number, conn->ab_read, thePacket->timestamp,
@@ -2243,7 +2243,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
             conn->ab_read++;
           } else {
             if (conn->first_packet_timestamp == 0)
-              debug(3,
+              debug(1,
                     "Connection %d: accepting packet sequence number %u, ab_read: %u with "
                     "timestamp %u. Lead time is %f seconds.",
                     conn->connection_number, thePacket->sequence_number, conn->ab_read,
@@ -2282,7 +2282,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
                     conn->connection_number, curframe->timestamp, curframe->timestamp_gap);
             if (resync_requested != 0)
           */
-          debug(2, "Connection %d: reset first_packet_timestamp resync_requested.",
+          debug(1, "Connection %d: reset first_packet_timestamp resync_requested.",
                 conn->connection_number);
           conn->ab_buffering = 1;
           conn->first_packet_timestamp = 0;
@@ -2330,7 +2330,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
                 conn->first_packet_timestamp =
                     curframe->timestamp; // we will keep buffering until we are
                                          // supposed to start playing this
-                debug(2, "Connection %d: first packet timestamp is %u.", conn->connection_number,
+                debug(1, "Connection %d: first packet timestamp is %u.", conn->connection_number,
                       conn->first_packet_timestamp);
 
                 // Even though it'll be some time before the first frame will be output
@@ -2426,7 +2426,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
                 int64_t lt = conn->first_packet_time_to_play - get_absolute_time_in_ns();
 
                 // can't be too late because we skipped late packets already, FLW.
-                debug(2, "Connection %d: lead time for first frame %u: %f seconds.",
+                debug(1, "Connection %d: lead time for first frame %u: %f seconds.",
                       conn->connection_number, conn->first_packet_timestamp, lt * 0.000000001);
               }
 
@@ -2452,7 +2452,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
                   if (fabs(0.000001 * change_in_should_be_time) >
                       0.001) // ignore this unless if's more than a microsecond
                     debug(
-                        2,
+                        1,
                         "Change in estimated first_packet_time: %f milliseconds for first_packet.",
                         0.000001 * change_in_should_be_time);
 
@@ -2522,7 +2522,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
                                 silence, fs, conn->enable_dither, conn->previous_random_number,
                                 config.current_output_configuration);
 
-                            debug(3, "Send %" PRId64 " frames of silence.", fs);
+                            debug(1, "buffer_get_frame: send %" PRId64 " frames of silence.", fs);
                             config.output->play(silence, fs, play_samples_are_untimed, 0, 0);
                             debug(3, "Sent %" PRId64 " frames of silence.", fs);
                             pthread_cleanup_pop(1); // deallocate silence
@@ -2531,7 +2531,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
                         }
                       } else {
                         if ((resp == -EAGAIN) || (resp == -EIO) || (resp == -ENODEV)) {
-                          debug(2, "delay() information not (yet, hopefully!) available.");
+                          debug(1, "delay() information not (yet, hopefully!) available.");
                         } else {
                           debug(1, "delay() error %d: \"%s\".", -resp, strerror(-resp));
                         }
@@ -3729,7 +3729,7 @@ void *player_thread_func(void *arg) {
           conn->play_number_after_flush++;
 
           if (inframe->timestamp == 0) {
-            debug(2,
+            debug(1,
                   "Player has supplied a silent frame, (possibly frame %u) for play number %d, "
                   "status 0x%X after %u resend requests.",
                   conn->last_seqno_read + 1, play_number, inframe->status,
@@ -4207,7 +4207,7 @@ void *player_thread_func(void *arg) {
                 if (l_delay >= 0)
                   current_delay = l_delay;
                 else {
-                  debug(2, "Underrun of %ld frames reported, but ignored.", l_delay);
+                  debug(1, "Underrun of %ld frames reported, but ignored.", l_delay);
                   current_delay =
                       0; // could get a negative value if there was underrun, but ignore it.
                 }
@@ -4344,7 +4344,7 @@ void *player_thread_func(void *arg) {
                   int64_t gap_to_fix = sync_error; // this is what we look at normally
 
                   if (conn->first_packet_timestamp == inframe->timestamp) {
-                    debug(3, "first frame: %u, sync_error %" PRId64 " frames.", inframe->timestamp,
+                    debug(1, "first frame: %u, sync_error %" PRId64 " frames.", inframe->timestamp,
                           sync_error);
                     skipping_frames_at_start_of_play = 1;
                   } else {
@@ -4534,7 +4534,7 @@ void *player_thread_func(void *arg) {
                   request_resync = 1; // ask for a resync
                 } else {
                   int16_t occ = conn->ab_write - conn->ab_read;
-                  debug(2,
+                  debug(1,
                         "drop late packet, timestamp: %u,  late by: %.3f ms, packets remaining in "
                         "the buffer: %u.",
                         inframe->timestamp, centered_sync_error_time * 1000, occ);
