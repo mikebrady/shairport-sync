@@ -144,7 +144,7 @@ static void browse_callback(AvahiServiceBrowser *b, AvahiIfIndex interface, Avah
   /* Called whenever a new services becomes available on the LAN or is removed from the LAN */
   switch (event) {
   case AVAHI_BROWSER_FAILURE:
-    warn("avahi: browser failure.",
+    warn("avahi: browser failure: %s.",
          avahi_strerror(avahi_client_errno(avahi_service_browser_get_client(b))));
     avahi_threaded_poll_quit(tpoll);
     break;

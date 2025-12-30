@@ -1808,7 +1808,7 @@ void sps_nanosleep(const time_t sec, const long nanosec) {
     rem = req;
   } while ((result == -1) && (errno == EINTR));
   if (result == -1)
-    debug(1, "Error in sps_nanosleep of %d sec and %ld nanoseconds: %d.", sec, nanosec, errno);
+    debug(1, "Error in sps_nanosleep of %ld sec and %ld nanoseconds: %d.", sec, nanosec, errno);
 }
 
 // Mac OS X doesn't have pthread_mutex_timedlock
@@ -1918,7 +1918,7 @@ void plist_cleanup(void *arg) {
 void socket_cleanup(void *arg) {
   intptr_t fdp = (intptr_t)arg;
   int soc = fdp;
-  debug(3, "socket_cleanup called for socket: %" PRIdPTR ".", soc);
+  debug(3, "socket_cleanup called for socket: %d.", soc);
   close(fdp);
 }
 

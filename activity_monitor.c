@@ -146,7 +146,7 @@ void *activity_monitor_thread_code(void *arg) {
 
   rc = pthread_cond_init(&activity_monitor_cv, NULL);
   if (rc)
-    die("activity_monitor: error %d initialising activity_monitor_cv.");
+    die("activity_monitor: error %d initialising activity_monitor_cv.", rc);
   pthread_cleanup_push(activity_thread_cleanup_handler, arg);
 
   uint64_t sec;
