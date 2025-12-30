@@ -998,7 +998,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn) {
                 if (offset_from_first_frame > 0) {
                   int32_t offset_to_last_frame = last_frame_in_buffer - conn->flush_rtp_timestamp;
                   if (offset_to_last_frame >= 0) {
-                    debug(2,
+                    debug(1,
                           "flush request: flush frame %u active -- buffer contains %u frames, from "
                           "%u to %u.",
                           conn->flush_rtp_timestamp,
@@ -1127,15 +1127,15 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn) {
           // debug(1,"should_be frame is %u.",should_be_frame);
           int32_t frame_difference = thePacket->given_timestamp - should_be_frame;
           if (frame_difference < 0) {
-            debug(2, "Dropping out of date packet %u with timestamp %" PRIu32 ". Lead time is %f seconds.",
+            debug(1, "Dropping out of date packet %u with timestamp %" PRIu32 ". Lead time is %f seconds. Desired lead time is %f seconds.",
                   conn->ab_read, thePacket->given_timestamp,
-                  frame_difference * 1.0 / 44100.0 + desired_lead_time * 0.000000001);
+                  frame_difference * 1.0 / 44100.0 + desired_lead_time * 0.000000001, desired_lead_time * 0.000000001);
             conn->ab_read++;
           } else {
             if (conn->first_packet_timestamp == 0)
-              debug(2, "Accepting packet %u with timestamp %" PRIu32 ". Lead time is %f seconds.",
+              debug(1, "Accepting packet %u with timestamp %" PRIu32 ". Lead time is %f seconds. Desired lead time is %f seconds.",
                     conn->ab_read, thePacket->given_timestamp,
-                    frame_difference * 1.0 / 44100.0 + desired_lead_time * 0.000000001);
+                    frame_difference * 1.0 / 44100.0 + desired_lead_time * 0.000000001, desired_lead_time * 0.000000001);
             out_of_date = 0;
           }
         } else {
@@ -1211,7 +1211,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn) {
               int64_t lt = conn->first_packet_time_to_play - local_time_now;
 
               // can't be too late because we skipped late packets already, FLW.
-              debug(2, "Connection %d: Lead time for first frame %" PRId64 ": %f seconds.",
+              debug(1, "Connection %d: Lead time for first frame %" PRId64 ": %f seconds.",
                     conn->connection_number, conn->first_packet_timestamp, lt * 0.000000001);
 #ifdef CONFIG_METADATA
               // say we have started receiving frames here
@@ -1299,14 +1299,14 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn) {
                       if (fs > 0) {
                         silence = malloc(conn->output_bytes_per_frame * fs);
                         if (silence == NULL)
-                          debug(1, "Failed to allocate %d byte silence buffer.", fs);
+                          debug(1, "Failed to allocate %" PRId64 " byte silence buffer.", fs);
                         else {
                           // generate frames of silence with dither if necessary
                           conn->previous_random_number = generate_zero_frames(
                               silence, fs, config.output_format, conn->enable_dither,
                               conn->previous_random_number);
                           config.output->play(silence, fs, play_samples_are_untimed, 0, 0);
-                          debug(3, "Sent %" PRId64 " frames of silence", fs);
+                          debug(1, "Priming: sent %" PRId64 " frames of silence", fs);
                           free(silence);
                           have_sent_prefiller_silence = 1;
                         }
@@ -1345,7 +1345,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn) {
                   if (silence == NULL)
                     debug(1, "Failed to allocate %d frame silence buffer.", fs);
                   else {
-                    // debug(1, "No delay function -- outputting %d frames of silence.", fs);
+                    debug(1, "Priming: no delay function -- outputting %d frames of silence.", fs);
                     conn->previous_random_number =
                         generate_zero_frames(silence, fs, config.output_format, conn->enable_dither,
                                              conn->previous_random_number);
@@ -2305,6 +2305,7 @@ void *player_thread_func(void *arg) {
           } else {
             // the player may change the contents of the buffer, so it has to be zeroed each time;
             // might as well malloc and free it locally
+            debug(1, "playing %u frames of silence.", conn->max_frames_per_packet);
             conn->previous_random_number = generate_zero_frames(
                 silence, conn->max_frames_per_packet * conn->output_sample_ratio,
                 config.output_format, conn->enable_dither, conn->previous_random_number);
@@ -2328,6 +2329,7 @@ void *player_thread_func(void *arg) {
           } else {
             // the player may change the contents of the buffer, so it has to be zeroed each time;
             // might as well malloc and free it locally
+            debug(1,"play a silent buffer of %u frames after a flush.", conn->max_frames_per_packet);
             conn->previous_random_number = generate_zero_frames(
                 silence, conn->max_frames_per_packet * conn->output_sample_ratio,
                 config.output_format, conn->enable_dither, conn->previous_random_number);
