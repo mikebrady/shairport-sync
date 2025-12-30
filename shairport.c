@@ -1626,7 +1626,7 @@ int parse_options(int argc, char **argv) {
   // Produces a UUID string at uuid consisting of lower-case letters
   uuid_unparse_lower(result, psi_uuid);
   config.airplay_psi = psi_uuid;
-  debug(3, "size of pk is %u.", sizeof(config.airplay_pk));
+  debug(3, "size of pk is %lu.", sizeof(config.airplay_pk));
 
   pair_public_key_get(PAIR_SERVER_HOMEKIT, config.airplay_pk, config.airplay_device_id);
   char buf[128];
@@ -2806,11 +2806,11 @@ int main(int argc, char **argv) {
       (config_lookup_non_empty_string(config.cfg, "general.mixdown", &str))) {
     if ((strcasecmp(str, "off") == 0) || (strcasecmp(str, "no") == 0)) {
       config.mixdown_enable = 0; // 0 on initialisation
-      debug(1, "mixdown disabled.", str);
+      debug(1, "mixdown disabled.");
     } else if (strcasecmp(str, "auto") == 0) {
       config.mixdown_enable = 1;
       config.mixdown_channel_layout = 0; // 0 means auto
-      debug(1, "mixdown target: auto.", str);
+      debug(1, "mixdown target: auto.");
     } else {
       AVChannelLayout channel_layout;
       if (av_channel_layout_from_string(&channel_layout, str) == 0) {
@@ -3116,7 +3116,7 @@ int main(int argc, char **argv) {
   debug(option_print_level, "metadata pipename is \"%s\".", config.metadata_pipename);
   debug(option_print_level, "metadata socket address is \"%s\" port %d.", config.metadata_sockaddr,
         config.metadata_sockport);
-  debug(option_print_level, "metadata socket packet size is \"%d\".",
+  debug(option_print_level, "metadata socket packet size is \"%ld\".",
         config.metadata_sockmsglength);
   debug(option_print_level, "get-coverart is %d.", config.get_coverart);
 #endif

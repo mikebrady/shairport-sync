@@ -335,7 +335,7 @@ static int configure(int32_t requested_encoded_format, char **resulting_channel_
     // allocate space for the audio buffer
     audio_lmb = malloc(audio_size);
     if (audio_lmb == NULL)
-      die("Can't allocate %d bytes for PipeWire buffer.", audio_size);
+      die("Can't allocate %ld bytes for PipeWire buffer.", audio_size);
     audio_toq = audio_eoq = audio_lmb;
     audio_umb = audio_lmb + audio_size;
     audio_occupancy = 0;

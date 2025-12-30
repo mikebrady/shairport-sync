@@ -148,7 +148,7 @@ void *rtp_buffered_audio_processor(void *arg) {
   buffered_audio->buffer_max_size = conn->ap2_audio_buffer_size;
   buffered_audio->buffer = malloc(conn->ap2_audio_buffer_size);
   if (buffered_audio->buffer == NULL)
-    debug(1, "cannot allocate an audio buffer of %u bytes!", buffered_audio->buffer_max_size);
+    debug(1, "cannot allocate an audio buffer of %lu bytes!", buffered_audio->buffer_max_size);
   pthread_cleanup_push(malloc_cleanup, &buffered_audio->buffer);
 
   // pthread_mutex_lock(&conn->buffered_audio_mutex);
@@ -488,7 +488,7 @@ void *rtp_buffered_audio_processor(void *arg) {
                       nonce,
                       conn->session_key); // *k
                   if (response != 0)
-                    debug(1, "Error decrypting audio packet %u -- packet length %d.", seq_no,
+                    debug(1, "Error decrypting audio packet %u -- packet length %ld.", seq_no,
                           nread);
                 } else {
                   debug(2, "No session key, so the audio packet can not be deciphered -- skipped.");
@@ -581,7 +581,7 @@ void *rtp_buffered_audio_processor(void *arg) {
                       skip_this_block = 1;
                       debug(2,
                             "skipping block %u because it is too old. Timestamp "
-                            "difference: %d, length of block: %u.",
+                            "difference: %d, length of block: %lu.",
                             seq_no, timestamp_difference, get_ssrc_block_length(payload_ssrc));
                     }
                   }
@@ -606,7 +606,7 @@ void *rtp_buffered_audio_processor(void *arg) {
                 uint64_t currentAnchorLocalTime = 0;
                 if (get_ptp_anchor_local_time_info(conn, &currentAnchorRTP,
                                                    &currentAnchorLocalTime) == clock_ok) {
-                  debug(3, "anchorRTP: %u, anchorLocalTime: % " PRIu64 ".", currentAnchorRTP,
+                  debug(3, "anchorRTP: %u, anchorLocalTime: %" PRIu64 ".", currentAnchorRTP,
                         currentAnchorLocalTime);
                 } else {
                   debug(3, "Clock not okay");

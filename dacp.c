@@ -88,7 +88,7 @@ void *response_realloc(__attribute__((unused)) void *opaque, void *ptr, int size
       t = realloc(ptr, size);
     }
     if (t == NULL)
-      debug(1, "response_realloc of size %d to ptr %" PRIxPTR " failed!", size, ptr);
+      debug(1, "response_realloc of size %d to ptr %" PRIxPTR " failed!", size, (uintptr_t) ptr);
   }
   return t;
 }
@@ -1302,7 +1302,7 @@ int dacp_set_volume(int32_t vo) {
         int32_t active_speakers = 0;
         for (i = 0; i < speaker_count; i++) {
           if (speaker_info[i].speaker_number == machine_number) {
-            debug(2, "Our speaker number found: %ld with relative volume.", machine_number,
+            debug(2, "Our speaker number found: %ld with relative volume %" PRId32 ".", machine_number,
                   speaker_info[i].volume);
           }
           if (speaker_info[i].active == 1) {

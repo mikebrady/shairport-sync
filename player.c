@@ -1273,7 +1273,7 @@ AVFrame *block_to_avframe(rtsp_conn_info *conn, uint8_t *incoming_data,
           if (ret < 0) {
             av_frame_free(&decoded_frame);
             decoded_frame = NULL;
-            debug(1, "error %d during decoding. Data size: %d", ret, incoming_data_length);
+            debug(1, "error %d during decoding. Data size: %ld", ret, incoming_data_length);
             /*
                       char *obf = malloc(incoming_data_length * 3);
                       char *obfp = obf;
@@ -1293,7 +1293,7 @@ AVFrame *block_to_avframe(rtsp_conn_info *conn, uint8_t *incoming_data,
           }
         }
       } else {
-        debug(1, "error %d during decoding. Gross data size: %d", ret, incoming_data_length);
+        debug(1, "error %d during decoding. Gross data size: %ld", ret, incoming_data_length);
         /*
               char obf[128];
               char *obfp = obf;
@@ -1584,7 +1584,7 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
           // } else {
         if (len <= 8) {
           debug(1,
-                "Using the FFMPEG ALAC_44100_S16_2 decoder, a short audio packet %u, rtptime %u, of length %u has been decoded but not discarded. Contents follow:", seqno,
+                "Using the FFMPEG ALAC_44100_S16_2 decoder, a short audio packet %u, rtptime %u, of length %lu has been decoded but not discarded. Contents follow:", seqno,
                 actual_timestamp, len);
           debug_print_buffer(1, data, len);
             // abuf->length = conn->frames_per_packet;
@@ -1636,7 +1636,7 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
         //} else {
         if (len <= 8) {
           debug(1,
-                "Using an FFMPEG decoder, a short audio packet %u, rtptime %u, of length %u has been decoded but not discarded. Contents follow:", seqno,
+                "Using an FFMPEG decoder, a short audio packet %u, rtptime %u, of length %lu has been decoded but not discarded. Contents follow:", seqno,
                 actual_timestamp, len);
           debug_print_buffer(1, data, len);
           // abuf->length = 0;
@@ -2589,9 +2589,9 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
 #ifdef CONFIG_METADATA
               if (conn->ab_buffering == 0) {
                 if ((curframe) && (curframe->ready) && (curframe->timestamp))
-                  debug(3, "Current frame at \"resume\" is %u.", curframe->timestamp);
+                  debug(3, "Current frame timestamp at \"resume\" is %u.", curframe->timestamp);
                 else
-                  debug(1, "Current frame at \"resume\" is not known.", curframe->timestamp);
+                  debug(1, "Current frame at \"resume\" is not known.");
 
                 send_ssnc_metadata('prsm', NULL, 0,
                                    0); // "resume", but don't wait if the queue is locked

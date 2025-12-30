@@ -670,7 +670,7 @@ uint8_t *base64_dec(char *input, int *outlen) {
     //		input,strlen(input),inbuf,inbufsize);
     int rc = mbedtls_base64_decode(NULL, 0, &dlen, (unsigned char *)inbuf, inbufsize);
     if (rc && (rc != MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL))
-      debug(1, "Error %d getting decode length, result is %d.", rc, dlen);
+      debug(1, "Error %d getting decode length, result is %ld.", rc, dlen);
     else {
       // debug(1,"Decode size is %d.",dlen);
       buf = malloc(dlen);

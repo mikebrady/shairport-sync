@@ -939,7 +939,7 @@ ssize_t read_encrypted(int fd, pair_cipher_bundle *ctx, void *buf, size_t count)
         ssize_t consumed = pair_decrypt(&plain, &plain_len, ctx->encrypted_read_buffer.data,
                                         ctx->encrypted_read_buffer.length, ctx->cipher_ctx);
         if (consumed < 0) {
-          debug(1, "read_encrypted: abnormal exit from pair_decrypt: %d.", consumed);
+          debug(1, "read_encrypted: abnormal exit from pair_decrypt: %ld.", consumed);
           response = -1;
         } else {
           buf_drain(&ctx->encrypted_read_buffer, consumed);
@@ -1561,7 +1561,7 @@ plist_t generateInfoPlist(rtsp_conn_info *conn) {
       }
       plist_dict_set_item(supported_formats_plist, "bufferStream",
                           plist_new_uint(bufferStreamFormats));
-      debug(3, "bufferedStream formats: 0x% " PRIX64 ".", bufferStreamFormats);
+      debug(3, "bufferedStream formats: 0x%" PRIX64 ".", bufferStreamFormats);
       plist_dict_set_item(response_plist, "supportedFormats", supported_formats_plist);
     }
   }
@@ -1750,7 +1750,7 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
       conn->ap2_immediate_flush_until_sequence_number = flushUntilSeq & 0x7fffff;
       conn->ap2_immediate_flush_until_rtp_timestamp = flushUntilTS;
       debug(2,
-            "Connection %d: immediate flush request created: flushUntilTS: %u, flushUntilSeq: %u.",
+            "Connection %d: immediate flush request created: flushUntilTS: %" PRIu64 ", flushUntilSeq: %" PRIu64 ".",
             conn->connection_number, flushUntilTS, flushUntilSeq & 0x7fffff);
       conn->ap2_play_enabled = 0; // stop trying to play audio
       ptp_send_control_message_string(
@@ -1774,7 +1774,7 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
         conn->ap2_deferred_flush_requests[i].flushUntilSeq = flushUntilSeq & 0x7fffff;
         conn->ap2_deferred_flush_requests[i].flushUntilTS = flushUntilTS;
         debug(2,
-              "Connection %d: deferred flush request created: flushFromSeq: %u, flushUntilSeq: %u.",
+              "Connection %d: deferred flush request created: flushFromSeq: %" PRIu64 ", flushUntilSeq: %" PRIu64 ".",
               conn->connection_number, flushFromSeq, flushUntilSeq);
       } else {
         debug(1, "Connection %d: no more room for deferred flush request records",
@@ -2930,7 +2930,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
           }
         } else if (conn->airplay_stream_category == ntp_stream) {
           debug(1, "SETUP on Connection %d: ntp stream handling is not implemented!",
-                conn->connection_number, req);
+                conn->connection_number);
           warn("Shairport Sync can not handle NTP streams.");
         } else if (conn->airplay_stream_category == remote_control_stream) {
 
@@ -4128,17 +4128,17 @@ int send_metadata_to_queue(pc_queue *queue, const uint32_t type, const uint32_t 
     if (pack.carrier) {
       if (rc == EWOULDBLOCK)
         debug(2,
-              "metadata queue \"%s\" full, dropping message item: type %x, code %x, data %x, "
+              "metadata queue \"%s\" full, dropping message item: type %x, code %x, data %" PRIxPTR ", "
               "length %u, message %d.",
-              queue->name, pack.type, pack.code, pack.data, pack.length,
+              queue->name, pack.type, pack.code, (uintptr_t)pack.data, pack.length,
               pack.carrier->index_number);
       msg_free(&pack.carrier);
     } else {
       if (rc == EWOULDBLOCK)
         debug(
             2,
-            "metadata queue \"%s\" full, dropping data item: type %x, code %x, data %x, length %u.",
-            queue->name, pack.type, pack.code, pack.data, pack.length);
+            "metadata queue \"%s\" full, dropping data item: type %x, code %x, data %" PRIxPTR ", length %u.",
+            queue->name, pack.type, pack.code, (uintptr_t)pack.data, pack.length);
       if (pack.data)
         free(pack.data);
     }
