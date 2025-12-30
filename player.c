@@ -4084,7 +4084,7 @@ void *player_thread_func(void *arg) {
                       statistics_column = statistics_column + 2;
                     }
                     statistics_row++;
-                    inform(line_of_stats);
+                    inform("%s", line_of_stats);
                   } while (statistics_row < 2);
                 } else {
                   inform("No frames received in the last sampling interval.");

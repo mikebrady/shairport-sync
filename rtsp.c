@@ -873,7 +873,7 @@ void _debug_log_rtsp_message(const char *filename, const int linenumber, int lev
   if (level > debug_level())
     return;
   if ((prompt) && (*prompt != '\0')) // okay to pass NULL or an empty list...
-    _debug(filename, linenumber, level, prompt);
+    _debug(filename, linenumber, level, "%s", prompt);
   _debug_print_msg_headers(filename, linenumber, level, message);
 #ifdef CONFIG_AIRPLAY_2
   char *plist_content = rtsp_plist_content(message);
@@ -963,7 +963,7 @@ ssize_t write_encrypted(int fd, pair_cipher_bundle *ctx, const void *buf, size_t
 
   ssize_t ret = pair_encrypt(&encrypted, &encrypted_len, buf, count, ctx->cipher_ctx);
   if (ret < 0) {
-    debug(1, pair_cipher_errmsg(ctx->cipher_ctx));
+    debug(1, "%s", pair_cipher_errmsg(ctx->cipher_ctx));
     return -1;
   }
 
@@ -2076,7 +2076,7 @@ void handle_pair_verify(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *r
   ret = pair_verify(&body, &body_len, conn->ap2_pairing_context.verify_ctx,
                     (const uint8_t *)req->content, req->contentlength);
   if (ret < 0) {
-    debug(1, pair_verify_errmsg(conn->ap2_pairing_context.verify_ctx));
+    debug(1, "%s", pair_verify_errmsg(conn->ap2_pairing_context.verify_ctx));
     resp->respcode = 470; // Connection Authorization Required
     goto out;
   }
@@ -2142,7 +2142,7 @@ void handle_pair_setup(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *re
   ret = pair_setup(&body, &body_len, conn->ap2_pairing_context.setup_ctx,
                    (const uint8_t *)req->content, req->contentlength);
   if (ret < 0) {
-    debug(1, pair_setup_errmsg(conn->ap2_pairing_context.setup_ctx));
+    debug(1, "%s", pair_setup_errmsg(conn->ap2_pairing_context.setup_ctx));
     resp->respcode = 470; // Connection Authorization Required
     goto out;
   }
