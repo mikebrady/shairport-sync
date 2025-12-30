@@ -500,7 +500,8 @@ play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) 
     pthread_cleanup_pop(1); // release the principal_conn lock
 
   } else {
-    debug(1, "Connection %d: %s get_play_lock must have a non-NULL conn.");
+    debug(1, "Connection %d: %s get_play_lock must have a non-NULL conn.", conn->connection_number,
+            get_category_string(conn->airplay_stream_category));
   }
   return response;
 }
@@ -641,7 +642,7 @@ void msg_retain(rtsp_message *msg) {
     if (rc)
       debug(1, "Error %d unlocking reference counter lock", rc);
   } else {
-    debug(1, "invalid rtsp_message pointer 0x%x passed to retain", (uintptr_t)msg);
+    debug(1, "invalid rtsp_message pointer 0x%" PRIxPTR " passed to retain", (uintptr_t)msg);
   }
 }
 
@@ -649,7 +650,7 @@ rtsp_message *msg_init(void) {
   // no thread cancellation points here
   int rc = debug_mutex_lock(&reference_counter_lock, 500000, 1);
   if (rc)
-    debug(1, "Error %d locking reference counter lock");
+    debug(1, "Error %d locking reference counter lock", rc);
 
   rtsp_message *msg = malloc(sizeof(rtsp_message));
   if (msg) {
@@ -664,7 +665,7 @@ rtsp_message *msg_init(void) {
 
   rc = pthread_mutex_unlock(&reference_counter_lock);
   if (rc)
-    debug(1, "Error %d unlocking reference counter lock");
+    debug(1, "Error %d unlocking reference counter lock", rc);
 
   return msg;
 }
@@ -755,7 +756,7 @@ void msg_free(rtsp_message **msgh) {
   } else if (*msgh != NULL) {
     debug(1,
           "msg_free: error attempting to free an allocated but already-freed rtsp_message, number "
-          "%d.",
+          "%" PRIxPTR ".",
           (uintptr_t)*msgh);
   }
   debug_mutex_unlock(&reference_counter_lock, 0);
@@ -938,7 +939,7 @@ ssize_t read_encrypted(int fd, pair_cipher_bundle *ctx, void *buf, size_t count)
         ssize_t consumed = pair_decrypt(&plain, &plain_len, ctx->encrypted_read_buffer.data,
                                         ctx->encrypted_read_buffer.length, ctx->cipher_ctx);
         if (consumed < 0) {
-          debug(1, "read_encrypted: abnormal exit from pair_decrypt: %d.", consumed);
+          debug(1, "read_encrypted: abnormal exit from pair_decrypt: %ld.", consumed);
           response = -1;
         } else {
           buf_drain(&ctx->encrypted_read_buffer, consumed);
@@ -1007,7 +1008,7 @@ ssize_t read_from_rtsp_connection(rtsp_conn_info *conn, void *buf, size_t count)
     if ((result <= 0) && (errno != 0)) {
       char errorstring[1024];
       strerror_r(errno, (char *)errorstring, sizeof(errorstring));
-      debug(3, "read_from_rtsp_connection error %d \"%s\" attempting to read up to %u bytes.",
+      debug(3, "read_from_rtsp_connection error %d \"%s\" attempting to read up to %lu bytes.",
             errno, errorstring, count);
     }
   } else {
@@ -1041,7 +1042,7 @@ enum rtsp_read_request_response rtsp_read_request(rtsp_conn_info *conn, rtsp_mes
     debug(1, "Connection %d: rtsp_read_request: can't get a buffer.", conn->connection_number);
     reply = rtsp_read_request_response_error;
   } else {
-    debug(3, "buf is allocated at 0x%" PRIxPTR ".", buf);
+    debug(3, "buf is allocated at 0x%" PRIxPTR ".", (uintptr_t)buf);
     pthread_cleanup_push(malloc_cleanup, &buf);
     ssize_t nread;
     ssize_t inbuf = 0;
@@ -1133,7 +1134,7 @@ enum rtsp_read_request_response rtsp_read_request(rtsp_conn_info *conn, rtsp_mes
           reply = rtsp_read_request_response_error;
           // goto shutdown;
         } else {
-          debug(3, "buf is reallocated at 0x%" PRIxPTR ".", buf);
+          debug(3, "buf is reallocated at 0x%" PRIxPTR ".", (uintptr_t)buf);
           buflen = msg_size;
         }
       }
@@ -1332,7 +1333,7 @@ int msg_write_response(rtsp_conn_info *conn, rtsp_message *resp) {
     return -4;
   }
   if (reply != p - pkt) {
-    debug(1, "msg_write_response error -- requested bytes: %d not fully written: %d.", p - pkt,
+    debug(1, "msg_write_response error -- requested bytes: %ld not fully written: %ld.", p - pkt,
           reply);
     return -5;
   }
@@ -1560,7 +1561,7 @@ plist_t generateInfoPlist(rtsp_conn_info *conn) {
       }
       plist_dict_set_item(supported_formats_plist, "bufferStream",
                           plist_new_uint(bufferStreamFormats));
-      debug(3, "bufferedStream formats: 0x% " PRIX64 ".", bufferStreamFormats);
+      debug(3, "bufferedStream formats: 0x%" PRIX64 ".", bufferStreamFormats);
       plist_dict_set_item(response_plist, "supportedFormats", supported_formats_plist);
     }
   }
@@ -1749,7 +1750,7 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
       conn->ap2_immediate_flush_until_sequence_number = flushUntilSeq & 0x7fffff;
       conn->ap2_immediate_flush_until_rtp_timestamp = flushUntilTS;
       debug(2,
-            "Connection %d: immediate flush request created: flushUntilTS: %u, flushUntilSeq: %u.",
+            "Connection %d: immediate flush request created: flushUntilTS: %" PRIu64 ", flushUntilSeq: %" PRIu64 ".",
             conn->connection_number, flushUntilTS, flushUntilSeq & 0x7fffff);
       conn->ap2_play_enabled = 0; // stop trying to play audio
       ptp_send_control_message_string(
@@ -1773,7 +1774,7 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
         conn->ap2_deferred_flush_requests[i].flushUntilSeq = flushUntilSeq & 0x7fffff;
         conn->ap2_deferred_flush_requests[i].flushUntilTS = flushUntilTS;
         debug(2,
-              "Connection %d: deferred flush request created: flushFromSeq: %u, flushUntilSeq: %u.",
+              "Connection %d: deferred flush request created: flushFromSeq: %" PRIu64 ", flushUntilSeq: %" PRIu64 ".",
               conn->connection_number, flushFromSeq, flushUntilSeq);
       } else {
         debug(1, "Connection %d: no more room for deferred flush request records",
@@ -2929,7 +2930,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
           }
         } else if (conn->airplay_stream_category == ntp_stream) {
           debug(1, "SETUP on Connection %d: ntp stream handling is not implemented!",
-                conn->connection_number, req);
+                conn->connection_number);
           warn("Shairport Sync can not handle NTP streams.");
         } else if (conn->airplay_stream_category == remote_control_stream) {
 
@@ -3390,8 +3391,8 @@ void handle_setup(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
             debug(2,
                   "Connection %d: SETUP DACP-ID \"%s\" from %s to %s with UDP ports Control: "
                   "%d, Timing: %d and Audio: %d.",
-                  conn->connection_number, conn->dacp_id, &conn->client_ip_string,
-                  &conn->self_ip_string, conn->local_control_port, conn->local_timing_port,
+                  conn->connection_number, conn->dacp_id, (char *)&conn->client_ip_string,
+                  (char *)&conn->self_ip_string, conn->local_control_port, conn->local_timing_port,
                   conn->local_audio_port);
 
           } else {
@@ -3500,8 +3501,7 @@ void handle_set_parameter_parameter(rtsp_conn_info *conn, rtsp_message *req,
 #endif
 
     } else {
-      debug(1, "Connection %d, unrecognised parameter: \"%s\" (%d)\n", conn->connection_number, cp,
-            strlen(cp));
+      debug(1, "Connection %d, unrecognised parameter: \"%s\"\n", conn->connection_number, cp);
     }
     cp = next;
   }
@@ -4128,17 +4128,17 @@ int send_metadata_to_queue(pc_queue *queue, const uint32_t type, const uint32_t 
     if (pack.carrier) {
       if (rc == EWOULDBLOCK)
         debug(2,
-              "metadata queue \"%s\" full, dropping message item: type %x, code %x, data %x, "
+              "metadata queue \"%s\" full, dropping message item: type %x, code %x, data %" PRIxPTR ", "
               "length %u, message %d.",
-              queue->name, pack.type, pack.code, pack.data, pack.length,
+              queue->name, pack.type, pack.code, (uintptr_t)pack.data, pack.length,
               pack.carrier->index_number);
       msg_free(&pack.carrier);
     } else {
       if (rc == EWOULDBLOCK)
         debug(
             2,
-            "metadata queue \"%s\" full, dropping data item: type %x, code %x, data %x, length %u.",
-            queue->name, pack.type, pack.code, pack.data, pack.length);
+            "metadata queue \"%s\" full, dropping data item: type %x, code %x, data %" PRIxPTR ", length %u.",
+            queue->name, pack.type, pack.code, (uintptr_t)pack.data, pack.length);
       if (pack.data)
         free(pack.data);
     }
@@ -5018,7 +5018,7 @@ void rtsp_conversation_thread_cleanup_function(void *arg) {
 }
 
 void msg_cleanup_function(void *arg) {
-  debug(3, "msg_cleanup_function called 0x%" PRIxPTR ".", arg);
+  debug(3, "msg_cleanup_function called 0x%" PRIxPTR ".", (uintptr_t)arg);
   msg_free((rtsp_message **)arg);
 }
 
@@ -5071,7 +5071,7 @@ static void *rtsp_conversation_thread_func(void *pconn) {
     int i;
     for (i = 0; i < nconns; i++) {
       if ((conns[i] != NULL) && (conns[i]->connection_number == 0)) {
-        debug(1, "conns[%d] at %" PRIxPTR " has a Connection Number of 0!", i, conns[i]);
+        debug(1, "conns[%d] has a Connection Number of 0!", i);
       }
     }
     debug_mutex_unlock(&conns_lock, 3);
@@ -5194,7 +5194,7 @@ static void *rtsp_conversation_thread_func(void *pconn) {
           debug(1, "rtsp_read_request_response_bad_packet write response error %d: \"%s\".", errno,
                 (char *)errorstring);
         } else if (lreply != (ssize_t)strlen(response_text)) {
-          debug(1, "rtsp_read_request_response_bad_packet write %d bytes requested but %d written.",
+          debug(1, "rtsp_read_request_response_bad_packet write %ld bytes requested but %d written.",
                 strlen(response_text), reply);
         }
       }
@@ -5399,7 +5399,7 @@ void *rtsp_listen_loop(__attribute((unused)) void *arg) {
       pthread_cleanup_push(malloc_cleanup, &conn);
       memset(conn, 0, sizeof(rtsp_conn_info));
       conn->connection_number = RTSP_connection_index++;
-      debug(2, "Connection %d is at: 0x%" PRIxPTR ".", conn->connection_number, conn);
+      debug(2, "Connection %d is at: 0x%" PRIxPTR ".", conn->connection_number, (uintptr_t)conn);
 
       // this means that the OPTIONS string we send before getting an ANNOUNCE is for AirPlay 2
 #ifdef CONFIG_AIRPLAY_2

@@ -38,7 +38,7 @@ int eintr_checked_accept(int sockfd, struct sockaddr *addr,
       char errorstring[1024];
       strerror_r(errno, (char *)errorstring, sizeof(errorstring));
       debug(1,
-        "error %d accept()ing a socketin ap2_event_receiver %d: \"%s\". Error %d is ignored.",
+        "error %d accept()ing a socketin ap2_event_receiver: \"%s\". (Note: error %d will be ignored.)",
         errno, errorstring, EINTR);
     }
     

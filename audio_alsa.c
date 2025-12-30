@@ -410,7 +410,7 @@ static int get_permissible_configuration_settings() {
                               permissible_configurations[r][f][c] =
                                   0; // i.e. no error, so remove the EINVAL
                             } else {
-                              debug(1, "Can't set format  of %u for \"%s\": %s.",
+                              debug(1, "Can't set format %s for \"%s\": %s.",
                                     sps_format_description_string(f), alsa_out_dev,
                                     snd_strerror(ret));
                             }
@@ -707,7 +707,7 @@ static int actual_open_alsa_device() {
       ret = snd_pcm_open(&alsa_handle, "hw:0", SND_PCM_STREAM_PLAYBACK, 0);
       if ((ret == 0) || (ret == -EBUSY)) {
         // being busy should be okay
-        inform("the default ALSA device is inaccessible -- \"hw:0\" used instead.", alsa_out_dev);
+        inform("the default ALSA device is inaccessible -- \"hw:0\" used instead.");
         set_alsa_out_dev("hw:0");
       }
     }
@@ -951,8 +951,8 @@ static int actual_open_alsa_device() {
 
       if ((snd_pcm_hw_params_get_rate_numden(alsa_params, &uval, &uval2) == 0) && (uval2 != 0))
         // watch for a divide by zero too!
-        debug(log_level, "  precise (rational) rate = %.3f frames per second (i.e. %u/%u).", uval,
-              uval2, ((double)uval) / uval2);
+        debug(log_level, "  precise (rational) rate = %.3f frames per second (i.e. %u/%u).", (1.0 * uval) / uval2, uval,
+              uval2);
       else
         debug(log_level, "  precise (rational) rate information unavailable.");
 
@@ -1260,7 +1260,7 @@ static int init(int argc, char **argv) {
       else {
         warn("Invalid disable_synchronization option choice \"%s\". It should "
              "be \"yes\" or "
-             "\"no\". It is set to \"no\".");
+             "\"no\". It is set to \"no\".", str);
         config.no_sync = 0;
       }
     }
@@ -1276,7 +1276,7 @@ static int init(int argc, char **argv) {
       else {
         warn("Invalid mute_using_playback_switch option choice \"%s\". It "
              "should be \"yes\" or "
-             "\"no\". It is set to \"no\".");
+             "\"no\". It is set to \"no\".", str);
         config.alsa_use_hardware_mute = 0;
       }
     }
@@ -1290,7 +1290,7 @@ static int init(int argc, char **argv) {
       else {
         warn("Invalid use_hardware_mute_if_available option choice \"%s\". It "
              "should be \"yes\" or "
-             "\"no\". It is set to \"no\".");
+             "\"no\". It is set to \"no\".", str);
         config.alsa_use_hardware_mute = 0;
       }
     }
@@ -1304,7 +1304,7 @@ static int init(int argc, char **argv) {
       else {
         warn("Invalid use_mmap_if_available option choice \"%s\". It should be "
              "\"yes\" or \"no\". "
-             "It remains set to \"yes\".");
+             "It remains set to \"yes\".", str);
         config.no_mmap = 0;
       }
     }
@@ -1394,7 +1394,7 @@ static int init(int argc, char **argv) {
       if (value < 0) {
         warn("Invalid alsa disable_standby_mode_default_rate setting %d. It "
              "must be greater than 0. Default is %d. No setting is made.",
-             dvalue, disable_standby_mode_default_rate);
+             value, disable_standby_mode_default_rate);
       } else {
         disable_standby_mode_default_rate = value;
       }
@@ -1405,7 +1405,7 @@ static int init(int argc, char **argv) {
       if (value < 0) {
         warn("Invalid alsa disable_standby_mode_default_channels setting %d. It "
              "must be greater than 0. Default is %d. No setting is made.",
-             dvalue, disable_standby_mode_default_channels);
+             value, disable_standby_mode_default_channels);
       } else {
         disable_standby_mode_default_channels = value;
       }
@@ -1424,7 +1424,7 @@ static int init(int argc, char **argv) {
       else {
         warn("Invalid use_precision_timing option choice \"%s\". It should be "
              "\"yes\", \"auto\" or \"no\". "
-             "It remains set to \"%s\".",
+             "It remains set to \"%s\".", str,
              config.use_precision_timing == YNA_NO     ? "no"
              : config.use_precision_timing == YNA_AUTO ? "auto"
                                                        : "yes");
@@ -1882,7 +1882,7 @@ static int precision_delay_and_status(snd_pcm_state_t *state, snd_pcm_sframes_t 
     *delay = delay_temp;
   if (state != NULL)
     *state = state_temp;
-  debug(3, "precision_delay_and_status returning state: %d and delay %d.", state_temp, delay_temp);
+  debug(3, "precision_delay_and_status returning state: %d and delay %ld.", state_temp, delay_temp);
   return ret;
 }
 
@@ -2380,7 +2380,7 @@ static void *alsa_buffer_monitor_thread_code(__attribute__((unused)) void *arg) 
                                    dither_random_number_store, current_encoded_output_format);
 
           ret = do_play(silence, frames_of_silence);
-          debug(3, "Played %u frames of silence on %u channels, equal to %u bytes.",
+          debug(3, "Played %u frames of silence on %u channels, equal to %lu bytes.",
                 frames_of_silence, CHANNELS_FROM_ENCODED_FORMAT(current_encoded_output_format),
                 size_of_silence_buffer);
           frame_count++;

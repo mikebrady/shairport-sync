@@ -1273,7 +1273,7 @@ AVFrame *block_to_avframe(rtsp_conn_info *conn, uint8_t *incoming_data,
           if (ret < 0) {
             av_frame_free(&decoded_frame);
             decoded_frame = NULL;
-            debug(1, "error %d during decoding. Data size: %d", ret, incoming_data_length);
+            debug(1, "error %d during decoding. Data size: %ld", ret, incoming_data_length);
             /*
                       char *obf = malloc(incoming_data_length * 3);
                       char *obfp = obf;
@@ -1293,7 +1293,7 @@ AVFrame *block_to_avframe(rtsp_conn_info *conn, uint8_t *incoming_data,
           }
         }
       } else {
-        debug(1, "error %d during decoding. Gross data size: %d", ret, incoming_data_length);
+        debug(1, "error %d during decoding. Gross data size: %ld", ret, incoming_data_length);
         /*
               char obf[128];
               char *obfp = obf;
@@ -1584,7 +1584,7 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
           // } else {
         if (len <= 8) {
           debug(1,
-                "Using the FFMPEG ALAC_44100_S16_2 decoder, a short audio packet %u, rtptime %u, of length %u has been decoded but not discarded. Contents follow:", seqno,
+                "Using the FFMPEG ALAC_44100_S16_2 decoder, a short audio packet %u, rtptime %u, of length %lu has been decoded but not discarded. Contents follow:", seqno,
                 actual_timestamp, len);
           debug_print_buffer(1, data, len);
             // abuf->length = conn->frames_per_packet;
@@ -1636,7 +1636,7 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
         //} else {
         if (len <= 8) {
           debug(1,
-                "Using an FFMPEG decoder, a short audio packet %u, rtptime %u, of length %u has been decoded but not discarded. Contents follow:", seqno,
+                "Using an FFMPEG decoder, a short audio packet %u, rtptime %u, of length %lu has been decoded but not discarded. Contents follow:", seqno,
                 actual_timestamp, len);
           debug_print_buffer(1, data, len);
           // abuf->length = 0;
@@ -2126,7 +2126,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
                         if (offset_to_flush_frame > 0) {
                           debug(2,
                                 "flush to %u request: flush buffer %u, from "
-                                "%u to %u. ab_write is: %u.",
+                                "%u to %lu. ab_write is: %u.",
                                 conn->flush_rtp_timestamp, conn->ab_read, current_packet->timestamp,
                                 current_packet->timestamp + current_packet->length - 1,
                                 conn->ab_write);
@@ -2513,7 +2513,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
                               CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration) *
                               fs);
                           if (silence == NULL)
-                            debug(1, "Failed to allocate %d byte silence buffer.", fs);
+                            debug(1, "Failed to allocate %" PRId64 " byte silence buffer.", fs);
                           else {
                             // generate frames of silence with dither if necessary
                             pthread_cleanup_push(malloc_cleanup, &silence);
@@ -2561,7 +2561,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
                       1000000000;
                   // debug(1,"%d frames needed.",frame_gap);
                   while (frame_gap > 0) {
-                    ssize_t fs = RATE_FROM_ENCODED_FORMAT(config.current_output_configuration) / 10;
+                    int64_t fs = RATE_FROM_ENCODED_FORMAT(config.current_output_configuration) / 10;
 
                     if (fs > frame_gap)
                       fs = frame_gap;
@@ -2571,7 +2571,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
                             FORMAT_FROM_ENCODED_FORMAT(config.current_output_configuration)) *
                         CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration) * fs);
                     if (silence == NULL)
-                      debug(1, "Failed to allocate %d frame silence buffer.", fs);
+                      debug(1, "Failed to allocate %" PRId64 " frame silence buffer.", fs);
                     else {
                       // debug(1, "No delay function -- outputting %d frames of silence.", fs);
                       pthread_cleanup_push(malloc_cleanup, &silence);
@@ -2589,9 +2589,9 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
 #ifdef CONFIG_METADATA
               if (conn->ab_buffering == 0) {
                 if ((curframe) && (curframe->ready) && (curframe->timestamp))
-                  debug(3, "Current frame at \"resume\" is %u.", curframe->timestamp);
+                  debug(3, "Current frame timestamp at \"resume\" is %u.", curframe->timestamp);
                 else
-                  debug(1, "Current frame at \"resume\" is not known.", curframe->timestamp);
+                  debug(1, "Current frame at \"resume\" is not known.");
 
                 send_ssnc_metadata('prsm', NULL, 0,
                                    0); // "resume", but don't wait if the queue is locked
@@ -3011,8 +3011,7 @@ static int stuff_buffer_vernier(int32_t *inptr, int length, sps_format_t l_outpu
           debug(1,
                 "Can't see how this could ever happen, but "
                 "current_input_sample_floor_index %" PRId64
-                " has just stepped outside the frame of %" PRId64
-                "samples, with stuff %d and current_input_sample_index_fp at %" PRId64 ".%05" PRId64
+                " has just stepped outside the frame of %d samples, with stuff %d and current_input_sample_index_fp at %" PRId64 ".%05" PRId64
                 ".",
                 current_input_sample_floor_index, length, stuff, current_input_sample_index_int,
                 current_input_sample_index_low);
@@ -3035,8 +3034,7 @@ static int stuff_buffer_vernier(int32_t *inptr, int length, sps_format_t l_outpu
             debug(1,
                   "Can't see how this could ever happen, but "
                   "current_input_sample_ceil_index %" PRId64
-                  " has just stepped outside the frame of %" PRId64
-                  "samples, with stuff %d and current_input_sample_index_fp at %" PRId64
+                  " has just stepped outside the frame of %d samples, with stuff %d and current_input_sample_index_fp at %" PRId64
                   ".%05" PRId64 ".",
                   current_input_sample_floor_index, length, stuff, current_input_sample_index_int,
                   current_input_sample_index_low);
@@ -3142,10 +3140,10 @@ int stuff_buffer_soxr_32(int32_t *inptr, int length, sps_format_t l_output_forma
                        NULL, NULL); // Default configuration.
 
       if (error)
-        die("soxr error: %s\n", "error: %s\n", soxr_strerror(error));
+        die("soxr error: %s\n", soxr_strerror(error));
 
       if (odone > (size_t)(length + INTERPOLATION_LIMIT))
-        die("odone = %u!\n", odone);
+        die("odone = %lu!\n", odone);
 
       // mean and variance calculations from "online_variance" algorithm at
       // https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Online_algorithm
@@ -3693,7 +3691,7 @@ void *player_thread_func(void *arg) {
          (conn->input_effective_bit_depth > conn->output_bit_depth)) ||
         (config.playback_mode == ST_mono)) {
       if (conn->enable_dither == 0)
-        debug(2, "enabling dither", conn->fix_volume);
+        debug(2, "enabling dither");
       conn->enable_dither = 1;
     } else {
       if (conn->enable_dither != 0)
@@ -4039,7 +4037,7 @@ void *player_thread_func(void *arg) {
                   insertions_plus_deletions_ppm =
                       (1000000.0 * tsum_of_insertions_and_deletions) / tsum_of_frames;
                 } else {
-                  debug(3, "tsum_of_frames: %u.", tsum_of_frames);
+                  debug(3, "tsum_of_frames: %lu.", tsum_of_frames);
                 }
               }
               if (config.statistics_requested) {
@@ -4314,14 +4312,14 @@ void *player_thread_func(void *arg) {
                 if (skipping_frames_at_start_of_play != 0) {
                   if (sync_error <= 0) {
                     debug(3,
-                          "cancel skipping at start of play -- skip estimate was: %" PRId64
+                          "cancel skipping at start of play -- skip estimate was: %" PRId32
                           ", but sync_error is now: %" PRId64 ".",
                           frames_to_skip, sync_error);
                     frames_to_skip = 0;
                     skipping_frames_at_start_of_play = 0;
                   } else if (frames_to_skip != sync_error) {
                     debug(3,
-                          "updating skipping at start of play count from: %" PRId64 " to: %" PRId64
+                          "updating skipping at start of play count from: %" PRId32 " to: %" PRId64
                           ".",
                           frames_to_skip, sync_error);
                     frames_to_skip = sync_error;

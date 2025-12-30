@@ -162,7 +162,7 @@ int ptp_get_clock_info(uint64_t *actual_clock_id, uint64_t *time_of_sample, uint
 
 int ptp_shm_interface_open() {
   int response = 0;
-  debug(3, "ptp_shm_interface_open with mapped_addr = %" PRIuPTR "", mapped_addr);
+  debug(3, "ptp_shm_interface_open with mapped_addr = %" PRIuPTR "", (uintptr_t)mapped_addr);
   if ((mapped_addr == NULL) || (mapped_addr == MAP_FAILED)) {
     response = -1;
     if (mapped_addr == NULL)

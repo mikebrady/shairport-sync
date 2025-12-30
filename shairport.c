@@ -708,10 +708,10 @@ int parse_options(int argc, char **argv) {
       if (config_lookup_int(config.cfg, "general.port", &value)) {
         if ((value < 0) || (value > 65535))
 #ifdef CONFIG_AIRPLAY_2
-          die("Invalid port number  \"%sd\". It should be between 0 and 65535, default is 7000",
+          die("Invalid port number  \"%d\". It should be between 0 and 65535, default is 7000",
               value);
 #else
-          die("Invalid port number  \"%sd\". It should be between 0 and 65535, default is 5000",
+          die("Invalid port number  \"%d\". It should be between 0 and 65535, default is 5000",
               value);
 #endif
         else
@@ -721,7 +721,7 @@ int parse_options(int argc, char **argv) {
       /* Get the udp port base setting. */
       if (config_lookup_int(config.cfg, "general.udp_port_base", &value)) {
         if ((value < 0) || (value > 65535))
-          die("Invalid port number  \"%sd\". It should be between 0 and 65535, default is 6001",
+          die("Invalid port number  \"%d\". It should be between 0 and 65535, default is 6001",
               value);
         else
           config.udp_port_base = value;
@@ -731,7 +731,7 @@ int parse_options(int argc, char **argv) {
        * starting at the port base. Only three ports are needed. */
       if (config_lookup_int(config.cfg, "general.udp_port_range", &value)) {
         if ((value < 3) || (value > 65535))
-          die("Invalid port range  \"%sd\". It should be between 3 and 65535, default is 10",
+          die("Invalid port range  \"%d\". It should be between 3 and 65535, default is 10",
               value);
         else
           config.udp_port_range = value;
@@ -896,7 +896,7 @@ int parse_options(int argc, char **argv) {
         if ((dvalue >= 0.0) && (dvalue <= 3.0))
           config.diagnostic_drop_packet_fraction = dvalue;
         else
-          die("Invalid diagnostics drop_this_fraction_of_audio_packets setting \"%d\". It should "
+          die("Invalid diagnostics drop_this_fraction_of_audio_packets setting \"%f\". It should "
               "be "
               "between 0.0 and 1.0, "
               "inclusive.",
@@ -1234,7 +1234,7 @@ int parse_options(int argc, char **argv) {
         } else if (value < 60) {
           warn("Invalid value \"%d\" for \"session_timeout\". It must be 0 (i.e. no timeout) or at "
                "least 60. "
-               "The default of %f will be used instead.",
+               "The default of %d will be used instead.",
                value, config.timeout);
           config.dont_check_timeout = 0;
         } else {
@@ -1626,7 +1626,7 @@ int parse_options(int argc, char **argv) {
   // Produces a UUID string at uuid consisting of lower-case letters
   uuid_unparse_lower(result, psi_uuid);
   config.airplay_psi = psi_uuid;
-  debug(3, "size of pk is %u.", sizeof(config.airplay_pk));
+  debug(3, "size of pk is %lu.", sizeof(config.airplay_pk));
 
   pair_public_key_get(PAIR_SERVER_HOMEKIT, config.airplay_pk, config.airplay_device_id);
   char buf[128];
@@ -2024,6 +2024,12 @@ void termHandler(__attribute__((unused)) int k) {
 
 void _display_config(const char *filename, const int linenumber, __attribute__((unused)) int argc,
                      __attribute__((unused)) char **argv) {
+                     
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-zero-length"
+#endif                     
+                     
   _inform(filename, linenumber, ">> Display Config Start.");
 
   // see the man entry on popen
@@ -2202,7 +2208,11 @@ void _display_config(const char *filename, const int linenumber, __attribute__((
     }
   }
   _inform(filename, linenumber, "");
-  _inform(filename, linenumber, ">> Display Config End.");
+  _inform(filename, linenumber, ">> Display Config End."); 
+  
+  #if defined(__GNUC__) || defined(__clang__)
+  #pragma GCC diagnostic pop
+  #endif
 }
 
 #define display_config(argc, argv) _display_config(__FILE__, __LINE__, argc, argv)
@@ -2796,11 +2806,11 @@ int main(int argc, char **argv) {
       (config_lookup_non_empty_string(config.cfg, "general.mixdown", &str))) {
     if ((strcasecmp(str, "off") == 0) || (strcasecmp(str, "no") == 0)) {
       config.mixdown_enable = 0; // 0 on initialisation
-      debug(1, "mixdown disabled.", str);
+      debug(1, "mixdown disabled.");
     } else if (strcasecmp(str, "auto") == 0) {
       config.mixdown_enable = 1;
       config.mixdown_channel_layout = 0; // 0 means auto
-      debug(1, "mixdown target: auto.", str);
+      debug(1, "mixdown target: auto.");
     } else {
       AVChannelLayout channel_layout;
       if (av_channel_layout_from_string(&channel_layout, str) == 0) {
@@ -3106,7 +3116,7 @@ int main(int argc, char **argv) {
   debug(option_print_level, "metadata pipename is \"%s\".", config.metadata_pipename);
   debug(option_print_level, "metadata socket address is \"%s\" port %d.", config.metadata_sockaddr,
         config.metadata_sockport);
-  debug(option_print_level, "metadata socket packet size is \"%d\".",
+  debug(option_print_level, "metadata socket packet size is \"%ld\".",
         config.metadata_sockmsglength);
   debug(option_print_level, "get-coverart is %d.", config.get_coverart);
 #endif

@@ -90,7 +90,7 @@ void mdns_register(char **txt_records, char **secondary_txt_records) {
     }
 
     if (*b == NULL)
-      warn("%s mDNS backend not found");
+      warn("mDNS backend not found");
   } else {
     // default -- pick the first back end
     for (b = mdns_backends; *b; b++) {

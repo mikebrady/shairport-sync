@@ -300,10 +300,10 @@ void *rtp_audio_receiver(void *arg) {
           debug(2, "resend-related request packet received, ignoring.");
           continue;
         }
-        debug(1, "Audio receiver -- Unknown RTP packet of type 0x%02X length %d seqno %d", type,
+        debug(1, "Audio receiver -- Unknown RTP packet of type 0x%02X length %ld seqno %d", type,
               nread, seqno);
       }
-      warn("Audio receiver -- Unknown RTP packet of type 0x%02X length %d.", type, nread);
+      warn("Audio receiver -- Unknown RTP packet of type 0x%02X length %ld.", type, nread);
     } else {
       char em[1024];
       strerror_r(errno, em, sizeof(em));
@@ -573,7 +573,7 @@ void *rtp_control_receiver(void *arg) {
             debug(3, "Too-short retransmitted audio packet received in control port, ignored.");
           }
         } else
-          debug(1, "Control Receiver -- Unknown RTP packet of type 0x%02X length %d, ignored.",
+          debug(1, "Control Receiver -- Unknown RTP packet of type 0x%02X length %ld, ignored.",
                 packet[1], nread);
       } else {
         debug(3, "Control Receiver -- dropping a packet to simulate a bad network.");
@@ -834,7 +834,7 @@ void *rtp_timing_receiver(void *arg) {
               //                  conn->time_pings[cc].dispersion * pow(2.14,
               //                  1.0/conn->time_ping_count);
               if (conn->time_pings[cc].dispersion > UINT64_MAX / dispersion_factor)
-                debug(1, "dispersion factor is too large at %" PRIu64 ".");
+                debug(1, "dispersion factor is too large at %" PRIu64 ".", dispersion_factor);
               else
                 conn->time_pings[cc].dispersion =
                     (conn->time_pings[cc].dispersion * dispersion_factor) /
@@ -981,7 +981,7 @@ void *rtp_timing_receiver(void *arg) {
                   return_time);
           }
         } else {
-          debug(1, "Timing port -- Unknown RTP packet of type 0x%02X length %d.", packet[1], nread);
+          debug(1, "Timing port -- Unknown RTP packet of type 0x%02X length %ld.", packet[1], nread);
         }
       } else {
         debug(3, "Timing Receiver Thread -- dropping incoming packet to simulate a bad network.");
@@ -1761,7 +1761,7 @@ void *rtp_ap2_control_receiver(void *arg) {
               char *packet_in_hex_cstring =
                   debug_malloc_hex_cstring(packet, nread); // remember to free this afterwards
               debug(1,
-                    "AP2 Control Receiver Packet of first byte 0x%02X, type 0x%02X length %d "
+                    "AP2 Control Receiver Packet of first byte 0x%02X, type 0x%02X length %ld "
                     "received: "
                     "\"%s\".",
                     packet[0], packet[1], nread, packet_in_hex_cstring);
@@ -1789,7 +1789,7 @@ void *rtp_ap2_control_receiver(void *arg) {
                 conn->connection_number, errno);
         }
       } else {
-        debug(2, "Connection %d: AP2 Control Receiver -- malformed packet, %d bytes long.",
+        debug(2, "Connection %d: AP2 Control Receiver -- malformed packet, %ld bytes long.",
               conn->connection_number, nread);
       }
     }
@@ -1804,7 +1804,7 @@ void rtp_realtime_audio_cleanup_handler(__attribute__((unused)) void *arg) {
   debug(2, "Realtime Audio Receiver Cleanup Start.");
   rtsp_conn_info *conn = (rtsp_conn_info *)arg;
   close(conn->realtime_audio_socket);
-  debug(2, "Connection %d: closing realtime audio port %u", conn->local_realtime_audio_port);
+  debug(2, "Connection %d: closing realtime audio port %u", conn->connection_number, conn->local_realtime_audio_port);
   conn->realtime_audio_socket = 0;
   debug(2, "Realtime Audio Receiver Cleanup Done.");
 }

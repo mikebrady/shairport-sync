@@ -327,7 +327,7 @@ uint32_t get_format_settings(const char *stanza_name, const char *setting_name) 
   }
   *p = '\0';
   if (strlen(buf) == 0)
-    debug(3, "No \"%s\" output format settings.", stanza_name, buf);
+    debug(3, "No \"%s\" output format settings.", stanza_name);
   else
     debug(3, "The \"%s\" output format settings are: \"%s\".", stanza_name, buf);
   return format_set;
@@ -421,7 +421,7 @@ uint32_t get_rate_settings(const char *stanza_name, const char *setting_name) {
   }
   *p = '\0';
   if (strlen(buf) == 0)
-    debug(3, "No \"%s\" output rate settings.", stanza_name, buf);
+    debug(3, "No \"%s\" output rate settings.", stanza_name);
   else
     debug(3, "The \"%s\" output rate settings are: \"%s\".", stanza_name, buf);
   return rate_set;
@@ -510,7 +510,7 @@ uint32_t get_channel_settings(const char *stanza_name, const char *setting_name)
   }
   *p = '\0';
   if (strlen(buf) == 0)
-    debug(3, "No \"%s\" output channel settings.", stanza_name, buf);
+    debug(3, "No \"%s\" output channel settings.", stanza_name);
   else
     debug(3, "The \"%s\" output channel settings are: \"%s\".", stanza_name, buf);
   return channel_set;
