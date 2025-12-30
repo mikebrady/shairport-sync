@@ -1241,12 +1241,19 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn) {
                 int64_t change_in_should_be_time =
                     (int64_t)(should_be_time - conn->first_packet_time_to_play);
 
-                if (fabs(0.000001 * change_in_should_be_time) >
-                    0.001) // the clock drift estimation might be nudging the estimate, and we can
-                           // ignore this unless if's more than a microsecond
+                if (fabs(0.000001 * change_in_should_be_time) > 0.001) {
+                  // the clock drift estimation might be nudging the estimate, and we can
+                  // ignore this unless if's more than a microsecond
                   debug(2,
                         "Change in estimated first_packet_time: %f milliseconds for first_packet.",
                         0.000001 * change_in_should_be_time);
+                }
+                if (fabs(0.000001 * change_in_should_be_time) > 1.0) { 
+                  // ignore this unless if's more than a millisecond
+                  int64_t llt = conn->first_packet_time_to_play - local_time_now;
+                  debug(1, "Connection %d: Updated lead time for first frame %" PRId64 ": %f seconds.",
+                      conn->connection_number, conn->first_packet_timestamp, llt * 0.000000001);
+                }  
 
                 conn->first_packet_time_to_play = should_be_time;
 
@@ -1268,6 +1275,10 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn) {
                       resp = config.output->delay(
                           &dac_delay); // we know the output device must have a delay function
                     if (resp == 0) {
+                    
+                      int64_t llead_time = conn->first_packet_time_to_play - local_time_now;
+                      
+                      
                       int64_t gross_frame_gap =
                           ((conn->first_packet_time_to_play - local_time_now) *
                            config.output_rate) /
@@ -1306,7 +1317,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn) {
                               silence, fs, config.output_format, conn->enable_dither,
                               conn->previous_random_number);
                           config.output->play(silence, fs, play_samples_are_untimed, 0, 0);
-                          debug(1, "Priming: sent %" PRId64 " frames of silence", fs);
+                          debug(1, "Priming: Lead time is %f seconds. Sent %" PRId64 " frames of silence.", llead_time * 0.000000001, fs);
                           free(silence);
                           have_sent_prefiller_silence = 1;
                         }
