@@ -1,3 +1,8 @@
+Version 5.0-dev-146-g691d71f3
+==
+**Updates**
+* Tighten up the checking of arguments given to `debug()`, `inform()`, `warn()` and `die()` to avoid silly errors. No known issues, but better sure than sorry. Thanks to [ejurgensen](https://github.com/ejurgensen) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2124) which prompted the review.
+
 Version 5.0-dev-142-gfcacc4e5
 ==
 **Updates**
