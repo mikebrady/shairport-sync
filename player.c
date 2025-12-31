@@ -1273,7 +1273,7 @@ AVFrame *block_to_avframe(rtsp_conn_info *conn, uint8_t *incoming_data,
           if (ret < 0) {
             av_frame_free(&decoded_frame);
             decoded_frame = NULL;
-            debug(1, "error %d during decoding. Data size: %ld", ret, incoming_data_length);
+            debug(1, "error %d during decoding. Data size: %zd", ret, incoming_data_length);
             /*
                       char *obf = malloc(incoming_data_length * 3);
                       char *obfp = obf;
@@ -1293,7 +1293,7 @@ AVFrame *block_to_avframe(rtsp_conn_info *conn, uint8_t *incoming_data,
           }
         }
       } else {
-        debug(1, "error %d during decoding. Gross data size: %ld", ret, incoming_data_length);
+        debug(1, "error %d during decoding. Gross data size: %zd", ret, incoming_data_length);
         /*
               char obf[128];
               char *obfp = obf;
@@ -1584,7 +1584,7 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
           // } else {
         if (len <= 8) {
           debug(1,
-                "Using the FFMPEG ALAC_44100_S16_2 decoder, a short audio packet %u, rtptime %u, of length %lu has been decoded but not discarded. Contents follow:", seqno,
+                "Using the FFMPEG ALAC_44100_S16_2 decoder, a short audio packet %u, rtptime %u, of length %zu has been decoded but not discarded. Contents follow:", seqno,
                 actual_timestamp, len);
           debug_print_buffer(1, data, len);
             // abuf->length = conn->frames_per_packet;
@@ -1636,7 +1636,7 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
         //} else {
         if (len <= 8) {
           debug(1,
-                "Using an FFMPEG decoder, a short audio packet %u, rtptime %u, of length %lu has been decoded but not discarded. Contents follow:", seqno,
+                "Using an FFMPEG decoder, a short audio packet %u, rtptime %u, of length %zu has been decoded but not discarded. Contents follow:", seqno,
                 actual_timestamp, len);
           debug_print_buffer(1, data, len);
           // abuf->length = 0;
@@ -2126,7 +2126,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
                         if (offset_to_flush_frame > 0) {
                           debug(2,
                                 "flush to %u request: flush buffer %u, from "
-                                "%u to %lu. ab_write is: %u.",
+                                "%u to %zu. ab_write is: %u.",
                                 conn->flush_rtp_timestamp, conn->ab_read, current_packet->timestamp,
                                 current_packet->timestamp + current_packet->length - 1,
                                 conn->ab_write);
@@ -4037,7 +4037,7 @@ void *player_thread_func(void *arg) {
                   insertions_plus_deletions_ppm =
                       (1000000.0 * tsum_of_insertions_and_deletions) / tsum_of_frames;
                 } else {
-                  debug(3, "tsum_of_frames: %lu.", tsum_of_frames);
+                  debug(3, "tsum_of_frames: %zu.", tsum_of_frames);
                 }
               }
               if (config.statistics_requested) {
@@ -4084,7 +4084,7 @@ void *player_thread_func(void *arg) {
                       statistics_column = statistics_column + 2;
                     }
                     statistics_row++;
-                    inform(line_of_stats);
+                    inform("%s", line_of_stats);
                   } while (statistics_row < 2);
                 } else {
                   inform("No frames received in the last sampling interval.");

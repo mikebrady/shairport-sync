@@ -1302,7 +1302,7 @@ int dacp_set_volume(int32_t vo) {
         int32_t active_speakers = 0;
         for (i = 0; i < speaker_count; i++) {
           if (speaker_info[i].speaker_number == machine_number) {
-            debug(2, "Our speaker number found: %ld with relative volume %" PRId32 ".", machine_number,
+            debug(2, "Our speaker number found: %" PRId64 " with relative volume %" PRId32 ".", machine_number,
                   speaker_info[i].volume);
           }
           if (speaker_info[i].active == 1) {

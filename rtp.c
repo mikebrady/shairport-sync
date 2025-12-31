@@ -300,10 +300,10 @@ void *rtp_audio_receiver(void *arg) {
           debug(2, "resend-related request packet received, ignoring.");
           continue;
         }
-        debug(1, "Audio receiver -- Unknown RTP packet of type 0x%02X length %ld seqno %d", type,
+        debug(1, "Audio receiver -- Unknown RTP packet of type 0x%02X length %zd seqno %d", type,
               nread, seqno);
       }
-      warn("Audio receiver -- Unknown RTP packet of type 0x%02X length %ld.", type, nread);
+      warn("Audio receiver -- Unknown RTP packet of type 0x%02X length %zd.", type, nread);
     } else {
       char em[1024];
       strerror_r(errno, em, sizeof(em));
@@ -573,7 +573,7 @@ void *rtp_control_receiver(void *arg) {
             debug(3, "Too-short retransmitted audio packet received in control port, ignored.");
           }
         } else
-          debug(1, "Control Receiver -- Unknown RTP packet of type 0x%02X length %ld, ignored.",
+          debug(1, "Control Receiver -- Unknown RTP packet of type 0x%02X length %zd, ignored.",
                 packet[1], nread);
       } else {
         debug(3, "Control Receiver -- dropping a packet to simulate a bad network.");
@@ -981,7 +981,7 @@ void *rtp_timing_receiver(void *arg) {
                   return_time);
           }
         } else {
-          debug(1, "Timing port -- Unknown RTP packet of type 0x%02X length %ld.", packet[1], nread);
+          debug(1, "Timing port -- Unknown RTP packet of type 0x%02X length %zd.", packet[1], nread);
         }
       } else {
         debug(3, "Timing Receiver Thread -- dropping incoming packet to simulate a bad network.");
@@ -1761,7 +1761,7 @@ void *rtp_ap2_control_receiver(void *arg) {
               char *packet_in_hex_cstring =
                   debug_malloc_hex_cstring(packet, nread); // remember to free this afterwards
               debug(1,
-                    "AP2 Control Receiver Packet of first byte 0x%02X, type 0x%02X length %ld "
+                    "AP2 Control Receiver Packet of first byte 0x%02X, type 0x%02X length %zd "
                     "received: "
                     "\"%s\".",
                     packet[0], packet[1], nread, packet_in_hex_cstring);
@@ -1789,7 +1789,7 @@ void *rtp_ap2_control_receiver(void *arg) {
                 conn->connection_number, errno);
         }
       } else {
-        debug(2, "Connection %d: AP2 Control Receiver -- malformed packet, %ld bytes long.",
+        debug(2, "Connection %d: AP2 Control Receiver -- malformed packet, %zd bytes long.",
               conn->connection_number, nread);
       }
     }

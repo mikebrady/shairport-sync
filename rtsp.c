@@ -873,7 +873,7 @@ void _debug_log_rtsp_message(const char *filename, const int linenumber, int lev
   if (level > debug_level())
     return;
   if ((prompt) && (*prompt != '\0')) // okay to pass NULL or an empty list...
-    _debug(filename, linenumber, level, prompt);
+    _debug(filename, linenumber, level, "%s", prompt);
   _debug_print_msg_headers(filename, linenumber, level, message);
 #ifdef CONFIG_AIRPLAY_2
   char *plist_content = rtsp_plist_content(message);
@@ -939,7 +939,7 @@ ssize_t read_encrypted(int fd, pair_cipher_bundle *ctx, void *buf, size_t count)
         ssize_t consumed = pair_decrypt(&plain, &plain_len, ctx->encrypted_read_buffer.data,
                                         ctx->encrypted_read_buffer.length, ctx->cipher_ctx);
         if (consumed < 0) {
-          debug(1, "read_encrypted: abnormal exit from pair_decrypt: %ld.", consumed);
+          debug(1, "read_encrypted: abnormal exit from pair_decrypt: %zd.", consumed);
           response = -1;
         } else {
           buf_drain(&ctx->encrypted_read_buffer, consumed);
@@ -963,7 +963,7 @@ ssize_t write_encrypted(int fd, pair_cipher_bundle *ctx, const void *buf, size_t
 
   ssize_t ret = pair_encrypt(&encrypted, &encrypted_len, buf, count, ctx->cipher_ctx);
   if (ret < 0) {
-    debug(1, pair_cipher_errmsg(ctx->cipher_ctx));
+    debug(1, "%s", pair_cipher_errmsg(ctx->cipher_ctx));
     return -1;
   }
 
@@ -1008,7 +1008,7 @@ ssize_t read_from_rtsp_connection(rtsp_conn_info *conn, void *buf, size_t count)
     if ((result <= 0) && (errno != 0)) {
       char errorstring[1024];
       strerror_r(errno, (char *)errorstring, sizeof(errorstring));
-      debug(3, "read_from_rtsp_connection error %d \"%s\" attempting to read up to %lu bytes.",
+      debug(3, "read_from_rtsp_connection error %d \"%s\" attempting to read up to %zu bytes.",
             errno, errorstring, count);
     }
   } else {
@@ -1333,7 +1333,7 @@ int msg_write_response(rtsp_conn_info *conn, rtsp_message *resp) {
     return -4;
   }
   if (reply != p - pkt) {
-    debug(1, "msg_write_response error -- requested bytes: %ld not fully written: %ld.", p - pkt,
+    debug(1, "msg_write_response error -- requested bytes: %zd not fully written: %zd.", p - pkt,
           reply);
     return -5;
   }
@@ -2076,7 +2076,7 @@ void handle_pair_verify(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *r
   ret = pair_verify(&body, &body_len, conn->ap2_pairing_context.verify_ctx,
                     (const uint8_t *)req->content, req->contentlength);
   if (ret < 0) {
-    debug(1, pair_verify_errmsg(conn->ap2_pairing_context.verify_ctx));
+    debug(1, "%s", pair_verify_errmsg(conn->ap2_pairing_context.verify_ctx));
     resp->respcode = 470; // Connection Authorization Required
     goto out;
   }
@@ -2142,7 +2142,7 @@ void handle_pair_setup(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *re
   ret = pair_setup(&body, &body_len, conn->ap2_pairing_context.setup_ctx,
                    (const uint8_t *)req->content, req->contentlength);
   if (ret < 0) {
-    debug(1, pair_setup_errmsg(conn->ap2_pairing_context.setup_ctx));
+    debug(1, "%s", pair_setup_errmsg(conn->ap2_pairing_context.setup_ctx));
     resp->respcode = 470; // Connection Authorization Required
     goto out;
   }
@@ -5194,7 +5194,7 @@ static void *rtsp_conversation_thread_func(void *pconn) {
           debug(1, "rtsp_read_request_response_bad_packet write response error %d: \"%s\".", errno,
                 (char *)errorstring);
         } else if (lreply != (ssize_t)strlen(response_text)) {
-          debug(1, "rtsp_read_request_response_bad_packet write %ld bytes requested but %d written.",
+          debug(1, "rtsp_read_request_response_bad_packet write %zd bytes requested but %d written.",
                 strlen(response_text), reply);
         }
       }
