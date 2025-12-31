@@ -2380,7 +2380,7 @@ static void *alsa_buffer_monitor_thread_code(__attribute__((unused)) void *arg) 
                                    dither_random_number_store, current_encoded_output_format);
 
           ret = do_play(silence, frames_of_silence);
-          debug(3, "Played %u frames of silence on %u channels, equal to %lu bytes.",
+          debug(3, "Played %u frames of silence on %u channels, equal to %zu bytes.",
                 frames_of_silence, CHANNELS_FROM_ENCODED_FORMAT(current_encoded_output_format),
                 size_of_silence_buffer);
           frame_count++;

@@ -101,14 +101,14 @@ static int get_permissible_configuration_settings() {
         if ((config.channel_set & (1 << c)) != 0) {
 
           unsigned int s = 0;
-          int f = 0;
-          while ((s < SIO_NCHAN) && (f == 0)) {
+          int fo = 0;
+          while ((s < SIO_NCHAN) && (fo == 0)) {
             if (cap.pchan[s] == c)
-              f = 1;
+              fo = 1;
             else
               s++;
           }
-          if (f == 0) {
+          if (fo == 0) {
             debug(3, "sndio: output device can't deal with %u channels.", c);
             config.channel_set &= ~(1 << c); // remove this channel count
           } else {
@@ -123,14 +123,14 @@ static int get_permissible_configuration_settings() {
         // default, check it...
         if ((config.rate_set & (1 << r)) != 0) {
           unsigned int s = 0;
-          int f = 0;
-          while ((s < SIO_NRATE) && (f == 0)) {
+          int fo = 0;
+          while ((s < SIO_NRATE) && (fo == 0)) {
             if (cap.rate[s] == sps_rate_actual_rate(r))
-              f = 1;
+              fo = 1;
             else
               s++;
           }
-          if (f == 0) {
+          if (fo == 0) {
             debug(3, "sndio: output device can't be set to %u fps.", sps_rate_actual_rate(r));
             config.rate_set &= ~(1 << r); // remove this rate
           } else {

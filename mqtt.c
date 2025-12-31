@@ -25,16 +25,16 @@ void _cb_log(__attribute__((unused)) struct mosquitto *mosq, __attribute__((unus
              int level, const char *str) {
   switch (level) {
   case MOSQ_LOG_DEBUG:
-    debug(3, str);
+    debug(3, "%s", str);
     break;
   case MOSQ_LOG_INFO:
-    debug(3, str);
+    debug(3, "%s", str);
     break;
   case MOSQ_LOG_NOTICE:
-    debug(3, str);
+    debug(3, "%s", str);
     break;
   case MOSQ_LOG_WARNING:
-    inform(str);
+    inform("%s", str);
     break;
   case MOSQ_LOG_ERR: {
     die("MQTT: Error: %s\n", str);
@@ -397,7 +397,7 @@ int initialise_mqtt() {
   int keepalive = 60;
   mosquitto_lib_init();
   if (!(global_mosq = mosquitto_new(config.service_name, true, NULL))) {
-    die("[MQTT]: FATAL: Could not create mosquitto object! %d\n", global_mosq);
+    die("[MQTT]: FATAL: Could not create mosquitto object!");
   }
 
   if (config.mqtt_cafile != NULL || config.mqtt_capath != NULL || config.mqtt_certfile != NULL ||

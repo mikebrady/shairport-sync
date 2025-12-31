@@ -1397,7 +1397,7 @@ int parse_options(int argc, char **argv) {
     config.mqtt_port = 1883;
     if (config_lookup_int(config.cfg, "mqtt.port", &value)) {
       if ((value < 0) || (value > 65535))
-        die("Invalid mqtt port number  \"%sd\". It should be between 0 and 65535, default is 1883",
+        die("Invalid mqtt port number  \"%d\". It should be between 0 and 65535, default is 1883",
             value);
       else
         config.mqtt_port = value;
@@ -1626,7 +1626,7 @@ int parse_options(int argc, char **argv) {
   // Produces a UUID string at uuid consisting of lower-case letters
   uuid_unparse_lower(result, psi_uuid);
   config.airplay_psi = psi_uuid;
-  debug(3, "size of pk is %lu.", sizeof(config.airplay_pk));
+  debug(3, "size of pk is %zu.", sizeof(config.airplay_pk));
 
   pair_public_key_get(PAIR_SERVER_HOMEKIT, config.airplay_pk, config.airplay_device_id);
   char buf[128];
@@ -3116,7 +3116,7 @@ int main(int argc, char **argv) {
   debug(option_print_level, "metadata pipename is \"%s\".", config.metadata_pipename);
   debug(option_print_level, "metadata socket address is \"%s\" port %d.", config.metadata_sockaddr,
         config.metadata_sockport);
-  debug(option_print_level, "metadata socket packet size is \"%ld\".",
+  debug(option_print_level, "metadata socket packet size is \"%zd\".",
         config.metadata_sockmsglength);
   debug(option_print_level, "get-coverart is %d.", config.get_coverart);
 #endif

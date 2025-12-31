@@ -846,7 +846,7 @@ uint8_t *rsa_apply(uint8_t *input, int inlen, int *outlen, int mode) {
             if (EVP_PKEY_sign(ctx, NULL, &ol, (const unsigned char *)input, inlen) > 0) { // 1.0.2
               out = (unsigned char *)malloc(ol);
               if (EVP_PKEY_sign(ctx, out, &ol, (const unsigned char *)input, inlen) > 0) { // 1.0.2
-                debug(3, "success with output length of %lu.", ol);
+                debug(3, "success with output length of %zu.", ol);
               } else {
                 debug(1, "error 2 \"%s\" with EVP_PKEY_sign:",
                       ERR_error_string(ERR_get_error(), NULL));
@@ -1808,7 +1808,7 @@ void sps_nanosleep(const time_t sec, const long nanosec) {
     rem = req;
   } while ((result == -1) && (errno == EINTR));
   if (result == -1)
-    debug(1, "Error in sps_nanosleep of %ld sec and %ld nanoseconds: %d.", sec, nanosec, errno);
+    debug(1, "Error in sps_nanosleep of %" PRIdMAX " sec and %ld nanoseconds: %d.", (intmax_t)sec, nanosec, errno);
 }
 
 // Mac OS X doesn't have pthread_mutex_timedlock
@@ -1892,9 +1892,13 @@ int _debug_mutex_unlock(pthread_mutex_t *mutex, const char *mutexname, const cha
   snprintf(dstring, sizeof(dstring), "%s:%d", filename, line);
   debug(debuglevel, "mutex_unlock \"%s\" at \"%s\".", mutexname, dstring);
   int r = pthread_mutex_unlock(mutex);
-  if ((debuglevel != 0) && (r != 0))
-    debug(1, "error %d: \"%s\" unlocking mutex \"%s\" at \"%s\".", r,
-          strerror_r(r, errstr, sizeof(errstr)), mutexname, dstring);
+  if ((debuglevel != 0) && (r != 0)) {
+    if (strerror_r(r, errstr, sizeof(errstr)) == 0) {
+      debug(1, "error %d: \"%s\" unlocking mutex \"%s\" at \"%s\".", r, errstr, mutexname, dstring);
+    } else {
+      debug(1, "error %d: unlocking mutex \"%s\" at \"%s\".", r,  mutexname, dstring);    
+    }
+  }
   pthread_setcancelstate(oldState, NULL);
   return r;
 }

@@ -939,7 +939,7 @@ ssize_t read_encrypted(int fd, pair_cipher_bundle *ctx, void *buf, size_t count)
         ssize_t consumed = pair_decrypt(&plain, &plain_len, ctx->encrypted_read_buffer.data,
                                         ctx->encrypted_read_buffer.length, ctx->cipher_ctx);
         if (consumed < 0) {
-          debug(1, "read_encrypted: abnormal exit from pair_decrypt: %ld.", consumed);
+          debug(1, "read_encrypted: abnormal exit from pair_decrypt: %zd.", consumed);
           response = -1;
         } else {
           buf_drain(&ctx->encrypted_read_buffer, consumed);
@@ -1008,7 +1008,7 @@ ssize_t read_from_rtsp_connection(rtsp_conn_info *conn, void *buf, size_t count)
     if ((result <= 0) && (errno != 0)) {
       char errorstring[1024];
       strerror_r(errno, (char *)errorstring, sizeof(errorstring));
-      debug(3, "read_from_rtsp_connection error %d \"%s\" attempting to read up to %lu bytes.",
+      debug(3, "read_from_rtsp_connection error %d \"%s\" attempting to read up to %zu bytes.",
             errno, errorstring, count);
     }
   } else {
@@ -1333,7 +1333,7 @@ int msg_write_response(rtsp_conn_info *conn, rtsp_message *resp) {
     return -4;
   }
   if (reply != p - pkt) {
-    debug(1, "msg_write_response error -- requested bytes: %ld not fully written: %ld.", p - pkt,
+    debug(1, "msg_write_response error -- requested bytes: %zd not fully written: %zd.", p - pkt,
           reply);
     return -5;
   }
@@ -5194,7 +5194,7 @@ static void *rtsp_conversation_thread_func(void *pconn) {
           debug(1, "rtsp_read_request_response_bad_packet write response error %d: \"%s\".", errno,
                 (char *)errorstring);
         } else if (lreply != (ssize_t)strlen(response_text)) {
-          debug(1, "rtsp_read_request_response_bad_packet write %ld bytes requested but %d written.",
+          debug(1, "rtsp_read_request_response_bad_packet write %zd bytes requested but %d written.",
                 strlen(response_text), reply);
         }
       }
