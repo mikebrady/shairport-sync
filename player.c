@@ -3143,7 +3143,7 @@ int stuff_buffer_soxr_32(int32_t *inptr, int length, sps_format_t l_output_forma
         die("soxr error: %s\n", soxr_strerror(error));
 
       if (odone > (size_t)(length + INTERPOLATION_LIMIT))
-        die("odone = %lu!\n", odone);
+        die("odone = %zu!\n", odone);
 
       // mean and variance calculations from "online_variance" algorithm at
       // https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Online_algorithm
