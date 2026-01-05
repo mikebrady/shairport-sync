@@ -51,6 +51,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include <net/if.h>
 #include <ifaddrs.h>
 
 #ifdef COMPILE_FOR_LINUX
@@ -2329,7 +2330,12 @@ int get_device_id(uint8_t *id, int int_length) {
 #ifdef AF_PACKET
         if ((ifa->ifa_addr) && (ifa->ifa_addr->sa_family == AF_PACKET)) {
           struct sockaddr_ll *s = (struct sockaddr_ll *)ifa->ifa_addr;
-          if ((strcmp(ifa->ifa_name, "lo") != 0)) {
+          if (
+              ((ifa->ifa_flags & IFF_UP) != 0) && 
+              ((ifa->ifa_flags & IFF_RUNNING) != 0) && 
+              ((ifa->ifa_flags & IFF_LOOPBACK) == 0) && 
+              (ifa->ifa_addr != 0)
+            ) {
             found = 1;
             response = 0;
             for (i = 0; ((i < s->sll_halen) && (i < int_length)); i++) {
