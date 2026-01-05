@@ -1,3 +1,8 @@
+Version 5.0-dev-155-g45063d10
+==
+**Bug Fix**
+* Finally! Add [Carl Johnson](https://github.com/SoarVermont)'s [suggestion](https://github.com/mikebrady/shairport-sync/issues/1996) to only consider interfaces that are up, running and not loopback interfaces for a valid MAC address. Thanks to Carl for his suggestion and for his gentle reminder.
+
 Versions 5.0-dev-153-g525e49cd, 5.0-dev-151-g16b6534a and 5.0-dev-146-g691d71f3
 ==
 **Updates**
