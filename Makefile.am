@@ -34,7 +34,7 @@ if BUILD_FOR_OPENBSD
 else
   AM_CXXFLAGS = -fno-common -Wno-multichar -Wall -Wextra -Wno-clobbered -Wno-psabi -pthread -DSYSCONFDIR=\"$(sysconfdir)\"
   AM_CFLAGS = -fno-common -Wno-multichar -Wall -Wextra -Wno-clobbered -Wno-psabi -pthread -DSYSCONFDIR=\"$(sysconfdir)\"
-  shairport_sync_SOURCES += scripts/shairport-sync.service scripts/shairport-sync.service-avahi scripts/shairport-sync
+  shairport_sync_SOURCES += scripts/shairport-sync.service scripts/shairport-sync
 endif
 endif
 endif
@@ -286,11 +286,7 @@ endif # INSTALL_SYSTEMV
 
 if INSTALL_SYSTEMD
 
-if USE_AVAHI
-SYSTEMD_SERVICE = shairport-sync.service-avahi
-else
 SYSTEMD_SERVICE = shairport-sync.service
-endif # USE_AVAHI
 
 INSTALL_SYSTEMD_TARGET = install-systemd-local
 

@@ -233,9 +233,8 @@ if test "x$with_avahi" = "xyes" ; then
   AC_DEFINE([CONFIG_AVAHI], 1, [Include Avahi-based mDNS support.])
   AC_CHECK_LIB([avahi-client], [avahi_client_new], , AC_MSG_ERROR(Avahi support requires the avahi-client library!))
   AC_CHECK_LIB([avahi-common],[avahi_strerror], , AC_MSG_ERROR(Avahi support requires the avahi-common library!))
-  AC_CONFIG_FILES([scripts/shairport-sync.service-avahi])
-else
-  AC_CONFIG_FILES([scripts/shairport-sync.service])
+  systemd_after_args="${systemd_after_args} avahi-daemon.service"
+  systemd_requires_args="${systemd_requires_args} avahi-daemon.service"
 fi
 AM_CONDITIONAL([USE_AVAHI], [test "x$with_avahi" = "xyes"])
 
@@ -529,7 +528,18 @@ AC_FUNC_ERROR_AT_LINE
 AC_FUNC_FORK
 AC_CHECK_FUNCS([atexit clock_gettime gethostname inet_ntoa memchr memmove memset mkfifo pow select socket stpcpy strcasecmp strchr strdup strerror strstr strtol strtoul])
 
-# Note -- there are AC_CONFIG_FILES directives further back, conditional on Avahi
+if test "x${systemd_after_args}" != x ; then
+  systemd_after_args="After=${systemd_after_args}"
+fi
+
+if test "x${systemd_requires_args}" != x ; then
+  systemd_requires_args="Requires=${systemd_requires_args}"
+fi
+
+AC_SUBST([SYSTEMD_AFTER_ARGS], [${systemd_after_args}])
+AC_SUBST([SYSTEMD_REQUIRES_ARGS], [${systemd_requires_args}])
+
 AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([scripts/shairport-sync.service])
 AC_CONFIG_FILES([scripts/shairport-sync],[chmod +x scripts/shairport-sync])
 AC_OUTPUT
