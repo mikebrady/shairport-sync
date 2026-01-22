@@ -389,6 +389,8 @@ AC_ARG_WITH(mqtt-client, [AS_HELP_STRING([--with-mqtt-client],[include a client 
 if test "x$with_mqtt_client" = "xyes" ; then
   AC_DEFINE([CONFIG_MQTT], 1, [Include a client for MQTT, the Message Queuing Telemetry Transport protocol])
   AC_CHECK_LIB([mosquitto], [mosquitto_lib_init], , AC_MSG_ERROR(MQTT support requires the mosquitto library -- libmosquitto-dev suggested!))
+  systemd_after_args="${systemd_after_args} mosquitto.service"
+  systemd_requires_args="${systemd_requires_args} mosquitto.service"
 fi
 AM_CONDITIONAL([USE_MQTT], [test "x$with_mqtt_client" = "xyes"])
 
