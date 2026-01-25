@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v6.0.1
+    - uses: actions/checkout@v6.0.2
     - name: Install Dependencies
       run: sudo apt-get -y --no-install-recommends install libglib2.0-dev libplist-utils xmltoman libpopt-dev libconfig-dev libasound2-dev libao-dev libjack-dev libmosquitto-dev avahi-daemon libavahi-client-dev libsoxr-dev libplist-dev libsodium-dev libavutil-dev libavcodec-dev libavformat-dev libgcrypt-dev
     - name: Configure
