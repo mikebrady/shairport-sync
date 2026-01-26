@@ -63,12 +63,12 @@ Version 5.0-dev-87-ge12a3ed7
 Version 5.0-dev-83-g38592252
 ==
 **Enhancements**
-* _Convolution Update._ The convolution system is now multithreaded and works on multichannel 48k and 44.1k audio.
-  * Multiple impulse response (IR) files can now be provided to the convolution system through a new setting: `convolution_ir_files` (the old setting: `convolution_ir_file` is now deprecated). When convolution starts, Shairport Sync will look for an IR file with a sample rate matching the input (44.1k or 48k) and channel count. If an exact match can not be found, it will look for a single-channel IR file with the matching rate. It will always choose the first match in the file list supplied with the `convolution_ir_files` setting or the `D-Bus` method.
+* _Convolution Update._ The convolution system is now multithreaded and works on stereo and multichannel audio at 48k and 44.1k.
+  * Multiple impulse response (IR) files can now be provided to the convolution system through a new setting: `convolution_ir_files` (the old setting: `convolution_ir_file` is now deprecated). When convolution starts, Shairport Sync will look for an IR file with a sample rate matching the input (44.1k or 48k) and channel count. If an exact match can not be found, it will start again and look for a single-channel IR file with the matching rate. It will always choose the first match in the file list supplied with the `convolution_ir_files` setting or the `D-Bus` method.
   * Multithreading of convolution processing is now possible -- use the `convolution_thread_pool_size` setting to set the number of threads to use during convolution. (Note: high levels of multicore operation can cause audible power supply noise on some systems, due to rapid power switching or frequency-ramping of CPU cores.)
   
   * The [HiFi-LoFi FFT convolver](https://github.com/HiFi-LoFi/FFTConvolver) has been updated to the latest available.
-* _Loudness Update._ The loudness code now works work multichannel 48k and 44.1k audio.
+* _Loudness Update._ The loudness code now works with stereo and multichannel audio at 48k and 44.1k.
 
 **Deprecations**
 * The Jack audio backend is deprecated and will be removed in the future. It seems to be very little used, and most of its functionality is now available through PipeWire. 
