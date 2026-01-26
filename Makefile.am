@@ -277,11 +277,7 @@ endif # INSTALL_SYSTEMV_STARTUP
 
 if INSTALL_SYSTEMD_STARTUP
 
-if USE_AVAHI
-SYSTEMD_SERVICE = shairport-sync.service-avahi
-else
 SYSTEMD_SERVICE = shairport-sync.service
-endif # USE_AVAHI
 
 INSTALL_SYSTEMD_TARGET = install-systemd-local
 
