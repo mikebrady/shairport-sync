@@ -35,7 +35,7 @@ Version 5.0-dev-142-gfcacc4e5
   * Modified and greatly simplified the `TEARDOWN` handling in AP2 mode.
   * Allowed threads to 'naturally' terminate when ports are closed by the client.
   * Improved clearing of flush requests in new play sessions.
-  * Added, but disabled, code to removed previously decoded buffers of data from the player if replacement buffers come in later. (This happens when input changes from AAC to ALAC on the fly, and it's unclear whether this is an AirPlay 2 implementation bug or not.) It's unclear which buffers should have primacy -- the older ones or the newer ones -- so for simplicity new buffers that would replace buffers that are already decoded are simply dropped.
+  * Added, but disabled, code to remove previously decoded buffers of data from the player if replacement buffers come in later. (This happens when input changes from AAC to ALAC on the fly, and it's unclear whether this is an AirPlay 2 implementation bug or not.) It's unclear which buffers should have primacy -- the older ones or the newer ones -- so for simplicity new buffers that would replace buffers that are already decoded are simply dropped.
 
 
 Version 5.0-dev-106-gec0016fb
