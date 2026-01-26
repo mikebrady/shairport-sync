@@ -1,3 +1,13 @@
+Version 5.0-dev-161-g5b3659c2
+==
+**Bug Fix**
+* Fix an MQTT warning and simplify building the `systemd` startup script. The warning occured if Shairport Sync was built with MQTT support. For that case, the startup script omitted stating that the `mosquitto` service was required and had to be active before starting Shairport Sync.
+
+  Thanks to [hvilleneuve29](https://github.com/hvilleneuve29) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2137).
+
+**Dependabot Update**
+* A Dependabot update to some image building tools was added.
+
 Version 5.0-dev-155-g45063d10
 ==
 **Bug Fix**
