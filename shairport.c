@@ -1297,6 +1297,7 @@ int parse_options(int argc, char **argv) {
     config_set_lookup_bool(config.cfg, "mqtt.publish_raw", &config.mqtt_publish_raw);
     config_set_lookup_bool(config.cfg, "mqtt.publish_parsed", &config.mqtt_publish_parsed);
     config_set_lookup_bool(config.cfg, "mqtt.publish_cover", &config.mqtt_publish_cover);
+    config_set_lookup_bool(config.cfg, "mqtt.publish_retain", &config.mqtt_publish_retain);
     if (config.mqtt_publish_cover && !config.get_coverart) {
       die("You need to have metadata.include_cover_art enabled in order to use mqtt.publish_cover");
     }
@@ -2553,6 +2554,7 @@ int main(int argc, char **argv) {
   debug(1, "mqtt will%s publish raw metadata.", config.mqtt_publish_raw ? "" : " not");
   debug(1, "mqtt will%s publish parsed metadata.", config.mqtt_publish_parsed ? "" : " not");
   debug(1, "mqtt will%s publish cover Art.", config.mqtt_publish_cover ? "" : " not");
+  debug(1, "mqtt will%s set retain flag.", config.mqtt_publish_retain ? "" : " not");
   debug(1, "mqtt remote control is %sabled.", config.mqtt_enable_remote ? "en" : "dis");
   debug(1, "mqtt autodiscovery is %sabled.", config.mqtt_enable_autodiscovery ? "en" : "dis");
 #endif

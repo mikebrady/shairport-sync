@@ -174,6 +174,7 @@ typedef struct {
   int mqtt_publish_raw;
   int mqtt_publish_parsed;
   int mqtt_publish_cover;
+  int mqtt_publish_retain;
   int mqtt_enable_remote;
   int mqtt_enable_autodiscovery;
   char *mqtt_autodiscovery_prefix;

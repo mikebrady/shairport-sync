@@ -237,7 +237,8 @@ void mqtt_publish(char *topic, char *data_in, uint32_t length_in) {
   debug(2, "[MQTT]: publishing under %s", fulltopic);
 
   int rc;
-  if ((rc = mosquitto_publish(global_mosq, NULL, fulltopic, length, data, 0, 0)) !=
+  if ((rc = mosquitto_publish(global_mosq, NULL, fulltopic, length, data, 0,
+                              config.mqtt_publish_retain)) !=
       MOSQ_ERR_SUCCESS) {
     switch (rc) {
     case MOSQ_ERR_NO_CONN:
