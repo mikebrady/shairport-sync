@@ -1,3 +1,15 @@
+Version 5.0-dev-168-g846e0e3d
+==
+**MQTT Enhancement**
+* Add a new `publish_retain` boolean option to the MQTT section of the configuration file (normally `/etc/shairport-sync.conf`).
+
+  When enabled, published MQTT messages will have the `retain` flag set, so that the MQTT broker stores the last message per topic and new subscribers receive the most recent value immediately.
+
+  Thanks to [lululombard](https://github.com/lululombard) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2142).
+
+**Dependabot Update**
+* A Dependabot update to some image building tools was added.
+
 Version 5.0-dev-161-g5b3659c2
 ==
 **Bug Fix**
