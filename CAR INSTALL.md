@@ -63,7 +63,7 @@ Note: older versions of the Raspberry Pi OS don't have -- and don't need -- the 
 #### NQPTP
 Skip this step if you are building classic Shairport Sync – NQPTP is not needed for classic Shairport Sync.
 
-Download, install, enable and start NQPTP from [here](https://github.com/mikebrady/nqptp) following the guide for Linux.
+Download, install, enable and start NQPTP from [here](https://github.com/mikebrady/nqptp/tree/development) following the guide for Linux.
 
 #### Shairport Sync
 Download Shairport Sync, configure, compile and install it.
@@ -73,6 +73,7 @@ Download Shairport Sync, configure, compile and install it.
 ```
 $ git clone https://github.com/mikebrady/shairport-sync.git
 $ cd shairport-sync
+$ git checkout development
 $ autoreconf -fi
 $ ./configure --sysconfdir=/etc --with-alsa \
     --with-soxr --with-avahi --with-ssl=openssl --with-systemd-startup --with-airplay-2
