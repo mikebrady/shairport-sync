@@ -2,7 +2,7 @@ Version 5.0
 ====
 This major release represents a significant advancement in Shairport Sync's capabilities, introducing multi-channel audio support, high-resolution playback, and comprehensive performance improvements.
 
-**Important Breaking Changes Notice:** Version 5.0 includes many breaking changes from previous versions of Shairport Sync. Please review the documentation carefully before upgrading. A useful guide to Version 5 Configuration File Changes in Version 5 is available [here](CONFIGURATIONFILECHANGES.md). 
+**Important Breaking Changes Notice:** Version 5.0 includes many breaking changes from previous versions of Shairport Sync. Please review the documentation carefully before upgrading. A useful guide to Version 5 Configuration File Changes in Version 5 is available [here](CONFIGURATIONFILECHANGES5.md). 
 
 **New Features**
 
