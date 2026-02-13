@@ -14,6 +14,8 @@ While the overall operation of Shairport Sync has not changed much, it is really
 7. Installation has changed: when Shairport Sync and NQPTP are installed, their startup scripts have changed to provide them with more suitable privileges. You must remove any existing startup scripts.
 8. Jack Audio is deprecated and will be removed in a future update. Consider using PipeWire instead.
 
+A useful guide to Version 5 Configuration File Changes in Version 5 is available [here](CONFIGURATIONFILECHANGES.md). 
+
 ## 0. General
 
 Shairport Sync can be built as an AirPlay 2 player (with [some limitations](AIRPLAY2.md#features-and-limitations)) or as classic Shairport Sync – a player for the older, but still supported, "classic" AirPlay (aka "AirPlay 1") protocol. Check ["What You Need"](AIRPLAY2.md#what-you-need) for some basic system requirements.
