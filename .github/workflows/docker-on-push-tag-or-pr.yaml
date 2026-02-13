@@ -39,12 +39,12 @@ jobs:
         include:
           - name: classic
             dockerfile: ./docker/classic/Dockerfile
-            tag_suffix: "-classic-rc"
+            tag_suffix: "-classic-rc0"
             build_args: |
               SHAIRPORT_SYNC_BRANCH=.
           - name: main
             dockerfile: ./docker/Dockerfile
-            tag_suffix: "-rc"
+            tag_suffix: "-rc0"
             build_args: |
               SHAIRPORT_SYNC_BRANCH=.
               NQPTP_BRANCH=${{ needs.docker-vars.outputs.nqptp_branch }}
