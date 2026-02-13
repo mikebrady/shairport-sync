@@ -1,6 +1,6 @@
 /*
  * This file is part of Shairport Sync.
- * Copyright (c) Mike Brady 2018 -- 2020
+ * Copyright (c) Mike Brady 2018--2025
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -39,6 +39,9 @@
 
 #include "metadata_hub.h"
 #include "mpris-service.h"
+
+static guint ownerID = 0;
+static GBusType mpris_bus_type = G_BUS_TYPE_SYSTEM; // default is the dbus system message bus
 
 MediaPlayer2 *mprisPlayerSkeleton;
 MediaPlayer2Player *mprisPlayerPlayerSkeleton;
@@ -228,9 +231,9 @@ void mpris_metadata_watcher(struct metadata_bundle *argc, __attribute__((unused)
 
 static gboolean on_handle_quit(MediaPlayer2 *skeleton, GDBusMethodInvocation *invocation,
                                __attribute__((unused)) gpointer user_data) {
-  debug(1, "quit requested (MPRIS interface).");
-  type_of_exit_cleanup = TOE_dbus; // request an exit cleanup that is compatible with dbus
-  exit(EXIT_SUCCESS);
+  debug(1, ">> quit request...");
+  config.quit_requested_from_glib_mainloop = 1;
+  g_main_loop_quit(config.glib_worker_loop);
   media_player2_complete_quit(skeleton, invocation);
   return TRUE;
 }
@@ -295,8 +298,8 @@ static void on_mpris_name_acquired(GDBusConnection *connection, const gchar *nam
 
   const char *empty_string_array[] = {NULL};
 
-  // debug(1, "MPRIS well-known interface name \"%s\" acquired on the %s bus.", name,
-  // (config.mpris_service_bus_type == DBT_session) ? "session" : "system");
+  debug(2, "MPRIS well-known interface name \"%s\" acquired on the %s bus.", name,
+        (mpris_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
   mprisPlayerSkeleton = media_player2_skeleton_new();
   mprisPlayerPlayerSkeleton = media_player2_player_skeleton_new();
 
@@ -340,45 +343,42 @@ static void on_mpris_name_acquired(GDBusConnection *connection, const gchar *nam
   add_metadata_watcher(mpris_metadata_watcher, NULL);
 
   debug(1, "MPRIS service started at \"%s\" on the %s bus.", name,
-        (config.mpris_service_bus_type == DBT_session) ? "session" : "system");
-}
-
-static void on_mpris_name_lost_again(__attribute__((unused)) GDBusConnection *connection,
-                                     const gchar *name,
-                                     __attribute__((unused)) gpointer user_data) {
-  warn("could not acquire an MPRIS interface named \"%s\" on the %s bus.", name,
-       (config.mpris_service_bus_type == DBT_session) ? "session" : "system");
+        (mpris_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
 }
 
 static void on_mpris_name_lost(__attribute__((unused)) GDBusConnection *connection,
-                               __attribute__((unused)) const gchar *name,
-                               __attribute__((unused)) gpointer user_data) {
-  // debug(1, "Could not acquire MPRIS interface \"%s\" on the %s bus -- will try adding the process
-  // "
-  //         "number to the end of it.",
-  //      name,(mpris_bus_type==G_BUS_TYPE_SESSION) ? "session" : "system");
-  pid_t pid = getpid();
-  char interface_name[256] = "";
-  snprintf(interface_name, sizeof(interface_name), "org.mpris.MediaPlayer2.ShairportSync.i%d", pid);
-  GBusType mpris_bus_type = G_BUS_TYPE_SYSTEM;
-  if (config.mpris_service_bus_type == DBT_session)
-    mpris_bus_type = G_BUS_TYPE_SESSION;
-  // debug(1, "Looking for an MPRIS interface \"%s\" on the %s bus.",interface_name,
-  // (mpris_bus_type==G_BUS_TYPE_SESSION) ? "session" : "system");
-  g_bus_own_name(mpris_bus_type, interface_name, G_BUS_NAME_OWNER_FLAGS_NONE, NULL,
-                 on_mpris_name_acquired, on_mpris_name_lost_again, NULL, NULL);
+                               const gchar *name, __attribute__((unused)) gpointer user_data) {
+  warn("could not acquire an MPRIS interface named \"%s\" on the %s bus.", name,
+       (mpris_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
+  ownerID = 0;
 }
 
 int start_mpris_service() {
   mprisPlayerSkeleton = NULL;
   mprisPlayerPlayerSkeleton = NULL;
-  GBusType mpris_bus_type = G_BUS_TYPE_SYSTEM;
-  if (config.mpris_service_bus_type == DBT_session)
+
+  // set up default message bus
+
+  if (config.dbus_default_message_bus == DBT_session)
     mpris_bus_type = G_BUS_TYPE_SESSION;
-  // debug(1, "Looking for an MPRIS interface \"org.mpris.MediaPlayer2.ShairportSync\" on the %s
-  // bus.",(mpris_bus_type==G_BUS_TYPE_SESSION) ? "session" : "system");
-  g_bus_own_name(mpris_bus_type, "org.mpris.MediaPlayer2.ShairportSync",
-                 G_BUS_NAME_OWNER_FLAGS_NONE, NULL, on_mpris_name_acquired, on_mpris_name_lost,
-                 NULL, NULL);
+
+  // look for explicit overrides
+  if (config.mpris_service_bus_type == DBT_system)
+    mpris_bus_type = G_BUS_TYPE_SYSTEM;
+  else if (config.mpris_service_bus_type == DBT_session)
+    mpris_bus_type = G_BUS_TYPE_SESSION;
+
+  debug(1, "Looking for an MPRIS interface \"org.mpris.MediaPlayer2.ShairportSync\" on the %s bus.",
+        (mpris_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
+  ownerID = g_bus_own_name(mpris_bus_type, "org.mpris.MediaPlayer2.ShairportSync",
+                           G_BUS_NAME_OWNER_FLAGS_NONE, NULL, on_mpris_name_acquired,
+                           on_mpris_name_lost, NULL, NULL);
   return 0; // this is just to quieten a compiler warning
+}
+
+void stop_mpris_service() {
+  if (ownerID) {
+    debug(2, "stopping MPRIS service -- unowning ownerID %d.", ownerID);
+    g_bus_unown_name(ownerID);
+  }
 }

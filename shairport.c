@@ -2,7 +2,7 @@
  * Shairport, an Apple Airplay receiver
  * Copyright (c) James Laird 2013
  * All rights reserved.
- * Modifications and additions (c) Mike Brady 2014--2023
+ * Modifications and additions (c) Mike Brady 2014--2025
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -25,8 +25,6 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <sys/socket.h>
-#include <sys/types.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
@@ -35,13 +33,20 @@
 #include <memory.h>
 #include <net/if.h>
 #include <popt.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
 #include "config.h"
+
+#ifdef CONFIG_FFMPEG
+#include <libavutil/log.h>
+#endif
 
 #ifdef CONFIG_AIRPLAY_2
 #include "ptp-utilities.h"
@@ -154,20 +159,36 @@ void print_version(void) {
 
 #ifdef CONFIG_AIRPLAY_2
 int has_fltp_capable_aac_decoder(void) {
-
   // return 1 if the AAC decoder advertises fltp decoding capability, which
   // is needed for decoding Buffered Audio streams
+  debug(3, "checking availability of an  fltp-capable aac decoder");
   int has_capability = 0;
   const AVCodec *codec = avcodec_find_decoder(AV_CODEC_ID_AAC);
   if (codec != NULL) {
-    const enum AVSampleFormat *p = codec->sample_fmts;
-    if (p != NULL) {
-      while ((has_capability == 0) && (*p != AV_SAMPLE_FMT_NONE)) {
-        if (*p == AV_SAMPLE_FMT_FLTP)
+    const enum AVSampleFormat *formats = NULL;
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(61, 13, 100)
+    // New API (FFmpeg 7.1+) for getting formats
+    debug(3, "getting sample formats the new way");
+    int format_count = 0;
+    if ((avcodec_get_supported_config(NULL, codec, AV_CODEC_CONFIG_SAMPLE_FORMAT, 0,
+                                      (const void **)&formats, &format_count) < 0) ||
+        (format_count == 0))
+      formats = NULL; // not clear if the returned pointer is nulled on error or on zero items
+#else
+    debug(3, "getting sample formats the old way");
+    // older API
+    formats = codec->sample_fmts;
+#endif
+    if (formats != NULL) {
+      while ((has_capability == 0) && (*formats != AV_SAMPLE_FMT_NONE)) {
+        if (*formats == AV_SAMPLE_FMT_FLTP) {
           has_capability = 1;
-        p++;
+        }
+        formats++;
       }
     }
+  } else {
+    debug(3, "no AAC codec found.");
   }
   return has_capability;
 }
@@ -177,6 +198,11 @@ int has_fltp_capable_aac_decoder(void) {
 pthread_t soxr_time_check_thread;
 int soxr_time_check_thread_started = 0;
 void *soxr_time_check(__attribute__((unused)) void *arg) {
+  // this just checks how long it takes to process adding and subtracing a frame
+  // from a buffer at 44100
+  //  #include <syscall.h>
+  //  debug(1, "soxr_time_check PID %d", syscall(SYS_gettid));
+
   const int buffer_length = 352;
   int32_t inbuffer[buffer_length * 2];
   int32_t outbuffer[(buffer_length + 1) * 2];
@@ -242,7 +268,7 @@ void *soxr_time_check(__attribute__((unused)) void *arg) {
   if (number_of_iterations != 0) {
     config.soxr_delay_index = soxr_execution_time_int / number_of_iterations;
   } else {
-    debug(1, "No soxr-timing iterations performed, so \"basic\" iteration will be used.");
+    debug(1, "No soxr-timing iterations performed, so \"vernier\" iteration will be used.");
     config.soxr_delay_index = 0; // used as a flag
   }
   debug(2, "soxr_delay: %d nanoseconds, soxr_delay_threshold: %d milliseconds.",
@@ -250,16 +276,15 @@ void *soxr_time_check(__attribute__((unused)) void *arg) {
   if ((config.packet_stuffing == ST_soxr) &&
       (config.soxr_delay_index > config.soxr_delay_threshold))
     inform("Note: this device may be too slow for \"soxr\" interpolation. Consider choosing the "
-           "\"basic\" or \"auto\" interpolation setting.");
+           "\"auto\", \"vernier\" or \"basic\" interpolation setting.");
   if (config.packet_stuffing == ST_auto)
     debug(
         1, "\"%s\" interpolation has been chosen.",
         ((config.soxr_delay_index != 0) && (config.soxr_delay_index <= config.soxr_delay_threshold))
             ? "soxr"
-            : "basic");
+            : "vernier");
   pthread_exit(NULL);
 }
-
 #endif
 
 void usage(char *progname) {
@@ -309,7 +334,7 @@ void usage(char *progname) {
     printf("                            They are listed at the end of this text.\n");
     printf("                            If no mdns backend is specified, they are tried in order until one works.\n");
     printf("    -r, --resync=THRESHOLD  [Deprecated] resync if error exceeds this number of frames. Set to 0 to stop resyncing.\n");
-    printf("    -t, --timeout=SECONDS   Go back to idle mode from play mode after a break in communications of this many seconds (default 120). Set to 0 never to exit play mode.\n");
+    printf("    -t, --timeout=SECONDS   Go back to idle mode from play mode after a break in communications of this many seconds (default 60). Set to 0 never to exit play mode.\n");
     printf("    --tolerance=TOLERANCE   [Deprecated] Allow a synchronization error of TOLERANCE frames (default 88) before trying to correct it.\n");
     printf("    --logOutputLevel        Log the output level setting -- a debugging option, useful for determining the optimum maximum volume.\n");
 #ifdef CONFIG_LIBDAEMON
@@ -342,42 +367,50 @@ int parse_options(int argc, char **argv) {
   // strings will dangle.
   char *raw_service_name = NULL; /* Used to pick up the service name before possibly expanding it */
   char *stuffing = NULL;         /* used for picking up the stuffing option */
-  signed char c;                 /* used for argument parsing */
+#if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
+  char *dbus_default_message_bus =
+      NULL; /* used for picking the "system" or "session" bus as the default */
+#endif
+  signed char c; /* used for argument parsing */
   // int i = 0;                     /* used for tracking options */
   int resync_threshold_in_frames = 0;
   int tolerance_in_frames = 0;
   poptContext optCon; /* context for parsing command-line options */
   struct poptOption optionsTable[] = {
-      {"verbose", 'v', POPT_ARG_NONE, NULL, 'v', NULL, NULL},
-      {"kill", 'k', POPT_ARG_NONE, &killOption, 0, NULL, NULL},
-      {"daemon", 'd', POPT_ARG_NONE, &daemonisewith, 0, NULL, NULL},
-      {"justDaemoniseNoPIDFile", 'j', POPT_ARG_NONE, &daemonisewithout, 0, NULL, NULL},
-      {"configfile", 'c', POPT_ARG_STRING, &config.configfile, 0, NULL, NULL},
-      {"statistics", 0, POPT_ARG_NONE, &config.statistics_requested, 0, NULL, NULL},
-      {"logOutputLevel", 0, POPT_ARG_NONE, &config.logOutputLevel, 0, NULL, NULL},
-      {"version", 'V', POPT_ARG_NONE, NULL, 0, NULL, NULL},
-      {"displayConfig", 'X', POPT_ARG_NONE, &display_config_selected, 0, NULL, NULL},
-      {"port", 'p', POPT_ARG_INT, &config.port, 0, NULL, NULL},
-      {"name", 'a', POPT_ARG_STRING, &raw_service_name, 0, NULL, NULL},
-      {"output", 'o', POPT_ARG_STRING, &config.output_name, 0, NULL, NULL},
-      {"on-start", 'B', POPT_ARG_STRING, &config.cmd_start, 0, NULL, NULL},
-      {"on-stop", 'E', POPT_ARG_STRING, &config.cmd_stop, 0, NULL, NULL},
-      {"wait-cmd", 'w', POPT_ARG_NONE, &config.cmd_blocking, 0, NULL, NULL},
-      {"mdns", 'm', POPT_ARG_STRING, &config.mdns_name, 0, NULL, NULL},
-      {"latency", 'L', POPT_ARG_INT, &config.userSuppliedLatency, 0, NULL, NULL},
-      {"stuffing", 'S', POPT_ARG_STRING, &stuffing, 'S', NULL, NULL},
-      {"resync", 'r', POPT_ARG_INT, &resync_threshold_in_frames, 'r', NULL, NULL},
-      {"timeout", 't', POPT_ARG_INT, &config.timeout, 't', NULL, NULL},
-      {"password", 0, POPT_ARG_STRING, &config.password, 0, NULL, NULL},
-      {"tolerance", 'z', POPT_ARG_INT, &tolerance_in_frames, 'z', NULL, NULL},
-      {"use-stderr", 'u', POPT_ARG_NONE, NULL, 'u', NULL, NULL},
-      {"log-to-syslog", 0, POPT_ARG_NONE, &log_to_syslog_selected, 0, NULL, NULL},
-#ifdef CONFIG_METADATA
-      {"metadata-enable", 'M', POPT_ARG_NONE, &config.metadata_enabled, 'M', NULL, NULL},
-      {"metadata-pipename", 0, POPT_ARG_STRING, &config.metadata_pipename, 0, NULL, NULL},
-      {"get-coverart", 'g', POPT_ARG_NONE, &config.get_coverart, 'g', NULL, NULL},
+    {"verbose", 'v', POPT_ARG_NONE, NULL, 'v', NULL, NULL},
+    {"kill", 'k', POPT_ARG_NONE, &killOption, 0, NULL, NULL},
+    {"daemon", 'd', POPT_ARG_NONE, &daemonisewith, 0, NULL, NULL},
+    {"justDaemoniseNoPIDFile", 'j', POPT_ARG_NONE, &daemonisewithout, 0, NULL, NULL},
+    {"configfile", 'c', POPT_ARG_STRING, &config.configfile, 0, NULL, NULL},
+    {"statistics", 0, POPT_ARG_NONE, &config.statistics_requested, 0, NULL, NULL},
+    {"logOutputLevel", 0, POPT_ARG_NONE, &config.logOutputLevel, 0, NULL, NULL},
+    {"version", 'V', POPT_ARG_NONE, NULL, 0, NULL, NULL},
+    {"displayConfig", 'X', POPT_ARG_NONE, &display_config_selected, 0, NULL, NULL},
+    {"port", 'p', POPT_ARG_INT, &config.port, 0, NULL, NULL},
+    {"name", 'a', POPT_ARG_STRING, &raw_service_name, 0, NULL, NULL},
+    {"output", 'o', POPT_ARG_STRING, &config.output_name, 0, NULL, NULL},
+    {"on-start", 'B', POPT_ARG_STRING, &config.cmd_start, 0, NULL, NULL},
+    {"on-stop", 'E', POPT_ARG_STRING, &config.cmd_stop, 0, NULL, NULL},
+    {"wait-cmd", 'w', POPT_ARG_NONE, &config.cmd_blocking, 0, NULL, NULL},
+    {"mdns", 'm', POPT_ARG_STRING, &config.mdns_name, 0, NULL, NULL},
+    {"latency", 'L', POPT_ARG_INT, &config.userSuppliedLatency, 0, NULL, NULL},
+    {"stuffing", 'S', POPT_ARG_STRING, &stuffing, 'S', NULL, NULL},
+    {"resync", 'r', POPT_ARG_INT, &resync_threshold_in_frames, 'r', NULL, NULL},
+    {"timeout", 't', POPT_ARG_INT, &config.timeout, 't', NULL, NULL},
+    {"password", 0, POPT_ARG_STRING, &config.password, 0, NULL, NULL},
+#if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
+    {"dbus-default-message-bus", 0, POPT_ARG_STRING, &dbus_default_message_bus, 0, NULL, NULL},
 #endif
-      POPT_AUTOHELP{NULL, 0, 0, NULL, 0, NULL, NULL}};
+    {"tolerance", 'z', POPT_ARG_INT, &tolerance_in_frames, 'z', NULL, NULL},
+    {"use-stderr", 'u', POPT_ARG_NONE, NULL, 'u', NULL, NULL},
+    {"log-to-syslog", 0, POPT_ARG_NONE, &log_to_syslog_selected, 0, NULL, NULL},
+#ifdef CONFIG_METADATA
+    {"metadata-enable", 'M', POPT_ARG_NONE, &config.metadata_enabled, 'M', NULL, NULL},
+    {"metadata-pipename", 0, POPT_ARG_STRING, &config.metadata_pipename, 0, NULL, NULL},
+    {"get-coverart", 'g', POPT_ARG_NONE, &config.get_coverart, 'g', NULL, NULL},
+#endif
+    POPT_AUTOHELP{NULL, 0, 0, NULL, 0, NULL, NULL}
+  };
 
   // we have to parse the command line arguments to look for a config file
   int optind;
@@ -393,11 +426,10 @@ int parse_options(int argc, char **argv) {
   poptSetOtherOptionHelp(optCon, "[OPTIONS]* ");
 
   /* Now do options processing just to get a debug log destination and level */
-  debuglev = 0;
   while ((c = poptGetNextOpt(optCon)) >= 0) {
     switch (c) {
     case 'v':
-      debuglev++;
+      increase_debug_level();
       break;
     case 'u':
       inform("Warning: the option -u is no longer needed and is deprecated. Debug and statistics "
@@ -426,12 +458,12 @@ int parse_options(int argc, char **argv) {
       break;
     case 'r':
       config.resync_threshold = (resync_threshold_in_frames * 1.0) / 44100;
-      inform("Warning: the option -r or --resync is deprecated. Please use the "
+      inform("Warning: the option -r or --resync is deprecated and ignored!\nPlease use the "
              "\"resync_threshold_in_seconds\" setting in the config file instead.");
       break;
     case 'z':
       config.tolerance = (tolerance_in_frames * 1.0) / 44100;
-      inform("Warning: the option --tolerance is deprecated. Please use the "
+      inform("Warning: the option --tolerance is deprecated and ignored\nPlease use the "
              "\"drift_tolerance_in_seconds\" setting in the config file instead.");
       break;
     }
@@ -441,6 +473,14 @@ int parse_options(int argc, char **argv) {
   }
 
   poptFreeContext(optCon);
+
+  if (config.timeout != 0) {
+    if (config.timeout < 60) {
+      inform("Note: the timeout value if invalid -- it must be 0 (i.e. no timeout) or at least 60. "
+             "Set to the default value of 60 seconds instead.");
+      config.timeout = 60;
+    }
+  }
 
   if (log_to_syslog_selected) {
     // if this was the first command line argument, it'll already have been chosen
@@ -468,12 +508,6 @@ int parse_options(int argc, char **argv) {
   config.audio_backend_silent_lead_in_time_auto =
       1; // start outputting silence as soon as packets start arriving
   config.default_airplay_volume = -24.0;
-  config.high_threshold_airplay_volume =
-      -16.0; // if the volume exceeds this, reset to the default volume if idle for the
-             // limit_to_high_volume_threshold_time_in_minutes time
-  config.limit_to_high_volume_threshold_time_in_minutes =
-      0; // after this time in minutes, if the volume is higher, use the default_airplay_volume
-         // volume for new play sessions.
   config.fixedLatencyOffset = 11025; // this sounds like it works properly.
   config.diagnostic_drop_packet_fraction = 0.0;
   config.active_state_timeout = 10.0;
@@ -500,6 +534,25 @@ int parse_options(int argc, char **argv) {
   // seconds then we can add an offset of 5.17 seconds and still leave a second's worth of buffers
   // for unexpected circumstances
 
+  config.model = strdup("ShairportSync");
+  // config.model = strdup("AudioAccessory5,1");
+
+  // config.srcvers = strdup(PACKAGE_VERSION);
+  // config.srcvers = strdup("760.13.1");
+
+  config.srcvers = strdup("366.0");
+
+  // config.osvers = strdup(VERSION);
+  config.osvers = strdup("15.0");
+
+  // make up a firmware version
+#ifdef CONFIG_USE_GIT_VERSION_STRING
+  if (git_version_string[0] != '\0')
+    config.firmware_version = strdup(git_version_string);
+  else
+#endif
+    config.firmware_version = strdup(PACKAGE_VERSION);
+
 #ifdef CONFIG_METADATA
   /* Get the metadata setting. */
   config.metadata_enabled = 1; // if metadata support is included, then enable it by default
@@ -507,9 +560,12 @@ int parse_options(int argc, char **argv) {
 #endif
 
 #ifdef CONFIG_CONVOLUTION
-  config.convolution_max_length = 8192;
+  config.convolution_max_length_in_seconds = 1.0;
+  config.convolution_gain = -4.0;
+  config.convolution_threads = 1; // This is to merely to minimise potential power supply noise some
+                                  // CPUs make switching cores on and off. E.g. Pi 3.
 #endif
-  config.loudness_reference_volume_db = -20;
+  config.loudness_reference_volume_db = -16;
 
 #ifdef CONFIG_METADATA_HUB
   config.cover_art_cache_dir = "/tmp/shairport-sync/.cache/coverart";
@@ -536,12 +592,46 @@ int parse_options(int argc, char **argv) {
   uint64_t mask =
       ((uint64_t)1 << 17) | ((uint64_t)1 << 16) | ((uint64_t)1 << 15) | ((uint64_t)1 << 50);
   config.airplay_features =
+      // 0x114BD04A5FCA00 & (~mask);
       0x1C340405D4A00 & (~mask); // APX + Authentication4 (b14) with no metadata (see below)
+
+  /*
+    config.airplay_features |= (uint64_t)1 << 21; // Audio Format 4
+
+    config.airplay_features |= (uint64_t)1 << 25; // Unknown
+    config.airplay_features |= (uint64_t)1 << 36; // Unknown
+    config.airplay_features |= (uint64_t)1 << 39; // Unknown
+    config.airplay_features |= (uint64_t)1 << 43; // Supports System Pairing
+    config.airplay_features |= (uint64_t)1 << 47; // Unknown
+
+    // 0xB
+    config.airplay_features |= (uint64_t)1 << 63; // Unknown
+    config.airplay_features |= (uint64_t)1 << 61; // Unknown
+    config.airplay_features |= (uint64_t)1 << 60; // Unknown
+    // ...0xC
+    // // config.airplay_features |= (uint64_t)1 << 59; // Unknown
+    config.airplay_features |= (uint64_t)1 << 58; // Unknown
+
+    // ...0x3
+    config.airplay_features |= (uint64_t)1 << 53; // Unknown
+    config.airplay_features |= (uint64_t)1 << 52; // Unknown
+  */
+
+  // config.airplay_features |= ((uint64_t)1 << 58) | ((uint64_t)1 << 60) | ((uint64_t)1 << 58);
+
+  // 60 seems to interfere with disconnecting from a group
+
   // Advertised with mDNS and returned with GET /info, see
   // https://openairplay.github.io/airplay-spec/status_flags.html 0x4: Audio cable attached, no PIN
   // required (transient pairing), 0x204: Audio cable attached, OneTimePairingRequired 0x604: Audio
   // cable attached, OneTimePairingRequired, device was setup for Homekit access control
-  config.airplay_statusflags = 0x04;
+  config.airplay_statusflags = 0;
+  config.airplay_statusflags |= 1 << 2; // Audio cable is attached
+  // config.airplay_statusflags |= 1 << 10; // DeviceWasSetupForHKAccessControl
+  // config.airplay_statusflags |= 1 << 11; // DeviceSupportsRelay
+  // config.airplay_statusflags |= 1 << 19; // Unknown. Seems to control whether individual volume
+  // controls are shown and whether the SPS devices shows when its active.
+
   // Set to NULL to work with transient pairing
   config.airplay_pin = NULL;
 
@@ -561,10 +651,15 @@ int parse_options(int argc, char **argv) {
   uuid_unparse_lower(binuuid, uuid);
   config.airplay_pi = uuid;
 
+  char *pgid_uuid = malloc(UUID_STR_LEN + 1); // leave space for the NUL at the end
+  uuid_generate_random(binuuid);
+  uuid_unparse_lower(binuuid, pgid_uuid);
+  config.airplay_pgid = pgid_uuid;
+
 #endif
 
   // config_setting_t *setting;
-  const char *str = 0;
+  const char *str = NULL;
   int value = 0;
   double dvalue = 0.0;
 
@@ -576,7 +671,7 @@ int parse_options(int argc, char **argv) {
   if (config_file_real_path == NULL) {
     debug(2, "can't resolve the configuration file \"%s\".", config.configfile);
   } else {
-    debug(2, "looking for configuration file at full path \"%s\"", config_file_real_path);
+    debug(1, "looking for configuration file at full path \"%s\"", config_file_real_path);
     /* Read the file. If there is an error, report it and exit. */
     if (config_read_file(&config_file_stuff, config_file_real_path)) {
       config_set_auto_convert(&config_file_stuff,
@@ -585,7 +680,7 @@ int parse_options(int argc, char **argv) {
       config.cfg = &config_file_stuff;
 
       /* Get the Service Name. */
-      if (config_lookup_string(config.cfg, "general.name", &str)) {
+      if (config_lookup_non_empty_string(config.cfg, "general.name", &str)) {
         raw_service_name = (char *)str;
       }
 #ifdef CONFIG_LIBDAEMON
@@ -597,26 +692,26 @@ int parse_options(int argc, char **argv) {
                              &daemonisewithout);
 
       /* Get the directory path for the pid file created when the program is daemonised. */
-      if (config_lookup_string(config.cfg, "sessioncontrol.daemon_pid_dir", &str))
+      if (config_lookup_non_empty_string(config.cfg, "sessioncontrol.daemon_pid_dir", &str))
         config.piddir = (char *)str;
 #endif
 
       /* Get the mdns_backend setting. */
-      if (config_lookup_string(config.cfg, "general.mdns_backend", &str))
+      if (config_lookup_non_empty_string(config.cfg, "general.mdns_backend", &str))
         config.mdns_name = (char *)str;
 
       /* Get the output_backend setting. */
-      if (config_lookup_string(config.cfg, "general.output_backend", &str))
+      if (config_lookup_non_empty_string(config.cfg, "general.output_backend", &str))
         config.output_name = (char *)str;
 
       /* Get the port setting. */
       if (config_lookup_int(config.cfg, "general.port", &value)) {
         if ((value < 0) || (value > 65535))
 #ifdef CONFIG_AIRPLAY_2
-          die("Invalid port number  \"%sd\". It should be between 0 and 65535, default is 7000",
+          die("Invalid port number  \"%d\". It should be between 0 and 65535, default is 7000",
               value);
 #else
-          die("Invalid port number  \"%sd\". It should be between 0 and 65535, default is 5000",
+          die("Invalid port number  \"%d\". It should be between 0 and 65535, default is 5000",
               value);
 #endif
         else
@@ -626,7 +721,7 @@ int parse_options(int argc, char **argv) {
       /* Get the udp port base setting. */
       if (config_lookup_int(config.cfg, "general.udp_port_base", &value)) {
         if ((value < 0) || (value > 65535))
-          die("Invalid port number  \"%sd\". It should be between 0 and 65535, default is 6001",
+          die("Invalid port number  \"%d\". It should be between 0 and 65535, default is 6001",
               value);
         else
           config.udp_port_base = value;
@@ -636,19 +731,21 @@ int parse_options(int argc, char **argv) {
        * starting at the port base. Only three ports are needed. */
       if (config_lookup_int(config.cfg, "general.udp_port_range", &value)) {
         if ((value < 3) || (value > 65535))
-          die("Invalid port range  \"%sd\". It should be between 3 and 65535, default is 10",
+          die("Invalid port range  \"%d\". It should be between 3 and 65535, default is 10",
               value);
         else
           config.udp_port_range = value;
       }
 
       /* Get the password setting. */
-      if (config_lookup_string(config.cfg, "general.password", &str))
+      if (config_lookup_non_empty_string(config.cfg, "general.password", &str))
         config.password = (char *)str;
 
       if (config_lookup_string(config.cfg, "general.interpolation", &str)) {
         if (strcasecmp(str, "basic") == 0)
           config.packet_stuffing = ST_basic;
+        else if (strcasecmp(str, "vernier") == 0)
+          config.packet_stuffing = ST_vernier;
         else if (strcasecmp(str, "auto") == 0)
           config.packet_stuffing = ST_auto;
         else if (strcasecmp(str, "soxr") == 0)
@@ -660,7 +757,8 @@ int parse_options(int argc, char **argv) {
                "support. Change the \"general/interpolation\" setting in the configuration file.");
 #endif
         else
-          die("Invalid interpolation option choice \"%s\". It should be \"auto\", \"basic\" or "
+          die("Invalid interpolation option choice \"%s\". It should be \"auto\", \"basic\", "
+              "\"vernier\" or "
               "\"soxr\"",
               str);
       }
@@ -689,16 +787,14 @@ int parse_options(int argc, char **argv) {
 
       /* The old drift tolerance setting. */
       if (config_lookup_int(config.cfg, "general.drift", &value)) {
-        inform("The drift setting is deprecated. Use "
+        inform("The drift setting  is deprecated and ignored. Please use "
                "drift_tolerance_in_seconds instead");
-        config.tolerance = 1.0 * value / 44100;
       }
 
       /* The old resync setting. */
       if (config_lookup_int(config.cfg, "general.resync_threshold", &value)) {
-        inform("The resync_threshold setting is deprecated. Use "
+        inform("The resync_threshold setting is deprecated and ignored. Please use "
                "resync_threshold_in_seconds instead");
-        config.resync_threshold = 1.0 * value / 44100;
       }
 
       /* Get the drift tolerance setting. */
@@ -709,16 +805,12 @@ int parse_options(int argc, char **argv) {
       if (config_lookup_float(config.cfg, "general.resync_threshold_in_seconds", &dvalue))
         config.resync_threshold = dvalue;
 
-      /* Get the resync recovery time setting. */
-      if (config_lookup_float(config.cfg, "general.resync_recovery_time_in_seconds", &dvalue))
-        config.resync_recovery_time = dvalue;
-
       /* Get the verbosity setting. */
       if (config_lookup_int(config.cfg, "general.log_verbosity", &value)) {
         warn("The \"general\" \"log_verbosity\" setting is deprecated. Please use the "
              "\"diagnostics\" \"log_verbosity\" setting instead.");
         if ((value >= 0) && (value <= 3))
-          debuglev = value;
+          set_debug_level(value);
         else
           die("Invalid log verbosity setting option choice \"%d\". It should be between 0 and 3, "
               "inclusive.",
@@ -728,7 +820,7 @@ int parse_options(int argc, char **argv) {
       /* Get the verbosity setting. */
       if (config_lookup_int(config.cfg, "diagnostics.log_verbosity", &value)) {
         if ((value >= 0) && (value <= 3))
-          debuglev = value;
+          set_debug_level(value);
         else
           die("Invalid diagnostics log_verbosity setting option choice \"%d\". It should be "
               "between 0 and 3, "
@@ -804,7 +896,7 @@ int parse_options(int argc, char **argv) {
         if ((dvalue >= 0.0) && (dvalue <= 3.0))
           config.diagnostic_drop_packet_fraction = dvalue;
         else
-          die("Invalid diagnostics drop_this_fraction_of_audio_packets setting \"%d\". It should "
+          die("Invalid diagnostics drop_this_fraction_of_audio_packets setting \"%f\". It should "
               "be "
               "between 0.0 and 1.0, "
               "inclusive.",
@@ -856,28 +948,7 @@ int parse_options(int argc, char **argv) {
         }
       }
 
-      /* Get the optional high_volume_threshold setting. */
-      if (config_lookup_float(config.cfg, "general.high_threshold_airplay_volume", &dvalue)) {
-        // debug(1, "High threshold airplay volume setting of %f on the -30.0 to 0 scale", dvalue);
-        if ((dvalue >= -30.0) && (dvalue <= 0.0)) {
-          config.high_threshold_airplay_volume = dvalue;
-        } else {
-          warn("The high threshold airplay volume setting must be between -30.0 and 0.0.");
-        }
-      }
-
-      /* Get the optional high volume idle tiomeout setting. */
-      if (config_lookup_float(config.cfg, "general.high_volume_idle_timeout_in_minutes", &dvalue)) {
-        // debug(1, "High high_volume_idle_timeout_in_minutes setting of %f", dvalue);
-        if (dvalue >= 0.0) {
-          config.limit_to_high_volume_threshold_time_in_minutes = dvalue;
-        } else {
-          warn("The high volume idle timeout in minutes setting must be 0.0 or greater. A setting "
-               "of 0.0 disables the high volume check.");
-        }
-      }
-
-      if (config_lookup_string(config.cfg, "general.run_this_when_volume_is_set", &str)) {
+      if (config_lookup_non_empty_string(config.cfg, "general.run_this_when_volume_is_set", &str)) {
         config.cmd_set_volume = (char *)str;
       }
 
@@ -919,11 +990,9 @@ int parse_options(int argc, char **argv) {
       /* Get the interface to listen on, if specified Default is all interfaces */
       /* we keep the interface name and the index */
 
-      if (config_lookup_string(config.cfg, "general.interface", &str))
-        config.interface = strdup(str);
-
       if (config_lookup_string(config.cfg, "general.interface", &str)) {
 
+        config.interface = strdup(str);
         config.interface_index = if_nametoindex(config.interface);
 
         if (config.interface_index == 0) {
@@ -937,7 +1006,7 @@ int parse_options(int argc, char **argv) {
 
       /* Get the regtype -- the service type and protocol, separated by a dot. Default is
        * "_raop._tcp" */
-      if (config_lookup_string(config.cfg, "general.regtype", &str))
+      if (config_lookup_non_empty_string(config.cfg, "general.regtype", &str))
         config.regtype = strdup(str);
 
       /* Get the volume range, in dB, that should be used If not set, it means you just use the
@@ -953,16 +1022,28 @@ int parse_options(int argc, char **argv) {
 
       /* Get the alac_decoder setting. */
       if (config_lookup_string(config.cfg, "general.alac_decoder", &str)) {
-        if (strcasecmp(str, "hammerton") == 0)
-          config.use_apple_decoder = 0;
-        else if (strcasecmp(str, "apple") == 0) {
+        if (strcasecmp(str, "hammerton") == 0) {
+          if ((config.decoders_supported & 1 << decoder_hammerton) != 0)
+            config.decoder_in_use = 1 << decoder_hammerton; // use David Hammerton's ALAC decoder
+          else
+            inform(
+                "Support for the Hammerton ALAC decoder has not been compiled into this version of "
+                "Shairport Sync. The default decoder will be used.");
+        } else if (strcasecmp(str, "apple") == 0) {
           if ((config.decoders_supported & 1 << decoder_apple_alac) != 0)
-            config.use_apple_decoder = 1;
+            config.decoder_in_use = 1 << decoder_apple_alac; // use the Apple ALAC decoder
           else
             inform("Support for the Apple ALAC decoder has not been compiled into this version of "
                    "Shairport Sync. The default decoder will be used.");
+        } else if (strcasecmp(str, "ffmpeg") == 0) {
+          if ((config.decoders_supported & 1 << decoder_ffmpeg_alac) != 0)
+            config.decoder_in_use = 1 << decoder_ffmpeg_alac; // use the FFMPEG ALAC decoder
+          else
+            inform("Support for the FFMPEG ALAC decoder has not been compiled into this version of "
+                   "Shairport Sync. The default decoder will be used.");
         } else
-          die("Invalid alac_decoder option choice \"%s\". It should be \"hammerton\" or \"apple\"",
+          die("Invalid alac_decoder option choice \"%s\". It should be \"ffmpeg\", \"hammerton\" "
+              "or \"apple\"",
               str);
       }
 
@@ -1038,7 +1119,7 @@ int parse_options(int argc, char **argv) {
               str);
       }
 
-      if (config_lookup_string(config.cfg, "metadata.pipe_name", &str)) {
+      if (config_lookup_non_empty_string(config.cfg, "metadata.pipe_name", &str)) {
         config.metadata_pipename = (char *)str;
       }
 
@@ -1046,7 +1127,7 @@ int parse_options(int argc, char **argv) {
         config.metadata_progress_interval = dvalue;
       }
 
-      if (config_lookup_string(config.cfg, "metadata.socket_address", &str)) {
+      if (config_lookup_non_empty_string(config.cfg, "metadata.socket_address", &str)) {
         config.metadata_sockaddr = (char *)str;
       }
       if (config_lookup_int(config.cfg, "metadata.socket_port", &value)) {
@@ -1060,7 +1141,7 @@ int parse_options(int argc, char **argv) {
 #endif
 
 #ifdef CONFIG_METADATA_HUB
-      if (config_lookup_string(config.cfg, "metadata.cover_art_cache_directory", &str)) {
+      if (config_lookup_non_empty_string(config.cfg, "metadata.cover_art_cache_directory", &str)) {
         config.cover_art_cache_dir = (char *)str;
       }
 
@@ -1076,21 +1157,23 @@ int parse_options(int argc, char **argv) {
       }
 #endif
 
-      if (config_lookup_string(config.cfg, "sessioncontrol.run_this_before_play_begins", &str)) {
+      if (config_lookup_non_empty_string(config.cfg, "sessioncontrol.run_this_before_play_begins",
+                                         &str)) {
         config.cmd_start = (char *)str;
       }
 
-      if (config_lookup_string(config.cfg, "sessioncontrol.run_this_after_play_ends", &str)) {
+      if (config_lookup_non_empty_string(config.cfg, "sessioncontrol.run_this_after_play_ends",
+                                         &str)) {
         config.cmd_stop = (char *)str;
       }
 
-      if (config_lookup_string(config.cfg, "sessioncontrol.run_this_before_entering_active_state",
-                               &str)) {
+      if (config_lookup_non_empty_string(
+              config.cfg, "sessioncontrol.run_this_before_entering_active_state", &str)) {
         config.cmd_active_start = (char *)str;
       }
 
-      if (config_lookup_string(config.cfg, "sessioncontrol.run_this_after_exiting_active_state",
-                               &str)) {
+      if (config_lookup_non_empty_string(
+              config.cfg, "sessioncontrol.run_this_after_exiting_active_state", &str)) {
         config.cmd_active_stop = (char *)str;
       }
 
@@ -1103,8 +1186,8 @@ int parse_options(int argc, char **argv) {
           config.active_state_timeout = dvalue;
       }
 
-      if (config_lookup_string(config.cfg,
-                               "sessioncontrol.run_this_if_an_unfixable_error_is_detected", &str)) {
+      if (config_lookup_non_empty_string(
+              config.cfg, "sessioncontrol.run_this_if_an_unfixable_error_is_detected", &str)) {
         config.cmd_unfixable = (char *)str;
       }
 
@@ -1146,51 +1229,109 @@ int parse_options(int argc, char **argv) {
       }
 
       if (config_lookup_int(config.cfg, "sessioncontrol.session_timeout", &value)) {
-        config.timeout = value;
-        config.dont_check_timeout = 0; // this is for legacy -- only set by -t 0
+        if (value == 0) {
+          config.dont_check_timeout = 1;
+        } else if (value < 60) {
+          warn("Invalid value \"%d\" for \"session_timeout\". It must be 0 (i.e. no timeout) or at "
+               "least 60. "
+               "The default of %d will be used instead.",
+               value, config.timeout);
+          config.dont_check_timeout = 0;
+        } else {
+          config.timeout = value;
+          config.dont_check_timeout = 0;
+        }
       }
 
 #ifdef CONFIG_CONVOLUTION
+
       if (config_lookup_string(config.cfg, "dsp.convolution", &str)) {
         if (strcasecmp(str, "no") == 0)
-          config.convolution = 0;
-        else if (strcasecmp(str, "yes") == 0)
-          config.convolution = 1;
-        else
-          die("Invalid dsp.convolution setting \"%s\". It should be \"yes\" or \"no\"", str);
+          config.convolution_enabled = 0;
+        else if (strcasecmp(str, "yes") == 0) {
+          config.convolution_enabled = 1;
+        }
+        warn("the \"dsp\" \"convolution\" setting is deprecated and will be removed due to its "
+             "potential ambiguity. Please use \"convolution_enabled\" instead.");
+      }
+
+      if (config_lookup_string(config.cfg, "dsp.convolution_enabled", &str)) {
+        if (strcasecmp(str, "no") == 0)
+          config.convolution_enabled = 0;
+        else if (strcasecmp(str, "yes") == 0) {
+          config.convolution_enabled = 1;
+        } else
+          die("Invalid dsp.convolution_enabled setting \"%s\". It should be \"yes\" or \"no\"",
+              str);
+      }
+
+      if (config_lookup_int(config.cfg, "dsp.convolution_thread_pool_size", &value)) {
+        if ((value >= 1) && (value <= 64)) {
+          config.convolution_threads = value;
+        } else {
+          warn("Invalid value \"%u\" for \"convolution_thread_pool_size\". It must be between 1 "
+               "and 64."
+               "The default of %u will be used instead.",
+               value, config.convolution_threads);
+        }
       }
 
       if (config_lookup_float(config.cfg, "dsp.convolution_gain", &dvalue)) {
         config.convolution_gain = dvalue;
-        if (dvalue > 10 || dvalue < -50)
-          die("Invalid value \"%f\" for dsp.convolution_gain. It should be between -50 and +10 dB",
+        if (dvalue > 18 || dvalue < -60)
+          die("Invalid value \"%f\" for dsp.convolution_gain. It should be between -60 and +18 dB",
               dvalue);
       }
 
       if (config_lookup_int(config.cfg, "dsp.convolution_max_length", &value)) {
-        config.convolution_max_length = value;
-
+        config.convolution_max_length_in_seconds = (double)value / 44100;
+        warn("the \"dsp\" \"convolution_max_length\" setting is deprecated, as it assumes a fixed "
+             "sample rate of 44,100. It will be removed. "
+             "Please use convolution_max_length_in_seconds instead.");
         if (value < 1 || value > 200000)
           die("dsp.convolution_max_length must be within 1 and 200000");
       }
 
-      if (config_lookup_string(config.cfg, "dsp.convolution_ir_file", &str)) {
-        config.convolution_ir_file = strdup(str);
-        config.convolver_valid =
-            convolver_init(config.convolution_ir_file, config.convolution_max_length);
+      if (config_lookup_float(config.cfg, "dsp.convolution_max_length_in_seconds", &dvalue)) {
+
+        if (dvalue > 20 || dvalue < 0) {
+          warn("Invalid value \"%f\" for dsp.convolution_max_length_in_seconds -- ignored. It "
+               "should be between 0 and 20. It is set to %f.1.",
+               dvalue, config.convolution_max_length_in_seconds);
+        } else {
+          config.convolution_max_length_in_seconds = dvalue;
+        }
       }
 
-      if (config.convolution && config.convolution_ir_file == NULL) {
-        warn("Convolution enabled but no convolution_ir_file provided");
+      if (config_lookup_non_empty_string(config.cfg, "dsp.convolution_ir_file", &str)) {
+        warn(
+            "the \"dsp\" \"convolution_ir_file\" setting is deprecated and will be removed. Please "
+            "use \"convolution_ir_files\" instead, which allows multiple comma-separated files.");
+        config.convolution_ir_files = parse_ir_filenames(str, &config.convolution_ir_file_count);
+      }
+
+      if (config_lookup_non_empty_string(config.cfg, "dsp.convolution_ir_files", &str)) {
+        config.convolution_ir_files = parse_ir_filenames(str, &config.convolution_ir_file_count);
       }
 #endif
+
       if (config_lookup_string(config.cfg, "dsp.loudness", &str)) {
         if (strcasecmp(str, "no") == 0)
-          config.loudness = 0;
-        else if (strcasecmp(str, "yes") == 0)
-          config.loudness = 1;
-        else
-          die("Invalid dsp.loudness \"%s\". It should be \"yes\" or \"no\"", str);
+          config.loudness_enabled = 0;
+        else if (strcasecmp(str, "yes") == 0) {
+          config.loudness_enabled = 1;
+        }
+        warn("the \"dsp\" \"loudness\" setting is deprecated and will be removed due to its "
+             "potential ambiguity. Please use \"loudness_enabled\" instead.");
+      }
+
+      if (config_lookup_string(config.cfg, "dsp.loudness_enabled", &str)) {
+        if (strcasecmp(str, "no") == 0)
+          config.loudness_enabled = 0;
+        else if (strcasecmp(str, "yes") == 0) {
+          config.loudness_enabled = 1;
+        } else
+          die("Invalid dsp.loudness_enabled \"%s\". It should be \"yes\" or \"no\"", str);
       }
 
       if (config_lookup_float(config.cfg, "dsp.loudness_reference_volume_db", &dvalue)) {
@@ -1201,9 +1342,11 @@ int parse_options(int argc, char **argv) {
               dvalue);
       }
 
-      if (config.loudness == 1 && config_lookup_string(config.cfg, "alsa.mixer_control_name", &str))
-        die("Loudness activated but hardware volume is active. You must remove "
-            "\"alsa.mixer_control_name\" to use the loudness filter.");
+      if (config.loudness_enabled == 1 &&
+          config_lookup_non_empty_string(config.cfg, "alsa.mixer_control_name", &str))
+        die("The loudness filter is activated but cannot be used because the volume is being "
+            "controlled by a hardware mixer. "
+            "You must not use a hardware mixer when using the loudness filter.");
 
     } else {
       if (config_error_type(&config_file_stuff) == CONFIG_ERR_FILE_IO)
@@ -1247,41 +1390,41 @@ int parse_options(int argc, char **argv) {
     if (config.mqtt_enabled && !config.metadata_enabled) {
       die("You need to have metadata enabled in order to use mqtt");
     }
-    if (config_lookup_string(config.cfg, "mqtt.hostname", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "mqtt.hostname", &str)) {
       config.mqtt_hostname = (char *)str;
       // TODO: Document that, if this is false, whole mqtt func is disabled
     }
     config.mqtt_port = 1883;
     if (config_lookup_int(config.cfg, "mqtt.port", &value)) {
       if ((value < 0) || (value > 65535))
-        die("Invalid mqtt port number  \"%sd\". It should be between 0 and 65535, default is 1883",
+        die("Invalid mqtt port number  \"%d\". It should be between 0 and 65535, default is 1883",
             value);
       else
         config.mqtt_port = value;
     }
 
-    if (config_lookup_string(config.cfg, "mqtt.username", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "mqtt.username", &str)) {
       config.mqtt_username = (char *)str;
     }
-    if (config_lookup_string(config.cfg, "mqtt.password", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "mqtt.password", &str)) {
       config.mqtt_password = (char *)str;
     }
     int capath = 0;
-    if (config_lookup_string(config.cfg, "mqtt.capath", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "mqtt.capath", &str)) {
       config.mqtt_capath = (char *)str;
       capath = 1;
     }
-    if (config_lookup_string(config.cfg, "mqtt.cafile", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "mqtt.cafile", &str)) {
       if (capath)
         die("Supply either mqtt cafile or mqtt capath -- you have supplied both!");
       config.mqtt_cafile = (char *)str;
     }
     int certkeynum = 0;
-    if (config_lookup_string(config.cfg, "mqtt.certfile", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "mqtt.certfile", &str)) {
       config.mqtt_certfile = (char *)str;
       certkeynum++;
     }
-    if (config_lookup_string(config.cfg, "mqtt.keyfile", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "mqtt.keyfile", &str)) {
       config.mqtt_keyfile = (char *)str;
       certkeynum++;
     }
@@ -1291,21 +1434,23 @@ int parse_options(int argc, char **argv) {
           "If you do not want to use TLS Client Authentication, leave both empty.");
     }
 
-    if (config_lookup_string(config.cfg, "mqtt.topic", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "mqtt.topic", &str)) {
       config.mqtt_topic = (char *)str;
     }
     config_set_lookup_bool(config.cfg, "mqtt.publish_raw", &config.mqtt_publish_raw);
     config_set_lookup_bool(config.cfg, "mqtt.publish_parsed", &config.mqtt_publish_parsed);
     config_set_lookup_bool(config.cfg, "mqtt.publish_cover", &config.mqtt_publish_cover);
+    config_set_lookup_bool(config.cfg, "mqtt.publish_retain", &config.mqtt_publish_retain);
     if (config.mqtt_publish_cover && !config.get_coverart) {
       die("You need to have metadata.include_cover_art enabled in order to use mqtt.publish_cover");
     }
-    config_set_lookup_bool(config.cfg, "mqtt.enable_autodiscovery", &config.mqtt_enable_autodiscovery);
-    if (config_lookup_string(config.cfg, "mqtt.autodiscovery_prefix", &str)) {
+    config_set_lookup_bool(config.cfg, "mqtt.enable_autodiscovery",
+                           &config.mqtt_enable_autodiscovery);
+    if (config_lookup_non_empty_string(config.cfg, "mqtt.autodiscovery_prefix", &str)) {
       config.mqtt_autodiscovery_prefix = (char *)str;
     }
     config_set_lookup_bool(config.cfg, "mqtt.enable_remote", &config.mqtt_enable_remote);
-    if (config_lookup_string(config.cfg, "mqtt.empty_payload_substitute", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "mqtt.empty_payload_substitute", &str)) {
       if (strlen(str) == 0)
         config.mqtt_empty_payload_substitute = NULL;
       else
@@ -1379,6 +1524,8 @@ int parse_options(int argc, char **argv) {
     case 'S':
       if (strcmp(stuffing, "basic") == 0)
         config.packet_stuffing = ST_basic;
+      else if (strcmp(stuffing, "vernier") == 0)
+        config.packet_stuffing = ST_vernier;
       else if (strcmp(stuffing, "auto") == 0)
         config.packet_stuffing = ST_auto;
       else if (strcmp(stuffing, "soxr") == 0)
@@ -1390,7 +1537,9 @@ int parse_options(int argc, char **argv) {
             "support. Change the -S option setting.");
 #endif
       else
-        die("Illegal stuffing option \"%s\" -- must be \"basic\" or \"soxr\"", stuffing);
+        die("Illegal stuffing option \"%s\" -- must be \"auto\", \"vernier\", \"basic\" or "
+            "\"soxr\"",
+            stuffing);
       break;
     }
   }
@@ -1399,6 +1548,21 @@ int parse_options(int argc, char **argv) {
   }
 
   poptFreeContext(optCon);
+
+#if defined(CONFIG_DBUS_INTERFACE) || (CONFIG_MPRIS_INTERFACE)
+  // now check to see if a dbus service bus was given
+  if (dbus_default_message_bus != NULL) {
+    if (strcasecmp(dbus_default_message_bus, "system") == 0)
+      config.dbus_default_message_bus = DBT_system;
+    else if (strcasecmp(dbus_default_message_bus, "session") == 0)
+      config.dbus_default_message_bus = DBT_session;
+    else
+      die("Invalid dbus_default_message_bus option choice \"%s\". It should be \"system\" "
+          "(default) or "
+          "\"session\".",
+          str);
+  }
+#endif
 
   // here, we are finally finished reading the options
 
@@ -1431,16 +1595,80 @@ int parse_options(int argc, char **argv) {
 
   config.airplay_device_id = strdup(apids);
 
+  // Create an airplay psi UUID based on the ap1_prefix.
+
+  // a uuid_t and an md5 hash are both 128 bits, 16 bytes
+  uuid_t result;
+  memset(result, 0, sizeof(result));
+  memcpy(result, config.ap1_prefix, sizeof(result));
+
+  // OpenSSL is mandatory for AirPlay 2 anyway
+#ifdef CONFIG_OPENSSL
+  EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+  EVP_DigestInit_ex(mdctx, EVP_md5(), NULL);
+  EVP_DigestUpdate(mdctx, config.ap1_prefix, sizeof(config.ap1_prefix));
+  unsigned int md5_digest_len = EVP_MD_size(EVP_md5());
+  EVP_DigestFinal_ex(mdctx, result, &md5_digest_len);
+  EVP_MD_CTX_free(mdctx);
+#endif
+
+  // now, convert it into a type 4 UUID
+  // see https://stackoverflow.com/questions/10867405/generating-v5-uuid-what-is-name-and-namespace
+  // //set high-nibble to 5 to indicate type 5
+
+  result[6] &= 0x0F;
+  result[6] |= 0x40;
+
+  // set upper two bits to "10"
+  result[8] &= 0x3F;
+  result[8] |= 0x80;
+
+  char *psi_uuid = malloc(UUID_STR_LEN + 1); // leave space for the NUL at the end
+  // Produces a UUID string at uuid consisting of lower-case letters
+  uuid_unparse_lower(result, psi_uuid);
+  config.airplay_psi = psi_uuid;
+  debug(3, "size of pk is %zu.", sizeof(config.airplay_pk));
+
+  pair_public_key_get(PAIR_SERVER_HOMEKIT, config.airplay_pk, config.airplay_device_id);
+  char buf[128];
+  char *ptr = buf;
+  size_t pk_index;
+  for (pk_index = 0; pk_index < sizeof(config.airplay_pk); pk_index++)
+    ptr += sprintf(ptr, "%02x", config.airplay_pk[pk_index]);
+  *ptr = '\0';
+  config.pk_string = strdup(buf);
+
 #ifdef CONFIG_METADATA
   // If we are asking for metadata, turn on the relevant bits
   if (config.metadata_enabled != 0) {
-    config.airplay_features |= (1 << 17) | (1 << 16); // 16 is progress, 17 is text
+    config.airplay_features |= (uint64_t)1 << 16; // progress, 17 is text, 50 is in a binary plist
+    config.airplay_features |= (uint64_t)1 << 17; // text, 50 is in a binary plist
+    // config.airplay_features |=
+    //  (uint64_t)1 << 50; // binary plist
+
     // If we are asking for artwork, turn on the relevant bit
     if (config.get_coverart)
-      config.airplay_features |= (1 << 15); // 15 is artwork
+      config.airplay_features |= (uint64_t)1 << 15; // artwork
   }
 #endif
 
+  // now generate the fex field
+  uint8_t fexbytes[8];
+  uint64_t temp = config.airplay_features;
+  debug(2, "airplay_features are %" PRIx64 ".", temp);
+  for (i = 0; i < 8; i++) {
+    fexbytes[i] = temp & 0xff;
+    temp = temp >> 8;
+  }
+
+  config.airplay_fex = base64_enc(fexbytes, 8);
+  if (config.airplay_fex == NULL)
+    die("could not allocate memory for \"airplay_fex\"");
+  // strip the padding.
+  char *padding = strchr(config.airplay_fex, '=');
+  if (padding)
+    *padding = 0;
+  debug(2, "airplay_fex is \"%s\"", config.airplay_fex);
 #endif
 
 #ifdef CONFIG_LIBDAEMON
@@ -1484,7 +1712,7 @@ int parse_options(int argc, char **argv) {
 #endif
 
   if (tdebuglev != 0)
-    debuglev = tdebuglev;
+    set_debug_level(tdebuglev);
 
   // now set the initial volume to the default volume
   config.airplay_volume =
@@ -1551,15 +1779,51 @@ int parse_options(int argc, char **argv) {
 }
 
 #if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
-static GMainLoop *g_main_loop = NULL;
 
-pthread_t dbus_thread;
-void *dbus_thread_func(__attribute__((unused)) void *arg) {
-  g_main_loop = g_main_loop_new(NULL, FALSE);
-  g_main_loop_run(g_main_loop);
-  debug(2, "g_main_loop thread exit");
-  pthread_exit(NULL);
+GThread *glib_worker_thread = NULL;
+
+gpointer glib_worker_thread_function(__attribute__((unused)) gpointer data) {
+
+  // use the default global-default main context
+  config.glib_worker_loop = g_main_loop_new(NULL, FALSE);
+
+  // debug(1, "glib worker thread started.");
+
+#ifdef CONFIG_DBUS_INTERFACE
+  debug(2, "starting up D-Bus services");
+  start_dbus_service();
+#endif
+#ifdef CONFIG_MPRIS_INTERFACE
+  debug(2, "starting up MPRIS services");
+  start_mpris_service();
+#endif
+
+  // debug(1, "g_main_loop_run start.");
+
+  g_main_loop_run(config.glib_worker_loop);
+
+  // debug(1, "g_main_loop_run exit.");
+
+#ifdef CONFIG_MPRIS_INTERFACE
+  debug(2, "stopping MPRIS service");
+  stop_mpris_service();
+  // debug(1, "stopped MPRIS service");
+#endif
+
+#ifdef CONFIG_DBUS_INTERFACE
+  debug(2, "stopping D-Bus service");
+  stop_dbus_service();
+  // debug(1, "stopped D-Bus service");
+#endif
+
+  g_main_loop_unref(config.glib_worker_loop);
+  if (config.quit_requested_from_glib_mainloop != 0) {
+    debug(2, "glib_mainloop_thread_function asking for exit");
+    exit(EXIT_SUCCESS);
+  }
+  return NULL;
 }
+
 #endif
 
 #ifdef CONFIG_LIBDAEMON
@@ -1579,11 +1843,10 @@ void exit_rtsp_listener() {
     pthread_cancel(rtsp_listener_thread);
     pthread_join(rtsp_listener_thread, NULL); // not sure you need this
   }
-  debug(3, "exit_rtsp_listener ends");
+  debug(2, "exit_rtsp_listener ends");
 }
 
 void exit_function() {
-  debug(3, "exit_function begins");
   if (type_of_exit_cleanup != TOE_emergency) {
     // the following is to ensure that if libdaemon has been included
     // that most of this code will be skipped when the parent process is exiting
@@ -1614,27 +1877,9 @@ void exit_function() {
 #endif
 
 #if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
-      /*
-      Actually, there is no stop_mpris_service() function.
-      #ifdef CONFIG_MPRIS_INTERFACE
-              stop_mpris_service();
-      #endif
-      */
-#ifdef CONFIG_DBUS_INTERFACE
-      debug(2, "Stopping D-Bus service");
-      stop_dbus_service();
-      debug(2, "Stopping D-Bus service done");
-#endif
-      if (g_main_loop) {
-        debug(2, "Stopping D-Bus Loop Thread");
-        g_main_loop_quit(g_main_loop);
-
-        // If the request to exit has come from the D-Bus system,
-        // the D-Bus Loop Thread will not exit until the request is completed
-        // so don't wait for it
-        if (type_of_exit_cleanup != TOE_dbus)
-          pthread_join(dbus_thread, NULL);
-        debug(2, "Stopping D-Bus Loop Thread Done");
+      if ((glib_worker_thread != NULL) && (config.quit_requested_from_glib_mainloop == 0)) {
+        g_main_loop_quit(config.glib_worker_loop);
+        debug(2, "GMainLoop stop requested");
       }
 #endif
 
@@ -1679,12 +1924,23 @@ void exit_function() {
 #endif
 
 #ifdef CONFIG_CONVOLUTION
-      if (config.convolution_ir_file)
-        free(config.convolution_ir_file);
+      if (config.convolution_ir_files) {
+        free_ir_filenames(config.convolution_ir_files, config.convolution_ir_file_count);
+        config.convolution_ir_files = NULL;
+        config.convolution_ir_file_count = 0;
+      }
+      convolver_pool_closedown();
 #endif
 
       if (config.regtype)
         free(config.regtype);
+      if (config.model)
+        free(config.model);
+      if (config.srcvers)
+        free(config.srcvers);
+      if (config.osvers)
+        free(config.osvers);
+
 #ifdef CONFIG_AIRPLAY_2
       if (config.regtype2)
         free(config.regtype2);
@@ -1696,6 +1952,14 @@ void exit_function() {
         free(config.airplay_pin);
       if (config.airplay_pi)
         free(config.airplay_pi);
+      if (config.airplay_pgid)
+        free(config.airplay_pgid);
+      if (config.airplay_psi)
+        free(config.airplay_psi);
+      if (config.pk_string)
+        free(config.pk_string);
+      if (config.firmware_version)
+        free(config.firmware_version);
       ptp_shm_interface_close(); // close it if it's open
 #endif
 
@@ -1761,6 +2025,12 @@ void termHandler(__attribute__((unused)) int k) {
 
 void _display_config(const char *filename, const int linenumber, __attribute__((unused)) int argc,
                      __attribute__((unused)) char **argv) {
+                     
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-zero-length"
+#endif                     
+                     
   _inform(filename, linenumber, ">> Display Config Start.");
 
   // see the man entry on popen
@@ -1873,16 +2143,24 @@ void _display_config(const char *filename, const int linenumber, __attribute__((
       char *i1 = str_replace(i0, "sessioncontrol : \n{\n};\n", "");
       char *i2 = str_replace(i1, "alsa : \n{\n};\n", "");
       char *i3 = str_replace(i2, "sndio : \n{\n};\n", "");
-      char *i4 = str_replace(i3, "pa : \n{\n};\n", "");
+      char *i4 = str_replace(i3, "pulseaudio : \n{\n};\n", "");
       char *i5 = str_replace(i4, "jack : \n{\n};\n", "");
       char *i6 = str_replace(i5, "pipe : \n{\n};\n", "");
       char *i7 = str_replace(i6, "dsp : \n{\n};\n", "");
       char *i8 = str_replace(i7, "metadata : \n{\n};\n", "");
       char *i9 = str_replace(i8, "mqtt : \n{\n};\n", "");
       char *i10 = str_replace(i9, "diagnostics : \n{\n};\n", "");
+      char *i11 = str_replace(i10, "pipewire : \n{\n};\n", "");
+      char *i12 = str_replace(i11, "stdout : \n{\n};\n", "");
+      char *i13 = str_replace(i12, "pipe : \n{\n};\n", "");
+      char *i14 = str_replace(i13, "ao : \n{\n};\n", "");
       // debug(1,"i10 is \"%s\".",i10);
 
       // free intermediate strings
+      free(i13);
+      free(i12);
+      free(i11);
+      free(i10);
       free(i9);
       free(i8);
       free(i7);
@@ -1895,11 +2173,11 @@ void _display_config(const char *filename, const int linenumber, __attribute__((
       free(i0);
 
       // print it out
-      if (strlen(i10) == 0)
+      if (strlen(i14) == 0)
         _inform(filename, linenumber, "The Configuration file contains no active settings.");
       else {
         _inform(filename, linenumber, "Configuration File Settings:");
-        char *p = i10;
+        char *p = i14;
         while (*p != '\0') {
           i = 0;
           while ((*p != '\0') && (*p != '\n')) {
@@ -1916,7 +2194,7 @@ void _display_config(const char *filename, const int linenumber, __attribute__((
         }
       }
 
-      free(i10); // free the cleaned-up configuration string
+      free(i14); // free the cleaned-up configuration string
 
       /*
             while (fgets(result, 1024, cr) != NULL) {
@@ -1931,18 +2209,82 @@ void _display_config(const char *filename, const int linenumber, __attribute__((
     }
   }
   _inform(filename, linenumber, "");
-  _inform(filename, linenumber, ">> Display Config End.");
+  _inform(filename, linenumber, ">> Display Config End."); 
+  
+  #if defined(__GNUC__) || defined(__clang__)
+  #pragma GCC diagnostic pop
+  #endif
 }
 
 #define display_config(argc, argv) _display_config(__FILE__, __LINE__, argc, argv)
 
-int main(int argc, char **argv) {
-#ifdef COMPILE_FOR_OPENBSD
-  /* Start with the superset of all potentially required promises. */
-  if (pledge("stdio rpath wpath cpath dpath inet unix dns proc exec audio", NULL) == -1)
-    die("pledge: %s", strerror(errno));
+#ifdef CONFIG_FFMPEG
+
+/*
+typedef struct {           // channel layout names and equates -- see
+                           // https://www.ffmpeg.org/doxygen/2.4/group__channel__mask__c.html
+  const char *name;        // e.g. "AV_CH_LAYOUT_5POINT1"
+  uint64_t channel_layout; // e.g. AV_CH_LAYOUT_5POINT1
+} channel_layout_t;
+channel_layout_t channel_layouts[] = {
+    {"AV_CH_LAYOUT_MONO", AV_CH_LAYOUT_MONO},
+    {"AV_CH_LAYOUT_STEREO", AV_CH_LAYOUT_STEREO},
+    {"AV_CH_LAYOUT_2POINT1", AV_CH_LAYOUT_2POINT1},
+    {"AV_CH_LAYOUT_2_1", AV_CH_LAYOUT_2_1},
+    {"AV_CH_LAYOUT_SURROUND", AV_CH_LAYOUT_SURROUND},
+    {"AV_CH_LAYOUT_3POINT1", AV_CH_LAYOUT_3POINT1},
+    {"AV_CH_LAYOUT_4POINT0", AV_CH_LAYOUT_4POINT0},
+    {"AV_CH_LAYOUT_4POINT1", AV_CH_LAYOUT_4POINT1},
+    {"AV_CH_LAYOUT_2_2", AV_CH_LAYOUT_2_2},
+    {"AV_CH_LAYOUT_QUAD", AV_CH_LAYOUT_QUAD},
+    {"AV_CH_LAYOUT_5POINT0", AV_CH_LAYOUT_5POINT0},
+    {"AV_CH_LAYOUT_5POINT1", AV_CH_LAYOUT_5POINT1},
+    {"AV_CH_LAYOUT_5POINT0_BACK", AV_CH_LAYOUT_5POINT0_BACK},
+    {"AV_CH_LAYOUT_5POINT1_BACK", AV_CH_LAYOUT_5POINT1_BACK},
+    {"AV_CH_LAYOUT_6POINT0", AV_CH_LAYOUT_6POINT0},
+    {"AV_CH_LAYOUT_6POINT0_FRONT", AV_CH_LAYOUT_6POINT0_FRONT},
+    {"AV_CH_LAYOUT_HEXAGONAL", AV_CH_LAYOUT_HEXAGONAL},
+    {"AV_CH_LAYOUT_6POINT1", AV_CH_LAYOUT_6POINT1},
+    {"AV_CH_LAYOUT_6POINT1_BACK", AV_CH_LAYOUT_6POINT1_BACK},
+    {"AV_CH_LAYOUT_6POINT1_FRONT", AV_CH_LAYOUT_6POINT1_FRONT},
+    {"AV_CH_LAYOUT_7POINT0", AV_CH_LAYOUT_7POINT0},
+    {"AV_CH_LAYOUT_7POINT0_FRONT", AV_CH_LAYOUT_7POINT0_FRONT},
+    {"AV_CH_LAYOUT_7POINT1", AV_CH_LAYOUT_7POINT1},
+    {"AV_CH_LAYOUT_7POINT1_WIDE", AV_CH_LAYOUT_7POINT1_WIDE},
+    {"AV_CH_LAYOUT_7POINT1_WIDE_BACK", AV_CH_LAYOUT_7POINT1_WIDE_BACK},
+    {"AV_CH_LAYOUT_OCTAGONAL", AV_CH_LAYOUT_OCTAGONAL},
+    //        {"AV_CH_LAYOUT_STEREO_DOWNMIX",	AV_CH_LAYOUT_STEREO_DOWNMIX},
+};
+
+uint64_t av_channel_layout_lookup(const char *str) {
+  unsigned int m;
+  uint64_t response = 0;
+  for (m = 0; (m < sizeof(channel_layouts) / sizeof(channel_layout_t)) && (response == 0); m++) {
+    if (strcasecmp(str, channel_layouts[m].name) == 0) {
+      response = channel_layouts[m].channel_layout;
+    }
+  }
+  return response;
+}
+
+const char *av_channel_layout_name(uint64_t channel_layout) {
+  const char *response = NULL;
+  unsigned int m;
+  for (m = 0; (m < sizeof(channel_layouts) / sizeof(channel_layout_t)) && (response == NULL); m++) {
+    if (channel_layouts[m].channel_layout == channel_layout) {
+      response = channel_layouts[m].name;
+    }
+  }
+  return response;
+}
+*/
+
 #endif
 
+int main(int argc, char **argv) {
+  // initialise debug messages stuff -- level 0, no elapsed time, relative time, file and line
+  // debug_init(int level, int show_elapsed_time, int show_relative_time, int show_file_and_line)
+  debug_init(0, 0, 1, 1);
   memset(&config, 0, sizeof(config)); // also clears all strings, BTW
   /* Check if we are called with -V or --version parameter */
   if (argc >= 2 && ((strcmp(argv[1], "-V") == 0) || (strcmp(argv[1], "--version") == 0))) {
@@ -1973,6 +2315,10 @@ int main(int argc, char **argv) {
 #if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(58, 9, 100)
   avcodec_register_all();
 #endif
+  if (debug_level() == 0)
+    av_log_set_level(AV_LOG_ERROR);
+  else
+    av_log_set_level(AV_LOG_VERBOSE);
 #endif
 
   /* Check if we are called with -h or --help parameter */
@@ -1992,8 +2338,6 @@ int main(int argc, char **argv) {
   pid = getpid();
   config.log_fd = -1;
   conns = NULL; // no connections active
-  ns_time_at_startup = get_absolute_time_in_ns();
-  ns_time_at_last_debug_message = ns_time_at_startup;
 
 #ifdef CONFIG_LIBDAEMON
   daemon_set_verbosity(LOG_DEBUG);
@@ -2003,8 +2347,6 @@ int main(int argc, char **argv) {
 #endif
   type_of_exit_cleanup = TOE_normal; // what kind of exit cleanup needed
   atexit(exit_function);
-
-  // set defaults
 
   // get a device id -- the first non-local MAC address
   get_device_id((uint8_t *)&config.hw_addr, 6);
@@ -2047,12 +2389,12 @@ int main(int argc, char **argv) {
   config.debugger_show_file_and_line =
       1; // by default, log the file and line of the originating message
   config.debugger_show_relative_time =
-      1;                // by default, log the time back to the previous debug message
-  config.timeout = 120; // wait this number of seconds to wait for a dropped RTSP connection to come back before declaring it lost.
+      1;               // by default, log the  time back to the previous debug message
+  config.timeout = 60; // wait this number of seconds to wait for a dropped RTSP connection to come
+                       // back before declaring it lost.
   config.buffer_start_fill = 220;
 
-  config.resync_threshold = 0.050;   // default
-  config.resync_recovery_time = 0.1; // drop this amount of frames following the resync delay.
+  config.resync_threshold = 0.050; // default
   config.tolerance = 0.002;
 
 #ifdef CONFIG_AIRPLAY_2
@@ -2065,7 +2407,7 @@ int main(int argc, char **argv) {
   config.packet_stuffing = ST_auto; // use soxr interpolation by default if support has been
                                     // included and if the CPU is fast enough
 #else
-  config.packet_stuffing = ST_basic; // simple interpolation or deletion
+  config.packet_stuffing = ST_vernier; // you need to explicitly ask for "basic" (ST_basic)
 #endif
 
   // char hostname[100];
@@ -2075,18 +2417,34 @@ int main(int argc, char **argv) {
   set_requested_connection_state_to_output(
       1); // we expect to be able to connect to the output device
   config.audio_backend_buffer_desired_length = 0.15; // seconds
+  config.audio_decoded_buffer_desired_length = 0.75; // seconds
   config.udp_port_base = 6001;
   config.udp_port_range = 10;
-  config.output_format = SPS_FORMAT_S16_LE; // default
-  config.output_format_auto_requested = 1;  // default auto select format
-  config.output_rate = 44100;               // default
-  config.output_rate_auto_requested = 1;    // default auto select format
-  config.decoders_supported =
-      1 << decoder_hammerton; // David Hammerton's decoder supported by default
-#ifdef CONFIG_APPLE_ALAC
-  config.decoders_supported += 1 << decoder_apple_alac;
-  config.use_apple_decoder = 1; // use the ALAC decoder by default if support has been included
+
+  config.current_output_configuration = 0; // no output configuration selected...
+
+  // config.output_format = SPS_FORMAT_S16_LE; // default
+  config.output_rate_auto_requested = 1;   // default auto select format
+  config.output_format_auto_requested = 1; // default auto select format
+
+#ifdef CONFIG_HAMMERTON
+  config.decoders_supported |= 1 << decoder_hammerton; // David Hammerton's decoder (deprecated)
+  config.decoder_in_use = 1 << decoder_hammerton;
 #endif
+#ifdef CONFIG_APPLE_ALAC
+  config.decoders_supported |= 1 << decoder_apple_alac; // Apple ALAC decoder (deprecated)
+  config.decoder_in_use = 1 << decoder_apple_alac;      // If present, use this in preference
+#endif
+#ifdef CONFIG_FFMPEG
+  config.decoders_supported |= 1 << decoder_ffmpeg_alac;
+  config.decoder_in_use = 1 << decoder_ffmpeg_alac; // If present, use this in preference
+#endif
+
+  config.output_channel_mapping_enable = 1; // enabled by default
+  config.output_channel_map_size = 0;       // use the device's channel map if it has one
+  config.mixdown_enable = 1;                // enabled by default
+  config.mixdown_channel_layout =
+      0; // 0 means pick a mixdown based on the number of output channels
 
   // initialise random number generator
 
@@ -2114,13 +2472,6 @@ int main(int argc, char **argv) {
 #endif
   // parse arguments into config -- needed to locate pid_dir
   int audio_arg = parse_options(argc, argv);
-
-#ifdef COMPILE_FOR_OPENBSD
-  /* Any command to be executed at runtime? */
-  int run_cmds = config.cmd_active_start != NULL || config.cmd_active_stop != NULL ||
-                 config.cmd_set_volume != NULL || config.cmd_start != NULL ||
-                 config.cmd_stop != NULL;
-#endif
 
   // mDNS supports maximum of 63-character names (we append 13).
   if (strlen(config.service_name) > 50) {
@@ -2257,16 +2608,6 @@ int main(int argc, char **argv) {
 
 #endif
 
-#ifdef COMPILE_FOR_OPENBSD
-  /* Past daemon(3)'s double fork(2). */
-
-  /* Only user-defined commands are executed. */
-  if (!run_cmds)
-    /* Drop "proc exec". */
-    if (pledge("stdio rpath wpath cpath dpath inet unix dns audio", NULL) == -1)
-      die("pledge: %s", strerror(errno));
-#endif
-
 #ifdef CONFIG_AIRPLAY_2
 
   if (has_fltp_capable_aac_decoder() == 0) {
@@ -2373,38 +2714,266 @@ int main(int argc, char **argv) {
 
 #endif
 
-  debug(1, "Log Verbosity is %d.", debuglev);
+  debug(2, "Log Verbosity is %d.", debug_level());
 
   config.output = audio_get_output(config.output_name);
   if (!config.output) {
-    die("Invalid audio backend \"%s\" selected!",
+    die("the audio backend selected: \"%s\" is not supported. Either it is invalid, or support has "
+        "not been included in this build of Shairport Sync.",
         config.output_name == NULL ? "<unspecified>" : config.output_name);
   }
+  debug(1, "audio backend is \"%s\".", config.output_name);
   config.output->init(argc - audio_arg, argv + audio_arg);
 
-#ifdef COMPILE_FOR_OPENBSD
-  /* Past first and last sio_open(3), sndio(7) only needs "audio". */
+#ifdef CONFIG_FFMPEG
+  if (debug_level() <= 1) // keep FFmpeg stuff quiet unless verbosity is 2 or more
+    av_log_set_level(AV_LOG_QUIET);
 
-#ifdef CONFIG_METADATA
-  /* Only coverart cache is created.
-   * Only metadata pipe is special. */
-  if (!config.metadata_enabled)
-#endif
+#if LIBAVUTIL_VERSION_MAJOR >= 57
+
+  // default multichannel on
   {
-    /* Drop "cpath dpath". */
-    if (run_cmds) {
-      if (pledge("stdio rpath wpath inet unix dns proc exec audio", NULL) == -1)
-        die("pledge: %s", strerror(errno));
+    AVChannelLayout default_layout =
+        AV_CHANNEL_LAYOUT_7POINT1; // big fat macro to initialise the default layout
+    config.eight_channel_layout = default_layout.u.mask;
+  }
+  {
+    AVChannelLayout default_layout =
+        AV_CHANNEL_LAYOUT_5POINT1; // big fat macro to initialise the default layout
+    config.six_channel_layout = default_layout.u.mask;
+  }
+
+  const char *str;
+
+  if ((config.cfg != NULL) &&
+      (config_lookup_string(config.cfg, "general.eight_channel_mode", &str))) {
+    if ((strcasecmp(str, "off") == 0) || (strcasecmp(str, "no") == 0)) {
+      config.eight_channel_layout = 0; // 0 on initialisation
+    } else if ((strcasecmp(str, "on") == 0) || (strcasecmp(str, "yes") == 0)) {
+      // AVChannelLayout default_layout =
+      //     AV_CHANNEL_LAYOUT_7POINT1; // big fat macro to initialise the default layout
+      // config.eight_channel_layout = default_layout.u.mask;
     } else {
-      if (pledge("stdio rpath wpath inet unix dns audio", NULL) == -1)
-        die("pledge: %s", strerror(errno));
+      AVChannelLayout channel_layout;
+      if (av_channel_layout_from_string(&channel_layout, str) == 0) {
+        if (channel_layout.nb_channels == 8) {
+          config.eight_channel_layout = channel_layout.u.mask;
+        } else {
+          warn("the eight_channel_mode setting \"%s\" is a %u-channel layout. If a channel layout "
+               "is "
+               "given, it must be an 8-channel layout. eight_channel_mode is set to \"off\".",
+               str, channel_layout.nb_channels);
+        }
+        av_channel_layout_uninit(&channel_layout);
+      } else {
+        warn("the eight_channel_mode setting \"%s\" is not recognised -- it should be \"off\" or "
+             "\"on\" or an eight-channel FFmpeg channel layout, e.g. \"7.1\". "
+             "eight_channel_mode is set to \"off\".",
+             str);
+      }
+    }
+  }
+
+  if ((config.cfg != NULL) &&
+      (config_lookup_string(config.cfg, "general.six_channel_mode", &str))) {
+    if ((strcasecmp(str, "off") == 0) || (strcasecmp(str, "no") == 0)) {
+      config.six_channel_layout = 0; // 0 on initialisation
+    } else if ((strcasecmp(str, "on") == 0) || (strcasecmp(str, "yes") == 0)) {
+      // AVChannelLayout default_layout =
+      //     AV_CHANNEL_LAYOUT_5POINT1; // big fat macro to initialise the default layout
+      // config.six_channel_layout = default_layout.u.mask;
+    } else {
+      AVChannelLayout channel_layout;
+      if (av_channel_layout_from_string(&channel_layout, str) == 0) {
+        if (channel_layout.nb_channels == 6) {
+          config.six_channel_layout = channel_layout.u.mask;
+        } else {
+          warn("the six_channel_mode setting \"%s\" is a %u-channel layout. If a channel layout is "
+               "given, it must be a 6-channel layout. six_channel_mode is set to \"off\".",
+               str, channel_layout.nb_channels);
+        }
+        av_channel_layout_uninit(&channel_layout);
+      } else {
+        warn("the six_channel_mode setting \"%s\" is not recognised -- it should be \"off\" or "
+             "\"on\" or a six-channel FFmpeg channel layout, e.g. \"5.1\". "
+             "six_channel_mode is set to \"off\".",
+             str);
+      }
+    }
+  }
+
+  if ((config.cfg != NULL) &&
+      (config_lookup_non_empty_string(config.cfg, "general.mixdown", &str))) {
+    if ((strcasecmp(str, "off") == 0) || (strcasecmp(str, "no") == 0)) {
+      config.mixdown_enable = 0; // 0 on initialisation
+      debug(1, "mixdown disabled.");
+    } else if (strcasecmp(str, "auto") == 0) {
+      config.mixdown_enable = 1;
+      config.mixdown_channel_layout = 0; // 0 means auto
+      debug(1, "mixdown target: auto.");
+    } else {
+      AVChannelLayout channel_layout;
+      if (av_channel_layout_from_string(&channel_layout, str) == 0) {
+        config.mixdown_enable = 1;
+        config.mixdown_channel_layout = channel_layout.u.mask;
+        av_channel_layout_uninit(&channel_layout);
+        debug(1, "mixdown target: \"%s\".", str);
+      } else {
+        warn("the mixdown setting \"%s\" is not recognised -- it should be \"off\" or \"auto\" or "
+             "an "
+             "FFmpeg channel layout, e.g. \"stereo\". the mixdown is set to \"auto\".",
+             str);
+        config.mixdown_enable = 1;
+        config.mixdown_channel_layout = 0; // 0 means auto
+      }
+    }
+  }
+#else
+
+  // default on
+  config.eight_channel_layout = AV_CH_LAYOUT_7POINT1;
+  config.six_channel_layout = AV_CH_LAYOUT_5POINT1;
+
+  const char *str;
+
+  if ((config.cfg != NULL) &&
+      (config_lookup_non_empty_string(config.cfg, "general.eight_channel_mode", &str))) {
+    if ((strcasecmp(str, "off") == 0) || (strcasecmp(str, "no") == 0)) {
+      config.eight_channel_layout = 0; // 0 on initialisation
+    } else if ((strcasecmp(str, "on") == 0) || (strcasecmp(str, "yes") == 0)) {
+      // config.eight_channel_layout = AV_CH_LAYOUT_7POINT1;
+    } else if (av_get_channel_layout(str) != 0) {
+      if (av_get_channel_layout_nb_channels(av_get_channel_layout(str)) == 8) {
+        config.eight_channel_layout = av_get_channel_layout(str);
+      } else {
+        warn("the eight_channel_mode setting \"%s\" is a %u channel layout. If a channel layout is "
+             "given, it must be an 8-channel layout. eight_channel_mode is set to \"off\".",
+             str, av_get_channel_layout_nb_channels(av_get_channel_layout(str)));
+      }
+    } else {
+      warn("the eight_channel_mode setting \"%s\" is not recognised -- it should be \"off\" or "
+           "\"on\" or an 8-channel FFmpeg channel layout, e.g. \"7.1\". "
+           "eight_channel_mode is set to \"off\".",
+           str);
+    }
+  }
+
+  if ((config.cfg != NULL) &&
+      (config_lookup_non_empty_string(config.cfg, "general.six_channel_mode", &str))) {
+    if ((strcasecmp(str, "off") == 0) || (strcasecmp(str, "no") == 0)) {
+      config.six_channel_layout = 0; // 0 on initialisation
+    } else if ((strcasecmp(str, "on") == 0) || (strcasecmp(str, "yes") == 0)) {
+      // config.six_channel_layout = AV_CH_LAYOUT_5POINT1;
+    } else if (av_get_channel_layout(str) != 0) {
+      if (av_get_channel_layout_nb_channels(av_get_channel_layout(str)) == 6) {
+        config.six_channel_layout = av_get_channel_layout(str);
+      } else {
+        warn("the six_channel_mode setting \"%s\" is a %u channel layout. If a channel layout is "
+             "given, it must be a 6-channel layout. six_channel_mode is set to \"off\".",
+             str, av_get_channel_layout_nb_channels(av_get_channel_layout(str)));
+      }
+    } else {
+      warn("the six_channel_mode setting \"%s\" is not recognised -- it should be \"off\" or "
+           "\"on\" or a 6-channel FFmpeg channel layout, e.g. \"5.1\". "
+           "six_channel_mode is set to \"off\".",
+           str);
+    }
+  }
+
+  if ((config.cfg != NULL) &&
+      (config_lookup_non_empty_string(config.cfg, "general.mixdown", &str))) {
+    if ((strcasecmp(str, "off") == 0) || (strcasecmp(str, "no") == 0)) {
+      config.mixdown_enable = 0; // 0 on initialisation
+    } else if (strcasecmp(str, "auto") == 0) {
+      config.mixdown_enable = 1;
+      config.mixdown_channel_layout = 0; // 0 means auto
+    } else if (av_get_channel_layout(str) != 0) {
+      config.mixdown_enable = 1;
+      config.mixdown_channel_layout = av_get_channel_layout(str);
+    } else {
+      warn("the mixdown setting \"%s\" is not recognised -- it should be \"off\" or \"auto\" or an "
+           "FFmpeg channel layout, e.g. \"stereo\". the mixdown is set to \"auto\".",
+           str);
+      config.mixdown_enable = 1;
+      config.mixdown_channel_layout = 0; // 0 means auto
     }
   }
 #endif
 
-  // pthread_cleanup_push(main_cleanup_handler, NULL);
+  if (config.cfg != NULL) {
+    config_setting_t *output_channel_mapping_setting =
+        config_lookup(config.cfg, "general.output_channel_mapping");
+    if (output_channel_mapping_setting != NULL) {
+      const char *sstr = config_setting_get_string(output_channel_mapping_setting);
+      if (sstr != NULL) { // definitely a string
+        if (strcasecmp(sstr, "auto") == 0) {
+          config.output_channel_mapping_enable = 1; // this is the default anyway
+          config.output_channel_map_size = 0;       // use the device's channel map
+          debug(1, "device output channel map chosen");
+        } else if ((strcasecmp(sstr, "off") == 0) || (strcasecmp(sstr, "no") == 0)) {
+          config.output_channel_mapping_enable = 0; // no mapping
+        } else {
+          warn("the output_channel_mapping setting \"%s\" is not recognised -- it should be "
+               "\"auto\", \"off\" or a "
+               "bracketed comma-separated list of short channel names, e.g. (\"FL\", \"FR\", "
+               "\"LFE\");",
+               sstr);
+        }
+      } else {
+        int i = 0;
+        for (i = 0; i < config_setting_length(output_channel_mapping_setting); i++) {
+          // is a list or array, so okay
+          const char *channel_id =
+              config_setting_get_string_elem(output_channel_mapping_setting, i);
+          if (channel_id != NULL) { // definitely a string
+            int found = 0;
+            if (strcmp(channel_id, "--") == 0) {
+              found = 1;
+            } else {
+#if LIBAVUTIL_VERSION_MAJOR >= 57
+              const int buffer_size = 32;
+              char buffer[buffer_size];
+              enum AVChannel channel_index;
+              for (channel_index = AV_CHAN_NONE;
+                   ((channel_index < AV_CHAN_BOTTOM_FRONT_RIGHT) && (found == 0));
+                   channel_index++) {
+                found = av_channel_name(buffer, buffer_size, channel_index);
+                if (found > 0) {
+                  found = ((av_channel_name(buffer, buffer_size, channel_index) > 0) &&
+                           (strcmp(channel_id, buffer) == 0));
+                } else {
+                  found = 0;
+                }
+              }
+#else
+              uint64_t channel_index;
+              for (channel_index = 0; ((channel_index < 64) && (found == 0)); channel_index++) {
+                found = ((av_get_channel_name(1 << channel_index) != NULL) &&
+                         (strcmp(channel_id, av_get_channel_name(1 << channel_index)) == 0));
+              }
+#endif
+            }
+            if (found != 0) {
+              config.output_channel_map[i] = strdup(channel_id);
+              debug(2, "output channel %d is \"%s\".", i, config.output_channel_map[i]);
+            } else {
+              warn("channel \"%s\" is not recognised -- output channel %d will be silent.",
+                   channel_id, i);
+              config.output_channel_map[i] = strdup("--");
+            }
+            config.output_channel_map_size++;
+          }
+        }
+        if (config.output_channel_map_size == 0)
+          warn("the output_channel_mapping setting was empty. No output channel mapping will be "
+               "done.");
+        else
+          config.output_channel_mapping_enable = 1;
+      }
+    }
+  }
 
-  // daemon_log(LOG_NOTICE, "startup");
+#endif
 
   switch (config.endianness) {
   case SS_LITTLE_ENDIAN:
@@ -2439,136 +3008,197 @@ int main(int argc, char **argv) {
           "44100 frames per second).",
           BUFFER_FRAMES * 352 - 22050);
   }
-
+  const int option_print_level = 1;
   /* Print out options */
-  debug(1, "disable_resend_requests is %s.", config.disable_resend_requests ? "on" : "off");
-  debug(1,
+  debug(option_print_level, "disable_resend_requests is %s.",
+        config.disable_resend_requests ? "on" : "off");
+  debug(option_print_level,
         "diagnostic_drop_packet_fraction is %f. A value of 0.0 means no packets will be dropped "
         "deliberately.",
         config.diagnostic_drop_packet_fraction);
-  debug(1, "statistics_requester status is %d.", config.statistics_requested);
+  debug(option_print_level, "statistics_requester status is %d.", config.statistics_requested);
 #if CONFIG_LIBDAEMON
-  debug(1, "daemon status is %d.", config.daemonise);
-  debug(1, "daemon pid file path is \"%s\".", pid_file_proc());
+  debug(option_print_level, "daemon status is %d.", config.daemonise);
+  debug(option_print_level, "daemon pid file path is \"%s\".", pid_file_proc());
 #endif
-  debug(1, "rtsp listening port is %d.", config.port);
-  debug(1, "udp base port is %d.", config.udp_port_base);
-  debug(1, "udp port range is %d.", config.udp_port_range);
-  debug(1, "player name is \"%s\".", config.service_name);
-  debug(1, "backend is \"%s\".", config.output_name);
-  debug(1, "run_this_before_play_begins action is \"%s\".", strnull(config.cmd_start));
-  debug(1, "run_this_after_play_ends action is \"%s\".", strnull(config.cmd_stop));
-  debug(1, "wait-cmd status is %d.", config.cmd_blocking);
-  debug(1, "run_this_before_play_begins may return output is %d.", config.cmd_start_returns_output);
-  debug(1, "run_this_if_an_unfixable_error_is_detected action is \"%s\".",
+  debug(option_print_level, "rtsp listening port is %d.", config.port);
+  debug(option_print_level, "udp base port is %d.", config.udp_port_base);
+  debug(option_print_level, "udp port range is %d.", config.udp_port_range);
+  debug(option_print_level, "player name is \"%s\".", config.service_name);
+  debug(option_print_level, "run_this_before_play_begins action is \"%s\".",
+        strnull(config.cmd_start));
+  debug(option_print_level, "run_this_after_play_ends action is \"%s\".", strnull(config.cmd_stop));
+  debug(option_print_level, "wait-cmd status is %d.", config.cmd_blocking);
+  debug(option_print_level, "run_this_before_play_begins may return output is %d.",
+        config.cmd_start_returns_output);
+  debug(option_print_level, "run_this_if_an_unfixable_error_is_detected action is \"%s\".",
         strnull(config.cmd_unfixable));
-  debug(1, "run_this_before_entering_active_state action is  \"%s\".",
+  debug(option_print_level, "run_this_before_entering_active_state action is  \"%s\".",
         strnull(config.cmd_active_start));
-  debug(1, "run_this_after_exiting_active_state action is  \"%s\".",
+  debug(option_print_level, "run_this_after_exiting_active_state action is  \"%s\".",
         strnull(config.cmd_active_stop));
-  debug(1, "active_state_timeout is  %f seconds.", config.active_state_timeout);
-  debug(1, "mdns backend \"%s\".", strnull(config.mdns_name));
+  debug(option_print_level, "active_state_timeout is  %f seconds.", config.active_state_timeout);
+  debug(option_print_level, "mdns backend \"%s\".", strnull(config.mdns_name));
   debug(2, "userSuppliedLatency is %d.", config.userSuppliedLatency);
-  debug(1, "interpolation setting is \"%s\".",
-        config.packet_stuffing == ST_basic  ? "basic"
-        : config.packet_stuffing == ST_soxr ? "soxr"
-                                            : "auto");
-  debug(1, "interpolation soxr_delay_threshold is %d.", config.soxr_delay_threshold);
-  debug(1, "resync time is %f seconds.", config.resync_threshold);
-  debug(1, "resync recovery time is %f seconds.", config.resync_recovery_time);
-  debug(1, "allow a session to be interrupted: %d.", config.allow_session_interruption);
-  debug(1, "busy timeout time is %d.", config.timeout);
-  debug(1, "drift tolerance is %f seconds.", config.tolerance);
-  debug(1, "password is %s.", config.password == NULL ? "not set" : "set (omitted)");
-  debug(1, "default airplay volume is: %.6f.", config.default_airplay_volume);
-  debug(1, "high threshold airplay volume is: %.6f.", config.high_threshold_airplay_volume);
-  if (config.limit_to_high_volume_threshold_time_in_minutes == 0)
-    debug(1, "check for higher-than-threshold volume for new play session is disabled.");
-  else
-    debug(1,
-          "suggest default airplay volume for new play sessions instead of higher-than-threshold "
-          "airplay volume after: %d minutes.",
-          config.limit_to_high_volume_threshold_time_in_minutes);
-  debug(1, "ignore_volume_control is %d.", config.ignore_volume_control);
+  debug(option_print_level, "interpolation setting is \"%s\".",
+        config.packet_stuffing == ST_basic     ? "basic"
+        : config.packet_stuffing == ST_vernier ? "vernier"
+        : config.packet_stuffing == ST_soxr    ? "soxr"
+                                               : "auto");
+  debug(option_print_level, "interpolation soxr_delay_threshold is %d.",
+        config.soxr_delay_threshold);
+  debug(option_print_level, "resync time is %f seconds.", config.resync_threshold);
+  debug(option_print_level, "allow a classic AirPlay session to be interrupted: \"%s\".",
+        config.allow_session_interruption == 0 ? "no" : "yes");
+  debug(option_print_level, "busy timeout time is %d.", config.timeout);
+  debug(option_print_level, "drift tolerance is %f seconds.", config.tolerance);
+  debug(option_print_level, "password is \"%s\".", strnull(config.password));
+  debug(option_print_level, "default airplay volume is: %.6f.", config.default_airplay_volume);
+  debug(option_print_level, "ignore_volume_control is %d.", config.ignore_volume_control);
   if (config.volume_max_db_set)
-    debug(1, "volume_max_db is %d.", config.volume_max_db);
+    debug(option_print_level, "volume_max_db is %d.", config.volume_max_db);
   else
-    debug(1, "volume_max_db is not set");
-  debug(1, "volume range in dB (zero means use the range specified by the mixer): %u.",
+    debug(option_print_level, "volume_max_db is not set");
+  debug(option_print_level,
+        "volume range in dB (zero means use the range specified by the mixer): %u.",
         config.volume_range_db);
-  debug(1,
+  debug(option_print_level,
         "volume_range_combined_hardware_priority (1 means hardware mixer attenuation is used "
         "first) is %d.",
         config.volume_range_hw_priority);
-  debug(1, "playback_mode is %d (0-stereo, 1-mono, 1-reverse_stereo, 2-both_left, 3-both_right).",
+  debug(option_print_level,
+        "playback_mode is %d (0-stereo, 1-mono, 1-reverse_stereo, 2-both_left, 3-both_right).",
         config.playback_mode);
-  debug(1, "disable_synchronization is %d.", config.no_sync);
-  debug(1, "use_mmap_if_available is %d.", config.no_mmap ? 0 : 1);
-  debug(1, "output_format automatic selection is %sabled.",
+  debug(option_print_level, "disable_synchronization is %d.", config.no_sync);
+  debug(option_print_level, "use_mmap_if_available is %d.", config.no_mmap ? 0 : 1);
+  debug(option_print_level, "output_format automatic selection is %sabled.",
         config.output_format_auto_requested ? "en" : "dis");
-  if (config.output_format_auto_requested == 0)
-    debug(1, "output_format is \"%s\".", sps_format_description_string(config.output_format));
-  debug(1, "output_rate automatic selection is %sabled.",
+  // if (config.output_format_auto_requested == 0)
+  //   debug(option_print_level, "output_format is \"%s\".",
+  //         sps_format_description_string(config.current_output_configuration->format));
+  debug(option_print_level, "output_rate automatic selection is %sabled.",
         config.output_rate_auto_requested ? "en" : "dis");
-  if (config.output_rate_auto_requested == 0)
-    debug(1, "output_rate is %d.", config.output_rate);
-  debug(1, "audio backend desired buffer length is %f seconds.",
+  // if (config.output_rate_auto_requested == 0)
+  //   debug(option_print_level, "output_rate is %d.", config.current_output_configuration->rate);
+  debug(option_print_level, "audio backend desired buffer length is %f seconds.",
         config.audio_backend_buffer_desired_length);
-  debug(1, "audio_backend_buffer_interpolation_threshold_in_seconds is %f seconds.",
+  debug(option_print_level,
+        "audio_backend_buffer_interpolation_threshold_in_seconds is %f seconds.",
         config.audio_backend_buffer_interpolation_threshold_in_seconds);
-  debug(1, "audio backend latency offset is %f seconds.", config.audio_backend_latency_offset);
+  debug(option_print_level, "audio backend latency offset is %f seconds.",
+        config.audio_backend_latency_offset);
   if (config.audio_backend_silent_lead_in_time_auto == 1)
-    debug(1, "audio backend silence lead-in time is \"auto\".");
+    debug(option_print_level, "audio backend silence lead-in time is \"auto\".");
   else
-    debug(1, "audio backend silence lead-in time is %f seconds.",
+    debug(option_print_level, "audio backend silence lead-in time is %f seconds.",
           config.audio_backend_silent_lead_in_time);
-  debug(1, "zeroconf regtype is \"%s\".", config.regtype);
-  debug(1, "decoders_supported field is %d.", config.decoders_supported);
-  debug(1, "use_apple_decoder is %d.", config.use_apple_decoder);
-  debug(1, "alsa_use_hardware_mute is %d.", config.alsa_use_hardware_mute);
+  debug(option_print_level, "zeroconf regtype is \"%s\".", config.regtype);
+  debug(option_print_level,
+        "decoders_supported bit field is %d (1 == hammerton, 2 == apple, 4 == ffmpeg).",
+        config.decoders_supported);
+  debug(option_print_level, "decoder_in_use is %d.", config.decoder_in_use);
+  debug(option_print_level, "alsa_use_hardware_mute is %d.", config.alsa_use_hardware_mute);
   if (config.interface)
-    debug(1, "mdns service interface \"%s\" requested.", config.interface);
+    debug(option_print_level, "mdns service interface \"%s\" requested.", config.interface);
   else
-    debug(1, "no special mdns service interface was requested.");
+    debug(option_print_level, "no special mdns service interface was requested.");
   char *realConfigPath = realpath(config.configfile, NULL);
   if (realConfigPath) {
-    debug(1, "configuration file name \"%s\" resolves to \"%s\".", config.configfile,
-          realConfigPath);
+    debug(option_print_level, "configuration file name \"%s\" resolves to \"%s\".",
+          config.configfile, realConfigPath);
     free(realConfigPath);
   } else {
-    debug(1, "configuration file name \"%s\" can not be resolved.", config.configfile);
+    debug(option_print_level, "configuration file name \"%s\" can not be resolved.",
+          config.configfile);
   }
 #ifdef CONFIG_METADATA
-  debug(1, "metadata enabled is %d.", config.metadata_enabled);
-  debug(1, "metadata pipename is \"%s\".", config.metadata_pipename);
-  debug(1, "metadata socket address is \"%s\" port %d.", strnull(config.metadata_sockaddr),
+  debug(option_print_level, "metadata enabled is %d.", config.metadata_enabled);
+  debug(option_print_level, "metadata pipename is \"%s\".", config.metadata_pipename);
+  debug(option_print_level, "metadata socket address is \"%s\" port %d.", config.metadata_sockaddr,
         config.metadata_sockport);
-  debug(1, "metadata socket packet size is \"%d\".", config.metadata_sockmsglength);
-  debug(1, "get-coverart is %d.", config.get_coverart);
+  debug(option_print_level, "metadata socket packet size is \"%zd\".",
+        config.metadata_sockmsglength);
+  debug(option_print_level, "get-coverart is %d.", config.get_coverart);
 #endif
 #ifdef CONFIG_MQTT
-  debug(1, "mqtt is %sabled.", config.mqtt_enabled ? "en" : "dis");
-  debug(1, "mqtt hostname is %s, port is %d.", config.mqtt_hostname, config.mqtt_port);
-  debug(1, "mqtt topic is %s.", config.mqtt_topic);
-  debug(1, "mqtt will%s publish raw metadata.", config.mqtt_publish_raw ? "" : " not");
-  debug(1, "mqtt will%s publish parsed metadata.", config.mqtt_publish_parsed ? "" : " not");
-  debug(1, "mqtt will%s publish cover Art.", config.mqtt_publish_cover ? "" : " not");
-  debug(1, "mqtt remote control is %sabled.", config.mqtt_enable_remote ? "en" : "dis");
-  debug(1, "mqtt autodiscovery is %sabled.", config.mqtt_enable_autodiscovery ? "en" : "dis");
+  debug(option_print_level, "mqtt is %sabled.", config.mqtt_enabled ? "en" : "dis");
+  debug(option_print_level, "mqtt hostname is %s, port is %d.", config.mqtt_hostname,
+        config.mqtt_port);
+  debug(option_print_level, "mqtt topic is %s.", config.mqtt_topic);
+  debug(option_print_level, "mqtt will%s publish raw metadata.",
+        config.mqtt_publish_raw ? "" : " not");
+  debug(option_print_level, "mqtt will%s publish parsed metadata.",
+        config.mqtt_publish_parsed ? "" : " not");
+  debug(option_print_level, "mqtt will%s publish cover Art.",
+        config.mqtt_publish_cover ? "" : " not");
+  debug(option_print_level, "mqtt will%s set retain flag.",
+        config.mqtt_publish_retain ? "" : " not");
+  debug(option_print_level, "mqtt remote control is %sabled.",
+        config.mqtt_enable_remote ? "en" : "dis");
+  debug(option_print_level, "mqtt autodiscovery is %sabled.",
+        config.mqtt_enable_autodiscovery ? "en" : "dis");
 #endif
 
 #ifdef CONFIG_CONVOLUTION
-  debug(1, "convolution is %d.", config.convolution);
-  debug(1, "convolution IR file is \"%s\"", config.convolution_ir_file);
-  debug(1, "convolution max length %d", config.convolution_max_length);
-  debug(1, "convolution gain is %f", config.convolution_gain);
+  debug(option_print_level, "convolution_enabled is %s.",
+        config.convolution_enabled != 0 ? "true" : "false");
+  debug(option_print_level, "convolution maximum length is %f seconds.",
+        config.convolution_max_length_in_seconds);
+  debug(option_print_level, "convolution gain is %f", config.convolution_gain);
+  sanity_check_ir_files(option_print_level, config.convolution_ir_files,
+                        config.convolution_ir_file_count);
 #endif
-  debug(1, "loudness is %d.", config.loudness);
-  debug(1, "loudness reference level is %f", config.loudness_reference_volume_db);
+  debug(option_print_level, "loudness_enabled is %s.",
+        config.loudness_enabled != 0 ? "true" : "false");
+  debug(option_print_level, "loudness reference level is %f", config.loudness_reference_volume_db);
 
 #ifdef CONFIG_SOXR
-  pthread_create(&soxr_time_check_thread, NULL, &soxr_time_check, NULL);
+  named_pthread_create(&soxr_time_check_thread, NULL, &soxr_time_check, NULL, "soxr_checker");
   soxr_time_check_thread_started = 1;
+#endif
+
+#ifdef CONFIG_FFMPEG
+  debug(2, "LIBAVUTIL_VERSION_MAJOR is %d", LIBAVUTIL_VERSION_MAJOR);
+
+#if LIBAVUTIL_VERSION_MAJOR >= 57
+  unsigned int cc;
+  for (cc = 1; cc <= 8; cc++) {
+    AVChannelLayout output_channel_layout;
+    av_channel_layout_default(&output_channel_layout, cc);
+    char chLayoutDescription[1024];
+    int sts = av_channel_layout_describe(&output_channel_layout, chLayoutDescription,
+                                         sizeof(chLayoutDescription));
+    if (sts >= 0) {
+      int idx;
+      char channel_map[1024];
+      channel_map[0] = '\0';
+      for (idx = 0; idx < output_channel_layout.nb_channels; idx++) {
+        enum AVChannel av = av_channel_layout_channel_from_index(&output_channel_layout, idx);
+        char chName[64];
+        int cts = av_channel_name(chName, sizeof(chName), av);
+        if (cts >= 0) {
+          if (idx != 0)
+            strncat(channel_map, " ", sizeof(channel_map) - 1);
+          strncat(channel_map, chName, sizeof(channel_map) - 1 - strlen(channel_map));
+          debug(3, "Channel %d: \"%s\"", idx, chName);
+        } else {
+          debug(1, "Insufficient space for the name of channel %d.", idx);
+        }
+      }
+      if (cc == 1) {
+        debug(2, "Default layout for one channel: \"%s\", channel map: \"%s\".",
+              chLayoutDescription, channel_map);
+      } else {
+        debug(2, "Default layout for %u channels: \"%s\", channel map: \"%s\".", cc,
+              chLayoutDescription, channel_map);
+      }
+    } else {
+      debug(1, "Insufficient space for the description of the default layout for %u channels.", cc);
+    }
+    av_channel_layout_uninit(&output_channel_layout);
+  }
+#endif
+
 #endif
 
   // In AirPlay 2 mode, the AP1 prefix is the same as the device ID less the colons
@@ -2586,7 +3216,6 @@ int main(int argc, char **argv) {
   unsigned int md5_digest_len = EVP_MD_size(EVP_md5());
   EVP_DigestFinal_ex(mdctx, ap_md5, &md5_digest_len);
   EVP_MD_CTX_free(mdctx);
-
 #endif
 
 #ifdef CONFIG_MBEDTLS
@@ -2630,25 +3259,18 @@ int main(int argc, char **argv) {
   dacp_monitor_start();
 #endif
 
-#if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
-  // Start up DBUS services after initial settings are all made
-  // debug(1, "Starting up D-Bus services");
-  pthread_create(&dbus_thread, NULL, &dbus_thread_func, NULL);
-#ifdef CONFIG_DBUS_INTERFACE
-  start_dbus_service();
-#endif
-#ifdef CONFIG_MPRIS_INTERFACE
-  start_mpris_service();
-#endif
-#endif
-
 #ifdef CONFIG_MQTT
   if (config.mqtt_enabled) {
     initialise_mqtt();
   }
 #endif
 
+#if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
+  glib_worker_thread = g_thread_new("glib worker", glib_worker_thread_function, NULL);
+#endif
+
 #ifdef CONFIG_AIRPLAY_2
+
   ptp_send_control_message_string(
       "T"); // send this message to get nqptp to create the named shm interface
   uint64_t nqptp_start_waiting_time = get_absolute_time_in_ns();
@@ -2698,15 +3320,14 @@ int main(int argc, char **argv) {
 
 #ifdef CONFIG_METADATA
   send_ssnc_metadata('svna', config.service_name, strlen(config.service_name), 1);
-  char buffer[256] = "";
-  snprintf(buffer, sizeof(buffer), "%d", config.output_rate);
-  send_ssnc_metadata('ofps', buffer, strlen(buffer), 1);
-  snprintf(buffer, sizeof(buffer), "%s", sps_format_description_string(config.output_format));
-  send_ssnc_metadata('ofmt', buffer, strlen(buffer), 1);
 #endif
 
-  activity_monitor_start(); // not yet for AP2
-  pthread_create(&rtsp_listener_thread, NULL, &rtsp_listen_loop, NULL);
+#ifdef CONFIG_CONVOLUTION
+  convolver_pool_init(config.convolution_threads, 8); // 8 channels
+#endif
+  activity_monitor_start();
+  debug(3, "create an RTSP listener");
+  named_pthread_create(&rtsp_listener_thread, NULL, &rtsp_listen_loop, NULL, "bonjour");
   atexit(exit_rtsp_listener);
   pthread_join(rtsp_listener_thread, NULL);
   return 0;

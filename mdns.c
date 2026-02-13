@@ -1,7 +1,7 @@
 /*
  * mDNS registration handler. This file is part of Shairport.
  * Copyright (c) James Laird 2013
- * Modifications, updates and additions (c) Mike Brady 2014 -- 2020
+ * Modifications, updates and additions (c) Mike Brady 2014--2025
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -90,7 +90,7 @@ void mdns_register(char **txt_records, char **secondary_txt_records) {
     }
 
     if (*b == NULL)
-      warn("%s mDNS backend not found");
+      warn("mDNS backend not found");
   } else {
     // default -- pick the first back end
     for (b = mdns_backends; *b; b++) {

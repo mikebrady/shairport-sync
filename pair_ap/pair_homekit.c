@@ -75,6 +75,8 @@ enum pair_keys
   PAIR_CONTROL_READ,
   PAIR_EVENTS_WRITE,
   PAIR_EVENTS_READ,
+  PAIR_DATA_WRITE,
+  PAIR_DATA_READ,
 };
 
 struct pair_keys_map
@@ -110,6 +112,14 @@ static struct pair_keys_map pair_keys_map[] =
   // Encryption/decryption of event channel
   { 0, "Events-Salt", "Events-Write-Encryption-Key", "" },
   { 0, "Events-Salt", "Events-Read-Encryption-Key", "" },
+
+  // Encryption/decryption of data channel
+  // The salt is dynamic -- the 64-bit `seed` provided during SETUP, treated as an unsigned unmber, is appended:
+  // e.g. DataStream-Salt15014746994705656022.
+  // Sincere thanks to Pierre Stahl, (latex: St\aahl) https://github.com/postlund.
+  // Please see https://pyatv.dev/documentation/protocols/#remote-control, AirPlay 2 / Remote Control / Data Channel / Encryption
+  { 0, "DataStream-Salt", "DataStream-Output-Encryption-Key", "" },
+  { 0, "DataStream-Salt", "DataStream-Input-Encryption-Key", "" },
 };
 
 enum pair_method {
@@ -857,7 +867,7 @@ message_process(const uint8_t *data, size_t data_len, const char **errmsg)
       else if (error->value[0] == TLVError_MaxPeers)
 	*errmsg = "Max peers trying to connect to device\n";
       else if (error->value[0] == TLVError_MaxTries)
-	*errmsg = "Max pairing attemps reached\n";
+	*errmsg = "Max pairing attempts reached\n";
       else if (error->value[0] == TLVError_Unavailable)
 	*errmsg = "Device is unuavailble at this time\n";
       else
@@ -877,9 +887,11 @@ message_process(const uint8_t *data, size_t data_len, const char **errmsg)
 
    hkdfExtract(SHA512, salt, salt_len, ikm, ikm_len, prk);
    hkdfExpand(SHA512, prk, SHA512_LEN, info, info_len, okm, okm_len);
+   
+   add an explicit salt value to allow for a unique salt to be given at initialisation
 */
 static int
-hkdf_extract_expand(uint8_t *okm, size_t okm_len, const uint8_t *ikm, size_t ikm_len, enum pair_keys pair_key)
+hkdf_extract_expand_with_salt_and_info(uint8_t *okm, size_t okm_len, const uint8_t *ikm, size_t ikm_len, const char *salt, const char *info)
 {
 #ifdef CONFIG_OPENSSL
 #include <openssl/kdf.h>
@@ -893,11 +905,11 @@ hkdf_extract_expand(uint8_t *okm, size_t okm_len, const uint8_t *ikm, size_t ikm
     goto error;
   if (EVP_PKEY_CTX_set_hkdf_md(pctx, EVP_sha512()) <= 0)
     goto error;
-  if (EVP_PKEY_CTX_set1_hkdf_salt(pctx, (const unsigned char *)pair_keys_map[pair_key].salt, strlen(pair_keys_map[pair_key].salt)) <= 0)
+  if (EVP_PKEY_CTX_set1_hkdf_salt(pctx, salt, strlen(salt)) <= 0)
     goto error;
   if (EVP_PKEY_CTX_set1_hkdf_key(pctx, ikm, ikm_len) <= 0)
     goto error;
-  if (EVP_PKEY_CTX_add1_hkdf_info(pctx, (const unsigned char *)pair_keys_map[pair_key].info, strlen(pair_keys_map[pair_key].info)) <= 0)
+  if (EVP_PKEY_CTX_add1_hkdf_info(pctx, info, strlen(info)) <= 0)
     goto error;
   if (EVP_PKEY_derive(pctx, okm, &okm_len) <= 0)
     goto error;
@@ -916,7 +928,7 @@ hkdf_extract_expand(uint8_t *okm, size_t okm_len, const uint8_t *ikm, size_t ikm
     return -1; // Below calculation not valid if output is larger than hash size
   if (gcry_md_open(&hmac_handle, GCRY_MD_SHA512, GCRY_MD_FLAG_HMAC) != GPG_ERR_NO_ERROR)
     return -1;
-  if (gcry_md_setkey(hmac_handle, (const unsigned char *)pair_keys_map[pair_key].salt, strlen(pair_keys_map[pair_key].salt)) != GPG_ERR_NO_ERROR)
+  if (gcry_md_setkey(hmac_handle, salt, strlen(salt)) != GPG_ERR_NO_ERROR)
     goto error;
   gcry_md_write(hmac_handle, ikm, ikm_len);
   memcpy(prk, gcry_md_read(hmac_handle, 0), sizeof(prk));
@@ -925,7 +937,7 @@ hkdf_extract_expand(uint8_t *okm, size_t okm_len, const uint8_t *ikm, size_t ikm
 
   if (gcry_md_setkey(hmac_handle, prk, sizeof(prk)) != GPG_ERR_NO_ERROR)
     goto error;
-  gcry_md_write(hmac_handle, (const unsigned char *)pair_keys_map[pair_key].info, strlen(pair_keys_map[pair_key].info));
+  gcry_md_write(hmac_handle, info, strlen(info));
   gcry_md_putc(hmac_handle, 1);
 
   memcpy(okm, gcry_md_read(hmac_handle, 0), okm_len);
@@ -939,6 +951,17 @@ hkdf_extract_expand(uint8_t *okm, size_t okm_len, const uint8_t *ikm, size_t ikm
 #else
   return -1;
 #endif
+}
+
+/* Executes SHA512 RFC 5869 extract + expand, writing a derived key to okm
+
+   hkdfExtract(SHA512, salt, salt_len, ikm, ikm_len, prk);
+   hkdfExpand(SHA512, prk, SHA512_LEN, info, info_len, okm, okm_len);
+*/
+static int
+hkdf_extract_expand(uint8_t *okm, size_t okm_len, const uint8_t *ikm, size_t ikm_len, enum pair_keys pair_key) {
+  // pass in the salt that is in the pair_key_maps table
+  return hkdf_extract_expand_with_salt_and_info(okm, okm_len, ikm, ikm_len, pair_keys_map[pair_key].salt, pair_keys_map[pair_key].info);
 }
 
 static int
@@ -2890,35 +2913,10 @@ cipher_free(struct pair_cipher_context *cctx)
 }
 
 static struct pair_cipher_context *
-cipher_new(struct pair_definition *type, int channel, const uint8_t *shared_secret, size_t shared_secret_len)
+cipher_new_with_salt_and_info(struct pair_definition *type, const uint8_t *shared_secret, size_t shared_secret_len, const char *write_salt, const char *write_info, const char *read_salt, const char *read_info)
 {
   struct pair_cipher_context *cctx;
-  enum pair_keys write_key;
-  enum pair_keys read_key;
   int ret;
-
-  // Note that events is opposite, probably because it is a reverse connection
-  switch (channel)
-    {
-      case 0:
-	write_key = PAIR_CONTROL_WRITE;
-	read_key = PAIR_CONTROL_READ;
-	break;
-      case 1:
-	write_key = PAIR_EVENTS_READ;
-	read_key = PAIR_EVENTS_WRITE;
-	break;
-      case 2:
-	write_key = PAIR_CONTROL_READ;
-	read_key = PAIR_CONTROL_WRITE;
-	break;
-      case 3:
-	write_key = PAIR_EVENTS_WRITE;
-	read_key = PAIR_EVENTS_READ;
-	break;
-      default:
-	return NULL;
-    }
 
   cctx = calloc(1, sizeof(struct pair_cipher_context));
   if (!cctx)
@@ -2926,11 +2924,11 @@ cipher_new(struct pair_definition *type, int channel, const uint8_t *shared_secr
 
   cctx->type = type;
 
-  ret = hkdf_extract_expand(cctx->encryption_key, sizeof(cctx->encryption_key), shared_secret, shared_secret_len, write_key);
+  ret = hkdf_extract_expand_with_salt_and_info(cctx->encryption_key, sizeof(cctx->encryption_key), shared_secret, shared_secret_len, write_salt, write_info);
   if (ret < 0)
     goto error;
 
-  ret = hkdf_extract_expand(cctx->decryption_key, sizeof(cctx->decryption_key), shared_secret, shared_secret_len, read_key);
+  ret = hkdf_extract_expand_with_salt_and_info(cctx->decryption_key, sizeof(cctx->decryption_key), shared_secret, shared_secret_len, read_salt, read_info);
   if (ret < 0)
     goto error;
 
@@ -2939,6 +2937,56 @@ cipher_new(struct pair_definition *type, int channel, const uint8_t *shared_secr
  error:
   pair_cipher_free(cctx);
   return NULL;
+}
+
+static struct pair_cipher_context *
+cipher_new(struct pair_definition *type, int channel, const uint8_t *shared_secret, size_t shared_secret_len, const char *dynamic_salt_suffix)
+{
+
+  enum pair_keys write_key;
+  enum pair_keys read_key;
+
+  // Note that events is opposite, probably because it is a reverse connection
+  switch (channel)
+    {
+      case 0: // control
+        write_key = PAIR_CONTROL_WRITE;
+        read_key = PAIR_CONTROL_READ;
+        break;
+      case 1: // events
+        write_key = PAIR_EVENTS_READ;
+        read_key = PAIR_EVENTS_WRITE;
+        break;
+      case 2: // data
+        write_key = PAIR_DATA_WRITE;
+        read_key = PAIR_DATA_READ;
+        break;
+      case 3: // control
+        write_key = PAIR_CONTROL_READ;
+        read_key = PAIR_CONTROL_WRITE;
+        break;
+      case 4: // events
+        write_key = PAIR_EVENTS_WRITE;
+        read_key = PAIR_EVENTS_READ;
+        break;
+      case 5: // data
+        write_key = PAIR_DATA_READ;
+        read_key = PAIR_DATA_WRITE;
+        break;
+      default:
+	      return NULL;
+    }
+  //if ((dynamic_salt_suffix == NULL) || (dynamic_salt_suffix[0] == '\0')) {
+  //  return cipher_new_with_salt_and_info(type, shared_secret, shared_secret_len, pair_keys_map[write_key].salt, pair_keys_map[write_key].info, pair_keys_map[read_key].salt, pair_keys_map[read_key].info);
+  //} else {
+    char write_salt[256] = "";
+    char read_salt[256] = "";
+    snprintf(write_salt, sizeof(write_salt), "%s%s", pair_keys_map[write_key].salt, dynamic_salt_suffix);
+    //printf("channel %d, dynamic_salt_suffix: \"%s\", write_salt: \"%s\"\n", channel, dynamic_salt_suffix, write_salt);
+    snprintf(read_salt, sizeof(read_salt), "%s%s", pair_keys_map[read_key].salt, dynamic_salt_suffix);
+    //printf("channel %d, dynamic_salt_suffix: \"%s\", read_salt: \"%s\"\n", channel, dynamic_salt_suffix, read_salt);
+    return cipher_new_with_salt_and_info(type, shared_secret, shared_secret_len, write_salt, pair_keys_map[write_key].info, read_salt, pair_keys_map[read_key].info);
+  //}
 }
 
 static ssize_t

@@ -3,19 +3,21 @@
 services:
   shairport-sync:
     image: mikebrady/shairport-sync:latest
-    network_mode: host
+    network_mode: host  # Required for AirPlay 2
     restart: unless-stopped
     # environment:
-    #  S6_KEEP_ENV: 1 # Allow S6 to pass environment variables from compose file
     #  PULSE_SERVER: unix:/tmp/pulseaudio.socket # Path for PulseAudio socket
     #  PULSE_COOKIE: /tmp/pulseaudio.cookie # Path for PulseAudio cookie
     #  XDG_RUNTIME_DIR: /tmp # Path for pipewire
+    #  ENABLE_AVAHI: 0 # Disable DBus and Avahi daemon inside the container
     devices:
       - "/dev/snd" # ALSA device, omit if using PulseAudio
     # volumes:
     #   - ./volumes/shairport-sync/shairport-sync.conf:/etc/shairport-sync.conf # Customised Shairport Sync configuration file.
     #   - /run/user/1000/pulse/native:/tmp/pulseaudio.socket # PulseAudio socket when using that backend
     #   - /run/user/1000/pipewire-0:/tmp/pipewire-0 # Pipewire socket when using pipewire
+    #   - /var/run/dbus:/var/run/dbus # DBus when ENABLE_AVAHI set to 0
+    #   - /var/run/avahi-daemon:/var/run/avahi-daemon # Avahi socket when ENABLE_AVAHI set to 0
     # command: -o pw # You can specify the desired output with command:
     logging:
       options:

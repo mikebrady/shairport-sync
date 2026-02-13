@@ -1,4 +1,4 @@
-name: Configuration (without pa, soundio or apple-alac) for systemd, using a build folder.
+name: systemd, alsa, pipewire, ao, dummy, jack, pipe, stdout,using a build folder.
 
 on:
   workflow_dispatch:
@@ -10,18 +10,18 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4.2.2
+    - uses: actions/checkout@v6.0.2
     - name: Install Dependencies
-      run: sudo apt-get -y --no-install-recommends install xmltoman libpopt-dev libconfig-dev libasound2-dev libao-dev libjack-dev libglib2.0-dev libmosquitto-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev libplist-dev libsodium-dev libavutil-dev libavcodec-dev libavformat-dev
+      run: sudo apt-get -y --no-install-recommends install libpipewire-0.3-dev libplist-utils xmltoman libpopt-dev libconfig-dev libasound2-dev libao-dev libjack-dev libglib2.0-dev libmosquitto-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev libplist-dev libsodium-dev libavutil-dev libavcodec-dev libavformat-dev libgcrypt-dev
     - name: Configure
       run: |
         mkdir build
         cd build
         autoreconf -i ..
-        ../configure --sysconfdir=/etc --with-alsa --with-ao --with-dummy --with-jack --with-pipe --with-stdout --with-soxr --with-avahi --with-ssl=openssl --with-systemd --with-dbus-interface --with-mpris-interface --with-mqtt-client --with-airplay-2
+        ../configure --sysconfdir=/etc --with-alsa --with-pipewire --with-ao --with-dummy --with-jack --with-pipe --with-stdout --with-soxr --with-avahi --with-ssl=openssl --with-systemd-startup --with-dbus-interface --with-mpris-interface --with-mqtt-client --with-airplay-2
     - name: Make
       run: |
         cd build

@@ -19,6 +19,8 @@ Average playback synchronisation error in milliseconds in the last interval. By 
 This is the net amount of interpolation done by Shairport Sync to keep the audio stream in sync in the last interval, i.e. the number of frames added **minus** the number of frames removed from the audio stream, relative to the total number of frames output, expressed in parts per million (PPM). For reference, adding or removing one frame per second into a 44,100 frames per second stream is 22.68 ppm.
 ##### All Sync PPM
 This is the total amount of interpolation done by Shairport Sync to keep the audio stream in sync in the last interval, i.e. the number of frames added **plus** the number of frames removed from the audio stream, relative to the total number of frames output, expressed in parts per million (PPM). The magnitude of this should be the same as the `Net Sync PPM`. If it is much larger it means that Shairport Sync is overcorrecting for sync errors – try increasing the drift tolerance to reduce it.
+##### Av Sync Window (ms)
+This is an estimate, in milliseconds, of how often the audio system updates the latency data it provides.
 ##### Packets
 This is the number of packets of audio frames received since the start of the session. A packet normally contains 352 ± 1 audio frames.
 ##### Missing

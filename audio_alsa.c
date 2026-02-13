@@ -1,7 +1,7 @@
 /*
  * libalsa output driver. This file is part of Shairport.
  * Copyright (c) Muffinman, Skaman 2013
- * Copyright (c) Mike Brady 2014 -- 2024
+ * Copyright (c) Mike Brady 2014--2025
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -49,17 +49,47 @@ enum alsa_backend_mode {
 
 typedef struct {
   snd_pcm_format_t alsa_code;
-  int frame_size;
+  int sample_size;
 } format_record;
+
+// This array is of all the formats known to Shairport Sync, in order of the SPS_FORMAT definitions,
+// with their equivalent alsa codes and their frame sizes.
+// If just one format is requested, then its entry is searched for in the array and checked on the
+// device
+// If auto format is requested, then each entry in turn is tried until a working format is found.
+// So, it should be in the search order.
+
+format_record fr[] = {
+    {SND_PCM_FORMAT_UNKNOWN, 0}, // unknown
+    {SND_PCM_FORMAT_S8, 1},      {SND_PCM_FORMAT_U8, 1},      {SND_PCM_FORMAT_S16_LE, 2},
+    {SND_PCM_FORMAT_S16_BE, 2},  {SND_PCM_FORMAT_S24_LE, 4},  {SND_PCM_FORMAT_S24_BE, 4},
+    {SND_PCM_FORMAT_S24_3LE, 3}, {SND_PCM_FORMAT_S24_3BE, 3}, {SND_PCM_FORMAT_S32_LE, 4},
+    {SND_PCM_FORMAT_S32_BE, 4},  {SND_PCM_FORMAT_UNKNOWN, 0}, // auto
+    {SND_PCM_FORMAT_UNKNOWN, 0},                              // illegal
+};
 
 int output_method_signalled = 0; // for reporting whether it's using mmap or not
 int delay_type_notified = -1; // for controlling the reporting of whether the output device can do
                               // precision delays (e.g. alsa->pulsaudio virtual devices can't)
 int use_monotonic_clock = 0;  // this value will be set when the hardware is initialised
 
+static int32_t current_encoded_output_format; // ms 8 bits: channels; next 16 bits: rate/100;
+                                              // rightmost 8 bits: sps_format
+
+static char public_channel_map[128] = "";
+
+// static output_configuration_t alsa_configuration; // sample
+// static output_configuration_t *current_alsa_configuration;
+
+static volume_range_t volume_range = {0, 0};
+static output_parameters_t output_parameters = {NULL};
+
 static void help(void);
 static int init(int argc, char **argv);
 static void deinit(void);
+static int prepare(void);
+static int32_t get_configuration(unsigned int channels, unsigned int rate, unsigned int sps_format);
+static int configure(int32_t requested_encoded_format, char **channel_map);
 static void start(int i_sample_rate, int i_sample_format);
 static int play(void *buf, int samples, __attribute__((unused)) int sample_type,
                 __attribute__((unused)) uint32_t timestamp,
@@ -74,31 +104,34 @@ static void *alsa_buffer_monitor_thread_code(void *arg);
 
 static void volume(double vol);
 static void do_volume(double vol);
-static int prepare(void);
 static int do_play(void *buf, int samples);
 
-static void parameters(audio_parameters *info);
+static output_parameters_t *parameters();
 static int mute(int do_mute); // returns true if it actually is allowed to use the mute
 static double set_volume;
-audio_output audio_alsa = {
-    .name = "alsa",
-    .help = &help,
-    .init = &init,
-    .deinit = &deinit,
-    .prepare = &prepare,
-    .start = &start,
-    .stop = &stop,
-    .is_running = NULL,
-    .flush = &flush,
-    .delay = &delay,
-    .play = &play,
-    .stats = &stats,     // will also include frames of silence sent to stop
-                         // standby mode
-                         //    .rate_info = NULL,
-    .mute = NULL,        // a function will be provided if it can, and is allowed to,
-                         // do hardware mute
-    .volume = NULL,      // a function will be provided if it can do hardware volume
-    .parameters = NULL}; // a function will be provided if it can do hardware volume
+audio_output audio_alsa = {.name = "alsa",
+                           .help = &help,
+                           .init = &init,
+                           .deinit = &deinit,
+                           .prepare = &prepare,
+                           .get_configuration = &get_configuration,
+                           .configure = &configure,
+                           .start = &start,
+                           .stop = &stop,
+                           .is_running = NULL,
+                           .flush = &flush,
+                           .delay = &delay,
+                           .play = &play,
+                           .stats = &stats, // will also include frames of silence sent to stop
+                                            // standby mode
+                                            //    .rate_info = NULL,
+                           .mute = NULL,    // a function will be provided if it can, and is allowed
+                                            // to, do hardware mute
+                           .volume =
+                               NULL, // a function will be provided if it can do hardware volume
+                           .parameters = &parameters};
+static int do_open();
+static int do_close();
 
 pthread_mutex_t alsa_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t alsa_mixer_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -115,16 +148,14 @@ pthread_t alsa_buffer_monitor_thread;
 int mute_requested_externally = 0;
 int mute_requested_internally = 0;
 
-// for tracking how long the output device has stalled
-uint64_t stall_monitor_start_time;      // zero if not initialised / not started /
-                                        // zeroed by flush
-long stall_monitor_frame_count;         // set to delay at start of time, incremented by
-                                        // any writes
-uint64_t stall_monitor_error_threshold; // if the time is longer than this, it's
-                                        // an error
+// for tracking if the output device has stalled
+uint64_t stall_monitor_new_frame_count_time; // when the delay was last measured
+long stall_monitor_new_frame_count;     // the delay when measured last plus all subsequently added
+                                        // frames
+uint64_t stall_monitor_error_threshold; // if no frames have been output in a time longer than this,
+                                        // it's an error
 
 snd_output_t *output = NULL;
-int frame_size; // in bytes for interleaved stereo
 
 int alsa_device_initialised; // boolean to ensure the initialisation is only
                              // done once
@@ -134,7 +165,7 @@ yndk_type precision_delay_available_status =
 
 snd_pcm_t *alsa_handle = NULL;
 int alsa_handle_status =
-    ENODEV; // if alsa_handle is NULL, this should say why with a unix error code
+    -ENODEV; // if alsa_handle is NULL, this should say why with a unix error code
 snd_pcm_hw_params_t *alsa_params = NULL;
 snd_pcm_sw_params_t *alsa_swparams = NULL;
 snd_ctl_t *ctl = NULL;
@@ -164,6 +195,10 @@ long alsa_mix_mute;                      // setting the volume to this value mut
 int volume_based_mute_is_active =
     0; // set when muting is being done by a setting the volume to a magic value
 
+sps_format_t disable_standby_mode_default_format;
+int disable_standby_mode_default_rate;
+int disable_standby_mode_default_channels;
+
 // use this to allow the use of snd_pcm_writei or snd_pcm_mmap_writei
 snd_pcm_sframes_t (*alsa_pcm_write)(snd_pcm_t *, const void *, snd_pcm_uframes_t) = snd_pcm_writei;
 
@@ -182,6 +217,241 @@ void handle_unfixable_error(int errorCode) {
           errorCode);
     }
   }
+}
+
+static char *device_types[] = {
+    "SND_PCM_TYPE_HW",       "SND_PCM_TYPE_HOOKS",    "SND_PCM_TYPE_MULTI",
+    "SND_PCM_TYPE_FILE",     "SND_PCM_TYPE_NULL",     "SND_PCM_TYPE_SHM",
+    "SND_PCM_TYPE_INET",     "SND_PCM_TYPE_COPY",     "SND_PCM_TYPE_LINEAR",
+    "SND_PCM_TYPE_ALAW",     "SND_PCM_TYPE_MULAW",    "SND_PCM_TYPE_ADPCM",
+    "SND_PCM_TYPE_RATE",     "SND_PCM_TYPE_ROUTE",    "SND_PCM_TYPE_PLUG",
+    "SND_PCM_TYPE_SHARE",    "SND_PCM_TYPE_METER",    "SND_PCM_TYPE_MIX",
+    "SND_PCM_TYPE_DROUTE",   "SND_PCM_TYPE_LBSERVER", "SND_PCM_TYPE_LINEAR_FLOAT",
+    "SND_PCM_TYPE_LADSPA",   "SND_PCM_TYPE_DMIX",     "SND_PCM_TYPE_JACK",
+    "SND_PCM_TYPE_DSNOOP",   "SND_PCM_TYPE_DSHARE",   "SND_PCM_TYPE_IEC958",
+    "SND_PCM_TYPE_SOFTVOL",  "SND_PCM_TYPE_IOPLUG",   "SND_PCM_TYPE_EXTPLUG",
+    "SND_PCM_TYPE_MMAP_EMUL"};
+
+static int permissible_configuration_check_done = 0;
+
+static uint16_t permissible_configurations[SPS_RATE_HIGHEST + 1][SPS_FORMAT_HIGHEST_NATIVE + 1]
+                                          [8 + 1];
+
+static int get_permissible_configuration_settings() {
+  int ret = 0;
+  if (permissible_configuration_check_done == 0) {
+    uint64_t hto = get_absolute_time_in_ns();
+    snd_pcm_hw_params_t *local_alsa_params = NULL;
+    snd_pcm_hw_params_alloca(&local_alsa_params);
+    snd_pcm_info_t *local_alsa_info;
+    snd_pcm_info_alloca(&local_alsa_info);
+    pthread_cleanup_debug_mutex_lock(&alsa_mutex, 50000, 0);
+    snd_pcm_t *temporary_alsa_handle = NULL;
+    ret = snd_pcm_open(&temporary_alsa_handle, alsa_out_dev, SND_PCM_STREAM_PLAYBACK, 0);
+    if (ret == 0) {
+      snd_pcm_type_t device_type = snd_pcm_type(temporary_alsa_handle);
+      ret = snd_pcm_info(temporary_alsa_handle, local_alsa_info);
+      if (ret == 0) {
+        int card_number = snd_pcm_info_get_card(local_alsa_info);
+
+        if (card_number >= 0) {
+          debug(2, "output device is card %d.", card_number);
+          char device_name[64] = "";
+          snprintf(device_name, sizeof(device_name) - 1, "hw:%d", card_number);
+          snd_ctl_t *handle;
+          int err = snd_ctl_open(&handle, device_name, 0);
+
+          if (err == 0) {
+            snd_ctl_card_info_t *info;
+            snd_ctl_card_info_alloca(&info);
+            err = snd_ctl_card_info(handle, info);
+            if (err == 0) {
+              debug(2, "card name: \"%s\", long name: \"%s\".", snd_ctl_card_info_get_name(info),
+                    snd_ctl_card_info_get_longname(info));
+            }
+            snd_ctl_close(handle);
+          }
+        }
+
+        debug(
+            2, "device: \"%s\", name: \"%s\", type: \"%s\", id: \"%s\", CARD=%d,DEV=%u,SUBDEV=%u.",
+            alsa_out_dev, snd_pcm_info_get_name(local_alsa_info), device_types[device_type],
+            snd_pcm_info_get_id(local_alsa_info), snd_pcm_info_get_card(local_alsa_info),
+            snd_pcm_info_get_device(local_alsa_info), snd_pcm_info_get_subdevice(local_alsa_info));
+
+        // check what numbers of channels the device can provide...
+        unsigned int c;
+        // The Raspberry Pi built-in audio jack advertises 8-channel ability,
+        // but it is not actually capable of doing it.
+        // It can handle one- and two-channel stuff.
+        if (strcmp("bcm2835 Headphones", snd_pcm_info_get_name(local_alsa_info)) == 0) {
+          debug(1, "the output is to the Raspberry Pi built-in jack -- no more than two channels "
+                   "will be used.");
+          for (c = 3; c <= 8; c++)
+            config.channel_set &=
+                ~(1 << c); // the pi built-in jack DAC can't accommodate this number of channels
+        }
+        for (c = 1; c <= 8; c++) {
+          // if it's in the channel set -- either due to a setting in the configuration file or by
+          // default, check it...
+          if ((config.channel_set & (1 << c)) != 0) {
+            snd_pcm_hw_free(temporary_alsa_handle); // remove any previous configurations
+            ret = snd_pcm_hw_params_any(temporary_alsa_handle, local_alsa_params);
+            if (ret < 0)
+              debug(1, "Broken configuration for \"%s\": no configurations available: %s\n",
+                    alsa_out_dev, snd_strerror(ret));
+            ret = snd_pcm_hw_params_set_rate_resample(temporary_alsa_handle, local_alsa_params, 0);
+            ret = snd_pcm_hw_params_test_channels(temporary_alsa_handle, local_alsa_params, c);
+            if (ret == 0) {
+              debug(3, "\"%s\" can handle %u channels.", alsa_out_dev, c);
+            } else {
+              // the device can't handle this number of channels
+              debug(3, "\"%s\" can not handle %u channels.", alsa_out_dev, c);
+              config.channel_set &=
+                  ~(1 << c); // the alsa device can't accommodate this number of channels
+            }
+          }
+        }
+
+        // check what speeds the device can handle
+        sps_rate_t r;
+        for (r = SPS_RATE_LOWEST; r <= SPS_RATE_HIGHEST; r++) {
+          // if it's in the rate set -- either due to a setting in the configuration file or by
+          // default, check it...
+          if ((config.rate_set & (1 << r)) != 0) {
+            snd_pcm_hw_free(temporary_alsa_handle); // remove any previous configurations
+            ret = snd_pcm_hw_params_any(temporary_alsa_handle, local_alsa_params);
+            if (ret < 0)
+              debug(1, "Broken configuration for \"%s\": no configurations available: %s\n",
+                    alsa_out_dev, snd_strerror(ret));
+            ret = snd_pcm_hw_params_set_rate_resample(temporary_alsa_handle, local_alsa_params, 0);
+            ret = snd_pcm_hw_params_test_rate(temporary_alsa_handle, local_alsa_params,
+                                              sps_rate_actual_rate(r),
+                                              0); // 0 means exact rate only
+            if (ret == 0) {
+              debug(3, "\"%s\" can handle a rate of %u fps.", alsa_out_dev,
+                    sps_rate_actual_rate(r));
+            } else {
+              debug(3, "\"%s\" can not handle a rate of %u fps.", alsa_out_dev,
+                    sps_rate_actual_rate(r));
+              config.rate_set &= ~(1 << r); // the alsa device doesn't do this rate
+            }
+          }
+        }
+
+        // check what formats the device can handle
+        sps_format_t f;
+        for (f = SPS_FORMAT_LOWEST; f <= SPS_FORMAT_HIGHEST_NATIVE; f++) {
+          // if it's in the format set -- either due to a setting in the configuration file or by
+          // default, check it...
+          if ((config.format_set & (1 << f)) != 0) {
+            snd_pcm_hw_free(temporary_alsa_handle); // remove any previous configurations
+            ret = snd_pcm_hw_params_any(temporary_alsa_handle, local_alsa_params);
+            if (ret < 0)
+              debug(1, "Broken configuration for \"%s\": no configurations available: %s\n",
+                    alsa_out_dev, snd_strerror(ret));
+            ret = snd_pcm_hw_params_set_rate_resample(temporary_alsa_handle, local_alsa_params, 0);
+            ret = snd_pcm_hw_params_test_format(temporary_alsa_handle, local_alsa_params,
+                                                fr[f].alsa_code);
+            if (ret == 0) {
+              debug(3, "\"%s\" can handle the %s format.", alsa_out_dev,
+                    sps_format_description_string(f));
+            } else {
+              debug(3, "\"%s\" can not handle the %s format.", alsa_out_dev,
+                    sps_format_description_string(f));
+              config.format_set &= ~(1 << f); // the alsa device doesn't do this format
+            }
+          }
+        }
+
+        // now we have the channels, rates and formats, but we need to check each combination
+        // set the permissible_configurations array (r/f/c) to EINVAL
+        for (r = SPS_RATE_LOWEST; r <= SPS_RATE_HIGHEST; r++)
+          for (f = SPS_FORMAT_LOWEST; f <= SPS_FORMAT_HIGHEST_NATIVE; f++)
+            for (c = 0; c <= 8; c++) {
+              permissible_configurations[r][f][c] = EINVAL;
+            }
+        // now check each combination of permitted rate/format/channel and see if it's really
+        // allowed
+        for (r = SPS_RATE_LOWEST; r <= SPS_RATE_HIGHEST; r++) {
+          if ((config.rate_set & (1 << r)) != 0) {
+            for (f = SPS_FORMAT_LOWEST; f <= SPS_FORMAT_HIGHEST_NATIVE; f++) {
+              if ((config.format_set & (1 << f)) != 0) {
+                for (c = 0; c <= 8; c++) {
+                  if ((config.channel_set & (1 << c)) != 0) {
+                    // debug(1, "check %u/%s/%u.", sps_rate_actual_rate(r),
+                    // sps_format_description_string(f), c); note: only do the check if it's not a
+                    // plug-in, i.e. not of type SND_PCM_TYPE_PLUG, or a  If it is a plugin, this
+                    // check may take way too long and will likely be unnecessary anyway. Similarly
+                    // for a NULL or an IOPLUG device.
+
+                    if ((device_type == SND_PCM_TYPE_PLUG) || (device_type == SND_PCM_TYPE_NULL) ||
+                        (device_type == SND_PCM_TYPE_IOPLUG)) {
+                      permissible_configurations[r][f][c] = 0;
+                    } else {
+                      snd_pcm_hw_free(temporary_alsa_handle); // remove any previous configurations
+                      ret = snd_pcm_hw_params_any(temporary_alsa_handle, local_alsa_params);
+                      if (ret == 0) {
+                        ret = snd_pcm_hw_params_set_rate_resample(temporary_alsa_handle,
+                                                                  local_alsa_params, 0);
+                        ret = snd_pcm_hw_params_test_channels(temporary_alsa_handle,
+                                                              local_alsa_params, c);
+                        if (ret == 0) {
+                          ret = snd_pcm_hw_params_test_rate(
+                              temporary_alsa_handle, local_alsa_params, sps_rate_actual_rate(r),
+                              0); // 0 means exact rate only
+                          if (ret == 0) {
+                            ret = snd_pcm_hw_params_test_format(temporary_alsa_handle,
+                                                                local_alsa_params, fr[f].alsa_code);
+                            if (ret == 0) {
+                              // debug(1, "passed: \"%s\", format: %s, rate: %u channels: %u.",
+                              // alsa_out_dev, sps_format_description_string(f),
+                              // sps_rate_actual_rate(r), c);
+                              permissible_configurations[r][f][c] =
+                                  0; // i.e. no error, so remove the EINVAL
+                            } else {
+                              debug(1, "Can't set format %s for \"%s\": %s.",
+                                    sps_format_description_string(f), alsa_out_dev,
+                                    snd_strerror(ret));
+                            }
+                          } else {
+                            debug(1, "Can't set rate  of %u for \"%s\": %s.",
+                                  sps_rate_actual_rate(r), alsa_out_dev, snd_strerror(ret));
+                          }
+                        } else {
+                          debug(1, "Can't set channel count of %u for \"%s\": %s.", c, alsa_out_dev,
+                                snd_strerror(ret));
+                        }
+                      } else {
+                        debug(1, "Broken configuration for \"%s\": %s.", alsa_out_dev,
+                              snd_strerror(ret));
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        // close the device
+        snd_pcm_close(temporary_alsa_handle);
+        permissible_configuration_check_done = 1;
+        ret = 0; // all good here, even if the last ret was an error
+      }
+    }
+    pthread_cleanup_pop(1); // unlock the mutex
+    if (ret != 0) {
+      char errorstring[1024];
+      strerror_r(-ret, (char *)errorstring, sizeof(errorstring));
+      debug(1, "get_permissible_configuration_settings: error %d (\"%s\").", ret, errorstring);
+    }
+    int64_t hot = get_absolute_time_in_ns() - hto;
+    if (hot > 200000000)
+      debug(1,
+            "get_permissible_configuration_settings: permissible configurations check took %f ms.",
+            0.000001 * hot);
+  }
+  return ret;
 }
 
 static int precision_delay_and_status(snd_pcm_state_t *state, snd_pcm_sframes_t *delay,
@@ -222,22 +492,25 @@ static int precision_delay_available() {
     // was able to use the (non-zero) update timestamps
 
     int frames_of_silence = 4410;
-    size_t size_of_silence_buffer = frames_of_silence * frame_size;
+    size_t size_of_silence_buffer =
+        frames_of_silence *
+        fr[FORMAT_FROM_ENCODED_FORMAT(current_encoded_output_format)].sample_size *
+        CHANNELS_FROM_ENCODED_FORMAT(current_encoded_output_format);
     void *silence = malloc(size_of_silence_buffer);
     if (silence == NULL) {
       debug(1, "alsa: precision_delay_available -- failed to "
                "allocate memory for a "
                "silent frame buffer.");
     } else {
-      pthread_cleanup_push(malloc_cleanup, silence);
+      pthread_cleanup_push(malloc_cleanup, &silence);
       int use_dither = 0;
       if ((alsa_mix_ctrl == NULL) && (config.ignore_volume_control == 0) &&
           (config.airplay_volume != 0.0))
         use_dither = 1;
       dither_random_number_store =
-          generate_zero_frames(silence, frames_of_silence, config.output_format,
+          generate_zero_frames(silence, frames_of_silence,
                                use_dither, // i.e. with dither
-                               dither_random_number_store);
+                               dither_random_number_store, current_encoded_output_format);
       do_play(silence, frames_of_silence);
       pthread_cleanup_pop(1);
       // now we can get the delay, and we'll note if it uses update timestamps
@@ -281,7 +554,7 @@ uint64_t frames_sent_for_playing;
 int frames_sent_break_occurred;
 
 // if a device name ends in ",DEV=0", drop it. Then if it also begins with "CARD=", drop that too.
-static void simplify_and_printf_mutable_device_name(char *device_name) {
+static void simplify_and_printf_device_name(char *device_name) {
   if (strstr(device_name, ",DEV=0") == device_name + strlen(device_name) - strlen(",DEV=0")) {
     char *shortened_device_name = str_replace(device_name, ",DEV=0", "");
     char *simplified_device_name = str_replace(shortened_device_name, "CARD=", "");
@@ -294,7 +567,6 @@ static void simplify_and_printf_mutable_device_name(char *device_name) {
 }
 
 static void help(void) {
-
   printf("    -d output-device    set the output device, default is \"default\".\n"
          "    -c mixer-control    set the mixer control name, default is to use no mixer.\n"
          "    -m mixer-device     set the mixer device, default is the output device.\n"
@@ -331,9 +603,9 @@ static void help(void) {
         }
       }
       if (hdmi_str != NULL) {
-        simplify_and_printf_mutable_device_name(hdmi_str);
+        simplify_and_printf_device_name(hdmi_str);
       } else if (hw_str != NULL) {
-        simplify_and_printf_mutable_device_name(hw_str);
+        simplify_and_printf_device_name(hw_str);
       }
       if (hdmi_str != NULL)
         free(hdmi_str);
@@ -351,7 +623,7 @@ void set_alsa_out_dev(char *dev) {
   if (hw_alsa_out_dev != NULL)
     free(hw_alsa_out_dev);
   hw_alsa_out_dev = str_replace(alsa_out_dev, "hdmi:", "hw:");
-} // ugh -- not static!
+}
 
 // assuming pthread cancellation is disabled
 // returns zero of all is okay, a Unx error code if there's a problem
@@ -412,259 +684,158 @@ static int do_snd_mixer_selem_set_playback_dB_all(snd_mixer_elem_t *mix_elem, do
   return response;
 }
 
-// This array is a sequence of the output rates to be tried if automatic speed selection is
-// requested.
-// There is no benefit to upconverting the frame rate, other than for compatibility.
-// The lowest rate that the DAC is capable of is chosen.
-
-unsigned int auto_speed_output_rates[] = {
-    44100,
-    88200,
-    176400,
-    352800,
-};
-
-// This array is of all the formats known to Shairport Sync, in order of the SPS_FORMAT definitions,
-// with their equivalent alsa codes and their frame sizes.
-// If just one format is requested, then its entry is searched for in the array and checked on the
-// device
-// If auto format is requested, then each entry in turn is tried until a working format is found.
-// So, it should be in the search order.
-
-format_record fr[] = {
-    {SND_PCM_FORMAT_UNKNOWN, 0}, // unknown
-    {SND_PCM_FORMAT_S8, 2},      {SND_PCM_FORMAT_U8, 2},      {SND_PCM_FORMAT_S16, 4},
-    {SND_PCM_FORMAT_S16_LE, 4},  {SND_PCM_FORMAT_S16_BE, 4},  {SND_PCM_FORMAT_S24, 8},
-    {SND_PCM_FORMAT_S24_LE, 8},  {SND_PCM_FORMAT_S24_BE, 8},  {SND_PCM_FORMAT_S24_3LE, 6},
-    {SND_PCM_FORMAT_S24_3BE, 6}, {SND_PCM_FORMAT_S32, 8},     {SND_PCM_FORMAT_S32_LE, 8},
-    {SND_PCM_FORMAT_S32_BE, 8},  {SND_PCM_FORMAT_UNKNOWN, 0}, // auto
-    {SND_PCM_FORMAT_UNKNOWN, 0},                              // illegal
-};
-
-// This array is the sequence of formats to be tried if automatic selection of the format is
-// requested.
-// Ideally, audio should pass through Shairport Sync unaltered, apart from occasional interpolation.
-// If the user chooses a hardware mixer, then audio could go straight through, unaltered, as signed
-// 16 bit stereo.
-// However, the user might, at any point, select an option that requires modification, such as
-// stereo to mono mixing,
-// additional volume attenuation, convolution, and so on. For this reason,
-// we look for the greatest depth the DAC is capable of, since upconverting it is completely
-// lossless.
-// If audio processing is required, then the dither that must be added will
-// be added at the lowest possible level.
-// Hence, selecting the greatest bit depth is always either beneficial or neutral.
-
-sps_format_t auto_format_check_sequence[] = {
-    SPS_FORMAT_S32,    SPS_FORMAT_S32_LE,  SPS_FORMAT_S32_BE,  SPS_FORMAT_S24, SPS_FORMAT_S24_LE,
-    SPS_FORMAT_S24_BE, SPS_FORMAT_S24_3LE, SPS_FORMAT_S24_3BE, SPS_FORMAT_S16, SPS_FORMAT_S16_LE,
-    SPS_FORMAT_S16_BE, SPS_FORMAT_S8,      SPS_FORMAT_U8,
-};
-
 // assuming pthread cancellation is disabled
-// if do_auto_setting is true and auto format or auto speed has been requested,
-// select the settings as appropriate and store them
-static int actual_open_alsa_device(int do_auto_setup) {
+static int actual_open_alsa_device() {
   // the alsa mutex is already acquired when this is called
-  const snd_pcm_uframes_t minimal_buffer_headroom =
-      352 * 2; // we accept this much headroom in the hardware buffer, but we'll
-               // accept less
-               /*
-                 const snd_pcm_uframes_t requested_buffer_headroom =
-                     minimal_buffer_headroom + 2048; // we ask for this much headroom in the
-                                                     // hardware buffer, but we'll accept
-                 less
-               */
+  int result = 0;
+  if (current_encoded_output_format != 0) {
 
-  int ret, dir = 0;
-  unsigned int
-      actual_sample_rate; // this will be given the rate requested and will be given the actual rate
-  // snd_pcm_uframes_t frames = 441 * 10;
-  snd_pcm_uframes_t actual_buffer_length;
-  snd_pcm_access_t access;
+    unsigned int rate = RATE_FROM_ENCODED_FORMAT(current_encoded_output_format);
+    sps_format_t format = (sps_format_t)FORMAT_FROM_ENCODED_FORMAT(current_encoded_output_format);
+    unsigned int channels = CHANNELS_FROM_ENCODED_FORMAT(current_encoded_output_format);
 
-  // ensure no calls are made to the alsa device enquiring about the buffer
-  // length if
-  // synchronisation is disabled.
-  if (config.no_sync != 0)
-    audio_alsa.delay = NULL;
+    int ret, dir = 0;
+    // unsigned int actual_sample_rate; // this will be given the rate requested and will be given
+    // the actual rate snd_pcm_uframes_t frames = 441 * 10;
+    snd_pcm_uframes_t actual_buffer_length_in_frames;
+    snd_pcm_access_t access;
 
-  // ensure no calls are made to the alsa device enquiring about the buffer
-  // length if
-  // synchronisation is disabled.
-  if (config.no_sync != 0)
-    audio_alsa.delay = NULL;
-
-  ret = snd_pcm_open(&alsa_handle, alsa_out_dev, SND_PCM_STREAM_PLAYBACK, 0);
-  // EHOSTDOWN seems to signify that it's a PipeWire pseudo device that can't be accessed by this
-  // user. So, try the first device ALSA device and log it.
-  if ((ret == -EHOSTDOWN) && (strcmp(alsa_out_dev, "default") == 0)) {
-    ret = snd_pcm_open(&alsa_handle, "hw:0", SND_PCM_STREAM_PLAYBACK, 0);
-    if ((ret == 0) || (ret == -EBUSY)) {
-      // being busy should be okay
-      inform("the default ALSA device is inaccessible -- \"hw:0\" used instead.", alsa_out_dev);
-      set_alsa_out_dev("hw:0");
-    }
-  }
-  if (ret == 0) {
-    if (alsa_handle_status == -EBUSY)
-      warn("The output device \"%s\" is no longer busy and will be used by Shairport Sync.",
-           alsa_out_dev);
-    alsa_handle_status = ret; // all cool
-  } else {
-    alsa_handle = NULL; // to be sure to be sure
-    if (ret == -EBUSY) {
-      if (alsa_handle_status != -EBUSY)
-        warn("The output device \"%s\" is busy and can't be used by Shairport Sync at present.",
-             alsa_out_dev);
-      debug(2, "the alsa output_device \"%s\" is busy.", alsa_out_dev);
-    }
-    alsa_handle_status = ret;
-    frames_sent_break_occurred = 1;
-    return ret;
-  }
-
-  snd_pcm_hw_params_alloca(&alsa_params);
-  snd_pcm_sw_params_alloca(&alsa_swparams);
-
-  ret = snd_pcm_hw_params_any(alsa_handle, alsa_params);
-  if (ret < 0) {
-    die("audio_alsa: Broken configuration for device \"%s\": no configurations "
-        "available",
-        alsa_out_dev);
-    return ret;
-  }
-
-  if ((config.no_mmap == 0) &&
-      (snd_pcm_hw_params_set_access(alsa_handle, alsa_params, SND_PCM_ACCESS_MMAP_INTERLEAVED) >=
-       0)) {
-    if (output_method_signalled == 0) {
-      debug(3, "Output written using MMAP");
-      output_method_signalled = 1;
-    }
-    access = SND_PCM_ACCESS_MMAP_INTERLEAVED;
-    alsa_pcm_write = snd_pcm_mmap_writei;
-  } else {
-    if (output_method_signalled == 0) {
-      debug(3, "Output written with RW");
-      output_method_signalled = 1;
-    }
-    access = SND_PCM_ACCESS_RW_INTERLEAVED;
-    alsa_pcm_write = snd_pcm_writei;
-  }
-
-  ret = snd_pcm_hw_params_set_access(alsa_handle, alsa_params, access);
-  if (ret < 0) {
-    die("audio_alsa: Access type not available for device \"%s\": %s", alsa_out_dev,
-        snd_strerror(ret));
-    return ret;
-  }
-
-  ret = snd_pcm_hw_params_set_channels(alsa_handle, alsa_params, 2);
-  if (ret < 0) {
-    die("audio_alsa: Channels count (2) not available for device \"%s\": %s", alsa_out_dev,
-        snd_strerror(ret));
-    return ret;
-  }
-
-  snd_pcm_format_t sf;
-
-  if ((do_auto_setup == 0) || (config.output_format_auto_requested == 0)) { // no auto format
-    if ((config.output_format > SPS_FORMAT_UNKNOWN) && (config.output_format < SPS_FORMAT_AUTO)) {
-      sf = fr[config.output_format].alsa_code;
-      frame_size = fr[config.output_format].frame_size;
-    } else {
-      warn("alsa: unexpected output format %d. Set to S16_LE.", config.output_format);
-      config.output_format = SPS_FORMAT_S16_LE;
-      sf = fr[config.output_format].alsa_code;
-      frame_size = fr[config.output_format].frame_size;
-    }
-    ret = snd_pcm_hw_params_set_format(alsa_handle, alsa_params, sf);
-    if (ret < 0) {
-      die("audio_alsa: Alsa sample format %d not available for device \"%s\": %s", sf, alsa_out_dev,
-          snd_strerror(ret));
-      return ret;
-    }
-  } else { // auto format
-    int number_of_formats_to_try;
-    sps_format_t *formats;
-    formats = auto_format_check_sequence;
-    number_of_formats_to_try = sizeof(auto_format_check_sequence) / sizeof(sps_format_t);
-    int i = 0;
-    int format_found = 0;
-    sps_format_t trial_format = SPS_FORMAT_UNKNOWN;
-    while ((i < number_of_formats_to_try) && (format_found == 0)) {
-      trial_format = formats[i];
-      sf = fr[trial_format].alsa_code;
-      frame_size = fr[trial_format].frame_size;
-      ret = snd_pcm_hw_params_set_format(alsa_handle, alsa_params, sf);
-      if (ret == 0)
-        format_found = 1;
-      else
-        i++;
-    }
-    if (ret == 0) {
-      config.output_format = trial_format;
-      debug(2, "alsa: output format chosen is \"%s\".",
-            sps_format_description_string(config.output_format));
-    } else {
-      die("audio_alsa: Could not automatically set the output format for device \"%s\": %s",
-          alsa_out_dev, snd_strerror(ret));
-      return ret;
-    }
-  }
-
-  if ((do_auto_setup == 0) || (config.output_rate_auto_requested == 0)) { // no auto format
-    actual_sample_rate =
-        config.output_rate; // this is the requested rate -- it'll be changed to the actual rate
-    ret = snd_pcm_hw_params_set_rate_near(alsa_handle, alsa_params, &actual_sample_rate, &dir);
-    if (ret < 0) {
-      die("audio_alsa: The frame rate of %i frames per second is not available for playback: %s",
-          config.output_rate, snd_strerror(ret));
-      return ret;
-    }
-  } else {
-    int number_of_speeds_to_try;
-    unsigned int *speeds;
-
-    speeds = auto_speed_output_rates;
-    number_of_speeds_to_try = sizeof(auto_speed_output_rates) / sizeof(int);
-
-    int i = 0;
-    int speed_found = 0;
-
-    while ((i < number_of_speeds_to_try) && (speed_found == 0)) {
-      actual_sample_rate = speeds[i];
-      ret = snd_pcm_hw_params_set_rate_near(alsa_handle, alsa_params, &actual_sample_rate, &dir);
-      if (ret == 0) {
-        speed_found = 1;
-        if (actual_sample_rate != speeds[i])
-          die("The output DAC can not be set to %d frames per second (fps). The nearest speed "
-              "available is %d fps.",
-              speeds[i], actual_sample_rate);
-      } else {
-        i++;
+    ret = snd_pcm_open(&alsa_handle, alsa_out_dev, SND_PCM_STREAM_PLAYBACK, 0);
+    // EHOSTDOWN seems to signify that it's a PipeWire pseudo device that can't be accessed by this
+    // user. So, try the first device ALSA device and log it.
+    if ((ret == -EHOSTDOWN) && (strcmp(alsa_out_dev, "default") == 0)) {
+      ret = snd_pcm_open(&alsa_handle, "hw:0", SND_PCM_STREAM_PLAYBACK, 0);
+      if ((ret == 0) || (ret == -EBUSY)) {
+        // being busy should be okay
+        inform("the default ALSA device is inaccessible -- \"hw:0\" used instead.");
+        set_alsa_out_dev("hw:0");
       }
     }
     if (ret == 0) {
-      config.output_rate = actual_sample_rate;
-      debug(2, "alsa: output speed chosen is %d.", config.output_rate);
+      if (alsa_handle_status == -EBUSY)
+        warn("The output device \"%s\" is no longer busy and will be used by Shairport Sync.",
+             alsa_out_dev);
+      alsa_handle_status = ret; // all cool
     } else {
-      die("audio_alsa: Could not automatically set the output rate for device \"%s\": %s",
-          alsa_out_dev, snd_strerror(ret));
+      alsa_handle = NULL; // to be sure to be sure
+      if (ret == -EBUSY) {
+        if (alsa_handle_status != -EBUSY)
+          warn("The output device \"%s\" is busy and can't be used by Shairport Sync at present.",
+               alsa_out_dev);
+        debug(2, "the alsa output_device \"%s\" is busy.", alsa_out_dev);
+      }
+      alsa_handle_status = ret;
+      frames_sent_break_occurred = 1;
       return ret;
     }
-  }
 
-  if (set_period_size_request != 0) {
-    debug(1, "Attempting to set the period size to %lu", period_size_requested);
-    ret = snd_pcm_hw_params_set_period_size_near(alsa_handle, alsa_params, &period_size_requested,
-                                                 &dir);
+    snd_pcm_hw_params_alloca(&alsa_params);
+    snd_pcm_sw_params_alloca(&alsa_swparams);
+
+    ret = snd_pcm_hw_params_any(alsa_handle, alsa_params);
     if (ret < 0) {
-      warn("audio_alsa: cannot set period size of %lu: %s", period_size_requested,
-           snd_strerror(ret));
+      die("audio_alsa: Broken configuration for device \"%s\": no configurations "
+          "available",
+          alsa_out_dev);
       return ret;
+    }
+
+    if ((config.no_mmap == 0) &&
+        (snd_pcm_hw_params_set_access(alsa_handle, alsa_params, SND_PCM_ACCESS_MMAP_INTERLEAVED) >=
+         0)) {
+      if (output_method_signalled == 0) {
+        debug(3, "Output written using MMAP");
+        output_method_signalled = 1;
+      }
+      access = SND_PCM_ACCESS_MMAP_INTERLEAVED;
+      alsa_pcm_write = snd_pcm_mmap_writei;
     } else {
+      if (output_method_signalled == 0) {
+        debug(3, "Output written with RW");
+        output_method_signalled = 1;
+      }
+      access = SND_PCM_ACCESS_RW_INTERLEAVED;
+      alsa_pcm_write = snd_pcm_writei;
+    }
+
+    ret = snd_pcm_hw_params_set_access(alsa_handle, alsa_params, access);
+    if (ret < 0) {
+      die("alsa: access type not available for device \"%s\": %s", alsa_out_dev, snd_strerror(ret));
+      return ret;
+    }
+
+    ret = snd_pcm_hw_params_set_channels(alsa_handle, alsa_params, channels);
+    if (ret < 0) {
+      die("alsa: %u channels not available for device \"%s\": %s", channels, alsa_out_dev,
+          snd_strerror(ret));
+      return ret;
+    }
+
+    snd_pcm_format_t sf = fr[format].alsa_code;
+    ret = snd_pcm_hw_params_set_format(alsa_handle, alsa_params, sf);
+    if (ret < 0) {
+      die("alsa: sample format %s not available for device \"%s\": %s",
+          sps_format_description_string(format), alsa_out_dev, snd_strerror(ret));
+      return ret;
+    }
+
+    // on some devices, it seems that setting the rate directly doesn't work.
+    dir = 0;
+    unsigned int actual_sample_rate = rate;
+    ret = snd_pcm_hw_params_set_rate_near(alsa_handle, alsa_params, &actual_sample_rate, &dir);
+
+    if ((ret < 0) || (actual_sample_rate != rate)) {
+      die("alsa: The frame rate of %i frames per second is not available for playback: %s", rate,
+          snd_strerror(ret));
+      return ret;
+    }
+
+    if (set_period_size_request != 0) {
+      debug(1, "Attempting to set the period size to %lu", period_size_requested);
+      ret = snd_pcm_hw_params_set_period_size_near(alsa_handle, alsa_params, &period_size_requested,
+                                                   &dir);
+      if (ret < 0) {
+        warn("alsa: cannot set period size of %lu: %s", period_size_requested, snd_strerror(ret));
+        return ret;
+      } else {
+        snd_pcm_uframes_t actual_period_size;
+        snd_pcm_hw_params_get_period_size(alsa_params, &actual_period_size, &dir);
+        if (actual_period_size != period_size_requested)
+          inform("Actual period size set to a different value than requested. "
+                 "Requested: %lu, actual "
+                 "setting: %lu",
+                 period_size_requested, actual_period_size);
+      }
+    }
+
+    if (set_buffer_size_request != 0) {
+      debug(1, "Attempting to set the buffer size to %lu", buffer_size_requested);
+      ret =
+          snd_pcm_hw_params_set_buffer_size_near(alsa_handle, alsa_params, &buffer_size_requested);
+      if (ret < 0) {
+        warn("alsa: cannot set buffer size of %lu: %s", buffer_size_requested, snd_strerror(ret));
+        return ret;
+      } else {
+        snd_pcm_uframes_t actual_buffer_size;
+        snd_pcm_hw_params_get_buffer_size(alsa_params, &actual_buffer_size);
+        if (actual_buffer_size != buffer_size_requested)
+          inform("Actual period size set to a different value than requested. "
+                 "Requested: %lu, actual "
+                 "setting: %lu",
+                 buffer_size_requested, actual_buffer_size);
+      }
+    }
+
+    ret = snd_pcm_hw_params(alsa_handle, alsa_params);
+    if (ret < 0) {
+      die("alsa: Unable to set hw parameters for device \"%s\": %s.", alsa_out_dev,
+          snd_strerror(ret));
+      return ret;
+    }
+
+    // check parameters after attempting to set them
+
+    if (set_period_size_request != 0) {
       snd_pcm_uframes_t actual_period_size;
       snd_pcm_hw_params_get_period_size(alsa_params, &actual_period_size, &dir);
       if (actual_period_size != period_size_requested)
@@ -673,16 +844,8 @@ static int actual_open_alsa_device(int do_auto_setup) {
                "setting: %lu",
                period_size_requested, actual_period_size);
     }
-  }
 
-  if (set_buffer_size_request != 0) {
-    debug(1, "Attempting to set the buffer size to %lu", buffer_size_requested);
-    ret = snd_pcm_hw_params_set_buffer_size_near(alsa_handle, alsa_params, &buffer_size_requested);
-    if (ret < 0) {
-      warn("audio_alsa: cannot set buffer size of %lu: %s", buffer_size_requested,
-           snd_strerror(ret));
-      return ret;
-    } else {
+    if (set_buffer_size_request != 0) {
       snd_pcm_uframes_t actual_buffer_size;
       snd_pcm_hw_params_get_buffer_size(alsa_params, &actual_buffer_size);
       if (actual_buffer_size != buffer_size_requested)
@@ -691,258 +854,189 @@ static int actual_open_alsa_device(int do_auto_setup) {
                "setting: %lu",
                buffer_size_requested, actual_buffer_size);
     }
-  }
 
-  ret = snd_pcm_hw_params(alsa_handle, alsa_params);
-  if (ret < 0) {
-    die("audio_alsa: Unable to set hw parameters for device \"%s\": %s.", alsa_out_dev,
-        snd_strerror(ret));
-    return ret;
-  }
+    use_monotonic_clock = snd_pcm_hw_params_is_monotonic(alsa_params);
 
-  // check parameters after attempting to set them
-
-  if (set_period_size_request != 0) {
-    snd_pcm_uframes_t actual_period_size;
-    snd_pcm_hw_params_get_period_size(alsa_params, &actual_period_size, &dir);
-    if (actual_period_size != period_size_requested)
-      inform("Actual period size set to a different value than requested. "
-             "Requested: %lu, actual "
-             "setting: %lu",
-             period_size_requested, actual_period_size);
-  }
-
-  if (set_buffer_size_request != 0) {
-    snd_pcm_uframes_t actual_buffer_size;
-    snd_pcm_hw_params_get_buffer_size(alsa_params, &actual_buffer_size);
-    if (actual_buffer_size != buffer_size_requested)
-      inform("Actual period size set to a different value than requested. "
-             "Requested: %lu, actual "
-             "setting: %lu",
-             buffer_size_requested, actual_buffer_size);
-  }
-
-  if (actual_sample_rate != config.output_rate) {
-    die("Can't set the output DAC to the requested frame rate of %d fps.", config.output_rate);
-    return -EINVAL;
-  }
-
-  use_monotonic_clock = snd_pcm_hw_params_is_monotonic(alsa_params);
-
-  ret = snd_pcm_hw_params_get_buffer_size(alsa_params, &actual_buffer_length);
-  if (ret < 0) {
-    warn("audio_alsa: Unable to get hw buffer length for device \"%s\": %s.", alsa_out_dev,
-         snd_strerror(ret));
-    return ret;
-  }
-
-  ret = snd_pcm_sw_params_current(alsa_handle, alsa_swparams);
-  if (ret < 0) {
-    warn("audio_alsa: Unable to get current sw parameters for device \"%s\": "
-         "%s.",
-         alsa_out_dev, snd_strerror(ret));
-    return ret;
-  }
-
-  ret = snd_pcm_sw_params_set_tstamp_mode(alsa_handle, alsa_swparams, SND_PCM_TSTAMP_ENABLE);
-  if (ret < 0) {
-    warn("audio_alsa: Can't enable timestamp mode of device: \"%s\": %s.", alsa_out_dev,
-         snd_strerror(ret));
-    return ret;
-  }
-
-  /* write the sw parameters */
-  ret = snd_pcm_sw_params(alsa_handle, alsa_swparams);
-  if (ret < 0) {
-    warn("audio_alsa: Unable to set software parameters of device: \"%s\": %s.", alsa_out_dev,
-         snd_strerror(ret));
-    return ret;
-  }
-
-  ret = snd_pcm_prepare(alsa_handle);
-  if (ret < 0) {
-    warn("audio_alsa: Unable to prepare the device: \"%s\": %s.", alsa_out_dev, snd_strerror(ret));
-    return ret;
-  }
-
-  if (actual_buffer_length < config.audio_backend_buffer_desired_length + minimal_buffer_headroom) {
-    /*
-    // the dac buffer is too small, so let's try to set it
-    buffer_size =
-        config.audio_backend_buffer_desired_length + requested_buffer_headroom;
-    ret = snd_pcm_hw_params_set_buffer_size_near(alsa_handle, alsa_params,
-                                                 &buffer_size);
-    if (ret < 0)
-      die("audio_alsa: Unable to set hw buffer size to %lu for device \"%s\": "
-          "%s.",
-          config.audio_backend_buffer_desired_length +
-              requested_buffer_headroom,
-          alsa_out_dev, snd_strerror(ret));
-    if (config.audio_backend_buffer_desired_length + minimal_buffer_headroom >
-        buffer_size) {
-      die("audio_alsa: Can't set hw buffer size to %lu or more for device "
-          "\"%s\". Requested size: %lu, granted size: %lu.",
-          config.audio_backend_buffer_desired_length + minimal_buffer_headroom,
-          alsa_out_dev, config.audio_backend_buffer_desired_length +
-                            requested_buffer_headroom,
-          buffer_size);
+    ret = snd_pcm_hw_params_get_buffer_size(alsa_params, &actual_buffer_length_in_frames);
+    if (ret < 0) {
+      warn("alsa: unable to get hw buffer length for device \"%s\": %s.", alsa_out_dev,
+           snd_strerror(ret));
+      return ret;
     }
-    */
-    debug(1,
-          "The alsa buffer is smaller (%lu bytes) than the desired backend "
-          "buffer "
-          "length (%ld) you have chosen.",
-          actual_buffer_length, config.audio_backend_buffer_desired_length);
-  }
 
-  if (config.use_precision_timing == YNA_YES)
-    delay_and_status = precision_delay_and_status;
-  else if (config.use_precision_timing == YNA_AUTO) {
-    if (precision_delay_available()) {
+    ret = snd_pcm_sw_params_current(alsa_handle, alsa_swparams);
+    if (ret < 0) {
+      warn("alsa: unable to get current sw parameters for device \"%s\": "
+           "%s.",
+           alsa_out_dev, snd_strerror(ret));
+      return ret;
+    }
+
+    ret = snd_pcm_sw_params_set_tstamp_mode(alsa_handle, alsa_swparams, SND_PCM_TSTAMP_ENABLE);
+    if (ret < 0) {
+      warn("alsa: can't enable timestamp mode of device: \"%s\": %s.", alsa_out_dev,
+           snd_strerror(ret));
+      return ret;
+    }
+
+    /* write the sw parameters */
+    ret = snd_pcm_sw_params(alsa_handle, alsa_swparams);
+    if (ret < 0) {
+      warn("alsa: unable to set software parameters of device: \"%s\": %s.", alsa_out_dev,
+           snd_strerror(ret));
+      return ret;
+    }
+
+    ret = snd_pcm_prepare(alsa_handle);
+    if (ret < 0) {
+      warn("alsa: unable to prepare the device: \"%s\": %s.", alsa_out_dev, snd_strerror(ret));
+      return ret;
+    }
+
+    if (config.use_precision_timing == YNA_YES)
       delay_and_status = precision_delay_and_status;
-      debug(2, "alsa: precision timing selected for \"auto\" mode");
+    else if (config.use_precision_timing == YNA_AUTO) {
+      if (precision_delay_available()) {
+        delay_and_status = precision_delay_and_status;
+        debug(2, "alsa: precision timing selected for \"auto\" mode");
+      }
     }
+
+    if (alsa_characteristics_already_listed == 0) {
+      alsa_characteristics_already_listed = 1;
+      int log_level = 2; // the level at which debug information should be output
+                         //    int rc;
+      snd_pcm_access_t access_type;
+      snd_pcm_format_t format_type;
+      snd_pcm_subformat_t subformat_type;
+      //    unsigned int val, val2;
+      unsigned int uval, uval2;
+      int sval;
+      int direction;
+      snd_pcm_uframes_t frames;
+
+      debug(log_level, "PCM handle name = '%s'", snd_pcm_name(alsa_handle));
+
+      debug(log_level, "alsa device parameters:");
+
+      snd_pcm_hw_params_get_access(alsa_params, &access_type);
+      debug(log_level, "  access type = %s", snd_pcm_access_name(access_type));
+
+      snd_pcm_hw_params_get_format(alsa_params, &format_type);
+      debug(log_level, "  format = '%s' (%s)", snd_pcm_format_name(format_type),
+            snd_pcm_format_description(format_type));
+
+      snd_pcm_hw_params_get_subformat(alsa_params, &subformat_type);
+      debug(log_level, "  subformat = '%s' (%s)", snd_pcm_subformat_name(subformat_type),
+            snd_pcm_subformat_description(subformat_type));
+
+      snd_pcm_hw_params_get_channels(alsa_params, &uval);
+      debug(log_level, "  number of channels = %u", uval);
+
+      sval = snd_pcm_hw_params_get_sbits(alsa_params);
+      debug(log_level, "  number of significant bits = %d", sval);
+
+      snd_pcm_hw_params_get_rate(alsa_params, &uval, &direction);
+      switch (direction) {
+      case -1:
+        debug(log_level, "  rate = %u frames per second (<).", uval);
+        break;
+      case 0:
+        debug(log_level, "  rate = %u frames per second (precisely).", uval);
+        break;
+      case 1:
+        debug(log_level, "  rate = %u frames per second (>).", uval);
+        break;
+      }
+
+      if ((snd_pcm_hw_params_get_rate_numden(alsa_params, &uval, &uval2) == 0) && (uval2 != 0))
+        // watch for a divide by zero too!
+        debug(log_level, "  precise (rational) rate = %.3f frames per second (i.e. %u/%u).", (1.0 * uval) / uval2, uval,
+              uval2);
+      else
+        debug(log_level, "  precise (rational) rate information unavailable.");
+
+      snd_pcm_hw_params_get_period_time(alsa_params, &uval, &direction);
+      switch (direction) {
+      case -1:
+        debug(log_level, "  period_time = %u us (<).", uval);
+        break;
+      case 0:
+        debug(log_level, "  period_time = %u us (precisely).", uval);
+        break;
+      case 1:
+        debug(log_level, "  period_time = %u us (>).", uval);
+        break;
+      }
+
+      snd_pcm_hw_params_get_period_size(alsa_params, &frames, &direction);
+      switch (direction) {
+      case -1:
+        debug(log_level, "  period_size = %lu frames (<).", frames);
+        break;
+      case 0:
+        debug(log_level, "  period_size = %lu frames (precisely).", frames);
+        break;
+      case 1:
+        debug(log_level, "  period_size = %lu frames (>).", frames);
+        break;
+      }
+
+      snd_pcm_hw_params_get_buffer_time(alsa_params, &uval, &direction);
+      switch (direction) {
+      case -1:
+        debug(log_level, "  buffer_time = %u us (<).", uval);
+        break;
+      case 0:
+        debug(log_level, "  buffer_time = %u us (precisely).", uval);
+        break;
+      case 1:
+        debug(log_level, "  buffer_time = %u us (>).", uval);
+        break;
+      }
+
+      snd_pcm_hw_params_get_buffer_size(alsa_params, &frames);
+      switch (direction) {
+      case -1:
+        debug(log_level, "  buffer_size = %lu frames (<).", frames);
+        break;
+      case 0:
+        debug(log_level, "  buffer_size = %lu frames (precisely).", frames);
+        break;
+      case 1:
+        debug(log_level, "  buffer_size = %lu frames (>).", frames);
+        break;
+      }
+
+      snd_pcm_hw_params_get_periods(alsa_params, &uval, &direction);
+      switch (direction) {
+      case -1:
+        debug(log_level, "  periods_per_buffer = %u (<).", uval);
+        break;
+      case 0:
+        debug(log_level, "  periods_per_buffer = %u (precisely).", uval);
+        break;
+      case 1:
+        debug(log_level, "  periods_per_buffer = %u (>).", uval);
+        break;
+      }
+    }
+    stall_monitor_new_frame_count = 0;
+    stall_monitor_new_frame_count_time = 0;
+  } else {
+    debug(1, "no current_alsa_configuration");
+    result = -1;
   }
-
-  if (alsa_characteristics_already_listed == 0) {
-    alsa_characteristics_already_listed = 1;
-    int log_level = 2; // the level at which debug information should be output
-                       //    int rc;
-    snd_pcm_access_t access_type;
-    snd_pcm_format_t format_type;
-    snd_pcm_subformat_t subformat_type;
-    //    unsigned int val, val2;
-    unsigned int uval, uval2;
-    int sval;
-    int dir;
-    snd_pcm_uframes_t frames;
-
-    debug(log_level, "PCM handle name = '%s'", snd_pcm_name(alsa_handle));
-
-    //      ret = snd_pcm_hw_params_any(alsa_handle, alsa_params);
-    //      if (ret < 0) {
-    //        die("audio_alsa: Cannpot get configuration for
-    // device
-    //\"%s\":
-    // no
-    // configurations
-    //"
-    //            "available",
-    //            alsa_out_dev);
-    //      }
-
-    debug(log_level, "alsa device parameters:");
-
-    snd_pcm_hw_params_get_access(alsa_params, &access_type);
-    debug(log_level, "  access type = %s", snd_pcm_access_name(access_type));
-
-    snd_pcm_hw_params_get_format(alsa_params, &format_type);
-    debug(log_level, "  format = '%s' (%s)", snd_pcm_format_name(format_type),
-          snd_pcm_format_description(format_type));
-
-    snd_pcm_hw_params_get_subformat(alsa_params, &subformat_type);
-    debug(log_level, "  subformat = '%s' (%s)", snd_pcm_subformat_name(subformat_type),
-          snd_pcm_subformat_description(subformat_type));
-
-    snd_pcm_hw_params_get_channels(alsa_params, &uval);
-    debug(log_level, "  number of channels = %u", uval);
-
-    sval = snd_pcm_hw_params_get_sbits(alsa_params);
-    debug(log_level, "  number of significant bits = %d", sval);
-
-    snd_pcm_hw_params_get_rate(alsa_params, &uval, &dir);
-    switch (dir) {
-    case -1:
-      debug(log_level, "  rate = %u frames per second (<).", uval);
-      break;
-    case 0:
-      debug(log_level, "  rate = %u frames per second (precisely).", uval);
-      break;
-    case 1:
-      debug(log_level, "  rate = %u frames per second (>).", uval);
-      break;
-    }
-
-    if ((snd_pcm_hw_params_get_rate_numden(alsa_params, &uval, &uval2) == 0) && (uval2 != 0))
-      // watch for a divide by zero too!
-      debug(log_level, "  precise (rational) rate = %.3f frames per second (i.e. %u/%u).", uval,
-            uval2, ((double)uval) / uval2);
-    else
-      debug(log_level, "  precise (rational) rate information unavailable.");
-
-    snd_pcm_hw_params_get_period_time(alsa_params, &uval, &dir);
-    switch (dir) {
-    case -1:
-      debug(log_level, "  period_time = %u us (<).", uval);
-      break;
-    case 0:
-      debug(log_level, "  period_time = %u us (precisely).", uval);
-      break;
-    case 1:
-      debug(log_level, "  period_time = %u us (>).", uval);
-      break;
-    }
-
-    snd_pcm_hw_params_get_period_size(alsa_params, &frames, &dir);
-    switch (dir) {
-    case -1:
-      debug(log_level, "  period_size = %lu frames (<).", frames);
-      break;
-    case 0:
-      debug(log_level, "  period_size = %lu frames (precisely).", frames);
-      break;
-    case 1:
-      debug(log_level, "  period_size = %lu frames (>).", frames);
-      break;
-    }
-
-    snd_pcm_hw_params_get_buffer_time(alsa_params, &uval, &dir);
-    switch (dir) {
-    case -1:
-      debug(log_level, "  buffer_time = %u us (<).", uval);
-      break;
-    case 0:
-      debug(log_level, "  buffer_time = %u us (precisely).", uval);
-      break;
-    case 1:
-      debug(log_level, "  buffer_time = %u us (>).", uval);
-      break;
-    }
-
-    snd_pcm_hw_params_get_buffer_size(alsa_params, &frames);
-    switch (dir) {
-    case -1:
-      debug(log_level, "  buffer_size = %lu frames (<).", frames);
-      break;
-    case 0:
-      debug(log_level, "  buffer_size = %lu frames (precisely).", frames);
-      break;
-    case 1:
-      debug(log_level, "  buffer_size = %lu frames (>).", frames);
-      break;
-    }
-
-    snd_pcm_hw_params_get_periods(alsa_params, &uval, &dir);
-    switch (dir) {
-    case -1:
-      debug(log_level, "  periods_per_buffer = %u (<).", uval);
-      break;
-    case 0:
-      debug(log_level, "  periods_per_buffer = %u (precisely).", uval);
-      break;
-    case 1:
-      debug(log_level, "  periods_per_buffer = %u (>).", uval);
-      break;
-    }
-  }
-  return 0;
+  return result;
 }
 
-static int open_alsa_device(int do_auto_setup) {
+static int open_alsa_device() {
   int result;
   int oldState;
   pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
-  result = actual_open_alsa_device(do_auto_setup);
+  result = actual_open_alsa_device();
+  if (result != 0)
+    debug(1, "Error in open_alsa_device: %d.", result);
   pthread_setcancelstate(oldState, NULL);
   return result;
 }
@@ -954,8 +1048,8 @@ static int prepare_mixer() {
   // if there's a hardware mixer, it needs to be initialised before use
   if (alsa_mix_ctrl == NULL) {
     audio_alsa.volume = NULL;
-    audio_alsa.parameters = NULL;
     audio_alsa.mute = NULL;
+    output_parameters.volume_range = NULL; // until we know, we won't offer a volume range
   } else {
     debug(2, "alsa: hardware mixer prepare");
     int oldState;
@@ -975,9 +1069,6 @@ static int prepare_mixer() {
         if (snd_mixer_selem_get_playback_dB_range(alsa_mix_elem, &alsa_mix_mindb,
                                                   &alsa_mix_maxdb) == 0) {
 
-          audio_alsa.volume = &volume;         // insert the volume function now we
-                                               // know it can do dB stuff
-          audio_alsa.parameters = &parameters; // likewise the parameters stuff
           if (alsa_mix_mindb == SND_CTL_TLV_DB_GAIN_MUTE) {
             // For instance, the Raspberry Pi does this
             debug(2, "Lowest dB value is a mute");
@@ -988,19 +1079,34 @@ static int prepare_mixer() {
             // going to be SND_CTL_TLV_DB_GAIN_MUTE, right?
             // debug(1, "Try minimum volume + 1 as lowest true attenuation
             // value");
-            if (snd_mixer_selem_ask_playback_vol_dB(alsa_mix_elem, alsa_mix_minv + 1,
-                                                    &alsa_mix_mindb) != 0)
-              debug(1, "Can't get dB value corresponding to a minimum volume "
-                       "+ 1.");
+
+            // now we need to find a lowest dB value that isn't a mute
+            // so we'll work from alsa_mix_minv upwards until we get a db value
+            // that is not SND_CTL_TLV_DB_GAIN_MUTE
+
+            long cv;
+            for (cv = alsa_mix_minv;
+                 cv <= alsa_mix_maxv && (alsa_mix_mindb == SND_CTL_TLV_DB_GAIN_MUTE); cv++) {
+              if (snd_mixer_selem_ask_playback_vol_dB(alsa_mix_elem, cv, &alsa_mix_mindb) != 0)
+                debug(1, "Can't get dB value corresponding to a minimum volume "
+                         "+ 1.");
+            }
           }
           debug(3, "Hardware mixer has dB volume from %f to %f.", (1.0 * alsa_mix_mindb) / 100.0,
                 (1.0 * alsa_mix_maxdb) / 100.0);
+
+          audio_alsa.volume = &volume; // insert the volume function now we
+                                       // know it can do dB stuff
+          volume_range.minimum_volume_dB = alsa_mix_mindb;
+          volume_range.maximum_volume_dB = alsa_mix_maxdb;
+          output_parameters.volume_range = &volume_range;
+
         } else {
           // use the linear scale and do the db conversion ourselves
           warn("The hardware mixer specified -- \"%s\" -- does not have "
-               "a dB volume scale, and so can not be used by Shairport Sync.",
+               "a dB volume scale.",
                alsa_mix_ctrl);
-          /*
+
           if ((response = snd_ctl_open(&ctl, alsa_mix_dev, 0)) < 0) {
             warn("Cannot open control \"%s\"", alsa_mix_dev);
           }
@@ -1017,14 +1123,15 @@ static int prepare_mixer() {
                     "from %f to %f.",
                     alsa_mix_ctrl, (1.0 * alsa_mix_mindb) / 100.0, (1.0 * alsa_mix_maxdb) / 100.0);
               has_softvol = 1;
-              audio_alsa.volume = &volume;         // insert the volume function now
-                                                   // we know it can do dB stuff
-              audio_alsa.parameters = &parameters; // likewise the parameters stuff
+              audio_alsa.volume = &volume; // insert the volume function now we
+                                           // know it can do dB stuff
+              volume_range.minimum_volume_dB = alsa_mix_mindb;
+              volume_range.maximum_volume_dB = alsa_mix_maxdb;
+              output_parameters.volume_range = &volume_range;
             } else {
-              debug(1, "Cannot get a dB range from the volume control \"%s\"", alsa_mix_ctrl);
+              debug(1, "Cannot get the dB range from the volume control \"%s\"", alsa_mix_ctrl);
             }
           }
-          */
         }
       }
       if (((config.alsa_use_hardware_mute == 1) &&
@@ -1048,12 +1155,20 @@ static int prepare_mixer() {
 
 static int alsa_device_init() { return prepare_mixer(); }
 
+static void
+snd_error_quiet(__attribute__((unused)) const char *file, __attribute__((unused)) int line,
+                __attribute__((unused)) const char *func, __attribute__((unused)) int err,
+                __attribute__((unused)) const char *fmt, __attribute__((unused)) va_list arg) {
+  // return NULL;
+}
+
 static int init(int argc, char **argv) {
+  snd_lib_error_set_handler((snd_lib_error_handler_t)snd_error_quiet);
+  current_encoded_output_format = 0;
   // for debugging
   snd_output_stdio_attach(&output, stdout, 0);
-
   // debug(2,"audio_alsa init called.");
-  int response = 0; // this will be what we return to the caller.
+  // int response = 0; // this will be what we return to the caller.
   alsa_device_initialised = 0;
   const char *str;
   int value;
@@ -1061,6 +1176,7 @@ static int init(int argc, char **argv) {
 
   // set up default values first
 
+  config.no_mmap = 1; // some devices don't implement this properly and crash with data is dropped
   alsa_backend_state = abm_disconnected; // startup state
   debug(2, "alsa: init() -- alsa_backend_state => abm_disconnected.");
   set_period_size_request = 0;
@@ -1070,54 +1186,63 @@ static int init(int argc, char **argv) {
   config.audio_backend_latency_offset = 0;
   config.audio_backend_buffer_desired_length = 0.200;
   config.audio_backend_buffer_interpolation_threshold_in_seconds =
-      0.120; // below this, basic interpolation will be used to save time.
+      0.060; // below this, basic interpolation will be used to save time.
   config.alsa_maximum_stall_time = 0.200; // 200 milliseconds -- if it takes longer, it's a problem
   config.disable_standby_mode_silence_threshold =
       0.040; // start sending silent frames if the delay goes below this time
-  config.disable_standby_mode_silence_scan_interval = 0.004; // check silence threshold this often
 
-  stall_monitor_error_threshold =
-      (uint64_t)1000000 * config.alsa_maximum_stall_time; // stall time max to microseconds;
-  stall_monitor_error_threshold = (stall_monitor_error_threshold << 32) / 1000000; // now in fp form
-  debug(1, "alsa: alsa_maximum_stall_time of %f sec.", config.alsa_maximum_stall_time);
-
-  stall_monitor_start_time = 0;
-  stall_monitor_frame_count = 0;
+  // on slower single-core machines, it doesn't make sense to make this much less than about 40 ms,
+  // as, whatever the setting, the scheduler may let it sleep for much longer -- up to 80
+  // milliseconds.
+  config.disable_standby_mode_silence_scan_interval = 0.030; // check silence threshold this often
 
   config.disable_standby_mode = disable_standby_off;
   config.keep_dac_busy = 0;
-  config.use_precision_timing = YNA_AUTO;
+  config.use_precision_timing = YNA_NO;
+
+  disable_standby_mode_default_format = SPS_FORMAT_S32_LE;
+#ifdef CONFIG_AIRPLAY_2
+  disable_standby_mode_default_rate = 48000;
+#else
+  disable_standby_mode_default_rate = 44100;
+#endif
+  disable_standby_mode_default_channels = 2;
 
   // get settings from settings file first, allow them to be overridden by
   // command line options
 
-  // do the "general" audio  options. Note, these options are in the "general"
-  // stanza!
-  parse_general_audio_options();
+  // get settings from settings file, passing in defaults for format_set, rate_set and channel_set
+  // Note, these options may be in the "general" stanza or the named stanza
+#ifdef CONFIG_FFMPEG
+  parse_audio_options("alsa", SPS_FORMAT_SET, SPS_RATE_SET, SPS_CHANNEL_SET);
+#else
+  parse_audio_options("alsa", SPS_FORMAT_NON_FFMPEG_SET, SPS_RATE_NON_FFMPEG_SET,
+                      SPS_CHANNNEL_NON_FFMPEG_SET);
+#endif
 
   if (config.cfg != NULL) {
     double dvalue;
 
     /* Get the Output Device Name. */
-    if (config_lookup_string(config.cfg, "alsa.output_device", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "alsa.output_device", &str)) {
       alsa_out_dev = (char *)str;
     }
 
     /* Get the Mixer Type setting. */
 
-    if (config_lookup_string(config.cfg, "alsa.mixer_type", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "alsa.mixer_type", &str)) {
       inform("The alsa mixer_type setting is deprecated and has been ignored. "
              "FYI, using the \"mixer_control_name\" setting automatically "
              "chooses a hardware mixer.");
     }
 
     /* Get the Mixer Device Name. */
-    if (config_lookup_string(config.cfg, "alsa.mixer_device", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "alsa.mixer_device", &str)) {
       alsa_mix_dev = (char *)str;
     }
 
     /* Get the Mixer Control Name. */
-    if (config_lookup_string(config.cfg, "alsa.mixer_control_name", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "alsa.mixer_control_name", &str)) {
       alsa_mix_ctrl = (char *)str;
     }
 
@@ -1135,7 +1260,7 @@ static int init(int argc, char **argv) {
       else {
         warn("Invalid disable_synchronization option choice \"%s\". It should "
              "be \"yes\" or "
-             "\"no\". It is set to \"no\".");
+             "\"no\". It is set to \"no\".", str);
         config.no_sync = 0;
       }
     }
@@ -1151,7 +1276,7 @@ static int init(int argc, char **argv) {
       else {
         warn("Invalid mute_using_playback_switch option choice \"%s\". It "
              "should be \"yes\" or "
-             "\"no\". It is set to \"no\".");
+             "\"no\". It is set to \"no\".", str);
         config.alsa_use_hardware_mute = 0;
       }
     }
@@ -1165,92 +1290,8 @@ static int init(int argc, char **argv) {
       else {
         warn("Invalid use_hardware_mute_if_available option choice \"%s\". It "
              "should be \"yes\" or "
-             "\"no\". It is set to \"no\".");
+             "\"no\". It is set to \"no\".", str);
         config.alsa_use_hardware_mute = 0;
-      }
-    }
-
-    /* Get the output format, using the same names as aplay does*/
-    if (config_lookup_string(config.cfg, "alsa.output_format", &str)) {
-      int temp_output_format_auto_requested = config.output_format_auto_requested;
-      config.output_format_auto_requested = 0; // assume a valid format will be given.
-      if (strcasecmp(str, "S16") == 0)
-        config.output_format = SPS_FORMAT_S16;
-      else if (strcasecmp(str, "S16_LE") == 0)
-        config.output_format = SPS_FORMAT_S16_LE;
-      else if (strcasecmp(str, "S16_BE") == 0)
-        config.output_format = SPS_FORMAT_S16_BE;
-      else if (strcasecmp(str, "S24") == 0)
-        config.output_format = SPS_FORMAT_S24;
-      else if (strcasecmp(str, "S24_LE") == 0)
-        config.output_format = SPS_FORMAT_S24_LE;
-      else if (strcasecmp(str, "S24_BE") == 0)
-        config.output_format = SPS_FORMAT_S24_BE;
-      else if (strcasecmp(str, "S24_3LE") == 0)
-        config.output_format = SPS_FORMAT_S24_3LE;
-      else if (strcasecmp(str, "S24_3BE") == 0)
-        config.output_format = SPS_FORMAT_S24_3BE;
-      else if (strcasecmp(str, "S32") == 0)
-        config.output_format = SPS_FORMAT_S32;
-      else if (strcasecmp(str, "S32_LE") == 0)
-        config.output_format = SPS_FORMAT_S32_LE;
-      else if (strcasecmp(str, "S32_BE") == 0)
-        config.output_format = SPS_FORMAT_S32_BE;
-      else if (strcasecmp(str, "U8") == 0)
-        config.output_format = SPS_FORMAT_U8;
-      else if (strcasecmp(str, "S8") == 0)
-        config.output_format = SPS_FORMAT_S8;
-      else if (strcasecmp(str, "auto") == 0)
-        config.output_format_auto_requested = 1;
-      else {
-        config.output_format_auto_requested =
-            temp_output_format_auto_requested; // format was invalid; recall the original setting
-        warn("Invalid output format \"%s\". It should be \"auto\", \"U8\", \"S8\", "
-             "\"S16\", \"S24\", \"S24_LE\", \"S24_BE\", "
-             "\"S24_3LE\", \"S24_3BE\" or "
-             "\"S32\", \"S32_LE\", \"S32_BE\". It remains set to \"%s\".",
-             str,
-             config.output_format_auto_requested == 1
-                 ? "auto"
-                 : sps_format_description_string(config.output_format));
-      }
-    }
-
-    if (config_lookup_string(config.cfg, "alsa.output_rate", &str)) {
-      if (strcasecmp(str, "auto") == 0) {
-        config.output_rate_auto_requested = 1;
-      } else {
-        if (config.output_rate_auto_requested == 1)
-          warn("Invalid output rate \"%s\". It should be \"auto\", 44100, 88200, 176400 or 352800. "
-               "It remains set to \"auto\". Note: numbers should not be placed in quotes.",
-               str);
-        else
-          warn("Invalid output rate \"%s\". It should be \"auto\", 44100, 88200, 176400 or 352800. "
-               "It remains set to %d. Note: numbers should not be placed in quotes.",
-               str, config.output_rate);
-      }
-    }
-
-    /* Get the output rate, which must be a multiple of 44,100*/
-    if (config_lookup_int(config.cfg, "alsa.output_rate", &value)) {
-      debug(1, "alsa output rate is %d frames per second", value);
-      switch (value) {
-      case 44100:
-      case 88200:
-      case 176400:
-      case 352800:
-        config.output_rate = value;
-        config.output_rate_auto_requested = 0;
-        break;
-      default:
-        if (config.output_rate_auto_requested == 1)
-          warn("Invalid output rate \"%d\". It should be \"auto\", 44100, 88200, 176400 or 352800. "
-               "It remains set to \"auto\".",
-               value);
-        else
-          warn("Invalid output rate \"%d\".It should be \"auto\", 44100, 88200, 176400 or 352800. "
-               "It remains set to %d.",
-               value, config.output_rate);
       }
     }
 
@@ -1263,7 +1304,7 @@ static int init(int argc, char **argv) {
       else {
         warn("Invalid use_mmap_if_available option choice \"%s\". It should be "
              "\"yes\" or \"no\". "
-             "It remains set to \"yes\".");
+             "It remains set to \"yes\".", str);
         config.no_mmap = 0;
       }
     }
@@ -1348,6 +1389,28 @@ static int init(int argc, char **argv) {
       }
     }
 
+    /* Get the optional disable_standby_mode_default_rate. */
+    if (config_lookup_int(config.cfg, "alsa.disable_standby_mode_default_rate", &value)) {
+      if (value < 0) {
+        warn("Invalid alsa disable_standby_mode_default_rate setting %d. It "
+             "must be greater than 0. Default is %d. No setting is made.",
+             value, disable_standby_mode_default_rate);
+      } else {
+        disable_standby_mode_default_rate = value;
+      }
+    }
+
+    /* Get the optional disable_standby_mode_default_channels. */
+    if (config_lookup_int(config.cfg, "alsa.disable_standby_mode_default_channels", &value)) {
+      if (value < 0) {
+        warn("Invalid alsa disable_standby_mode_default_channels setting %d. It "
+             "must be greater than 0. Default is %d. No setting is made.",
+             value, disable_standby_mode_default_channels);
+      } else {
+        disable_standby_mode_default_channels = value;
+      }
+    }
+
     if (config_lookup_string(config.cfg, "alsa.use_precision_timing", &str)) {
       if ((strcasecmp(str, "no") == 0) || (strcasecmp(str, "off") == 0) ||
           (strcasecmp(str, "never") == 0))
@@ -1361,21 +1424,14 @@ static int init(int argc, char **argv) {
       else {
         warn("Invalid use_precision_timing option choice \"%s\". It should be "
              "\"yes\", \"auto\" or \"no\". "
-             "It remains set to \"%s\".",
+             "It remains set to \"%s\".", str,
              config.use_precision_timing == YNA_NO     ? "no"
              : config.use_precision_timing == YNA_AUTO ? "auto"
                                                        : "yes");
       }
+      inform("Note: the \"alsa\" setting \"use_precision_timing\" is deprecated and will be "
+             "removed in a future update.");
     }
-
-    debug(1, "alsa: disable_standby_mode is \"%s\".",
-          config.disable_standby_mode == disable_standby_off      ? "never"
-          : config.disable_standby_mode == disable_standby_always ? "always"
-                                                                  : "auto");
-    debug(1, "alsa: disable_standby_mode_silence_threshold is %f seconds.",
-          config.disable_standby_mode_silence_threshold);
-    debug(1, "alsa: disable_standby_mode_silence_scan_interval is %f seconds.",
-          config.disable_standby_mode_silence_scan_interval);
   }
 
   optind = 1; // optind=0 is equivalent to optind=1 plus special behaviour
@@ -1414,39 +1470,172 @@ static int init(int argc, char **argv) {
     warn("Invalid audio argument: \"%s\" -- ignored", argv[optind]);
   }
 
-  debug(1, "alsa: output device name is \"%s\".", alsa_out_dev);
-  
-  
+  debug(2, "alsa: output device name is \"%s\".", alsa_out_dev);
+
   // now, we need a version of the alsa_out_dev that substitutes "hw:" for "hdmi" if it's
   // there. It seems hw:1 would be a valid devcie name where hdmi:1 would not
-  
+
   if (alsa_out_dev != NULL)
     hw_alsa_out_dev = str_replace(alsa_out_dev, "hdmi:", "hw:");
-  
+
+  debug(2, "alsa: disable_standby_mode is \"%s\".",
+        config.disable_standby_mode == disable_standby_off      ? "never"
+        : config.disable_standby_mode == disable_standby_always ? "always"
+                                                                : "auto");
+  debug(2, "alsa: disable_standby_mode_silence_threshold is %f seconds.",
+        config.disable_standby_mode_silence_threshold);
+  debug(2, "alsa: disable_standby_mode_silence_scan_interval is %f seconds.",
+        config.disable_standby_mode_silence_scan_interval);
+
+  stall_monitor_error_threshold =
+      (uint64_t)(config.alsa_maximum_stall_time * 1000000000); // stall time max to nanoseconds;
+
   // so, now, if the option to keep the DAC running has been selected, start a
   // thread to monitor the
   // length of the queue
   // if the queue gets too short, stuff it with silence
-  
 
-  pthread_create(&alsa_buffer_monitor_thread, NULL, &alsa_buffer_monitor_thread_code, NULL);
+  return named_pthread_create_with_priority(&alsa_buffer_monitor_thread, 4,
+                                            &alsa_buffer_monitor_thread_code, NULL, "alsa_buf_mon");
 
+  return 0;
+}
+
+static int check_configuration(unsigned int channels, unsigned int rate, unsigned int format) {
+  // we know that the format/rate/channel count are legitimate but the combination
+  // may not be permitted.
+  // now see if the individual formats, rates and channel count are permissible
+  sps_rate_t r = SPS_RATE_LOWEST;
+  int found = 0;
+  // we know the rate is there, we just have to find it.
+  while ((r <= SPS_RATE_HIGHEST) && (found == 0)) {
+    if ((sps_rate_actual_rate(r) == rate) && ((config.rate_set & (1 << r)) != 0))
+      found = 1;
+    else
+      r++;
+  }
+
+  int response = permissible_configurations[r][format][channels];
+
+  if (response != 0)
+    debug(3, "check %u/%s/%u returns %d.", rate, sps_format_description_string(format), channels,
+          response);
+  return response;
+}
+
+/*
+static int check_configuration(unsigned int channels, unsigned int rate, unsigned int format) {
+  int response = response = check_settings(format, rate, channels);
+  debug(3, "alsa: configuration: %u/%s/%u %s.", rate, sps_format_description_string(format),
+        channels, response == 0 ? "is okay" : "can not be configured");
+  return response;
+}
+*/
+
+static char *get_channel_map_str() {
+  if (alsa_handle != NULL) {
+
+    snd_pcm_chmap_t *channel_map = snd_pcm_get_chmap(alsa_handle);
+    if (channel_map) {
+
+      int j, k;
+      // check for duplicates and replace subsequent duplicates with
+      // SND_CHMAP_UNKNOWN
+
+      for (j = 0; j < (int)channel_map->channels; j++) {
+        for (k = 0; k < j; k++) {
+          if ((channel_map->pos[k] != SND_CHMAP_UNKNOWN) &&
+              (channel_map->pos[k] == channel_map->pos[j])) {
+            debug(3,
+                  "alsa: There is an error in the built-in %u channel map of the "
+                  "output device:"
+                  " channel %d has the same name as channel "
+                  "%d (\"%s\"). Both names have been changed to \"UNKNOWN\".",
+                  channel_map->channels, j, k, snd_pcm_chmap_name(channel_map->pos[k]));
+            channel_map->pos[j] = SND_CHMAP_UNKNOWN;
+            channel_map->pos[k] = SND_CHMAP_UNKNOWN;
+          }
+        }
+      }
+
+      unsigned int i;
+      for (i = 0; i < channel_map->channels; i++) {
+        debug(3, "channel %d is %d, name: \"%s\", long name: \"%s\".", i, channel_map->pos[i],
+              snd_pcm_chmap_name(channel_map->pos[i]),
+              snd_pcm_chmap_long_name(channel_map->pos[i]));
+      }
+      if (snd_pcm_chmap_print(channel_map, sizeof(public_channel_map), public_channel_map) < 0)
+        public_channel_map[0] = '\0'; // if there's any problem
+      debug(3,
+            "channel count: %d, channel name list: "
+            "\"%s\".",
+            channel_map->channels, public_channel_map);
+      free(channel_map);
+    } else {
+      debug(2, "no channel map -- if it's two-channel, assume standard stereo.");
+      if (CHANNELS_FROM_ENCODED_FORMAT(current_encoded_output_format) == 2) {
+        // if it's a two-channel configuration, assume it's stereo and return
+        // a standard mapping
+        snprintf(public_channel_map, sizeof(public_channel_map) - 1, "FL FR");
+      }
+    }
+  }
+  return public_channel_map;
+}
+
+static int configure(int32_t requested_encoded_format, char **channel_map) {
+  int response = 0;
+  int oldState;
+  pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
+  pthread_cleanup_debug_mutex_lock(&alsa_mutex, 200000, 0);
+  if (current_encoded_output_format != requested_encoded_format) {
+    if (current_encoded_output_format == 0)
+      debug(2, "alsa: setting output configuration to %s.",
+            short_format_description(requested_encoded_format));
+    else
+      // note -- can't use short_format_description twice in one call because it returns the same
+      // string buffer each time
+      debug(3, "alsa: changing output configuration to %s.",
+            short_format_description(requested_encoded_format));
+    do_close();
+    current_encoded_output_format = requested_encoded_format;
+    response = do_open();
+  }
+  if ((response == 0) && (channel_map != NULL)) {
+    *channel_map = get_channel_map_str();
+  }
+  debug_mutex_unlock(&alsa_mutex, 0);
+  pthread_cleanup_pop(0);
+  pthread_setcancelstate(oldState, NULL);
+  if (response != 0)
+    debug(1, "alsa: could not open the output device with configuration %s",
+          short_format_description(requested_encoded_format));
   return response;
 }
 
 static void deinit(void) {
   int oldState;
   pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
-  // debug(2,"audio_alsa deinit called.");
-  stop();
+  debug(2, "audio_alsa deinit called.");
+  pthread_cleanup_debug_mutex_lock(&alsa_mutex, 10000, 1);
+  if (alsa_handle != NULL) {
+    debug(3, "alsa: closing the output device.");
+    do_close();
+  } else {
+    debug(3, "alsa: output device already closed.");
+  }
+  pthread_cleanup_pop(1); // release the mutex
   debug(2, "Cancel buffer monitor thread.");
   pthread_cancel(alsa_buffer_monitor_thread);
-  debug(3, "Join buffer monitor thread.");
+  debug(2, "Join buffer monitor thread.");
   pthread_join(alsa_buffer_monitor_thread, NULL);
+  debug(2, "Joined buffer monitor thread.");
   pthread_setcancelstate(oldState, NULL);
   if (hw_alsa_out_dev != NULL)
     free(hw_alsa_out_dev);
 }
+
+static int prepare() { return get_permissible_configuration_settings(); }
 
 static int set_mute_state() {
   int response = 1; // some problem expected, e.g. no mixer or not allowed to use it or disconnected
@@ -1485,17 +1674,13 @@ static int set_mute_state() {
   return response;
 }
 
+static output_parameters_t *parameters() { return &output_parameters; }
+
 static void start(__attribute__((unused)) int i_sample_rate,
                   __attribute__((unused)) int i_sample_format) {
-  debug(3, "audio_alsa start called.");
 
-  // frame_index = 0;
-  // measurement_data_is_valid = 0;
-
-  stall_monitor_start_time = 0;
-  stall_monitor_frame_count = 0;
   if (alsa_device_initialised == 0) {
-    debug(1, "alsa: start() calling alsa_device_init.");
+    debug(2, "alsa: start() calling alsa_device_init.");
     alsa_device_init();
     alsa_device_initialised = 1;
   }
@@ -1521,12 +1706,7 @@ static int standard_delay_and_status(snd_pcm_state_t *state, snd_pcm_sframes_t *
       // delay_temp = 0;
       ret = 0;
     }
-  } // else {
-    // debug(1, "alsa_handle is NULL in standard_delay_and_status.");
-  // }
-
-  stall_monitor_start_time = 0;  // zero if not initialised / not started / zeroed by flush
-  stall_monitor_frame_count = 0; // set to delay at start of time, incremented by any writes
+  }
 
   if (delay != NULL)
     *delay = delay_temp;
@@ -1568,9 +1748,6 @@ static int precision_delay_and_status(snd_pcm_state_t *state, snd_pcm_sframes_t 
       state_temp = snd_pcm_status_get_state(alsa_snd_pcm_status);
 
       if ((state_temp == SND_PCM_STATE_RUNNING) || (state_temp == SND_PCM_STATE_DRAINING)) {
-
-        //     uint64_t update_timestamp_ns =
-        //         update_timestamp.tv_sec * (uint64_t)1000000000 + update_timestamp.tv_nsec;
 
         uint64_t update_timestamp_ns = update_timestamp.tv_sec;
         update_timestamp_ns = update_timestamp_ns * 1000000000;
@@ -1626,6 +1803,27 @@ static int precision_delay_and_status(snd_pcm_state_t *state, snd_pcm_sframes_t 
           time_now_ns = time_now_ns * 1000000000;
           time_now_ns = time_now_ns + tn.tv_nsec;
 
+          // if the delay is not zero and if stall_monitor_new_frame_count_time is non-zero, then
+          // if the delay is longer than the stall threshold
+          // and the delay is the same as it was, a stall has occurred.
+
+          if ((stall_monitor_new_frame_count_time != 0) && (delay_temp != 0)) {
+
+            uint64_t time_since_last_measurement = time_now_ns - stall_monitor_new_frame_count_time;
+            if ((time_since_last_measurement > stall_monitor_error_threshold) &&
+                (stall_monitor_new_frame_count == delay_temp)) {
+              debug(1, "DAC has stalled for %f seconds with a frame count of %ld.",
+                    time_since_last_measurement * 1E-9, delay_temp);
+              debug(1, "time_now_ns: %" PRIu64 ", stall_monitor_new_frame_count_time: %" PRIu64 ".",
+                    time_now_ns, stall_monitor_new_frame_count_time);
+            }
+          }
+
+          // for the next time...
+          stall_monitor_new_frame_count = delay_temp;
+          stall_monitor_new_frame_count_time = time_now_ns;
+
+          /*
           // see if it's stalled
 
           if ((stall_monitor_start_time != 0) && (stall_monitor_frame_count == delay_temp)) {
@@ -1634,32 +1832,25 @@ static int precision_delay_and_status(snd_pcm_state_t *state, snd_pcm_sframes_t 
             if (((update_timestamp_ns - stall_monitor_start_time) >
                  stall_monitor_error_threshold) ||
                 ((time_now_ns - stall_monitor_start_time) > stall_monitor_error_threshold)) {
-              debug(2,
-                    "DAC seems to have stalled with time_now_ns: %" PRIX64
-                    ", update_timestamp_ns: %" PRIX64 ", stall_monitor_start_time %" PRIX64
-                    ", stall_monitor_error_threshold %" PRIX64 ".",
+              debug(1,
+                    "DAC seems to have stalled with time_now_ns: %" PRIu64
+                    ", update_timestamp_ns: %" PRIu64 ", stall_monitor_start_time %" PRIu64
+                    ", stall_monitor_error_threshold %" PRIu64 ", delay_temp %u.",
                     time_now_ns, update_timestamp_ns, stall_monitor_start_time,
-                    stall_monitor_error_threshold);
-              debug(2,
-                    "DAC seems to have stalled with time_now: %lx,%lx"
-                    ", update_timestamp: %lx,%lx, stall_monitor_start_time %" PRIX64
-                    ", stall_monitor_error_threshold %" PRIX64 ".",
-                    tn.tv_sec, tn.tv_nsec, update_timestamp.tv_sec, update_timestamp.tv_nsec,
-                    stall_monitor_start_time, stall_monitor_error_threshold);
-              ret = sps_extra_code_output_stalled;
+                    stall_monitor_error_threshold, delay_temp);
+              // ret = sps_extra_code_output_stalled;
             }
-          } else {
+          } // else {
             stall_monitor_start_time = update_timestamp_ns;
             stall_monitor_frame_count = delay_temp;
-          }
+          // }
+          */
 
           if (ret == 0) {
             uint64_t delta = time_now_ns - update_timestamp_ns;
 
-            //          uint64_t frames_played_since_last_interrupt =
-            //              ((uint64_t)config.output_rate * delta) / 1000000000;
-
-            uint64_t frames_played_since_last_interrupt = config.output_rate;
+            uint64_t frames_played_since_last_interrupt =
+                RATE_FROM_ENCODED_FORMAT(current_encoded_output_format);
             frames_played_since_last_interrupt = frames_played_since_last_interrupt * delta;
             frames_played_since_last_interrupt = frames_played_since_last_interrupt / 1000000000;
 
@@ -1678,16 +1869,10 @@ static int precision_delay_and_status(snd_pcm_state_t *state, snd_pcm_sframes_t 
       } else { // not running, thus no delay information, thus can't check for
                // stall
         delay_temp = 0;
-        stall_monitor_start_time = 0;  // zero if not initialised / not started / zeroed by flush
-        stall_monitor_frame_count = 0; // set to delay at start of time, incremented by any writes
-
-        // not running, thus no delay information, thus can't check for frame
-        // rates
-        // frame_index = 0; // we'll be starting over...
-        // measurement_data_is_valid = 0;
+        stall_monitor_new_frame_count_time = 0;
       }
     } else {
-      debug(1, "alsa: can't get device's status.");
+      debug(1, "alsa: can't get device's status -- error %d.", ret);
     }
 
   } else {
@@ -1697,6 +1882,7 @@ static int precision_delay_and_status(snd_pcm_state_t *state, snd_pcm_sframes_t 
     *delay = delay_temp;
   if (state != NULL)
     *state = state_temp;
+  debug(3, "precision_delay_and_status returning state: %d and delay %ld.", state_temp, delay_temp);
   return ret;
 }
 
@@ -1771,6 +1957,8 @@ static int stats(uint64_t *raw_measurement_time, uint64_t *corrected_measurement
   pthread_setcancelstate(oldState, NULL);
   uint64_t hd = my_delay; // note: snd_pcm_sframes_t is a long
   *the_delay = hd;
+  // if (ret != 0)
+  //   debug(1, "frames_sent_break_occurred? value is %d.", ret);
   return ret;
 }
 
@@ -1793,14 +1981,22 @@ static int do_play(void *buf, int samples) {
           (state != SND_PCM_STATE_XRUN)) {
         debug(1, "alsa: DAC in odd SND_PCM_STATE_* %d prior to writing.", state);
       }
+      if (state == SND_PCM_STATE_XRUN) {
+        debug(1, "alsa: DAC in SND_PCM_STATE_XRUN prior to writing.");
+        ret = snd_pcm_recover(alsa_handle, ret, 1);
+      }
 
       snd_pcm_state_t prior_state = state; // keep this for afterwards....
-      // debug(3, "alsa: write %d frames.", samples);
+      debug(3, "alsa: write %d frames.", samples);
       ret = alsa_pcm_write(alsa_handle, buf, samples);
+      if (ret == -EIO) {
+        debug(1, "alsa: I/O Error.");
+        usleep(20000); // give it a breather...
+      }
       if (ret > 0)
         frames_sent_for_playing += ret; // this is the number of frames accepted
       if (ret == samples) {
-        stall_monitor_frame_count += samples;
+        stall_monitor_new_frame_count += samples;
       } else {
         frames_sent_break_occurred = 1; // note than an output error has occurred
         if (ret == -EPIPE) {            /* underrun */
@@ -1847,14 +2043,14 @@ static int do_play(void *buf, int samples) {
   return ret;
 }
 
-static int do_open(int do_auto_setup) {
+static int do_open() {
   int ret = 0;
   if (alsa_backend_state != abm_disconnected)
-    debug(1, "alsa: do_open() -- opening the output device when it is already "
+    debug(1, "alsa: do_open() -- asking to open the output device when it is already "
              "connected");
   if (alsa_handle == NULL) {
-    // debug(1,"alsa: do_open() -- opening the output device");
-    ret = open_alsa_device(do_auto_setup);
+    debug(3, "alsa: do_open() -- opening the output device");
+    ret = open_alsa_device();
     if (ret == 0) {
       mute_requested_internally = 0;
       if (audio_alsa.volume)
@@ -1868,6 +2064,7 @@ static int do_open(int do_auto_setup) {
       frames_sent_break_occurred = 1; // there is a discontinuity with
       // any previously-reported frame count
       frames_sent_for_playing = 0;
+      debug(3, "alsa: do_open() -- alsa_backend_state => abm_connected");
       alsa_backend_state = abm_connected; // only do this if it really opened it.
     } else {
       if ((ret == -ENOENT) || (ret == -ENODEV)) // if the device isn't there...
@@ -1880,43 +2077,46 @@ static int do_open(int do_auto_setup) {
 }
 
 static int do_close() {
-  debug(2, "alsa: do_close()");
   if (alsa_backend_state == abm_disconnected)
-    debug(1, "alsa: do_close() -- closing the output device when it is already "
-             "disconnected");
+    debug(3, "alsa: do_close() -- output device is already disconnected");
   int derr = 0;
   if (alsa_handle) {
-    // debug(1,"alsa: do_close() -- closing the output device");
+    debug(3, "alsa: do_close() -- closing the output device");
     if ((derr = snd_pcm_drop(alsa_handle)))
       debug(1, "Error %d (\"%s\") dropping output device.", derr, snd_strerror(derr));
-    usleep(10000); // wait for the hardware to do its trick. BTW, this make the function pthread
+    usleep(20000); // wait for the hardware to do its trick. BTW, this make the function pthread
                    // cancellable
     if ((derr = snd_pcm_hw_free(alsa_handle)))
       debug(1, "Error %d (\"%s\") freeing the output device hardware.", derr, snd_strerror(derr));
-    debug(2, "alsa: do_close() -- closing alsa handle");
+    debug(3, "alsa: do_close() -- closing alsa handle");
     if ((derr = snd_pcm_close(alsa_handle)))
       debug(1, "Error %d (\"%s\") closing the output device.", derr, snd_strerror(derr));
     alsa_handle = NULL;
-    alsa_handle_status = ENODEV; // no device open
+    alsa_handle_status = -ENODEV; // no device open
   } else {
-    debug(1, "alsa: do_close() -- output device already closed.");
+    debug(3, "alsa: do_close() -- output device is already closed.");
   }
+  debug(3, "alsa: do_close() -- alsa_backend_state => abm_disconnected.");
   alsa_backend_state = abm_disconnected;
   return derr;
 }
 
 static int sub_flush() {
   if (alsa_backend_state == abm_disconnected)
-    debug(1, "alsa: do_flush() -- closing the output device when it is already "
+    debug(1, "alsa: do_flush() -- asking to flush the output device when it is already "
              "disconnected");
   int derr = 0;
   if (alsa_handle) {
-    debug(2, "alsa: do_flush() -- flushing the output device");
+    debug(3, "alsa: do_flush() -- flushing the output device");
     frames_sent_break_occurred = 1;
     if ((derr = snd_pcm_drop(alsa_handle)))
       debug(1, "Error %d (\"%s\") dropping output device.", derr, snd_strerror(derr));
     if ((derr = snd_pcm_prepare(alsa_handle)))
       debug(1, "Error %d (\"%s\") preparing output device after flush.", derr, snd_strerror(derr));
+    stall_monitor_new_frame_count = 0;
+    stall_monitor_new_frame_count_time = 0;
+    if (alsa_backend_state != abm_connected)
+      debug(2, "alsa: sub_flush() -- alsa_backend_state => abm_connected.");
     alsa_backend_state = abm_connected;
   } else {
     debug(1, "alsa: do_flush() -- output device already closed.");
@@ -1933,13 +2133,12 @@ static int play(void *buf, int samples, __attribute__((unused)) int sample_type,
   // DAC must be
   // connected
 
-  // debug(3,"audio_alsa play called.");
   int ret = 0;
 
   pthread_cleanup_debug_mutex_lock(&alsa_mutex, 50000, 0);
 
   if (alsa_backend_state == abm_disconnected) {
-    ret = do_open(0); // don't try to auto setup
+    ret = do_open();
     if (ret == 0)
       debug(2, "alsa: play() -- opened output device");
   }
@@ -1963,30 +2162,7 @@ static int play(void *buf, int samples, __attribute__((unused)) int sample_type,
   return ret;
 }
 
-static int prepare(void) {
-  // this will leave the DAC open / connected.
-  int ret = 0;
-
-  pthread_cleanup_debug_mutex_lock(&alsa_mutex, 50000, 0);
-
-  if (alsa_backend_state == abm_disconnected) {
-    if (alsa_device_initialised == 0) {
-      // debug(1, "alsa: prepare() calling alsa_device_init.");
-      alsa_device_init();
-      alsa_device_initialised = 1;
-    }
-    ret = do_open(1); // do auto setup
-    if (ret == 0)
-      debug(2, "alsa: prepare() -- opened output device");
-  }
-
-  debug_mutex_unlock(&alsa_mutex, 0);
-  pthread_cleanup_pop(0); // release the mutex
-  return ret;
-}
-
 static void flush(void) {
-  // debug(2,"audio_alsa flush called.");
   pthread_cleanup_debug_mutex_lock(&alsa_mutex, 10000, 1);
   if (alsa_backend_state != abm_disconnected) { // must be playing or connected...
     // do nothing for a flush if config.keep_dac_busy is true
@@ -2010,11 +2186,6 @@ static void stop(void) {
     debug(3, "alsa: stop() -- called on a disconnected alsa backend");
   debug_mutex_unlock(&alsa_mutex, 3);
   pthread_cleanup_pop(0); // release the mutex
-}
-
-static void parameters(audio_parameters *info) {
-  info->minimum_volume_dB = alsa_mix_mindb;
-  info->maximum_volume_dB = alsa_mix_maxdb;
 }
 
 static void do_volume(double vol) { // caller is assumed to have the alsa_mutex when
@@ -2063,25 +2234,6 @@ static void volume(double vol) {
   do_volume(vol);
 }
 
-/*
-static void linear_volume(double vol) {
-  debug(2, "Setting linear volume to %f.", vol);
-  set_volume = vol;
-  if ((alsa_mix_ctrl == NULL) && alsa_mix_handle) {
-    double linear_volume = pow(10, vol);
-    // debug(1,"Linear volume is %f.",linear_volume);
-    long int_vol = alsa_mix_minv + (alsa_mix_maxv - alsa_mix_minv) *
-linear_volume;
-    // debug(1,"Setting volume to %ld, for volume input of %f.",int_vol,vol);
-    if (alsa_mix_handle) {
-      if (snd_mixer_selem_set_playback_volume_all(alsa_mix_elem, int_vol) != 0)
-        die("Failed to set playback volume");
-
-    }
-  }
-}
-*/
-
 static int mute(int mute_state_requested) {         // these would be for external reasons, not
                                                     // because of the
                                                     // state of the backend.
@@ -2097,50 +2249,79 @@ static void alsa_buffer_monitor_thread_cleanup_function(__attribute__((unused)) 
 */
 
 static void *alsa_buffer_monitor_thread_code(__attribute__((unused)) void *arg) {
+  //  #include <syscall.h>
+  //  debug(1, "alsa_buffer_monitor_thread_code PID %d", syscall(SYS_gettid));
+  // Wait until the output configuration has been set by the main program
+  debug(2, "alsa: alsa_buffer_monitor_thread_code started.");
   int frame_count = 0;
   int error_count = 0;
   int error_detected = 0;
+  int64_t sleep_time_actual_ns = 0; // actual sleep time since last check, or zero
   int okb = -1;
+
+  while (config.keep_dac_busy == 0)
+    usleep(10000);
+
+  debug(1, "alsa: get initial disable standby parameters for rate/channels: %u/%u.",
+        disable_standby_mode_default_rate, disable_standby_mode_default_channels);
+  while (get_permissible_configuration_settings() != 0) {
+    debug(1, "wait 50 ms to check again for success");
+    usleep(50000);
+  }
+
+  current_encoded_output_format =
+      get_configuration(disable_standby_mode_default_channels, disable_standby_mode_default_rate,
+                        disable_standby_mode_default_format);
+
+  debug(1, "alsa: disable standby initial parameters: %s.",
+        short_format_description(current_encoded_output_format));
+
   // if too many play errors occur early on, we will turn off the disable standby mode
   while (error_detected == 0) {
     int keep_dac_busy_has_just_gone_off = 0;
     if (okb != config.keep_dac_busy) {
-      if ((okb != 0) && (config.keep_dac_busy == 0))
+      if ((okb != 0) && (config.keep_dac_busy == 0)) {
         keep_dac_busy_has_just_gone_off = 1;
+      }
       debug(2, "keep_dac_busy is now \"%s\"", config.keep_dac_busy == 0 ? "no" : "yes");
       okb = config.keep_dac_busy;
     }
     if ((config.keep_dac_busy != 0) && (alsa_device_initialised == 0)) {
-      debug(2, "alsa: alsa_buffer_monitor_thread_code() calling "
-               "alsa_device_init.");
+      debug(2, "alsa: alsa_buffer_monitor_thread_code() preparing for use and initialising.");
       alsa_device_init();
       alsa_device_initialised = 1;
     }
     int sleep_time_us = (int)(config.disable_standby_mode_silence_scan_interval * 1000000);
+    if (sleep_time_actual_ns > ((8 * sleep_time_us * 1000) / 4))
+      debug(1,
+            "alsa_buffer_monitor_thread_code sleep was %.6f sec but request was for %.6f sec. "
+            "Disabling standby may not work properly!",
+            sleep_time_actual_ns * 0.000000001, config.disable_standby_mode_silence_scan_interval);
     pthread_cleanup_debug_mutex_lock(&alsa_mutex, 200000, 0);
     // check possible state transitions here
     if ((alsa_backend_state == abm_disconnected) && (config.keep_dac_busy != 0)) {
       // open the dac and move to abm_connected mode
-      if (do_open(1) == 0) // no automatic setup of rate and speed if necessary
-        debug(2, "alsa: alsa_buffer_monitor_thread_code() -- output device opened; "
-                 "alsa_backend_state => abm_connected");
+      if (do_open() == 0) {
+        debug(2,
+              "alsa: alsa_buffer_monitor_thread_code() -- output device opened; "
+              "alsa_backend_state from abm_disconnected => abm_connected. error_detected = %d",
+              error_detected);
+      } else {
+        debug(1, "alsa_buffer_monitor_thread_code: can't open output device -- terminating");
+        error_detected = 1;
+      }
     } else if ((alsa_backend_state != abm_disconnected) && (keep_dac_busy_has_just_gone_off != 0)) {
-      stall_monitor_start_time = 0;
-      // frame_index = 0;
-      // measurement_data_is_valid = 0;
       debug(2, "alsa: alsa_buffer_monitor_thread_code() -- closing the output "
                "device");
       do_close();
-      debug(2, "alsa: alsa_buffer_monitor_thread_code() -- alsa_backend_state "
-               "=> abm_disconnected");
     }
     // now, if the backend is not in the abm_disconnected state
     // and config.keep_dac_busy is true (at the present, this has to be the case
     // to be in the
     // abm_connected state in the first place...) then do the silence-filling
     // thing, if needed /* only if the output device is capable of precision delay */.
-    if ((alsa_backend_state != abm_disconnected) &&
-        (config.keep_dac_busy != 0) /* && precision_delay_available() */) {
+    if ((alsa_backend_state != abm_disconnected) && (config.keep_dac_busy != 0) &&
+        (error_detected == 0) /* && precision_delay_available() */) {
       int reply;
       long buffer_size = 0;
       snd_pcm_state_t state;
@@ -2152,29 +2333,56 @@ static void *alsa_buffer_monitor_thread_code(__attribute__((unused)) void *arg) 
         debug(1, "alsa: alsa_buffer_monitor_thread_code delay error %d: \"%s\".", reply,
               (char *)errorstring);
       }
-      long buffer_size_threshold =
-          (long)(config.disable_standby_mode_silence_threshold * config.output_rate);
+      uint64_t current_delay = 0;
+      if (buffer_size < 0) {
+        debug(1, "delay of less than 0: %ld.", buffer_size);
+        current_delay = 0;
+      } else {
+        current_delay = buffer_size;
+      }
+      if (current_delay < minimum_dac_queue_size) {
+        minimum_dac_queue_size = current_delay; // update for display later
+      }
+
+      long buffer_size_threshold = (long)(config.disable_standby_mode_silence_threshold *
+                                          RATE_FROM_ENCODED_FORMAT(current_encoded_output_format));
+      // debug(1, "current_delay: %" PRIu64 ", buffer_size: %ld, buffer_size_threshold %ld,
+      // frames_of_silence: %d.", current_delay, buffer_size, buffer_size_threshold,
+      // buffer_size_threshold - buffer_size + current_alsa_configuration->rate / 10);
+
       size_t size_of_silence_buffer;
+      // debug(1, "buffer_size %d, buffer_size_threshold %d.", buffer_size,
+      // buffer_size_threshold);
       if (buffer_size < buffer_size_threshold) {
-        int frames_of_silence = 1024;
-        size_of_silence_buffer = frames_of_silence * frame_size;
-        void *silence = malloc(size_of_silence_buffer);
+        int frames_of_silence = buffer_size_threshold - buffer_size +
+                                RATE_FROM_ENCODED_FORMAT(current_encoded_output_format) / 10;
+        size_of_silence_buffer =
+            frames_of_silence *
+            fr[FORMAT_FROM_ENCODED_FORMAT(current_encoded_output_format)].sample_size *
+            CHANNELS_FROM_ENCODED_FORMAT(current_encoded_output_format);
+        void *silence = calloc(size_of_silence_buffer, 1);
         if (silence == NULL) {
           warn("disable_standby_mode has been turned off because a memory allocation error "
                "occurred.");
           error_detected = 1;
         } else {
           int ret;
-          pthread_cleanup_push(malloc_cleanup, silence);
+          pthread_cleanup_push(malloc_cleanup, &silence);
           int use_dither = 0;
-          if ((alsa_mix_ctrl == NULL) && (config.ignore_volume_control == 0) &&
-              (config.airplay_volume != 0.0))
+          if ((alsa_mix_ctrl == NULL) &&
+              (((config.ignore_volume_control == 0) && (config.airplay_volume != 0.0)) ||
+               (config.playback_mode == ST_mono)))
             use_dither = 1;
+
           dither_random_number_store =
-              generate_zero_frames(silence, frames_of_silence, config.output_format,
+              generate_zero_frames(silence, frames_of_silence,
                                    use_dither, // i.e. with dither
-                                   dither_random_number_store);
+                                   dither_random_number_store, current_encoded_output_format);
+
           ret = do_play(silence, frames_of_silence);
+          debug(3, "Played %u frames of silence on %u channels, equal to %zu bytes.",
+                frames_of_silence, CHANNELS_FROM_ENCODED_FORMAT(current_encoded_output_format),
+                size_of_silence_buffer);
           frame_count++;
           pthread_cleanup_pop(1); // free malloced buffer
           if (ret < 0) {
@@ -2197,7 +2405,39 @@ static void *alsa_buffer_monitor_thread_code(__attribute__((unused)) void *arg) 
     }
     debug_mutex_unlock(&alsa_mutex, 0);
     pthread_cleanup_pop(0); // release the mutex
-    usleep(sleep_time_us);  // has a cancellation point in it
+    uint64_t tsb = get_absolute_time_in_ns();
+    usleep(sleep_time_us); // has a cancellation point in it
+    sleep_time_actual_ns = get_absolute_time_in_ns() - tsb;
   }
   pthread_exit(NULL);
+}
+
+static int32_t get_configuration(unsigned int channels, unsigned int rate, unsigned int format) {
+  // pass in SPS_FORMAT_AUTO because we want the best (deepest) format.
+
+  // first, check that the device is there!
+  snd_pcm_t *temp_alsa_handle = NULL;
+  int response = snd_pcm_open(&temp_alsa_handle, alsa_out_dev, SND_PCM_STREAM_PLAYBACK, 0);
+  ;
+  if ((response == 0) && (temp_alsa_handle != NULL)) {
+    response = snd_pcm_close(temp_alsa_handle);
+    if (response != 0) {
+      char errorstring[1024];
+      strerror_r(-response, (char *)errorstring, sizeof(errorstring));
+      debug(1, "error %d closing probed alsa output device \"%s\".", -response, alsa_out_dev);
+    }
+  } else if (response == -EBUSY) {
+    response = 0; // busy is okay -- it means the device exists
+  } else {
+    char errorstring[1024];
+    strerror_r(-response, (char *)errorstring, sizeof(errorstring));
+    debug(3,
+          "the alsa output device called \"%s\" can not be accessed. Error %d (\"%s\"). Maybe it "
+          "doesn't exist or is not ready yet...",
+          alsa_out_dev, -response, errorstring);
+  }
+  // if we can access the device, then search for configurations
+  if (response == 0)
+    response = search_for_suitable_configuration(channels, rate, format, &check_configuration);
+  return response;
 }

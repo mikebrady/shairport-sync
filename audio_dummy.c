@@ -4,7 +4,7 @@
  * All rights reserved.
  *
  * Modifications for audio synchronisation
- * and related work, copyright (c) Mike Brady 2014 -- 2022
+ * and related work, copyright (c) Mike Brady 2014--2025
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -71,7 +71,7 @@ audio_output audio_dummy = {.name = "dummy",
                             .help = NULL,
                             .init = &init,
                             .deinit = &deinit,
-                            .prepare = NULL,
+                            .configure = NULL,
                             .start = &start,
                             .stop = &stop,
                             .is_running = NULL,

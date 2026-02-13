@@ -25,11 +25,14 @@ stamp-h1
 man/Makefile
 man/Makefile.in
 scripts/shairport-sync.service
-scripts/shairport-sync.service-avahi
 scripts/shairport-sync
 shairport-sync.core
+gitversion-stamp
 gitversion.*
 plist_xml_strings.*
+plists/*.c
+plists/*.h
+plists/*.x
 
 #Some dbus files that are automatically generated
 /org.gnome.ShairportSync.service
@@ -45,8 +48,11 @@ plist_xml_strings.*
 .DS_Store
 shairport-sync.xcodeproj
 
-# separate build directory
+# separate build directories
 build
 
 # vscode
 .vscode
+
+# IntelliJ/JetBrains
+.idea/

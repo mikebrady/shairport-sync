@@ -2,7 +2,7 @@
  * Utility routines. This file is part of Shairport.
  * Copyright (c) James Laird 2013
  * The volume to attenuation function vol2attn copyright (c) Mike Brady 2014
- * Further changes and additions (c) Mike Brady 2014 -- 2021
+ * Further changes and additions (c) Mike Brady 2014--2025
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -45,11 +45,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 
+#include <net/if.h>
 #include <ifaddrs.h>
 
 #ifdef COMPILE_FOR_LINUX
@@ -69,6 +71,11 @@
 #include <net/if_dl.h>
 #include <net/if_types.h>
 #include <netinet/in.h>
+#endif
+
+#ifdef CONFIG_CONVOLUTION
+#include <ctype.h>
+#include <sndfile.h>
 #endif
 
 #ifdef CONFIG_OPENSSL
@@ -124,16 +131,31 @@ void set_alsa_out_dev(char *);
 
 config_t config_file_stuff;
 int type_of_exit_cleanup;
-uint64_t ns_time_at_startup, ns_time_at_last_debug_message;
-
-// always lock use this when accessing the ns_time_at_last_debug_message
-static pthread_mutex_t debug_timing_lock = PTHREAD_MUTEX_INITIALIZER;
+uint64_t minimum_dac_queue_size;
 
 pthread_mutex_t the_conn_lock = PTHREAD_MUTEX_INITIALIZER;
 
+unsigned int sps_format_sample_size_array[] = {
+    0,       // unknown
+    1, 1,    // S8, U8
+    2, 2,    // S16_LE, S16_BE,
+    4, 4,    // S24_LE, S24_BE,
+    3, 3,    // S24_3LE, S24_3BE,
+    4, 4,    // S32_LE, S32_BE,
+    2, 4, 4, // S16, S24, S32
+    0, 0     // Auto, Invalid
+};
+
+unsigned int sps_format_sample_size(sps_format_t format) {
+  unsigned int response = 0;
+  if (format <= SPS_FORMAT_AUTO)
+    response = sps_format_sample_size_array[format];
+  return response;
+}
+
 const char *sps_format_description_string_array[] = {
-    "unknown", "S8",      "U8",      "S16", "S16_LE", "S16_BE", "S24",  "S24_LE",
-    "S24_BE",  "S24_3LE", "S24_3BE", "S32", "S32_LE", "S32_BE", "auto", "invalid"};
+    "unknown", "S8",     "U8",     "S16_LE", "S16_BE", "S24_LE", "S24_BE", "S24_3LE",
+    "S24_3BE", "S32_LE", "S32_BE", "S16",    "S24",    "S32",    "auto",   "invalid"};
 
 const char *sps_format_description_string(sps_format_t format) {
   if (format <= SPS_FORMAT_AUTO)
@@ -142,8 +164,74 @@ const char *sps_format_description_string(sps_format_t format) {
     return sps_format_description_string_array[SPS_FORMAT_INVALID];
 }
 
-// true if Shairport Sync is supposed to be sending output to the output device, false otherwise
+unsigned int sps_rate_actual_rate(sps_rate_t rate) {
+  unsigned int response = 0;
+  switch (rate) {
+  case SPS_RATE_5512:
+    response = 5512;
+    break;
+  case SPS_RATE_8000:
+    response = 8000;
+    break;
+  case SPS_RATE_11025:
+    response = 11025;
+    break;
+  case SPS_RATE_16000:
+    response = 16000;
+    break;
+  case SPS_RATE_22050:
+    response = 22050;
+    break;
+  case SPS_RATE_32000:
+    response = 32000;
+    break;
+  case SPS_RATE_44100:
+    response = 44100;
+    break;
+  case SPS_RATE_48000:
+    response = 48000;
+    break;
+  case SPS_RATE_64000:
+    response = 64000;
+    break;
+  case SPS_RATE_88200:
+    response = 88200;
+    break;
+  case SPS_RATE_96000:
+    response = 96000;
+    break;
+  case SPS_RATE_176400:
+    response = 176400;
+    break;
+  case SPS_RATE_192000:
+    response = 192000;
+    break;
+  case SPS_RATE_352800:
+    response = 352800;
+    break;
+  case SPS_RATE_384000:
+    response = 384000;
+    break;
+  default:
+    debug(1, "unrecognised SPS_RATE_: %u.", rate);
+    break;
+  }
+  return response;
+}
 
+char sfd[32];
+const char *short_format_description(int32_t encoded_format) {
+  if (encoded_format < 0)
+    snprintf(sfd, sizeof(sfd) - 1, "error %d", encoded_format);
+  else
+    snprintf(
+        sfd, sizeof(sfd) - 1, "%u/%s/%u", RATE_FROM_ENCODED_FORMAT(encoded_format),
+        sps_format_description_string((sps_format_t)(FORMAT_FROM_ENCODED_FORMAT(encoded_format))),
+        CHANNELS_FROM_ENCODED_FORMAT(encoded_format));
+  return (const char *)sfd;
+}
+
+// true if Shairport Sync is supposed to be sending output to the output device, false otherwise
 static volatile int requested_connection_state_to_output = 1;
 
 // this stuff is to direct logging to syslog via libdaemon or directly
@@ -252,9 +340,19 @@ void log_to_syslog() {
 
 shairport_cfg config;
 
-volatile int debuglev = 0;
-
 sigset_t pselect_sigset;
+
+// note -- don't use this to shutdown from dbus -- see its own code in dbus-service.c
+void sps_shutdown(type_of_exit_type shutdown_type) { // TOE_normal, TOE_emergency
+  type_of_exit_cleanup = shutdown_type;
+  if (type_of_exit_cleanup == TOE_emergency) {
+    debug(1, "emergency shutdown requested");
+    exit(EXIT_FAILURE);
+  } else {
+    debug(1, "normal shutdown requested");
+    exit(EXIT_SUCCESS);
+  }
+}
 
 int usleep_uncancellable(useconds_t usec) {
   int response;
@@ -315,7 +413,7 @@ int bind_socket_and_port(int type, int ip_family, const char *self_ip_address, u
       ret = errno;
       close(local_socket);
       char errorstring[1024];
-      strerror_r(errno, (char *)errorstring, sizeof(errorstring));
+      getErrorText((char *)errorstring, sizeof(errorstring));
       warn("error %d: \"%s\". Could not bind a port!", errno, errorstring);
     } else {
       uint16_t sport;
@@ -326,7 +424,7 @@ int bind_socket_and_port(int type, int ip_family, const char *self_ip_address, u
         ret = errno;
         close(local_socket);
         char errorstring[1024];
-        strerror_r(errno, (char *)errorstring, sizeof(errorstring));
+        getErrorText((char *)errorstring, sizeof(errorstring));
         warn("error %d: \"%s\". Could not retrieve socket's port!", errno, errorstring);
       } else {
 #ifdef AF_INET6
@@ -398,7 +496,7 @@ uint16_t bind_UDP_port(int ip_family, const char *self_ip_address, uint32_t scop
   if (ret < 0) {
     close(local_socket);
     char errorstring[1024];
-    strerror_r(errno, (char *)errorstring, sizeof(errorstring));
+    getErrorText((char *)errorstring, sizeof(errorstring));
     die("error %d: \"%s\". Could not bind a UDP port! Check the udp_port_range is large enough -- "
         "it must be "
         "at least 3, and 10 or more is suggested -- or "
@@ -429,181 +527,11 @@ int get_requested_connection_state_to_output() { return requested_connection_sta
 
 void set_requested_connection_state_to_output(int v) { requested_connection_state_to_output = v; }
 
-char *generate_preliminary_string(char *buffer, size_t buffer_length, double tss, double tsl,
-                                  const char *filename, const int linenumber, const char *prefix) {
-  char *insertion_point = buffer;
-  if (config.debugger_show_elapsed_time) {
-    snprintf(insertion_point, buffer_length, "% 20.9f", tss);
-    insertion_point = insertion_point + strlen(insertion_point);
-  }
-  if (config.debugger_show_relative_time) {
-    snprintf(insertion_point, buffer_length, "% 20.9f", tsl);
-    insertion_point = insertion_point + strlen(insertion_point);
-  }
-  if (config.debugger_show_file_and_line) {
-    snprintf(insertion_point, buffer_length, " \"%s:%d\"", filename, linenumber);
-    insertion_point = insertion_point + strlen(insertion_point);
-  }
-  if (prefix) {
-    snprintf(insertion_point, buffer_length, "%s", prefix);
-    insertion_point = insertion_point + strlen(insertion_point);
-  }
-  return insertion_point;
-}
-
-void _die(const char *thefilename, const int linenumber, const char *format, ...) {
-  int oldState;
-  pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);
-
-  char b[16384];
-  b[0] = 0;
-  char *s;
-  if (debuglev) {
-    pthread_mutex_lock(&debug_timing_lock);
-    uint64_t time_now = get_absolute_time_in_ns();
-    uint64_t time_since_start = time_now - ns_time_at_startup;
-    uint64_t time_since_last_debug_message = time_now - ns_time_at_last_debug_message;
-    ns_time_at_last_debug_message = time_now;
-    pthread_mutex_unlock(&debug_timing_lock);
-    char *basec = strdup(thefilename);
-    char *filename = basename(basec);
-    s = generate_preliminary_string(b, sizeof(b), 1.0 * time_since_start / 1000000000,
-                                    1.0 * time_since_last_debug_message / 1000000000, filename,
-                                    linenumber, " *fatal error: ");
-    free(basec);
-  } else {
-    strncpy(b, "fatal error: ", sizeof(b));
-    s = b + strlen(b);
-  }
-  va_list args;
-  va_start(args, format);
-  vsnprintf(s, sizeof(b) - (s - b), format, args);
-  va_end(args);
-  sps_log(LOG_ERR, "%s", b);
-  pthread_setcancelstate(oldState, NULL);
-  type_of_exit_cleanup = TOE_emergency;
-  exit(EXIT_FAILURE);
-}
-
-void _warn(const char *thefilename, const int linenumber, const char *format, ...) {
-  int oldState;
-  pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);
-  char b[16384];
-  b[0] = 0;
-  char *s;
-  if (debuglev) {
-    pthread_mutex_lock(&debug_timing_lock);
-    uint64_t time_now = get_absolute_time_in_ns();
-    uint64_t time_since_start = time_now - ns_time_at_startup;
-    uint64_t time_since_last_debug_message = time_now - ns_time_at_last_debug_message;
-    ns_time_at_last_debug_message = time_now;
-    pthread_mutex_unlock(&debug_timing_lock);
-    char *basec = strdup(thefilename);
-    char *filename = basename(basec);
-    s = generate_preliminary_string(b, sizeof(b), 1.0 * time_since_start / 1000000000,
-                                    1.0 * time_since_last_debug_message / 1000000000, filename,
-                                    linenumber, " *warning: ");
-    free(basec);
-  } else {
-    strncpy(b, "warning: ", sizeof(b));
-    s = b + strlen(b);
-  }
-  va_list args;
-  va_start(args, format);
-  vsnprintf(s, sizeof(b) - (s - b), format, args);
-  va_end(args);
-  sps_log(LOG_WARNING, "%s", b);
-  pthread_setcancelstate(oldState, NULL);
-}
-
-void _debug(const char *thefilename, const int linenumber, int level, const char *format, ...) {
-  if (level > debuglev)
-    return;
-  int oldState;
-  pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);
-
-  char b[16384];
-  b[0] = 0;
-  pthread_mutex_lock(&debug_timing_lock);
-  uint64_t time_now = get_absolute_time_in_ns();
-  uint64_t time_since_start = time_now - ns_time_at_startup;
-  uint64_t time_since_last_debug_message = time_now - ns_time_at_last_debug_message;
-  ns_time_at_last_debug_message = time_now;
-  pthread_mutex_unlock(&debug_timing_lock);
-  char *basec = strdup(thefilename);
-  char *filename = basename(basec);
-  char *s = generate_preliminary_string(b, sizeof(b), 1.0 * time_since_start / 1000000000,
-                                        1.0 * time_since_last_debug_message / 1000000000, filename,
-                                        linenumber, " ");
-  free(basec);
-  va_list args;
-  va_start(args, format);
-  vsnprintf(s, sizeof(b) - (s - b), format, args);
-  va_end(args);
-  sps_log(LOG_INFO, b); // LOG_DEBUG is hard to read on macOS terminal
-  pthread_setcancelstate(oldState, NULL);
-}
-
-void _inform(const char *thefilename, const int linenumber, const char *format, ...) {
-  int oldState;
-  pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);
-  char b[16384];
-  b[0] = 0;
-  char *s;
-  if (debuglev) {
-    pthread_mutex_lock(&debug_timing_lock);
-    uint64_t time_now = get_absolute_time_in_ns();
-    uint64_t time_since_start = time_now - ns_time_at_startup;
-    uint64_t time_since_last_debug_message = time_now - ns_time_at_last_debug_message;
-    ns_time_at_last_debug_message = time_now;
-    pthread_mutex_unlock(&debug_timing_lock);
-    char *basec = strdup(thefilename);
-    char *filename = basename(basec);
-    s = generate_preliminary_string(b, sizeof(b), 1.0 * time_since_start / 1000000000,
-                                    1.0 * time_since_last_debug_message / 1000000000, filename,
-                                    linenumber, " ");
-    free(basec);
-  } else {
-    s = b;
-  }
-  va_list args;
-  va_start(args, format);
-  vsnprintf(s, sizeof(b) - (s - b), format, args);
-  va_end(args);
-  sps_log(LOG_INFO, "%s", b);
-  pthread_setcancelstate(oldState, NULL);
-}
-
-void _debug_print_buffer(const char *thefilename, const int linenumber, int level, void *vbuf,
-                         size_t buf_len) {
-  if (level > debuglev)
-    return;
-  char *buf = (char *)vbuf;
-  char *obf =
-      malloc(buf_len * 4 + 1); // to be on the safe side -- 4 characters on average for each byte
-  if (obf != NULL) {
-    char *obfp = obf;
-    unsigned int obfc;
-    for (obfc = 0; obfc < buf_len; obfc++) {
-      snprintf(obfp, 3, "%02X", buf[obfc]);
-      obfp += 2;
-      if (obfc != buf_len - 1) {
-        if (obfc % 32 == 31) {
-          snprintf(obfp, 5, " || ");
-          obfp += 4;
-        } else if (obfc % 16 == 15) {
-          snprintf(obfp, 4, " | ");
-          obfp += 3;
-        } else if (obfc % 4 == 3) {
-          snprintf(obfp, 2, " ");
-          obfp += 1;
-        }
-      }
-    };
-    *obfp = 0;
-    _debug(thefilename, linenumber, level, "%s", obf);
-    free(obf);
-  }
+void getErrorText(char *destinationString, size_t destinationStringLength) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-result"
+  strerror_r(errno, destinationString, destinationStringLength);
+#pragma GCC diagnostic pop
 }
 
 // The following two functions are adapted slightly and with thanks from Jonathan Leffler's sample
@@ -654,6 +582,61 @@ int mkpath(const char *path, mode_t mode) {
   return (status);
 }
 
+// including a simple base64 encoder to minimise malloc/free activity
+
+// From Stack Overflow, with thanks:
+// http://stackoverflow.com/questions/342409/how-do-i-base64-encode-decode-in-c
+// minor mods to make independent of C99.
+// more significant changes make it not malloc memory
+// needs to initialise the encoding table first
+
+// add _so to end of name to avoid confusion with polarssl's implementation
+
+static char encoding_table[] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+                                'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+                                'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+                                'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+                                '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/'};
+
+static size_t mod_table[] = {0, 2, 1};
+
+// pass in a pointer to the data, its length, a pointer to the output buffer and
+// a pointer to an int
+// containing its maximum length
+// the actual length will be returned.
+
+char *base64_encode_so(const unsigned char *data, size_t input_length, char *encoded_data,
+                       size_t *output_length) {
+
+  size_t calculated_output_length = 4 * ((input_length + 2) / 3);
+  if (calculated_output_length > *output_length)
+    return (NULL);
+  *output_length = calculated_output_length;
+
+  size_t i, j;
+  for (i = 0, j = 0; i < input_length;) {
+
+    uint32_t octet_a = i < input_length ? (unsigned char)data[i++] : 0;
+    uint32_t octet_b = i < input_length ? (unsigned char)data[i++] : 0;
+    uint32_t octet_c = i < input_length ? (unsigned char)data[i++] : 0;
+
+    uint32_t triple = (octet_a << 0x10) + (octet_b << 0x08) + octet_c;
+
+    encoded_data[j++] = encoding_table[(triple >> 3 * 6) & 0x3F];
+    encoded_data[j++] = encoding_table[(triple >> 2 * 6) & 0x3F];
+    encoded_data[j++] = encoding_table[(triple >> 1 * 6) & 0x3F];
+    encoded_data[j++] = encoding_table[(triple >> 0 * 6) & 0x3F];
+  }
+
+  for (i = 0; i < mod_table[input_length % 3]; i++)
+    encoded_data[*output_length - 1 - i] = '=';
+
+  return encoded_data;
+}
+
+// with thanks!
+//
+
 #ifdef CONFIG_MBEDTLS
 char *base64_enc(uint8_t *input, int length) {
   char *buf = NULL;
@@ -688,7 +671,7 @@ uint8_t *base64_dec(char *input, int *outlen) {
     //		input,strlen(input),inbuf,inbufsize);
     int rc = mbedtls_base64_decode(NULL, 0, &dlen, (unsigned char *)inbuf, inbufsize);
     if (rc && (rc != MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL))
-      debug(1, "Error %d getting decode length, result is %d.", rc, dlen);
+      debug(1, "Error %d getting decode length, result is %ld.", rc, dlen);
     else {
       // debug(1,"Decode size is %d.",dlen);
       buf = malloc(dlen);
@@ -864,7 +847,7 @@ uint8_t *rsa_apply(uint8_t *input, int inlen, int *outlen, int mode) {
             if (EVP_PKEY_sign(ctx, NULL, &ol, (const unsigned char *)input, inlen) > 0) { // 1.0.2
               out = (unsigned char *)malloc(ol);
               if (EVP_PKEY_sign(ctx, out, &ol, (const unsigned char *)input, inlen) > 0) { // 1.0.2
-                debug(3, "success with output length of %lu.", ol);
+                debug(3, "success with output length of %zu.", ol);
               } else {
                 debug(1, "error 2 \"%s\" with EVP_PKEY_sign:",
                       ERR_error_string(ERR_get_error(), NULL));
@@ -952,7 +935,7 @@ uint8_t *rsa_apply(uint8_t *input, int inlen, int *outlen, int mode) {
   rc = mbedtls_pk_parse_key(&pkctx, (unsigned char *)super_secret_key, sizeof(super_secret_key),
                             NULL, 0, mbedtls_ctr_drbg_random, &ctr_drbg);
 #else
-  rc = mbedtls_pk_parse_key(&pkctx, (unsigned char *)super_secret_key, sizeof(super_secret_key), 
+  rc = mbedtls_pk_parse_key(&pkctx, (unsigned char *)super_secret_key, sizeof(super_secret_key),
                             NULL, 0);
 
 #endif
@@ -964,25 +947,25 @@ uint8_t *rsa_apply(uint8_t *input, int inlen, int *outlen, int mode) {
 
   switch (mode) {
   case RSA_MODE_AUTH:
-    mbedtls_rsa_set_padding(trsa, MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);    
+    mbedtls_rsa_set_padding(trsa, MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
     outbuf = malloc(trsa->MBEDTLS_PRIVATE_V3_ONLY(len));
 #if MBEDTLS_VERSION_MAJOR == 3
-    rc = mbedtls_rsa_pkcs1_encrypt(trsa, mbedtls_ctr_drbg_random, &ctr_drbg,
-                                   inlen, input, outbuf);
+    rc = mbedtls_pk_sign(&pkctx, MBEDTLS_MD_NONE, input, inlen, outbuf, mbedtls_pk_get_len(&pkctx), &olen, mbedtls_ctr_drbg_random, &ctr_drbg);
+    *outlen = olen;
 #else
     rc = mbedtls_rsa_pkcs1_encrypt(trsa, mbedtls_ctr_drbg_random, &ctr_drbg, MBEDTLS_RSA_PRIVATE,
                                    inlen, input, outbuf);
+    *outlen = trsa->len;
 #endif
     if (rc != 0)
       debug(1, "mbedtls_pk_encrypt error %d.", rc);
-    *outlen = trsa->MBEDTLS_PRIVATE_V3_ONLY(len);
     break;
   case RSA_MODE_KEY:
     mbedtls_rsa_set_padding(trsa, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA1);
     outbuf = malloc(trsa->MBEDTLS_PRIVATE_V3_ONLY(len));
 #if MBEDTLS_VERSION_MAJOR == 3
-    rc = mbedtls_rsa_pkcs1_decrypt(trsa, mbedtls_ctr_drbg_random, &ctr_drbg,
-                                   &olen, input, outbuf, trsa->MBEDTLS_PRIVATE_V3_ONLY(len));
+    rc = mbedtls_rsa_pkcs1_decrypt(trsa, mbedtls_ctr_drbg_random, &ctr_drbg, &olen, input, outbuf,
+                                   trsa->MBEDTLS_PRIVATE_V3_ONLY(len));
 #else
     rc = mbedtls_rsa_pkcs1_decrypt(trsa, mbedtls_ctr_drbg_random, &ctr_drbg, MBEDTLS_RSA_PRIVATE,
                                    &olen, input, outbuf, trsa->len);
@@ -1057,6 +1040,17 @@ uint8_t *rsa_apply(uint8_t *input, int inlen, int *outlen, int mode) {
 }
 #endif
 
+int config_lookup_non_empty_string(const config_t *cfg, const char *path, const char **value) {
+  int response = config_lookup_string(cfg, path, value);
+  if (response == CONFIG_TRUE) {
+    if ((value != NULL) && ((*value == NULL) || (*value[0] == 0))) {
+      warn("The \"%s\" parameter is an empty string and has been ignored.", path);
+      response = CONFIG_FALSE;
+    }
+  }
+  return response;
+}
+
 int config_set_lookup_bool(config_t *cfg, char *where, int *dst) {
   const char *str = 0;
   if (config_lookup_string(cfg, where, &str)) {
@@ -1073,6 +1067,165 @@ int config_set_lookup_bool(config_t *cfg, char *where, int *dst) {
   } else {
     return 0;
   }
+}
+
+// remember to free the returned array of strings.
+// you don't need to free the strings themselves -- they belong to libconfig.
+unsigned int config_get_string_settings_as_string_array(config_setting_t *setting,
+                                                        const char ***result) {
+  unsigned int count = 0;
+  int error = 0;
+  *result = NULL;
+  const char **arr = NULL;
+  if (setting != NULL) { // definitely a setting
+    const char *str = config_setting_get_string(setting);
+    if (str != NULL) { // definitely a string
+      arr = malloc(sizeof(const char *));
+      arr[0] = str;
+      count = 1;
+    } else { // it might be a list, an array or a group
+      count = config_setting_length(setting);
+      if (count != 0) {
+        arr = malloc(sizeof(const char *) * count);
+        unsigned int i;
+        for (i = 0; i < count; i++) {
+          config_setting_t *item = config_setting_get_elem(setting, i);
+          if (config_setting_type(item) == CONFIG_TYPE_STRING)
+            arr[i] = config_setting_get_string(item);
+          else
+            error = i + 1;
+        }
+      } else {
+        error = 1;
+      }
+    }
+  }
+  if (error != 0) {
+    if (arr != NULL) {
+      free(arr);
+    }
+    count = -error; // signify an error
+  } else {
+    *result = arr;
+  }
+  return count;
+}
+
+// remember to free the returned array of ints.
+unsigned int config_get_int_settings_as_int_array(config_setting_t *setting, int **result) {
+  int error = 0;
+  unsigned int count = 0;
+  *result = NULL;
+  int *arr = NULL;
+  if (setting != NULL) { // definitely a setting there
+    if (config_setting_type(setting) == CONFIG_TYPE_INT) {
+      arr = malloc(sizeof(int));
+      arr[0] = config_setting_get_int(setting);
+      count = 1;
+    } else if (config_setting_is_aggregate(setting) == CONFIG_TRUE) {
+      count = config_setting_length(setting);
+      if (count != 0) {
+        arr = malloc(sizeof(int) * count);
+        unsigned int i;
+        for (i = 0; i < count; i++) {
+          config_setting_t *item = config_setting_get_elem(setting, i);
+          if (config_setting_type(item) == CONFIG_TYPE_INT)
+            arr[i] = config_setting_get_int(item);
+          else
+            error = i + 1;
+        }
+      }
+    } else {
+      error = 1; // subtract 1 from the error number to get the element number
+    }
+  }
+  if (error != 0) {
+    if (arr != NULL) {
+      free(arr);
+    }
+    count = -error; // signify an error
+  } else {
+    *result = arr;
+  }
+  return count;
+}
+
+// Look for the item in the setting which could be either a string or an array or list or group of
+// strings. Result: 0 means there is a setting but no match, 1 means there's no setting, 2 means
+// "auto" was found, 3 means a match.
+int check_string_or_list_setting(config_setting_t *setting, const char *item) {
+  int result = 1; // means there is no setting at all (so the caller should implement the default)
+  if (setting != NULL) { // definitely a setting
+    const char *str = config_setting_get_string(setting);
+    debug(3, "check \"%s\" against \"%s\"", str, item);
+    if (str != NULL) { // definitely a string
+      if (strcasecmp(str, item) == 0) {
+        result = 3; // an exact match
+      } else if (strcasecmp(str, "auto") == 0) {
+        result = 2; // auto
+      } else {
+        result = 0; // a string that is not a match
+      }
+    } else { // it might be a list, an array or a group
+      int i = 0;
+      result = 0; // presume there is no match
+      // keep looking, even if "auto" has been found, to see if the exact match (preferred) is there
+      // too.
+      while (((result == 0) || (result == 2)) && (i < config_setting_length(setting))) {
+        const char *str2 = config_setting_get_string_elem(setting, i);
+        if (str2 != NULL) { // definitely a string
+          if (strcasecmp(str2, "auto") == 0) {
+            result = 2; // auto
+          } else if (strcasecmp(str2, item) == 0) {
+            result = 3; // an exact match
+          }
+        }
+        i++; // will point to 1 past the found item or last item.
+      }
+    }
+  }
+  return result;
+}
+
+// Look for the item in the setting which could be either an int or an array or list or group of
+// ints. Result: 0 means there is a setting but no match, 1 means there's no setting, 2 means "auto"
+// was found, 3 means a match.
+int check_int_or_list_setting(config_setting_t *setting, const int item) {
+  int result = 1;        // means there is no setting at all
+  if (setting != NULL) { // definitely a setting
+    int setting_type = config_setting_type(setting);
+    if (setting_type == CONFIG_TYPE_STRING) {
+      if (strcasecmp(config_setting_get_string(setting), "auto") == 0) {
+        result = 2; // auto
+      } else {
+        result = 0; // a string that can not be a match
+      }
+    } else if (setting_type == CONFIG_TYPE_INT) {
+      if (item == config_setting_get_int(setting))
+        result = 3; // an exact match
+      else
+        result = 0; // a setting but not a match
+    } else {        // it might be a list, an array or a group
+      int i = 0;
+      result = 0; // presume there is no match (there is a setting)
+      // keep looking, even if "auto" has been found, to see if the exact match (preferred) is there
+      // too.
+      while (((result == 0) || (result == 2)) && (i < config_setting_length(setting))) {
+        config_setting_t *sub_setting = config_setting_get_elem(setting, i);
+        int sub_setting_type = config_setting_type(sub_setting);
+        if (sub_setting_type == CONFIG_TYPE_STRING) {
+          if (strcasecmp(config_setting_get_string_elem(sub_setting, i), "auto") == 0) {
+            result = 2; // auto
+          }
+        } else if (sub_setting_type == CONFIG_TYPE_INT) {
+          if (item == config_setting_get_int(sub_setting))
+            result = 3; // an exact match
+        }
+        i++; // will point to 1 past the found item or last item.
+      }
+    }
+  }
+  return result;
 }
 
 void command_set_volume(double volume) {
@@ -1519,14 +1672,14 @@ int try_to_open_pipe_for_writing(const char *pathname) {
     int flags = fcntl(fdis, F_GETFL);
     if (flags == -1) {
       char errorstring[1024];
-      strerror_r(errno, (char *)errorstring, sizeof(errorstring));
+      getErrorText((char *)errorstring, sizeof(errorstring));
       debug(1, "try_to_open_pipe -- error %d (\"%s\") getting flags of pipe: \"%s\".", errno,
             (char *)errorstring, pathname);
     } else {
       flags = fcntl(fdis, F_SETFL, flags & ~O_NONBLOCK);
       if (flags == -1) {
         char errorstring[1024];
-        strerror_r(errno, (char *)errorstring, sizeof(errorstring));
+        getErrorText((char *)errorstring, sizeof(errorstring));
         debug(1, "try_to_open_pipe -- error %d (\"%s\") unsetting NONBLOCK of pipe: \"%s\".", errno,
               (char *)errorstring, pathname);
       }
@@ -1656,7 +1809,7 @@ void sps_nanosleep(const time_t sec, const long nanosec) {
     rem = req;
   } while ((result == -1) && (errno == EINTR));
   if (result == -1)
-    debug(1, "Error in sps_nanosleep of %d sec and %ld nanoseconds: %d.", sec, nanosec, errno);
+    debug(1, "Error in sps_nanosleep of %" PRIdMAX " sec and %ld nanoseconds: %d.", (intmax_t)sec, nanosec, errno);
 }
 
 // Mac OS X doesn't have pthread_mutex_timedlock
@@ -1705,7 +1858,7 @@ int sps_pthread_mutex_timedlock(pthread_mutex_t *mutex, useconds_t dally_time) {
 
 int _debug_mutex_lock(pthread_mutex_t *mutex, useconds_t dally_time, const char *mutexname,
                       const char *filename, const int line, int debuglevel) {
-  if ((debuglevel > debuglev) || (debuglevel == 0))
+  if ((debuglevel > debug_level()) || (debuglevel == 0))
     return pthread_mutex_lock(mutex);
   int oldState;
   pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);
@@ -1730,7 +1883,7 @@ int _debug_mutex_lock(pthread_mutex_t *mutex, useconds_t dally_time, const char 
 
 int _debug_mutex_unlock(pthread_mutex_t *mutex, const char *mutexname, const char *filename,
                         const int line, int debuglevel) {
-  if ((debuglevel > debuglev) || (debuglevel == 0))
+  if ((debuglevel > debug_level()) || (debuglevel == 0))
     return pthread_mutex_unlock(mutex);
   int oldState;
   pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);
@@ -1740,16 +1893,24 @@ int _debug_mutex_unlock(pthread_mutex_t *mutex, const char *mutexname, const cha
   snprintf(dstring, sizeof(dstring), "%s:%d", filename, line);
   debug(debuglevel, "mutex_unlock \"%s\" at \"%s\".", mutexname, dstring);
   int r = pthread_mutex_unlock(mutex);
-  if ((debuglevel != 0) && (r != 0))
-    debug(1, "error %d: \"%s\" unlocking mutex \"%s\" at \"%s\".", r,
-          strerror_r(r, errstr, sizeof(errstr)), mutexname, dstring);
+  if ((debuglevel != 0) && (r != 0)) {
+    if (strerror_r(r, errstr, sizeof(errstr)) == 0) {
+      debug(1, "error %d: \"%s\" unlocking mutex \"%s\" at \"%s\".", r, errstr, mutexname, dstring);
+    } else {
+      debug(1, "error %d: unlocking mutex \"%s\" at \"%s\".", r,  mutexname, dstring);    
+    }
+  }
   pthread_setcancelstate(oldState, NULL);
   return r;
 }
 
 void malloc_cleanup(void *arg) {
-  // debug(1, "malloc cleanup freeing %" PRIxPTR ".", arg);
-  free(arg);
+  // the address of the malloc variable is passed in case a realloc is done as some time
+  // debug(1, "malloc cleanup called.");
+  void **allocation = arg;
+  void *ref = *allocation;
+  if (ref != NULL)
+    free(ref);
 }
 
 #ifdef CONFIG_AIRPLAY_2
@@ -1761,7 +1922,8 @@ void plist_cleanup(void *arg) {
 
 void socket_cleanup(void *arg) {
   intptr_t fdp = (intptr_t)arg;
-  debug(3, "socket_cleanup called for socket: %" PRIdPTR ".", fdp);
+  int soc = fdp;
+  debug(3, "socket_cleanup called for socket: %d.", soc);
   close(fdp);
 }
 
@@ -1777,9 +1939,9 @@ void mutex_cleanup(void *arg) {
   pthread_mutex_destroy(mutex);
 }
 
-void mutex_unlock(void *arg) { pthread_mutex_unlock((pthread_mutex_t *)arg); }
-
 void rwlock_unlock(void *arg) { pthread_rwlock_unlock((pthread_rwlock_t *)arg); }
+
+void mutex_unlock(void *arg) { pthread_mutex_unlock((pthread_mutex_t *)arg); }
 
 void thread_cleanup(void *arg) {
   debug(3, "thread_cleanup called.");
@@ -1811,6 +1973,11 @@ char *get_version_string() {
 #endif
 #ifdef CONFIG_APPLE_ALAC
     strcat(version_string, "-alac");
+#endif
+#ifndef CONFIG_AIRPLAY_2
+#ifdef CONFIG_FFMPEG
+    strcat(version_string, "-FFmpeg");
+#endif
 #endif
 #ifdef CONFIG_LIBDAEMON
     strcat(version_string, "-libdaemon");
@@ -1848,11 +2015,11 @@ char *get_version_string() {
 #ifdef CONFIG_AO
     strcat(version_string, "-ao");
 #endif
-#ifdef CONFIG_PA
-    strcat(version_string, "-pa");
+#ifdef CONFIG_PULSEAUDIO
+    strcat(version_string, "-PulseAudio");
 #endif
-#ifdef CONFIG_PW
-    strcat(version_string, "-pw");
+#ifdef CONFIG_PIPEWIRE
+    strcat(version_string, "-PipeWire");
 #endif
 #ifdef CONFIG_SOUNDIO
     strcat(version_string, "-soundio");
@@ -1890,161 +2057,176 @@ char *get_version_string() {
   return version_string;
 }
 
-int64_t generate_zero_frames(char *outp, size_t number_of_frames, sps_format_t format,
-                             int with_dither, int64_t random_number_in) {
-  // return the last random number used
-  // assuming the buffer has been assigned
-
-  // add a TPDF dither -- see
-  // http://educypedia.karadimov.info/library/DitherExplained.pdf
-  // and the discussion around https://www.hydrogenaud.io/forums/index.php?showtopic=16963&st=25
-
-  // I think, for a 32 --> 16 bits, the range of
-  // random numbers needs to be from -2^16 to 2^16, i.e. from -65536 to 65536 inclusive, not from
-  // -32768 to +32767
-
-  // Actually, what would be generated here is from -65535 to 65535, i.e. one less on the limits.
-
-  // See the original paper at
-  // http://www.ece.rochester.edu/courses/ECE472/resources/Papers/Lipshitz_1992.pdf
-  // by Lipshitz, Wannamaker and Vanderkooy, 1992.
-
-  int64_t dither_mask = 0;
-  switch (format) {
-  case SPS_FORMAT_S32:
-  case SPS_FORMAT_S32_LE:
-  case SPS_FORMAT_S32_BE:
-    dither_mask = (int64_t)1 << (64 - 32);
-    break;
-  case SPS_FORMAT_S24:
-  case SPS_FORMAT_S24_LE:
-  case SPS_FORMAT_S24_BE:
-  case SPS_FORMAT_S24_3LE:
-  case SPS_FORMAT_S24_3BE:
-    dither_mask = (int64_t)1 << (64 - 24);
-    break;
-  case SPS_FORMAT_S16:
-  case SPS_FORMAT_S16_LE:
-  case SPS_FORMAT_S16_BE:
-    dither_mask = (int64_t)1 << (64 - 16);
-    break;
-  case SPS_FORMAT_S8:
-  case SPS_FORMAT_U8:
-    dither_mask = (int64_t)1 << (64 - 8);
-    break;
-  case SPS_FORMAT_UNKNOWN:
-    die("Unexpected SPS_FORMAT_UNKNOWN while calculating dither mask.");
-    break;
-  case SPS_FORMAT_AUTO:
-    die("Unexpected SPS_FORMAT_AUTO while calculating dither mask.");
-    break;
-  case SPS_FORMAT_INVALID:
-    die("Unexpected SPS_FORMAT_INVALID while calculating dither mask.");
-    break;
-  }
-  dither_mask -= 1;
-
+int64_t generate_zero_frames(char *outp, size_t number_of_frames, int with_dither,
+                             int64_t random_number_in, uint32_t encoded_output_format) {
   int64_t previous_random_number = random_number_in;
-  char *p = outp;
-  size_t sample_number;
-  r64_lock; // the random number generator is not thread safe, so we need to lock it while using it
-  for (sample_number = 0; sample_number < number_of_frames * 2; sample_number++) {
+  if (encoded_output_format != 0) {
+    unsigned int channels = CHANNELS_FROM_ENCODED_FORMAT(encoded_output_format);
+    sps_format_t format = (sps_format_t)FORMAT_FROM_ENCODED_FORMAT(encoded_output_format);
+    // return the last random number used
+    // assuming the buffer has been assigned
 
-    int64_t hyper_sample = 0;
-    int64_t r = r64i();
+    // add a TPDF dither -- see
+    // http://educypedia.karadimov.info/library/DitherExplained.pdf
+    // and the discussion around https://www.hydrogenaud.io/forums/index.php?showtopic=16963&st=25
 
-    int64_t tpdf = (r & dither_mask) - (previous_random_number & dither_mask);
+    // I think, for a 32 --> 16 bits, the range of
+    // random numbers needs to be from -2^16 to 2^16, i.e. from -65536 to 65536 inclusive, not from
+    // -32768 to +32767
 
-    // add dither if permitted -- no need to check for clipping, as the sample is, uh, zero
+    // Actually, what would be generated here is from -65535 to 65535, i.e. one less on the limits.
 
-    if (with_dither != 0)
-      hyper_sample += tpdf;
+    // See the original paper at
+    // http://www.ece.rochester.edu/courses/ECE472/resources/Papers/Lipshitz_1992.pdf
+    // by Lipshitz, Wannamaker and Vanderkooy, 1992.
 
-    // move the result to the desired position in the int64_t
-    char *op = p;
-    int sample_length; // this is the length of the sample
-
+    int64_t dither_mask = 0;
     switch (format) {
     case SPS_FORMAT_S32:
-      hyper_sample >>= (64 - 32);
-      *(int32_t *)op = hyper_sample;
-      sample_length = 4;
-      break;
     case SPS_FORMAT_S32_LE:
-      *op++ = (uint8_t)(hyper_sample >> (64 - 32));      // 32 bits, ls byte
-      *op++ = (uint8_t)(hyper_sample >> (64 - 32 + 8));  // 32 bits, less significant middle byte
-      *op++ = (uint8_t)(hyper_sample >> (64 - 32 + 16)); // 32 bits, more significant middle byte
-      *op = (uint8_t)(hyper_sample >> (64 - 32 + 24));   // 32 bits, ms byte
-      sample_length = 4;
-      break;
     case SPS_FORMAT_S32_BE:
-      *op++ = (uint8_t)(hyper_sample >> (64 - 32 + 24)); // 32 bits, ms byte
-      *op++ = (uint8_t)(hyper_sample >> (64 - 32 + 16)); // 32 bits, more significant middle byte
-      *op++ = (uint8_t)(hyper_sample >> (64 - 32 + 8));  // 32 bits, less significant middle byte
-      *op = (uint8_t)(hyper_sample >> (64 - 32));        // 32 bits, ls byte
-      sample_length = 4;
-      break;
-    case SPS_FORMAT_S24_3LE:
-      *op++ = (uint8_t)(hyper_sample >> (64 - 24));     // 24 bits, ls byte
-      *op++ = (uint8_t)(hyper_sample >> (64 - 24 + 8)); // 24 bits, middle byte
-      *op = (uint8_t)(hyper_sample >> (64 - 24 + 16));  // 24 bits, ms byte
-      sample_length = 3;
-      break;
-    case SPS_FORMAT_S24_3BE:
-      *op++ = (uint8_t)(hyper_sample >> (64 - 24 + 16)); // 24 bits, ms byte
-      *op++ = (uint8_t)(hyper_sample >> (64 - 24 + 8));  // 24 bits, middle byte
-      *op = (uint8_t)(hyper_sample >> (64 - 24));        // 24 bits, ls byte
-      sample_length = 3;
+      dither_mask = (int64_t)1 << (64 - 32);
       break;
     case SPS_FORMAT_S24:
-      hyper_sample >>= (64 - 24);
-      *(int32_t *)op = hyper_sample;
-      sample_length = 4;
-      break;
     case SPS_FORMAT_S24_LE:
-      *op++ = (uint8_t)(hyper_sample >> (64 - 24));      // 24 bits, ls byte
-      *op++ = (uint8_t)(hyper_sample >> (64 - 24 + 8));  // 24 bits, middle byte
-      *op++ = (uint8_t)(hyper_sample >> (64 - 24 + 16)); // 24 bits, ms byte
-      *op = 0;
-      sample_length = 4;
-      break;
     case SPS_FORMAT_S24_BE:
-      *op++ = 0;
-      *op++ = (uint8_t)(hyper_sample >> (64 - 24 + 16)); // 24 bits, ms byte
-      *op++ = (uint8_t)(hyper_sample >> (64 - 24 + 8));  // 24 bits, middle byte
-      *op = (uint8_t)(hyper_sample >> (64 - 24));        // 24 bits, ls byte
-      sample_length = 4;
-      break;
-    case SPS_FORMAT_S16_LE:
-      *op++ = (uint8_t)(hyper_sample >> (64 - 16));
-      *op++ = (uint8_t)(hyper_sample >> (64 - 16 + 8)); // 16 bits, ms byte
-      sample_length = 2;
-      break;
-    case SPS_FORMAT_S16_BE:
-      *op++ = (uint8_t)(hyper_sample >> (64 - 16 + 8)); // 16 bits, ms byte
-      *op = (uint8_t)(hyper_sample >> (64 - 16));
-      sample_length = 2;
+    case SPS_FORMAT_S24_3LE:
+    case SPS_FORMAT_S24_3BE:
+      dither_mask = (int64_t)1 << (64 - 24);
       break;
     case SPS_FORMAT_S16:
-      *(int16_t *)op = (int16_t)(hyper_sample >> (64 - 16));
-      sample_length = 2;
+    case SPS_FORMAT_S16_LE:
+    case SPS_FORMAT_S16_BE:
+      dither_mask = (int64_t)1 << (64 - 16);
       break;
     case SPS_FORMAT_S8:
-      *op = (int8_t)(hyper_sample >> (64 - 8));
-      sample_length = 1;
-      break;
     case SPS_FORMAT_U8:
-      *op = 128 + (uint8_t)(hyper_sample >> (64 - 8));
-      sample_length = 1;
+      dither_mask = (int64_t)1 << (64 - 8);
       break;
-    default:
-      sample_length = 0; // stop a compiler warning
-      die("Unexpected SPS_FORMAT_* with index %d while outputting silence", format);
+    case SPS_FORMAT_UNKNOWN:
+      die("Unexpected SPS_FORMAT_UNKNOWN while calculating dither mask.");
+      break;
+    case SPS_FORMAT_AUTO:
+      die("Unexpected SPS_FORMAT_AUTO while calculating dither mask.");
+      break;
+    case SPS_FORMAT_INVALID:
+      die("Unexpected SPS_FORMAT_INVALID while calculating dither mask.");
+      break;
     }
-    p += sample_length;
-    previous_random_number = r;
+    dither_mask -= 1;
+
+    char *p = outp;
+    size_t sample_number;
+    r64_lock; // the random number generator is not thread safe, so we need to lock it while using
+              // it
+    for (sample_number = 0; sample_number < number_of_frames * channels; sample_number++) {
+
+      int64_t hyper_sample = 0;
+      int64_t r = r64i();
+
+      int64_t tpdf = (r & dither_mask) - (previous_random_number & dither_mask);
+
+      // add dither if permitted -- no need to check for clipping, as the sample is, uh, zero
+
+      if (with_dither != 0)
+        hyper_sample += tpdf;
+
+      /*
+            {
+              // hack to generate low level white noise instead of adding dither
+              hyper_sample = r;
+              hyper_sample = hyper_sample / (1 << 8); // keep the sign
+            }
+      */
+
+      // move the result to the desired position in the int64_t
+      char *op = p;
+      int sample_length; // this is the length of the sample
+
+      switch (format) {
+      case SPS_FORMAT_S32:
+        hyper_sample >>= (64 - 32);
+        *(int32_t *)op = hyper_sample;
+        sample_length = 4;
+        break;
+      case SPS_FORMAT_S32_LE:
+        *op++ = (uint8_t)(hyper_sample >> (64 - 32));      // 32 bits, ls byte
+        *op++ = (uint8_t)(hyper_sample >> (64 - 32 + 8));  // 32 bits, less significant middle byte
+        *op++ = (uint8_t)(hyper_sample >> (64 - 32 + 16)); // 32 bits, more significant middle byte
+        *op = (uint8_t)(hyper_sample >> (64 - 32 + 24));   // 32 bits, ms byte
+        sample_length = 4;
+        break;
+      case SPS_FORMAT_S32_BE:
+        *op++ = (uint8_t)(hyper_sample >> (64 - 32 + 24)); // 32 bits, ms byte
+        *op++ = (uint8_t)(hyper_sample >> (64 - 32 + 16)); // 32 bits, more significant middle byte
+        *op++ = (uint8_t)(hyper_sample >> (64 - 32 + 8));  // 32 bits, less significant middle byte
+        *op = (uint8_t)(hyper_sample >> (64 - 32));        // 32 bits, ls byte
+        sample_length = 4;
+        break;
+      case SPS_FORMAT_S24_3LE:
+        *op++ = (uint8_t)(hyper_sample >> (64 - 24));     // 24 bits, ls byte
+        *op++ = (uint8_t)(hyper_sample >> (64 - 24 + 8)); // 24 bits, middle byte
+        *op = (uint8_t)(hyper_sample >> (64 - 24 + 16));  // 24 bits, ms byte
+        sample_length = 3;
+        break;
+      case SPS_FORMAT_S24_3BE:
+        *op++ = (uint8_t)(hyper_sample >> (64 - 24 + 16)); // 24 bits, ms byte
+        *op++ = (uint8_t)(hyper_sample >> (64 - 24 + 8));  // 24 bits, middle byte
+        *op = (uint8_t)(hyper_sample >> (64 - 24));        // 24 bits, ls byte
+        sample_length = 3;
+        break;
+      case SPS_FORMAT_S24:
+        hyper_sample >>= (64 - 24);
+        *(int32_t *)op = hyper_sample;
+        sample_length = 4;
+        break;
+      case SPS_FORMAT_S24_LE:
+        *op++ = (uint8_t)(hyper_sample >> (64 - 24));      // 24 bits, ls byte
+        *op++ = (uint8_t)(hyper_sample >> (64 - 24 + 8));  // 24 bits, middle byte
+        *op++ = (uint8_t)(hyper_sample >> (64 - 24 + 16)); // 24 bits, ms byte
+        *op = 0;
+        sample_length = 4;
+        break;
+      case SPS_FORMAT_S24_BE:
+        *op++ = 0;
+        *op++ = (uint8_t)(hyper_sample >> (64 - 24 + 16)); // 24 bits, ms byte
+        *op++ = (uint8_t)(hyper_sample >> (64 - 24 + 8));  // 24 bits, middle byte
+        *op = (uint8_t)(hyper_sample >> (64 - 24));        // 24 bits, ls byte
+        sample_length = 4;
+        break;
+      case SPS_FORMAT_S16_LE:
+        *op++ = (uint8_t)(hyper_sample >> (64 - 16));
+        *op++ = (uint8_t)(hyper_sample >> (64 - 16 + 8)); // 16 bits, ms byte
+        sample_length = 2;
+        break;
+      case SPS_FORMAT_S16_BE:
+        *op++ = (uint8_t)(hyper_sample >> (64 - 16 + 8)); // 16 bits, ms byte
+        *op = (uint8_t)(hyper_sample >> (64 - 16));
+        sample_length = 2;
+        break;
+      case SPS_FORMAT_S16:
+        *(int16_t *)op = (int16_t)(hyper_sample >> (64 - 16));
+        sample_length = 2;
+        break;
+      case SPS_FORMAT_S8:
+        *op = (int8_t)(hyper_sample >> (64 - 8));
+        sample_length = 1;
+        break;
+      case SPS_FORMAT_U8:
+        *op = 128 + (uint8_t)(hyper_sample >> (64 - 8));
+        sample_length = 1;
+        break;
+      default:
+        sample_length = 0; // stop a compiler warning
+        die("Unexpected SPS_FORMAT_* with index %d while outputting silence", format);
+      }
+      p += sample_length;
+      previous_random_number = r;
+    }
+    r64_unlock;
+  } else {
+    debug(1, "No output configuration!");
   }
-  r64_unlock;
   return previous_random_number;
 }
 
@@ -2121,17 +2303,6 @@ char *debug_malloc_hex_cstring(void *packet, size_t nread) {
   return response;
 }
 
-// the difference between two unsigned 32-bit modulo values as a signed 32-bit result
-// now, if the two numbers are constrained to be within 2^(n-1)-1 of one another,
-// we can use their as a signed 2^n bit number which will be positive
-// if the first number is the same or "after" the second, and
-// negative otherwise
-
-int32_t mod32Difference(uint32_t a, uint32_t b) {
-  int32_t result = a - b;
-  return result;
-}
-
 int get_device_id(uint8_t *id, int int_length) {
 
   uint64_t wait_time = 10000000000L; // wait up to this (ns) long to get a MAC address
@@ -2159,7 +2330,12 @@ int get_device_id(uint8_t *id, int int_length) {
 #ifdef AF_PACKET
         if ((ifa->ifa_addr) && (ifa->ifa_addr->sa_family == AF_PACKET)) {
           struct sockaddr_ll *s = (struct sockaddr_ll *)ifa->ifa_addr;
-          if ((strcmp(ifa->ifa_name, "lo") != 0)) {
+          if (
+              ((ifa->ifa_flags & IFF_UP) != 0) && 
+              ((ifa->ifa_flags & IFF_RUNNING) != 0) && 
+              ((ifa->ifa_flags & IFF_LOOPBACK) == 0) && 
+              (ifa->ifa_addr != 0)
+            ) {
             found = 1;
             response = 0;
             for (i = 0; ((i < s->sll_halen) && (i < int_length)); i++) {
@@ -2195,3 +2371,328 @@ int get_device_id(uint8_t *id, int int_length) {
     warn("Can't create a device ID -- no valid MAC address can be found.");
   return response;
 }
+
+char *bnprintf(char *buffer, ssize_t max_bytes, const char *format, ...) {
+  int oldState;
+  pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);
+  va_list args;
+  va_start(args, format);
+  vsnprintf(buffer, max_bytes, format, args);
+  va_end(args);
+  pthread_setcancelstate(oldState, NULL);
+  // debug(1,"bnprintf string is: \"%s\"", buffer);
+  return buffer;
+}
+
+int do_pthread_setname(pthread_t *restrict thread, const char *format, ...) {
+#ifdef COMPILE_FOR_OSX
+  return 0;
+#else
+  // pthread_setname_np/2 not defined in macOS
+  char actual_name[16];
+  va_list args;
+  va_start(args, format);
+  vsnprintf(actual_name, sizeof(actual_name), format, args);
+  va_end(args);
+  return pthread_setname_np(*thread, actual_name);
+#endif
+}
+
+int named_pthread_create(pthread_t *thread, const pthread_attr_t *attr,
+                         void *(*start_routine)(void *), void *arg, const char *format, ...) {
+  char actual_name[16];
+  va_list args;
+  va_start(args, format);
+  vsnprintf(actual_name, sizeof(actual_name), format, args);
+  va_end(args);
+  int response = pthread_create(thread, attr, start_routine, arg);
+  if (response != 0) {
+    debug(1, "error creating thread \"%s\"", actual_name);
+  }
+#ifndef COMPILE_FOR_OSX
+  else {
+    pthread_setname_np(*thread, actual_name);
+  }
+#endif
+  return response;
+}
+
+int named_pthread_create_with_priority(pthread_t *thread, int priority,
+                                       void *(*start_routine)(void *), void *arg,
+                                       const char *format, ...) {
+
+  // if this gets a permissions error, it'll try to create a thread without any special
+  // priority or scheduling
+
+  static int failed_to_set_rt = 0;
+
+  struct sched_param param;
+  pthread_attr_t attr;
+  int ret = 0;
+
+  char actual_name[16];
+  va_list args;
+  va_start(args, format);
+  vsnprintf(actual_name, sizeof(actual_name), format, args);
+  va_end(args);
+
+  /* Initialize pthread attributes (default values) */
+  ret = pthread_attr_init(&attr);
+  if (ret == 0) {
+    /* Set scheduler policy and priority of pthread */
+    ret = pthread_attr_setschedpolicy(&attr, SCHED_FIFO);
+    if (ret == 0) {
+      param.sched_priority = priority;
+      ret = pthread_attr_setschedparam(&attr, &param);
+      if (ret == 0) {
+        /* Use scheduling parameters of attr */
+        ret = pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED);
+        if (ret != 0) {
+          debug(1, "pthread setinheritsched failed");
+        }
+      } else {
+        debug(1, "pthread setschedparam failed");
+      }
+    } else {
+      debug(1, "pthread setschedpolicy failed");
+    }
+  } else {
+    debug(1, "init pthread attributes failed");
+  }
+  // ret == 0 if creating and setting up the attributes was successful
+  if (ret == 0) {
+    ret = pthread_create(thread, &attr, start_routine, arg);
+    pthread_attr_destroy(&attr);
+  }
+  // ret will be non-zero if there was a problem creating the attribute or creating the prioritized
+  // thread
+  if (ret != 0) {
+    ret = pthread_create(thread, NULL, start_routine, arg);
+    if (failed_to_set_rt == 0) {
+      inform("Can not set realtime properties of a thread.");
+      failed_to_set_rt = 1;
+    }
+  }
+#ifndef COMPILE_FOR_OSX
+  if (ret == 0) {
+    pthread_setname_np(*thread, actual_name);
+  } else {
+    die("named_pthread_create_with_priority failed with error %d", ret);
+  }
+#endif
+  return ret;
+}
+
+#ifdef CONFIG_CONVOLUTION
+/* Parse comma-separated filenames with optional quotes
+ * Returns array of ir_file_info_t structs (caller must free both array and filenames)
+ * count is set to number of filenames found
+ * Returns NULL on error
+ */
+ir_file_info_t *parse_ir_filenames(const char *input, unsigned int *file_count) {
+  if (!input || !file_count)
+    return NULL;
+
+  *file_count = 0;
+  unsigned int capacity = 10;
+  ir_file_info_t *files = malloc(capacity * sizeof(ir_file_info_t));
+  if (!files)
+    return NULL;
+
+  const char *p = input;
+
+  while (*p) {
+    /* Skip whitespace before filename */
+    while (isspace((unsigned char)*p))
+      p++;
+    if (!*p)
+      break;
+
+    /* Check if we need to resize array */
+    if (*file_count >= capacity) {
+      capacity *= 2;
+      ir_file_info_t *temp = realloc(files, capacity * sizeof(ir_file_info_t));
+      if (!temp) {
+        for (unsigned int i = 0; i < *file_count; i++)
+          free(files[i].filename);
+        free(files);
+        return NULL;
+      }
+      files = temp;
+    }
+
+    /* Parse one filename */
+    char quote_char = 0;
+    char *buffer = NULL;
+    size_t buf_len = 0;
+    size_t buf_cap = 64;
+
+    if (*p == '"' || *p == '\'') {
+      /* Quoted filename */
+      quote_char = *p;
+      p++;
+
+      buffer = malloc(buf_cap);
+      if (!buffer) {
+        for (unsigned int i = 0; i < *file_count; i++)
+          free(files[i].filename);
+        free(files);
+        return NULL;
+      }
+
+      /* Parse quoted string with escape handling */
+      while (*p && *p != quote_char) {
+        if (*p == '\\' && *(p + 1)) {
+          /* Escape sequence */
+          p++;
+          if (buf_len >= buf_cap - 1) {
+            buf_cap *= 2;
+            char *temp = realloc(buffer, buf_cap);
+            if (!temp) {
+              free(buffer);
+              for (unsigned int i = 0; i < *file_count; i++)
+                free(files[i].filename);
+              free(files);
+              return NULL;
+            }
+            buffer = temp;
+          }
+          buffer[buf_len++] = *p++;
+        } else {
+          if (buf_len >= buf_cap - 1) {
+            buf_cap *= 2;
+            char *temp = realloc(buffer, buf_cap);
+            if (!temp) {
+              free(buffer);
+              for (unsigned int i = 0; i < *file_count; i++)
+                free(files[i].filename);
+              free(files);
+              return NULL;
+            }
+            buffer = temp;
+          }
+          buffer[buf_len++] = *p++;
+        }
+      }
+      buffer[buf_len] = '\0';
+      if (*p == quote_char)
+        p++; /* Skip closing quote */
+
+      files[*file_count].samplerate = 0;
+      // files[*file_count].evaluation = ev_unchecked;
+      files[*file_count].filename = buffer;
+      (*file_count)++;
+    } else {
+      /* Unquoted filename - read until comma or end, handle escapes */
+      buffer = malloc(buf_cap);
+      if (!buffer) {
+        for (unsigned int i = 0; i < *file_count; i++)
+          free(files[i].filename);
+        free(files);
+        return NULL;
+      }
+
+      while (*p && *p != ',') {
+        if (*p == '\\' && *(p + 1)) {
+          /* Escape sequence */
+          p++;
+          if (buf_len >= buf_cap - 1) {
+            buf_cap *= 2;
+            char *temp = realloc(buffer, buf_cap);
+            if (!temp) {
+              free(buffer);
+              for (unsigned int i = 0; i < *file_count; i++)
+                free(files[i].filename);
+              free(files);
+              return NULL;
+            }
+            buffer = temp;
+          }
+          buffer[buf_len++] = *p++;
+        } else {
+          if (buf_len >= buf_cap - 1) {
+            buf_cap *= 2;
+            char *temp = realloc(buffer, buf_cap);
+            if (!temp) {
+              free(buffer);
+              for (unsigned int i = 0; i < *file_count; i++)
+                free(files[i].filename);
+              free(files);
+              return NULL;
+            }
+            buffer = temp;
+          }
+          buffer[buf_len++] = *p++;
+        }
+      }
+
+      /* Trim trailing whitespace */
+      while (buf_len > 0 && isspace((unsigned char)buffer[buf_len - 1])) {
+        buf_len--;
+      }
+      buffer[buf_len] = '\0';
+
+      files[*file_count].samplerate = 0;
+      files[*file_count].channels = 0;
+      // files[*file_count].evaluation = ev_unchecked;
+      files[*file_count].filename = buffer;
+      (*file_count)++;
+    }
+
+    /* Skip comma and whitespace */
+    while (isspace((unsigned char)*p))
+      p++;
+    if (*p == ',') {
+      p++;
+      while (isspace((unsigned char)*p))
+        p++;
+    }
+  }
+
+  return files;
+}
+
+/* Do a quick sanity check on the files -- see if they can be opened as sound files */
+void sanity_check_ir_files(const int option_print_level, ir_file_info_t *files,
+                           unsigned int count) {
+  if (files != NULL) {
+    debug(option_print_level, "convolution impulse response files: %d found.", count);
+    for (unsigned int i = 0; i < count; i++) {
+
+      SF_INFO sfinfo = {};
+      // sfinfo.format = 0;
+
+      SNDFILE *file = sf_open(files[i].filename, SFM_READ, &sfinfo);
+      if (file) {
+        // files[i].evaluation = ev_okay;
+        files[i].samplerate = sfinfo.samplerate;
+        files[i].channels = sfinfo.channels;
+        debug(option_print_level,
+              "convolution impulse response file \"%s\": %" PRId64
+              " frames (%.1f seconds), %d channel%s at %d frames per second.",
+              files[i].filename, sfinfo.frames, (float)sfinfo.frames / sfinfo.samplerate,
+              sfinfo.channels, sfinfo.channels == 1 ? "" : "s", sfinfo.samplerate);
+        sf_close(file);
+      } else {
+        // files[i].evaluation = ev_invalid;
+        debug(option_print_level, "convolution impulse response file \"%s\" %s", files[i].filename,
+              sf_strerror(NULL));
+        warn("Error accessing the convolution impulse response file \"%s\". %s", files[i].filename,
+             sf_strerror(NULL));
+      }
+    }
+  } else {
+    debug(option_print_level, "no convolution impulse response files found.");
+  }
+}
+
+/* Free the array returned by parse_filenames */
+void free_ir_filenames(ir_file_info_t *files, unsigned int file_count) {
+  if (!files)
+    return;
+  for (unsigned int i = 0; i < file_count; i++) {
+    free(files[i].filename);
+  }
+  free(files);
+}
+#endif

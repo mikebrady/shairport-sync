@@ -1,7 +1,7 @@
 /*
  * Embedded Avahi client. This file is part of Shairport.
  * Copyright (c) James Laird 2013
- * Additions for metadata and for detecting IPv6 Copyright (c) Mike Brady 2015--2019
+ * Additions for maintenance, metadata, AirPlay 2 and IPv6 Copyright (c) Mike Brady 2015--2025
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -86,7 +86,12 @@ static void resolve_callback(AvahiServiceResolver *r, AVAHI_GCC_UNUSED AvahiIfIn
                              AVAHI_GCC_UNUSED AvahiProtocol protocol, AvahiResolverEvent event,
                              const char *name, const char *type, const char *domain,
                              __attribute__((unused)) const char *host_name,
-                             __attribute__((unused)) const AvahiAddress *address, uint16_t port,
+#ifdef CONFIG_METADATA
+                             __attribute__((unused)) const AvahiAddress *address, uint16_t lport,
+#else
+                             __attribute__((unused)) const AvahiAddress *address,
+                             __attribute__((unused)) uint16_t lport,
+#endif
                              __attribute__((unused)) AvahiStringList *txt,
                              __attribute__((unused)) AvahiLookupResultFlags flags, void *userdata) {
   // debug(1,"resolve_callback, event %d.", event);
@@ -97,7 +102,7 @@ static void resolve_callback(AvahiServiceResolver *r, AVAHI_GCC_UNUSED AvahiIfIn
   /* Called whenever a service has been resolved successfully or timed out */
   switch (event) {
   case AVAHI_RESOLVER_FAILURE:
-    debug(2, "(Resolver) Failed to resolve service '%s' of type '%s' in domain '%s': %s.", name,
+    debug(3, "(Resolver) Failed to resolve service '%s' of type '%s' in domain '%s': %s.", name,
           type, domain, avahi_strerror(avahi_client_errno(avahi_service_resolver_get_client(r))));
     break;
   case AVAHI_RESOLVER_FOUND: {
@@ -115,10 +120,9 @@ static void resolve_callback(AvahiServiceResolver *r, AVAHI_GCC_UNUSED AvahiIfIn
           dacp_monitor_port_update_callback(dacpid, port);
 #endif
 #ifdef CONFIG_METADATA
-          char portstring[20];
-          memset(portstring, 0, sizeof(portstring));
-          snprintf(portstring, sizeof(portstring), "%u", port);
-          send_ssnc_metadata('dapo', portstring, strlen(portstring), 0);
+          uint32_t nport = lport;
+          nport = htonl(nport);
+          send_ssnc_metadata('dapo', (const char *)&nport, sizeof(nport), 0);
 #endif
         }
       } else {
@@ -140,7 +144,7 @@ static void browse_callback(AvahiServiceBrowser *b, AvahiIfIndex interface, Avah
   /* Called whenever a new services becomes available on the LAN or is removed from the LAN */
   switch (event) {
   case AVAHI_BROWSER_FAILURE:
-    warn("avahi: browser failure.",
+    warn("avahi: browser failure: %s.",
          avahi_strerror(avahi_client_errno(avahi_service_browser_get_client(b))));
     avahi_threaded_poll_quit(tpoll);
     break;
@@ -157,7 +161,7 @@ static void browse_callback(AvahiServiceBrowser *b, AvahiIfIndex interface, Avah
             avahi_strerror(avahi_client_errno(client)));
     break;
   case AVAHI_BROWSER_REMOVE:
-    debug(2, "(Browser) REMOVE: service '%s' of type '%s' in domain '%s'.", name, type, domain);
+    debug(3, "(Browser) REMOVE: service '%s' of type '%s' in domain '%s'.", name, type, domain);
 #ifdef CONFIG_DACP_CLIENT
     dacp_browser_struct *dbs = (dacp_browser_struct *)userdata;
     char *dacpid = strstr(name, "iTunes_Ctrl_");
@@ -196,7 +200,11 @@ static void egroup_callback(AvahiEntryGroup *g, AvahiEntryGroupState state,
 
     /* A service name collision with a remote service
      * happened. Let's pick a new name */
-    debug(1, "avahi name collision -- look for another");
+    if (service_name)
+      debug(1, "avahi name collision with \"%s\" -- look for another", service_name);
+    else
+      debug(1, "avahi name collision (name not available) -- look for another");
+
     n = avahi_alternative_service_name(service_name);
     if (service_name)
       avahi_free(service_name);

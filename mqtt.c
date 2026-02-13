@@ -18,7 +18,6 @@
 
 // this holds the mosquitto client
 struct mosquitto *global_mosq = NULL;
-char *topic = NULL;
 int connected = 0;
 
 // mosquitto logging
@@ -26,16 +25,16 @@ void _cb_log(__attribute__((unused)) struct mosquitto *mosq, __attribute__((unus
              int level, const char *str) {
   switch (level) {
   case MOSQ_LOG_DEBUG:
-    debug(3, str);
+    debug(3, "%s", str);
     break;
   case MOSQ_LOG_INFO:
-    debug(3, str);
+    debug(3, "%s", str);
     break;
   case MOSQ_LOG_NOTICE:
-    debug(3, str);
+    debug(3, "%s", str);
     break;
   case MOSQ_LOG_WARNING:
-    inform(str);
+    inform("%s", str);
     break;
   case MOSQ_LOG_ERR: {
     die("MQTT: Error: %s\n", str);
@@ -55,9 +54,10 @@ void on_message(__attribute__((unused)) struct mosquitto *mosq,
   debug(2, "[MQTT]: received Message on topic %s: %s\n", msg->topic, payload);
 
   // All recognized commands
-  char *commands[] = {"command",    "beginff",       "beginrew",   "mutetoggle", "nextitem",
-                      "previtem",   "pause",         "playpause",  "play",       "stop",
-                      "playresume", "shuffle_songs", "volumedown", "volumeup",   NULL};
+  char *commands[] = {"command",    "beginff",  "beginrew",   "mutetoggle",
+                      "nextitem",   "previtem", "pause",      "playpause",
+                      "play",       "stop",     "playresume", "shuffle_songs",
+                      "volumedown", "volumeup", "disconnect", NULL};
 
   int it = 0;
 
@@ -65,8 +65,14 @@ void on_message(__attribute__((unused)) struct mosquitto *mosq,
   while (commands[it] != NULL) {
     if ((size_t)msg->payloadlen >= strlen(commands[it]) &&
         strncmp(msg->payload, commands[it], strlen(commands[it])) == 0) {
-      debug(2, "[MQTT]: DACP Command: %s\n", commands[it]);
-      send_simple_dacp_command(commands[it]);
+      debug(2, "[MQTT]: Received Recognized Command: %s\n", commands[it]);
+      if (strcmp(commands[it], "disconnect") == 0) {
+        debug(2, "[MQTT]: Disconnect Command: %s\n", commands[it]);
+        release_play_lock(NULL); // stop any current session and don't replace it
+      } else {
+        debug(2, "[MQTT]: DACP Command: %s\n", commands[it]);
+        send_simple_dacp_command(commands[it]);
+      }
       break;
     }
     it++;
@@ -99,126 +105,126 @@ void on_connect(struct mosquitto *mosq, __attribute__((unused)) void *userdata,
 
 // function to send autodiscovery messages for Home Assistant
 void send_autodiscovery_messages(struct mosquitto *mosq) {
-    const char *device_name = config.service_name;
+  const char *device_name = config.service_name;
 #ifdef CONFIG_AIRPLAY_2
-    const char *device_id = config.airplay_device_id ? config.airplay_device_id : config.service_name;
+  const char *device_id = config.airplay_device_id ? config.airplay_device_id : config.service_name;
 #else
-    const char *device_id = config.service_name;
+  const char *device_id = config.service_name;
 #endif
-    const char *device_id_no_colons = str_replace(device_id, ":", "");
-    const char *sw_version = get_version_string();
-    const char *model = "shairport-sync";
-    const char *model_friendly = "Shairport Sync";
-    const char *manufacturer = "Mike Brady";
-    const char *autodiscovery_prefix = (config.mqtt_autodiscovery_prefix != NULL) ?
-        config.mqtt_autodiscovery_prefix : "homeassistant";
+  const char *device_id_no_colons = str_replace(device_id, ":", "");
+  const char *sw_version = get_version_string();
+  const char *model = "shairport-sync";
+  const char *model_friendly = "Shairport Sync";
+  const char *manufacturer = "Mike Brady";
+  const char *autodiscovery_prefix = (config.mqtt_autodiscovery_prefix != NULL)
+                                         ? config.mqtt_autodiscovery_prefix
+                                         : "homeassistant";
 
-    char topic[512];
-    char payload[1280];
-    char device_payload[512];
-    char id_string[128];
+  char topic[512];
+  char payload[1280];
+  char device_payload[512];
+  char id_string[128];
 
-    snprintf(device_payload, sizeof(device_payload),
-        "\"device\": {"
-            "\"identifiers\": [\"%s\"],"
-            "\"name\": \"%s\","
-            "\"model\": \"%s\","
-            "\"sw_version\": \"%s\","
-            "\"manufacturer\": \"%s\""
+  snprintf(device_payload, sizeof(device_payload),
+           "\"device\": {"
+           "\"identifiers\": [\"%s\"],"
+           "\"name\": \"%s\","
+           "\"model\": \"%s\","
+           "\"sw_version\": \"%s\","
+           "\"manufacturer\": \"%s\""
+           "}",
+           device_id, device_name, model_friendly, sw_version, manufacturer);
+
+  // when adding sensors here, be sure to also update sensor_names and icons below!
+  const char *sensors[] = {"artist",
+                           "album",
+                           "title",
+                           "genre",
+                           "format",
+                           "output_format",
+                           "output_frame_rate",
+                           "track_id",
+                           "client_ip",
+                           "client_mac_address",
+                           "client_name",
+                           "client_model",
+                           "client_device_id",
+                           "server_ip",
+                           "volume",
+                           "active",
+                           "playing",
+                           NULL};
+
+  const char *sensor_names[] = {"Artist",
+                                "Album",
+                                "Title",
+                                "Genre",
+                                "Format",
+                                "Output Format",
+                                "Output Frame Rate",
+                                "Track ID",
+                                "Client IP",
+                                "Client MAC Address",
+                                "Client Name",
+                                "Client Model",
+                                "Client Device ID",
+                                "Server IP",
+                                "Volume",
+                                "Active Session",
+                                "Playing"};
+
+  const char *icons[] = {
+      "mdi:account-music",            // artist
+      "mdi:album",                    // album
+      "mdi:music",                    // title
+      "mdi:music-box-multiple",       // genre
+      "mdi:file",                     // format
+      "mdi:file",                     // output format
+      "mdi:file-chart",               // output frame rate
+      "mdi:identifier",               // track ID
+      "mdi:ip",                       // client IP
+      "mdi:hexadecimal",              // client MAC address
+      "mdi:cellphone-text",           // client name
+      "mdi:cellphone-text",           // client model
+      "mdi:hexadecimal",              // client device ID
+      "mdi:ip-network",               // server IP
+      "mdi:volume-high",              // volume
+      "mdi:play-box-multiple",        // active
+      "mdi:play-box-multiple-outline" // playing
+  };
+
+  for (int i = 0; sensors[i] != NULL; i++) {
+    bool is_binary_sensor =
+        (strcmp(sensors[i], "active") == 0 || strcmp(sensors[i], "playing") == 0);
+    bool is_volume_sensor = strcmp(sensors[i], "volume") == 0;
+
+    snprintf(topic, sizeof(topic), "%s/%ssensor/%s_%s/%s/config", autodiscovery_prefix,
+             is_binary_sensor ? "binary_" : "", model, device_id_no_colons, sensors[i]);
+
+    snprintf(id_string, sizeof(id_string), "%s_%s_%s", model, device_name, sensors[i]);
+
+    snprintf(
+        payload, sizeof(payload),
+        "{"
+        "\"name\": \"%s\","
+        "\"state_topic\": \"%s/%s\","
+        "\"icon\": \"%s\","
+        "\"unique_id\": \"%s\","
+        "\"object_id\": \"%s\","
+        "%s%s%s"
         "}",
-        device_id, device_name, model_friendly, sw_version, manufacturer);
+        sensor_names[i], config.mqtt_topic, sensors[i], icons[i], id_string, id_string,
+        is_binary_sensor ? "\"payload_on\": \"1\",\"payload_off\": \"0\"," : "",
+        is_volume_sensor
+            ? "\"value_template\": \"{{ ((value | regex_findall_index("
+              "find='^(.+?),', index=0, ignorecase=False) | float / 30 + 1) * 100) | round(0) }}\","
+              "\"unit_of_measurement\": \"%\","
+            : "",
+        device_payload);
 
-    // when adding sensors here, be sure to also update sensor_names and icons below!
-    const char *sensors[] = {
-        "artist",
-        "album",
-        "title",
-        "genre",
-        "format",
-        "output_format",
-        "output_frame_rate",
-        "track_id",
-        "client_ip",
-        "client_mac_address",
-        "client_name",
-        "client_model",
-        "client_device_id",
-        "server_ip",
-        "volume",
-        "active",
-        "playing",
-        NULL
-    };
-
-    const char *sensor_names[] = {
-        "Artist",
-        "Album",
-        "Title",
-        "Genre",
-        "Format",
-        "Output Format",
-        "Output Frame Rate",
-        "Track ID", 
-        "Client IP",
-        "Client MAC Address",
-        "Client Name",
-        "Client Model",
-        "Client Device ID",
-        "Server IP",
-        "Volume",
-        "Active Session",
-        "Playing"
-    };
-
-    const char *icons[] = {
-        "mdi:account-music", // artist
-        "mdi:album", // album
-        "mdi:music", // title
-        "mdi:music-box-multiple", // genre
-        "mdi:file", // format
-        "mdi:file", // output format
-        "mdi:file-chart", // output frame rate
-        "mdi:identifier", // track ID
-        "mdi:ip", // client IP
-        "mdi:hexadecimal", // client MAC address
-        "mdi:cellphone-text", // client name
-        "mdi:cellphone-text", // client model
-        "mdi:hexadecimal", // client device ID
-        "mdi:ip-network", // server IP
-        "mdi:volume-high", // volume
-        "mdi:play-box-multiple", // active
-        "mdi:play-box-multiple-outline" // playing
-    };
-
-    for (int i = 0; sensors[i] != NULL; i++) {
-        bool is_binary_sensor = (strcmp(sensors[i], "active") == 0 || strcmp(sensors[i], "playing") == 0);
-        bool is_volume_sensor = strcmp(sensors[i], "volume") == 0;
-
-        snprintf(topic, sizeof(topic), "%s/%ssensor/%s_%s/%s/config",
-            autodiscovery_prefix, is_binary_sensor ? "binary_" : "",
-            model, device_id_no_colons, sensors[i]);
-
-        snprintf(id_string, sizeof(id_string), "%s_%s_%s", model, device_name, sensors[i]);
-
-        snprintf(payload, sizeof(payload),
-            "{"
-                "\"name\": \"%s\","
-                "\"state_topic\": \"%s/%s\","
-                "\"icon\": \"%s\","
-                "\"unique_id\": \"%s\","
-                "\"object_id\": \"%s\","
-                "%s%s%s"
-            "}",
-            sensor_names[i], config.mqtt_topic, sensors[i], icons[i], id_string, id_string,
-            is_binary_sensor ? "\"payload_on\": \"1\",\"payload_off\": \"0\"," : "",
-            is_volume_sensor ? "\"value_template\": \"{{ ((value | regex_findall_index("
-                "find='^(.+?),', index=0, ignorecase=False) | float / 30 + 1) * 100) | round(0) }}\","
-                "\"unit_of_measurement\": \"%\"," : "",
-            device_payload);
-
-        mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, true);
-        debug(2, "[MQTT]: published autodiscovery for %s", id_string);
-    }
+    mosquitto_publish(mosq, NULL, topic, strlen(payload), payload, 0, true);
+    debug(2, "[MQTT]: published autodiscovery for %s", id_string);
+  }
 }
 
 // helper function to publish under a topic and automatically append the main topic
@@ -237,7 +243,8 @@ void mqtt_publish(char *topic, char *data_in, uint32_t length_in) {
   debug(2, "[MQTT]: publishing under %s", fulltopic);
 
   int rc;
-  if ((rc = mosquitto_publish(global_mosq, NULL, fulltopic, length, data, 0, 0)) !=
+  if ((rc = mosquitto_publish(global_mosq, NULL, fulltopic, length, data, 0,
+                              config.mqtt_publish_retain)) !=
       MOSQ_ERR_SUCCESS) {
     switch (rc) {
     case MOSQ_ERR_NO_CONN:
@@ -391,7 +398,7 @@ int initialise_mqtt() {
   int keepalive = 60;
   mosquitto_lib_init();
   if (!(global_mosq = mosquitto_new(config.service_name, true, NULL))) {
-    die("[MQTT]: FATAL: Could not create mosquitto object! %d\n", global_mosq);
+    die("[MQTT]: FATAL: Could not create mosquitto object!");
   }
 
   if (config.mqtt_cafile != NULL || config.mqtt_capath != NULL || config.mqtt_certfile != NULL ||

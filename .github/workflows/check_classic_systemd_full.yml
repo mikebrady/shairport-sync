@@ -1,4 +1,4 @@
-name: Classic (without pa, soundio, apple-alac) for systemd, using a build folder.
+name: systemd classic, ffmpeg, alsa, pipewire, build folder.
 
 on:
   workflow_dispatch:
@@ -10,18 +10,18 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4.2.2
+    - uses: actions/checkout@v6.0.2
     - name: Install Dependencies
-      run: sudo apt-get -y --no-install-recommends install xmltoman libpopt-dev libconfig-dev libasound2-dev libao-dev libjack-dev libglib2.0-dev libmosquitto-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev    
+      run: sudo apt-get -y --no-install-recommends install xmltoman libpipewire-0.3-dev libpopt-dev libconfig-dev libasound2-dev libao-dev libjack-dev libglib2.0-dev libmosquitto-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev libavutil-dev libavcodec-dev libavformat-dev
     - name: Configure
       run: |
         mkdir build
         cd build
         autoreconf -i ..
-        ../configure --sysconfdir=/etc --with-alsa --with-ao --with-dummy --with-pipe --with-stdout --with-soxr --with-avahi --with-ssl=openssl --with-systemd --with-dbus-interface --with-mpris-interface --with-mqtt-client
+        ../configure --sysconfdir=/etc --with-ffmpeg --with-alsa --with-pipewire --with-ao --with-dummy --with-pipe --with-stdout --with-soxr --with-avahi --with-ssl=openssl --with-dbus-interface --with-mpris-interface --with-mqtt-client --with-systemd-startup
     - name: Make
       run: |
         cd build

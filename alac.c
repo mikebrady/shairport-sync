@@ -436,15 +436,15 @@ static void predictor_decompress_fir_adapt(int32_t *error_buffer, int32_t *buffe
 
   /* read warm-up samples */
   if (predictor_coef_num > 0) {
-    int i;
-    for (i = 0; i < predictor_coef_num; i++) {
+    int li;
+    for (li = 0; li < predictor_coef_num; li++) {
       int32_t val;
 
-      val = buffer_out[i] + error_buffer[i + 1];
+      val = buffer_out[li] + error_buffer[li + 1];
 
       val = SIGN_EXTENDED32(val, readsamplesize);
 
-      buffer_out[i + 1] = val;
+      buffer_out[li + 1] = val;
     }
   }
 
@@ -721,9 +721,9 @@ void alac_decode_frame(alac_file *alac, unsigned char *inbuffer, void *outbuffer
       }
 
       if (uncompressed_bytes) {
-        int i;
-        for (i = 0; i < outputsamples; i++) {
-          alac->uncompressed_bytes_buffer_a[i] = readbits(alac, uncompressed_bytes * 8);
+        int li;
+        for (li = 0; li < outputsamples; li++) {
+          alac->uncompressed_bytes_buffer_a[li] = readbits(alac, uncompressed_bytes * 8);
         }
       }
 
@@ -896,10 +896,10 @@ void alac_decode_frame(alac_file *alac, unsigned char *inbuffer, void *outbuffer
 
       /*********************/
       if (uncompressed_bytes) { /* see mono case */
-        int i;
-        for (i = 0; i < outputsamples; i++) {
-          alac->uncompressed_bytes_buffer_a[i] = readbits(alac, uncompressed_bytes * 8);
-          alac->uncompressed_bytes_buffer_b[i] = readbits(alac, uncompressed_bytes * 8);
+        int li;
+        for (li = 0; li < outputsamples; li++) {
+          alac->uncompressed_bytes_buffer_a[li] = readbits(alac, uncompressed_bytes * 8);
+          alac->uncompressed_bytes_buffer_b[li] = readbits(alac, uncompressed_bytes * 8);
         }
       }
 

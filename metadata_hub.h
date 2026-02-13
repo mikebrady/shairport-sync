@@ -52,6 +52,12 @@ typedef struct metadata_bundle {
   char *stream_type; // Realtime or Buffered
   int stream_type_changed;
 
+  char *source_format; // Format of incoming audio, e.g. AAC/44100/S16_LE/2
+  int source_format_changed;
+
+  char *output_format; // Format of outgoing audio, e.g. 44100/S32_LE/2 (always PCM)
+  int output_format_changed;
+
   char *progress_string; // progress string, emitted by the source from time to time
   int progress_string_changed;
 

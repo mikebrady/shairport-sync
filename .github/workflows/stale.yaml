@@ -11,7 +11,7 @@ jobs:
   stale:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/stale@v9.1.0
+      - uses: actions/stale@v10.1.1
         with:
           stale-issue-message: 'This issue has been inactive for 28 days so will be closed 7 days from now. To prevent this, please remove the "stale" label or post a comment.'
           stale-pr-message: 'This PR has been inactive for 28 days so will be closed 7 days from now. To prevent this, please remove the "stale" label or post a comment.'

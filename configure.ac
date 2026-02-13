@@ -1,18 +1,14 @@
-#                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.50])
-AC_INIT([shairport-sync], [4.3.7], [4265913+mikebrady@users.noreply.github.com])
+AC_INIT([shairport-sync], [5.0], [4265913+mikebrady@users.noreply.github.com])
+: ${CFLAGS="-O3"}
+: ${CXXFLAGS="-O3"}
 AM_INIT_AUTOMAKE([subdir-objects])
 AC_CONFIG_SRCDIR([shairport.c])
 AC_CONFIG_HEADERS([config.h])
 AC_PROG_RANLIB
-
-AC_CHECK_PROGS([GIT], [git])
-if test -n "$GIT" && test -e "$srcdir/.git/index" ; then
-  AC_DEFINE([CONFIG_USE_GIT_VERSION_STRING], 1, [Use the version string produced by running 'git describe --dirty'.])
-fi
-AM_CONDITIONAL([USE_GIT_VERSION], [test -n "$GIT" && test -e "$srcdir/.git/index" ])
+AC_SUBST([HOME], [$HOME])
 
 # Derived from the Avahi configure.ac file
 # Specifying the OS type, defaulting to linux.
@@ -35,6 +31,17 @@ AC_PROG_CC
 AC_PROG_CXX
 AC_CHECK_TOOL(AR, ar, :)
 AC_PROG_INSTALL
+
+# see if we have git -- not fatal if we don't
+AC_CHECK_PROGS([GIT], [git])
+if test -n "$GIT" && test -e "$srcdir/.git/index" ; then
+  AC_DEFINE([CONFIG_USE_GIT_VERSION_STRING], 1, [Use the version string produced by running 'git describe --dirty'.])
+fi
+AM_CONDITIONAL([USE_GIT_VERSION], [test -n "$GIT" && test -e "$srcdir/.git/index" ])
+
+# see if we have xmltoman -- not fatal if we don't
+AC_CHECK_PROGS([XMLTOMAN], [xmltoman])
+AM_CONDITIONAL([USE_XMLTOMAN], [ test -n "$XMLTOMAN" ])
 
 PKG_PROG_PKG_CONFIG([0.9.0])
 
@@ -85,7 +92,7 @@ if test "x$with_stdout" = "xyes" ; then
 fi
 AM_CONDITIONAL([USE_STDOUT], [test "x$with_stdout" = "xyes"])
 
-AC_ARG_WITH([pipe],[AS_HELP_STRING([--with-pipe],[include the pipe audio back end])])
+AC_ARG_WITH([pipe],[AS_HELP_STRING([--with-pipe],[build the unix pipe backend (not the PipeWire backend!) into Shairport Sync])])
 if test "x$with_pipe" = "xyes" ; then
   AC_DEFINE([CONFIG_PIPE], 1, [Include an audio backend to output to a unix pipe.])
 fi
@@ -93,24 +100,24 @@ AM_CONDITIONAL([USE_PIPE], [test "x$with_pipe" = "xyes" ])
 
 # Check to see if we should include the System V initscript
 
-AC_ARG_WITH([systemv],[AS_HELP_STRING([--with-systemv],[install a System V startup script during a make install])])
-AM_CONDITIONAL([INSTALL_SYSTEMV], [test "x$with_systemv" = "xyes"])
+AC_ARG_WITH([systemv-startup],[AS_HELP_STRING([--with-systemv-startup],[install a System V startup script during a make install])])
+AM_CONDITIONAL([INSTALL_SYSTEMV_STARTUP], [test "x$with_systemv_startup" = "xyes"])
 
 # Check to see if we should include the systemd stuff to define it as a service
 
-AC_ARG_WITH([systemd],[AS_HELP_STRING([--with-systemd],[install a systemd startup script during a make install])])
-AM_CONDITIONAL([INSTALL_SYSTEMD], [test "x$with_systemd" = "xyes"])
+AC_ARG_WITH([systemd-startup],[AS_HELP_STRING([--with-systemd-startup],[install systemd startup scripts to start Shairport Sync after system startup or after user login])])
+AM_CONDITIONAL([INSTALL_SYSTEMD_STARTUP], [test "x$with_systemd_startup" = "xyes"])
 
-AC_ARG_WITH([freebsd-service],[AS_HELP_STRING([--with-freebsd-service],[install a FreeBSD startup script during a make install])])
-AM_CONDITIONAL([INSTALL_FREEBSD_SERVICE], [test "x$with_freebsd_service" = "xyes"])
+AC_ARG_WITH([freebsd-startup],[AS_HELP_STRING([--with-freebsd-startup],[install a FreeBSD startup script to start Shairport Sync after system startup])])
+AM_CONDITIONAL([INSTALL_FREEBSD_STARTUP], [test "x$with_freebsd_startup" = "xyes"])
 
-AC_ARG_WITH([cygwin-service],[AS_HELP_STRING([--with-cygwin-service],[install a CYGWIN config script during a make install])])
-AM_CONDITIONAL([INSTALL_CYGWIN_SERVICE], [test "x$with_cygwin_service" = "xyes"])
+AC_ARG_WITH([cygwin-startup],[AS_HELP_STRING([--with-cygwin-startup],[install a CYGWIN startup script to start Shairport Sync after startup])])
+AM_CONDITIONAL([INSTALL_CYGWIN_STARTUP], [test "x$with_cygwin_startup" = "xyes"])
 
 AC_ARG_WITH([external-mdns],[AS_HELP_STRING([--with-external-mdns],[support the use of 'avahi-publish-service' or 'mDNSPublish' to advertise the service on Bonjour/ZeroConf])])
 if  test "x$with_external_mdns" = xyes ; then
 	AC_MSG_RESULT(include external mdns support)
-	AC_DEFINE([CONFIG_EXTERNAL_MDNS], 1, [Use 'avahi-publish-service' or 'mDNSPublish' to advertise.])
+	AC_DEFINE([CONFIG_EXTERNAL_MDNS], 1, [Use 'avahi-publish-service' or 'mDNSPublish' to advertise the service on Bonjour/ZeroConf])
 fi
 AM_CONDITIONAL([USE_EXTERNAL_MDNS], [test "x$with_external_mdns" = "xyes" ])
 
@@ -130,18 +137,6 @@ fi
 
 AC_ARG_WITH([configfiles],[AS_HELP_STRING([--with-configfiles],[install configuration files during a make install])], ,[with_configfiles=yes])
 AM_CONDITIONAL([INSTALL_CONFIG_FILES], [test "x$with_configfiles" = "xyes"])
-
-# Look for Apple ALAC flag
-AC_ARG_WITH(apple-alac,[AS_HELP_STRING([--with-apple-alac],[include support for the Apple ALAC decoder])])
-if test "x${with_apple_alac}"  = "xyes" ; then
-  AC_DEFINE([CONFIG_APPLE_ALAC], 1, [Include support for using the Apple ALAC Decoder])
-  if  test "x${with_pkg_config}" = xyes ; then
-    PKG_CHECK_MODULES([alac], [alac], [LIBS="${alac_LIBS} ${LIBS}"], AC_MSG_ERROR(Apple ALAC Decoder support requires the ALAC library. See https://github.com/mikebrady/alac.))
-  else
-    AC_CHECK_LIB([alac], [BitBufferInit], , AC_MSG_ERROR(Apple ALAC Decoder support requires the ALAC library. See https://github.com/mikebrady/alac.))
-  fi
-fi
-AM_CONDITIONAL([USE_APPLE_ALAC], [test "x${with_apple_alac}" = "xyes"])
 
 # Look for piddir flag
 AC_ARG_WITH(piddir, [AS_HELP_STRING([--with-piddir=<pathname>],[Specify a pathname to a directory in which to write the PID file.])])
@@ -233,9 +228,8 @@ if test "x$with_avahi" = "xyes" ; then
   AC_DEFINE([CONFIG_AVAHI], 1, [Include Avahi-based mDNS support.])
   AC_CHECK_LIB([avahi-client], [avahi_client_new], , AC_MSG_ERROR(Avahi support requires the avahi-client library!))
   AC_CHECK_LIB([avahi-common],[avahi_strerror], , AC_MSG_ERROR(Avahi support requires the avahi-common library!))
-  AC_CONFIG_FILES([scripts/shairport-sync.service-avahi])
-else
-  AC_CONFIG_FILES([scripts/shairport-sync.service])
+  systemd_after_args="${systemd_after_args} avahi-daemon.service"
+  systemd_requires_args="${systemd_requires_args} avahi-daemon.service"
 fi
 AM_CONDITIONAL([USE_AVAHI], [test "x$with_avahi" = "xyes"])
 
@@ -279,7 +273,7 @@ AM_CONDITIONAL([USE_JACK], [test "x$with_jack" = "xyes"])
 AC_ARG_WITH(sndio, [AS_HELP_STRING([--with-sndio],[choose SNDIO API support])])
 if test "x$with_sndio" = "xyes" ; then
   AC_DEFINE([CONFIG_SNDIO], 1, [Include a sndio-compatible audio backend.])
-  AC_CHECK_LIB([sndio], [sio_open], , AC_MSG_ERROR(SNDIO support requires the sndio library -- libsndio-dev suggested))
+  AC_CHECK_LIB([sndio], [sio_open], , AC_MSG_ERROR(SNDIO support requires the sndio library -- sndio suggested for FreeBSD and libsndio-dev for Debian))
 fi
 AM_CONDITIONAL([USE_SNDIO], [test "x$with_sndio" = "xyes"])
 
@@ -307,34 +301,34 @@ fi
 AM_CONDITIONAL([USE_SOUNDIO], [test "x$with_soundio" = "xyes"])
 
 # Look for pulseaudio flag
-AC_ARG_WITH(pa, [AS_HELP_STRING([--with-pa],[choose PulseAudio support.])])
-if test "x$with_pa" = "xyes" ; then
-  AC_DEFINE([CONFIG_PA], 1, [Include PulseAudio support.])
+AC_ARG_WITH(pulseaudio, [AS_HELP_STRING([--with-pulseaudio],[build the PulseAudio backend into Shairport Sync])])
+if test "x$with_pulseaudio" = "xyes" ; then
+  AC_DEFINE([CONFIG_PULSEAUDIO], 1, [Include PulseAudio support.])
   if  test "x${with_pkg_config}" = xyes ; then
     PKG_CHECK_MODULES(
       [PULSEAUDIO], [libpulse >= 0.9.2],
-      [LIBS="${PULSEAUDIO_LIBS} ${LIBS}"],[AC_MSG_ERROR(PulseAudio support requires the libpulse-dev library!)])
+      [LIBS="${PULSEAUDIO_LIBS} ${LIBS}"],[AC_MSG_ERROR(PulseAudio support requires the libpulse library -- libpulse-dev suggested!)])
   else
-    AC_CHECK_LIB([pulse-simple], [pa_simple_new], , AC_MSG_ERROR(PulseAudio support requires the libpulse library!))
-    AC_CHECK_LIB([pulse], [pa_stream_peek], , AC_MSG_ERROR(PulseAudio support requires the libpulse-dev library.))
+    AC_CHECK_LIB([pulse-simple], [pa_simple_new], , AC_MSG_ERROR(PulseAudio support requires the libpulse library -- libpulse-dev suggested!))
+    AC_CHECK_LIB([pulse], [pa_stream_peek], , AC_MSG_ERROR(PulseAudio support requires the libpulse library -- libpulse-dev suggested!))
   fi
 fi
-AM_CONDITIONAL([USE_PA], [test "x$with_pa" = "xyes"])
+AM_CONDITIONAL([USE_PULSEAUDIO], [test "x$with_pulseaudio" = "xyes"])
 
 # Look for pipewire flag
-AC_ARG_WITH(pw, [AS_HELP_STRING([--with-pw],[choose Pipewire support.])])
-if test "x$with_pw" = "xyes" ; then
-  AC_DEFINE([CONFIG_PW], 1, [Include Pipewire support.])
+AC_ARG_WITH(pipewire, [AS_HELP_STRING([--with-pipewire],[build the Pipewire backend into Shairport Sync.])])
+if test "x$with_pipewire" = "xyes" ; then
+  AC_DEFINE([CONFIG_PIPEWIRE], 1, [Include Pipewire support.])
   if  test "x${with_pkg_config}" = xyes ; then
     PKG_CHECK_MODULES(
-      [PIPEWIRE], [libpipewire-0.3 >= 0.3.24],
+      PIPEWIRE, libpipewire-0.3 >= 1.0.5,
       [CFLAGS="${PIPEWIRE_CFLAGS} ${CFLAGS} -Wno-missing-field-initializers" LIBS="${PIPEWIRE_LIBS} ${LIBS}"],
-      [AC_MSG_ERROR(Pipewire support requires the libpipewire library -- libpipewire-0.3-dev suggested!)])
+      [AC_MSG_ERROR(Pipewire support requires libpipewire-0.3 version 1.0.5 or later -- libpipewire-0.3-dev suggested!)])
   else
-    AC_CHECK_LIB([pipewire], [pw_stream_queue_buffer], , AC_MSG_ERROR(Pipewire support requires the libpipewire library -- libpipewire-0.3-dev suggested!))
+    AC_CHECK_LIB([pipewire], [pw_stream_queue_buffer], , AC_MSG_ERROR(Pipewire support requires libpipewire-0.3 version 1.1.0 or later -- libpipewire-0.3-dev suggested!))
   fi
 fi
-AM_CONDITIONAL([USE_PW], [test "x$with_pw" = "xyes"])
+AM_CONDITIONAL([USE_PIPEWIRE], [test "x$with_pipewire" = "xyes"])
 
 # Look for Convolution flag
 AC_ARG_WITH(convolution, [AS_HELP_STRING([--with-convolution],[choose audio DSP convolution support])])
@@ -348,6 +342,7 @@ if test "x$with_convolution" = "xyes" ; then
   else
     AC_CHECK_LIB([sndfile], [sf_open], , AC_MSG_ERROR(Convolution support requires the sndfile library -- libsndfile1-dev suggested!))
   fi
+  
 fi
 AM_CONDITIONAL([USE_CONVOLUTION], [test "x$with_convolution" = "xyes"])
 
@@ -394,6 +389,8 @@ AC_ARG_WITH(mqtt-client, [AS_HELP_STRING([--with-mqtt-client],[include a client 
 if test "x$with_mqtt_client" = "xyes" ; then
   AC_DEFINE([CONFIG_MQTT], 1, [Include a client for MQTT, the Message Queuing Telemetry Transport protocol])
   AC_CHECK_LIB([mosquitto], [mosquitto_lib_init], , AC_MSG_ERROR(MQTT support requires the mosquitto library -- libmosquitto-dev suggested!))
+  systemd_after_args="${systemd_after_args} mosquitto.service"
+  systemd_requires_args="${systemd_requires_args} mosquitto.service"
 fi
 AM_CONDITIONAL([USE_MQTT], [test "x$with_mqtt_client" = "xyes"])
 
@@ -418,6 +415,8 @@ AM_CONDITIONAL([USE_METADATA], [test "x$with_metadata" = "xyes"])
 AC_ARG_WITH(airplay-2, [AS_HELP_STRING([--with-airplay-2],[Build for AirPlay 2])])
 if test "x$with_airplay_2" = "xyes" ; then
   AC_DEFINE([CONFIG_AIRPLAY_2], 1, [Build for AirPlay 2])
+  AC_CHECK_PROG(PLISTUTIL_CHECK,plistutil,yes)
+  AS_IF([test x"$PLISTUTIL_CHECK" != x"yes"], [AC_MSG_ERROR([plistutil can not be found. Please install plistutil for building for AirPlay 2. Maybe it's in the apt package libplist-utils.])])
   AC_CHECK_PROG(XXD_CHECK,xxd,yes)
   AS_IF([test x"$XXD_CHECK" != x"yes"], [AC_MSG_ERROR([xxd can not be found. Please install xxd for building for AirPlay 2.])])
   LIBPLIST_PACKAGE=libplist
@@ -445,6 +444,16 @@ if test "x$with_airplay_2" = "xyes" ; then
       [AC_MSG_ERROR([Airplay 2 support requires libgcrypt -- libgcrypt-dev suggested])]
     )
   ])
+  AC_CHECK_LIB([uuid],[uuid_generate], [], [AC_MSG_ERROR([AirPlay 2 support requires the uuid library -- uuid-dev suggested])])
+fi
+AM_CONDITIONAL([USE_AIRPLAY_2], [test "x$with_airplay_2" = "xyes"])
+
+# Look for ffmpeg flag
+
+AC_ARG_WITH(ffmpeg, [AS_HELP_STRING([--with-ffmpeg],[Build with FFMPEG support (recommended)])])
+if test "x$with_ffmpeg" = "xyes" -o "x$with_airplay_2" = "xyes" ; then
+  using_ffmpeg=true
+  AC_DEFINE([CONFIG_FFMPEG], 1, [Include support for FFmpeg decoders, resampler and utilities.])
   PKG_CHECK_MODULES(
     [libavutil], [libavutil],
     [CFLAGS="${libavutil_CFLAGS} ${CFLAGS}" LIBS="${libavutil_LIBS} ${LIBS}"],
@@ -486,10 +495,31 @@ if test "x$with_airplay_2" = "xyes" ; then
       [AC_MSG_ERROR([AirPlay 2 support requires the uuid library -- uuid-dev suggested])]
     )]
   )
+else
+  using_ffmpeg=false
 fi
-AM_CONDITIONAL([USE_AIRPLAY_2], [test "x$with_airplay_2" = "xyes"])
 
-if  test "x${with_systemd}" = xyes ; then
+if test $using_ffmpeg = false ; then
+  AC_DEFINE([CONFIG_HAMMERTON], 1, [Include support for using the ALAC Decoder by David Hammerton (deprecated)])
+fi
+AM_CONDITIONAL([USE_HAMMERTON], [test $using_ffmpeg = false])
+
+# Look for Apple ALAC flag
+AC_ARG_WITH(apple-alac,[AS_HELP_STRING([--with-apple-alac],[include support for the Apple ALAC decoder (deprecated)])])
+if test "x${with_apple_alac}"  = "xyes" ; then
+  if test $using_ffmpeg = true ; then
+    AC_MSG_RESULT([Note: the FFMPEG decoder, included in the build, supercedes the Apple ALAC decoder, which is deprecated. Consider omitting the Apple ALAC decoder.])
+  fi 
+  AC_DEFINE([CONFIG_APPLE_ALAC], 1, [Include support for using the Apple ALAC Decoder (deprecated)])
+  if  test "x${with_pkg_config}" = xyes ; then
+    PKG_CHECK_MODULES([alac], [alac], [LIBS="${alac_LIBS} ${LIBS}"], AC_MSG_ERROR(Apple ALAC Decoder support requires the ALAC library. See https://github.com/mikebrady/alac.))
+  else
+    AC_CHECK_LIB([alac], [BitBufferInit], , AC_MSG_ERROR(Apple ALAC Decoder support requires the ALAC library. See https://github.com/mikebrady/alac.))
+  fi
+fi
+AM_CONDITIONAL([USE_APPLE_ALAC], [test "x${with_apple_alac}" = "xyes"])
+
+if  test "x${with_systemd_startup}" = xyes ; then
   # Find systemd unit dir
   AC_ARG_WITH([systemdsystemunitdir],
        [AS_HELP_STRING([--with-systemdsystemunitdir=DIR], [Directory for systemd service files])],,
@@ -498,8 +528,8 @@ if  test "x${with_systemd}" = xyes ; then
        def_systemdsystemunitdir=$($PKG_CONFIG --variable=systemdsystemunitdir systemd)
 
        AS_IF([test "x$def_systemdsystemunitdir" = "x"],
-     [AS_IF([test "x$with_systemdsystemunitdir" = "xyes"],
-      [AC_MSG_ERROR([systemd support requested but pkg-config unable to query systemd package])])
+     [AS_IF([test "x$with_systemdsystemunitdir" = "xyes" -o "x$with_systemdsystemunitdir" = "xauto"],
+      [AC_MSG_ERROR([pkg-config unable to query systemd package -- install systemd-dev package suggested])])
       with_systemdsystemunitdir=no],
      [with_systemdsystemunitdir="$def_systemdsystemunitdir"])])
   AS_IF([test "x$with_systemdsystemunitdir" != "xno"],
@@ -529,7 +559,22 @@ AC_FUNC_ERROR_AT_LINE
 AC_FUNC_FORK
 AC_CHECK_FUNCS([atexit clock_gettime gethostname inet_ntoa memchr memmove memset mkfifo pow select socket stpcpy strcasecmp strchr strdup strerror strstr strtol strtoul])
 
-# Note -- there are AC_CONFIG_FILES directives further back, conditional on Avahi
-AC_CONFIG_FILES([Makefile])
+if test "x${systemd_after_args}" != x ; then
+  systemd_after_args="After=${systemd_after_args}"
+fi
+
+if test "x${systemd_requires_args}" != x ; then
+  systemd_requires_args="Requires=${systemd_requires_args}"
+fi
+
+AC_SUBST([SYSTEMD_AFTER_ARGS], [${systemd_after_args}])
+AC_SUBST([SYSTEMD_REQUIRES_ARGS], [${systemd_requires_args}])
+
+# The man directory will not be recursively made unless you set the SUBDIR in Makefile.am.
+# But leave this as is to enable a distclean to be done.
+
+AC_CONFIG_FILES([Makefile man/Makefile])
+
+AC_CONFIG_FILES([scripts/shairport-sync.service])
 AC_CONFIG_FILES([scripts/shairport-sync],[chmod +x scripts/shairport-sync])
 AC_OUTPUT

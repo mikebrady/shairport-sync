@@ -1,6 +1,6 @@
 /*
  * DACP protocol handler. This file is part of Shairport Sync.
- * Copyright (c) Mike Brady 2017 -- 2020
+ * Copyright (c) Mike Brady 2017--2025
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -74,9 +74,22 @@ struct HttpResponse {
 };
 
 void *response_realloc(__attribute__((unused)) void *opaque, void *ptr, int size) {
-  void *t = realloc(ptr, size);
-  if ((t == NULL) && (size != 0))
-    debug(1, "Response realloc of size %d failed!", size);
+  void *t = NULL;
+  if (size == 0) {
+    // debug(1, "response_realloc of size 0 to ptr %" PRIxPTR " requested, and a pointer of NULL was
+    // returned.", size, ptr);
+    free(ptr);
+  } else {
+    if (ptr == NULL) {
+      t = malloc(size);
+      // debug(1, "response_realloc of size %d to a NULL pointer was requested, and a pointer of %"
+      // PRIxPTR " was returned.", size, t);
+    } else {
+      t = realloc(ptr, size);
+    }
+    if (t == NULL)
+      debug(1, "response_realloc of size %d to ptr %" PRIxPTR " failed!", size, (uintptr_t) ptr);
+  }
   return t;
 }
 
@@ -255,7 +268,7 @@ int dacp_send_command(const char *command, char **body, ssize_t *bodysize) {
             ssize_t wresp = send(sockfd, message, strlen(message), 0);
             if (wresp == -1) {
               char errorstring[1024];
-              strerror_r(errno, (char *)errorstring, sizeof(errorstring));
+              getErrorText((char *)errorstring, sizeof(errorstring));
               debug(2, "dacp_send_command: write error %d: \"%s\".", errno, (char *)errorstring);
               struct linger so_linger;
               so_linger.l_onoff = 1; // "true"
@@ -272,7 +285,7 @@ int dacp_send_command(const char *command, char **body, ssize_t *bodysize) {
 
               response.body = malloc(2048); // it can resize this if necessary
               response.malloced_size = 2048;
-              pthread_cleanup_push(malloc_cleanup, response.body);
+              pthread_cleanup_push(malloc_cleanup, &response.body);
 
               struct http_roundtripper rt;
               http_init(&rt, responseFuncs, &response);
@@ -291,9 +304,11 @@ int dacp_send_command(const char *command, char **body, ssize_t *bodysize) {
                 if (ndata <= 0) {
                   if (ndata == -1) {
                     char errorstring[1024];
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-result"
                     strerror_r(errno, (char *)errorstring, sizeof(errorstring));
-                    debug(2, "dacp_send_command: receiving error %d: \"%s\".", errno,
-                          (char *)errorstring);
+#pragma GCC diagnostic pop
+                    debug(2, "dacp_send_command: receiving error %d: \"%s\".", errno, errorstring);
                     struct linger so_linger;
                     so_linger.l_onoff = 1; // "true"
                     so_linger.l_linger = 0;
@@ -461,7 +476,7 @@ void set_dacp_server_information(rtsp_conn_info *conn) {
 
 void dacp_monitor_port_update_callback(char *dacp_id, uint16_t port) {
   debug_mutex_lock(&dacp_server_information_lock, 500000, 2);
-  debug(2,
+  debug(3,
         "dacp_monitor_port_update_callback with Remote ID \"%s\", target ID \"%s\" and port "
         "number %d.",
         dacp_id, dacp_server.dacp_id, port);
@@ -489,7 +504,9 @@ void dacp_monitor_port_update_callback(char *dacp_id, uint16_t port) {
 }
 
 void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
-  int scan_index = 0;
+  //  #include <syscall.h>
+  //  debug(1, "dacp_monitor_thread_code PID %d", syscall(SYS_gettid));
+  // int scan_index = 0;
   int always_use_revision_number_1 = 0;
   // char server_reply[10000];
   // debug(1, "DACP monitor thread started.");
@@ -566,7 +583,7 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
         mdns_dacp_monitor_set_id(dacp_server.dacp_id);
       }
     } else {
-      scan_index++;
+      // scan_index++;
       // debug(1,"DACP Scan Result: %d.", result);
 
       if ((result == 200) || (result == 400)) {
@@ -982,7 +999,7 @@ void dacp_monitor_start() {
 
   memset(&dacp_server, 0, sizeof(dacp_server_record));
 
-  pthread_create(&dacp_monitor_thread, NULL, dacp_monitor_thread_code, NULL);
+  named_pthread_create(&dacp_monitor_thread, NULL, dacp_monitor_thread_code, NULL, "dacp");
   dacp_monitor_initialised = 1;
 }
 
@@ -1285,7 +1302,7 @@ int dacp_set_volume(int32_t vo) {
         int32_t active_speakers = 0;
         for (i = 0; i < speaker_count; i++) {
           if (speaker_info[i].speaker_number == machine_number) {
-            debug(2, "Our speaker number found: %ld with relative volume.", machine_number,
+            debug(2, "Our speaker number found: %" PRId64 " with relative volume %" PRId32 ".", machine_number,
                   speaker_info[i].volume);
           }
           if (speaker_info[i].active == 1) {

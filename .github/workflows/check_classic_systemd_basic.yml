@@ -1,4 +1,4 @@
-name: Basic ALSA classic configuration for systemd, using a build folder.
+name: systemd classic, alsa, using a build folder.
 
 on:
   workflow_dispatch:
@@ -10,10 +10,10 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4.2.2
+    - uses: actions/checkout@v6.0.2
     - name: Install Dependencies
       run: sudo apt-get -y --no-install-recommends install xmltoman libpopt-dev libconfig-dev libasound2-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev   
     - name: Configure
@@ -21,7 +21,7 @@ jobs:
         mkdir build
         cd build
         autoreconf -i ..
-        ../configure --sysconfdir=/etc --with-alsa  --with-soxr --with-avahi --with-ssl=openssl --with-systemd
+        ../configure --sysconfdir=/etc --with-alsa --with-soxr --with-avahi --with-ssl=openssl --with-systemd-startup
     - name: Make
       run: |
         cd build

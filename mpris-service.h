@@ -8,5 +8,6 @@ extern MediaPlayer2 *mprisPlayerSkeleton;
 extern MediaPlayer2Player *mprisPlayerPlayerSkeleton;
 
 int start_mpris_service();
+void stop_mpris_service();
 
 #endif /* #ifndef MPRIS_SERVICE_H */

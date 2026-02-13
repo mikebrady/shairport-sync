@@ -3,24 +3,26 @@ If your car audio has an AUX input, you can get AirPlay in your car using Shairp
 
 ## The Basic Idea
 
-The basic idea is to use a small Linux computer to create an isolated WiFi network (a "car network") and run Shairport Sync on it to provide an AirPlay service. An iPhone or an iPad with cellular capability can simultaneously connect to internet radio, YouTube, Apple Music, Spotify, etc. over the cellular network and send AirPlay audio through the car network to the AirPlay service provided by Shairport Sync. This sends the audio to the computer's DAC which is connected to the AUX input of your car audio.
+The basic idea is to use a small Linux computer to create an isolated WiFi network (a "Car WiFi Network") and run Shairport Sync on it to provide an AirPlay service. An iPhone or an iPad with cellular capability can simultaneously connect to internet radio, YouTube, Apple Music, Spotify, etc. over its cellular network connection and send AirPlay audio through the Car WiFi Network to the AirPlay service provided by Shairport Sync. This sends the audio to the computer's sound card or DAC, which is connected to the AUX input of your car audio.
 
 Please note that Android phones and tablets can not, so far, do this trick of using the two networks simultaneously.
 
 ## Example
 
+This example is based on Raspberry Pi OS Lite (Trixie). Note that some of the details will vary if you are using a different version of Linux.
+
 If you are updating an existing installation, please refer to the [updating](#updating) section below.
 
-In this example, a Raspberry Pi Zero 2 W and a Pimoroni PHAT DAC are used. Shairport Sync will be built for AirPlay 2 operation, but you can build it for "classic" AirPlay (aka AirPlay 1) operation if you prefer. A Pi Zero W is powerful enough for classic AirPlay.
+In this example, a Raspberry Pi Zero W and a Pimoroni PHAT DAC are used. Shairport Sync will be built for AirPlay 2 operation. You can build classic Shairport Sync to support only the original "classic" AirPlay (aka AirPlay 1) if you prefer.
 
-Please note that some of the details of setting up networks are specific to the version of Linux used.
 
 ### Prepare the initial SD Image
-* Download Raspberry Pi OS (Lite) and install it onto an SD Card using `Raspberry Pi Imager`. The Lite version is preferable to the Desktop version as it doesn't include a sound server like PulseAudio or PipeWire that can prevent direct access to the audio output device.
+* Download Raspberry Pi OS Lite (Trixie) and install it onto an SD Card using `Raspberry Pi Imager`. The Lite version is preferable to the Desktop version as it doesn't include a sound server like PulseAudio or PipeWire that is not needed in this case.
 * Before writing the image to the card, use the Settings control on `Raspberry Pi Imager` to set hostname, enable SSH and provide a username and password to use while building the system. Similarly, you can specify a wireless network the Pi will connect to while building the system. Later on, the Pi will be configured to start its own isolated network.
 * The next few steps are to add the overlay needed for the sound card. This may not be necessary in your case, but in this example a Pimoroni PHAT is being used. If you do not need to add an overlay, skip these steps.
   * Mount the card on a Linux machine. Two drives should appear – a `boot` drive and a `rootfs` drive.
   * `cd` to the `boot` drive (since my username is `mike`, it will be `$ cd /media/mike/boot`).
+  * From there, cd to the `firmware` subdirectory, i.e. `/boot/firmware`.
   * Edit the `config.txt` file to add the overlay needed for the sound card. This may not be necessary in your case, but in this example a Pimoroni PHAT is being used and it needs the following entry to be added:
     ```
     dtoverlay=hifiberry-dac
@@ -31,7 +33,7 @@ Please note that some of the details of setting up networks are specific to the 
 After a short time, the Pi should appear on your network – it may take a couple of minutes. To check, try to `ping` it at the `<hostname>.local`, e.g. if the hostname is `bmw` then use `$ ping bmw.local`. Once it has appeared, you can SSH into it and configure it.
 
 ### Boot, Configure, Update 
-The first thing to do on a Pi would be to use the `raspi-config` tool to expand the file system to use the entire card. Next, do the usual update and upgrade:
+The first thing to do on a Pi would be to do the usual update and upgrade:
 ```
 # apt-get update
 # apt-get upgrade
@@ -41,32 +43,40 @@ The first thing to do on a Pi would be to use the `raspi-config` tool to expand 
 Let's get the tools and libraries for building and installing Shairport Sync (and NQPTP).
 
 ```
-# apt install --no-install-recommends build-essential git xmltoman autoconf automake libtool \
+# apt update
+# apt upgrade # this is optional but recommended
+# apt install --no-install-recommends build-essential git autoconf automake libtool \
     libpopt-dev libconfig-dev libasound2-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev \
-    libplist-dev libsodium-dev libavutil-dev libavcodec-dev libavformat-dev uuid-dev libgcrypt-dev xxd
+    libplist-dev libsodium-dev uuid-dev libgcrypt-dev xxd libplist-utils \
+    libavutil-dev libavcodec-dev libavformat-dev systemd-dev
 ```
 If you are building classic Shairport Sync, the list of packages is shorter:
 ```
-# apt-get install --no-install-recommends build-essential git xmltoman autoconf automake libtool \
-    libpopt-dev libconfig-dev libasound2-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev
+# apt update
+# apt upgrade # this is optional but recommended
+# apt-get install --no-install-recommends build-essential git autoconf automake libtool \
+    libpopt-dev libconfig-dev libasound2-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev \
+    libavutil-dev libavcodec-dev libavformat-dev systemd-dev
 ```
+Note: older versions of the Raspberry Pi OS don't have -- and don't need -- the `systemd-dev` package. If it is reported as unknown, omit if from the installation.
 
 #### NQPTP
-Skip this section if you are building classic Shairport Sync – NQPTP is not needed for classic Shairport Sync.
+Skip this step if you are building classic Shairport Sync – NQPTP is not needed for classic Shairport Sync.
 
-Download, install, enable and start NQPTP from [here](https://github.com/mikebrady/nqptp) following the guide for Linux.
+Download, install, enable and start NQPTP from [here](https://github.com/mikebrady/nqptp/tree/development) following the guide for Linux.
 
 #### Shairport Sync
 Download Shairport Sync, configure, compile and install it.
 
-* Omit the `--with-airplay-2` from the `./configure` options if you are building classic Shairport Sync.
+* Replace `--with-airplay-2` from the `./configure` options with `--with-ffmpeg` if you are building classic Shairport Sync.
 
 ```
 $ git clone https://github.com/mikebrady/shairport-sync.git
 $ cd shairport-sync
+$ git checkout development
 $ autoreconf -fi
 $ ./configure --sysconfdir=/etc --with-alsa \
-    --with-soxr --with-avahi --with-ssl=openssl --with-systemd --with-airplay-2
+    --with-soxr --with-avahi --with-ssl=openssl --with-systemd-startup --with-airplay-2
 $ make
 # make install
 # systemctl enable shairport-sync
@@ -160,7 +170,9 @@ INTERFACESv4="wlan0"
 INTERFACESv6=""
 ```
 ### Set up the Startup Sequence
-Configure the startup sequence by adding commands to `/etc/rc.local` to start `hostapd` and the `dhcp` automatically after startup. Its contents should look like this:
+Configure the startup sequence by adding commands to `/etc/rc.local`. If `/etc/rc.local` does not already exist, create it with owner and group `root` and permissons `755`. The commands will start the necessary services automatically after startup, depending on the `MODE` -- `DEC` for develoment mode, and `RUN` for normal operating mode.
+
+The contents of `/etc/rc.local` should look like this:
 ```
 #!/bin/sh -e
 #
@@ -200,28 +212,29 @@ fi
 exit 0 # normal exit here
 ```
 
-#### Disable Unused Services - Optional
-These optional steps have been tested on a Raspberry Pi only -- they have not been tested on other systems.
-Some services are not necessary for this setup and can be disabled as follows:
-```
-# systemctl disable keyboard-setup
-# systemctl disable triggerhappy
-# systemctl disable dphys-swapfile
-```
-
-
-#### Disable Unused Services - Mandatory
-You now need to disable some services; that is, you need to stop them starting automatically on power-up. This is because they either interfere with the system's operation in WiFi Access Point mode, or because they won't work when the system isn't connected to the Internet. Only one of the `NetworkManager` and the `dhcpcd` service will be present in your system, but it's no harm to try to disable both.
+#### Disable Services - Mandatory
+You now need to disable some services; that is, you need to stop them starting automatically on power-up. This is because they interfere with the system's operation in WiFi Access Point mode, or because they don't work when the system isn't connected to the Internet. A further possibility if that they will be started by the script in `/etc/rc.local` when appropriate. Only one of the `NetworkManager` and the `dhcpcd` service will be present in your system, but it's no harm to try to disable both.
 ```
 # systemctl disable dhcpcd
 # systemctl disable NetworkManager
 # systemctl disable wpa_supplicant
 # systemctl disable systemd-timesyncd
 ```
-Lastly, note that the WiFi credentials you used initially to connect to your network (e.g. your home network) will have been stored in the system in plain text. This is convenient for when you want to reconnect to update (see later), but if you prefer to delete them, they will be in `/etc/wpa_supplicant/wpa_supplicant.conf`.
+
+#### Disable Unused Services - Optional
+These optional steps have been tested on a Raspberry Pi Lite (Trixie) only -- they have not been tested on other systems.
+Some services are not necessary for this setup and can be disabled as follows:
+```
+# systemctl disable keyboard-setup
+```
+#### Security Note
+The WiFi credentials you used initially to connect to your network (e.g. your home network) will have been stored in the system.
+This is convenient for when you want to reconnect to update (see later), but if you prefer to delete them, use `nmtui` or `nmcli` to remove them.
 
 #### Optional: Read-only mode – Raspberry Pi Specific
 This optional step is applicable to a Raspberry Pi only. Run `sudo raspi-config` and then choose `Performance Options` > `Overlay Filesystem` and choose to enable the overlay filesystem, and to set the boot partition to be write-protected. (The idea here is that this offers more protection against files being corrupted by the sudden removal of power.)
+
+Note that some packages may be installed to enable read-only mode, so the Pi needs to be connected to the internet for this step. Thus, if may be necessary to temporarily enable and disable read-only mode while connected to your network before re-enabling it after restarting in its final `RUN` mode as a stand-alone AirPlay receiver.
 
 ### Final Step
 When you are finished, carefully power down the machine before unplugging it from power:
@@ -233,14 +246,14 @@ Note: doing a `reboot` here doesn't seem to work properly -- it really does seem
 ### Ready
 Install the Raspberry Pi in your car. It should be powered from a source that is switched off when you leave the car, otherwise the slight current drain will eventually flatten the car's battery.
 
-When the power source is switched on -- typically when you start the car -- it will take around 35 seconds for the system to become available (timing based on a Raspberry Pi Zero 2 W running Bookworm).
+When the power source is switched on -- typically when you start the car -- it will take around 75 seconds for the system to become available using a Raspberry Pi Zero W, about 35 seconds with a Pi Zero 2 W.
 
 ### Enjoy!
 ---
 ## Updating
 From time to time, you may wish to update this installation. Assuming you haven't deleted your original WiFi network credentials, the easiest thing is to temporarily reconnect to the network you used when you created the system. You can then update the operating system and libraries in the normal way and then update Shairport Sync.
 
-However, if you're *upgrading* the operating system to e.g. from Bullseye to Bookworm, the names and index numbers of the output devices may change, and the names of the mixer controls may also change. You can use [`sps-alsa-explore`](https://github.com/mikebrady/sps-alsa-explore) to discover device names and mixer names.
+However, if you're *upgrading* the operating system to e.g. from Bullseye to Bookworm, the names and index numbers of the output devices may change, and the names of the mixer controls may also change. You can use [`dacquery`](https://github.com/mikebrady/dacquery) to discover device names and mixer names.
 
 #### Exit Raspberry Pi Read-Only Mode
 If it's a Raspberry Pi and you have optionally enabled the read-only mode, you must take the device out of Read-only mode:  

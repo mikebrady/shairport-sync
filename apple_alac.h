@@ -1,6 +1,6 @@
 /*
  * This file is part of Shairport Sync.
- * Copyright (c) Mike Brady 2019
+ * Copyright (c) Mike Brady 2019--2025
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person

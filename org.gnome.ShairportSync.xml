@@ -5,11 +5,12 @@
     <property name='Active' type='b' access='read'/>
     <property name="DisableStandby" type="b" access="readwrite" />
     <property name="DisableStandbyMode" type="s" access="readwrite" />
-    <property name="Loudness" type="b" access="readwrite" />
+    <property name="LoudnessEnabled" type="b" access="readwrite" />
     <property name="LoudnessThreshold" type="d" access="readwrite" />
-    <property name="Convolution" type="b" access="readwrite" />
+    <property name="ConvolutionEnabled" type="b" access="readwrite" />
     <property name="ConvolutionGain" type="d" access="readwrite" />
-    <property name="ConvolutionImpulseResponseFile" type="s" access="readwrite" />
+    <property name="ConvolutionImpulseResponseFiles" type="s" access="readwrite" />
+    <property name="ConvolutionMaximumLengthInSeconds" type="d" access="readwrite" />
     <property name="DriftTolerance" type="d" access="readwrite" />
     <property name='Volume' type='d' access='readwrite'/>
     <method name="DropSession"/>
@@ -26,7 +27,7 @@
     <property name="Protocol" type="s" access="read" />
     <property name="ServiceName" type="s" access="read" />
     <property name="OutputFormat" type="s" access="read" />
-    <property name="OutputRate" type="i" access="read" />
+    <property name="SourceFormat" type="s" access="read" />
     <property name="FirstFramePosition" type="s" access="read" />
     <property name="FramePosition" type="s" access="read" />
     <method name="SetFramePositionUpdateInterval">

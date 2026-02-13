@@ -3,11 +3,18 @@ Description=Shairport Sync - AirPlay Audio Receiver
 After=sound.target
 Wants=network-online.target
 After=network.target network-online.target
+@SYSTEMD_AFTER_ARGS@
+@SYSTEMD_REQUIRES_ARGS@
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 ExecStart=@prefix@/bin/shairport-sync --log-to-syslog
 User=shairport-sync
 Group=shairport-sync
+LimitRTPRIO=5
+Restart=on-failure
+RestartSec=5s
 
 [Install]
 WantedBy=multi-user.target

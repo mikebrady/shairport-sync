@@ -1,6 +1,6 @@
 /*
  * This file is part of Shairport Sync.
- * Copyright (c) Mike Brady 2020 -- 2023
+ * Copyright (c) Mike Brady 2020--2025
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -36,9 +36,9 @@
 #ifdef COMPILE_FOR_FREEBSD
 #include <netinet/in.h>
 #endif
+#include <netdb.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <netdb.h>
 #define __STDC_FORMAT_MACROS
 #include "common.h"
 #include "ptp-utilities.h"
@@ -162,7 +162,7 @@ int ptp_get_clock_info(uint64_t *actual_clock_id, uint64_t *time_of_sample, uint
 
 int ptp_shm_interface_open() {
   int response = 0;
-  debug(2, "ptp_shm_interface_open with mapped_addr = %" PRIuPTR "", mapped_addr);
+  debug(3, "ptp_shm_interface_open with mapped_addr = %" PRIuPTR "", (uintptr_t)mapped_addr);
   if ((mapped_addr == NULL) || (mapped_addr == MAP_FAILED)) {
     response = -1;
     if (mapped_addr == NULL)
@@ -193,11 +193,11 @@ int ptp_shm_interface_open() {
       debug(1, "No config.nqptp_shared_memory_interface_name");
     }
     if (response == 0)
-      debug(2, "ptp_shm_interface_open -- success!");
+      debug(3, "ptp_shm_interface_open -- success!");
     else
-      debug(2, "ptp_shm_interface_open -- fail!");
+      debug(3, "ptp_shm_interface_open -- fail!");
   } else {
-    debug(2, "ptp_shm_interface_open -- already open!");
+    debug(3, "ptp_shm_interface_open -- already open!");
   }
   return response;
 }
@@ -249,8 +249,7 @@ void ptp_send_control_message_string(const char *msg) {
     }
 
     /* Send the message in buf to the server */
-    if (sendto(s, full_message, full_message_size, 0, info->ai_addr, info->ai_addrlen) <
-        0) {
+    if (sendto(s, full_message, full_message_size, 0, info->ai_addr, info->ai_addrlen) < 0) {
       die("error sending timing_peer_list to NQPTP");
     }
     /* Deallocate the socket */

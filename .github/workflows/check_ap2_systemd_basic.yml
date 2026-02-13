@@ -1,4 +1,4 @@
-name: Basic ALSA configuration for systemd, using a build folder.
+name: systemd, alsa, pipewire, build folder.
 
 on:
   workflow_dispatch:
@@ -10,18 +10,18 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4.2.2
+    - uses: actions/checkout@v6.0.2
     - name: Install Dependencies
-      run: sudo apt-get -y --no-install-recommends install xmltoman libpopt-dev libconfig-dev libasound2-dev avahi-daemon libavahi-client-dev libsoxr-dev libplist-dev libsodium-dev libavutil-dev libavcodec-dev libavformat-dev   
+      run: sudo apt-get -y --no-install-recommends install libpipewire-0.3-dev libplist-utils xmltoman libpopt-dev libconfig-dev libasound2-dev avahi-daemon libavahi-client-dev libsoxr-dev libplist-dev libsodium-dev libavutil-dev libavcodec-dev libavformat-dev libgcrypt-dev uuid-dev
     - name: Configure
       run: |
         mkdir build
         cd build
         autoreconf -i ..
-        ../configure --sysconfdir=/etc --with-alsa  --with-soxr --with-avahi --with-ssl=openssl --with-systemd --with-airplay-2
+        ../configure --sysconfdir=/etc --with-alsa --with-soxr --with-avahi --with-ssl=openssl --with-systemd-startup --with-airplay-2 --with-pipewire
     - name: Make
       run: |
         cd build

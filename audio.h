@@ -18,22 +18,52 @@ typedef enum {
 } play_samples_type;
 
 typedef struct {
-  double current_volume_dB;
-  int32_t minimum_volume_dB;
-  int32_t maximum_volume_dB;
-} audio_parameters;
+  unsigned int channels;
+  unsigned int rate;
+  unsigned int format; // this contains an sps_format_t enum but "common.h" is not imported here.
+  char short_description[32]; // e.g. S32/44100/8.
+  char channel_map[128];
+} output_configuration_t;
 
 typedef struct {
+  int32_t minimum_volume_dB;
+  int32_t maximum_volume_dB;
+} volume_range_t;
+
+typedef struct {
+  volume_range_t *volume_range;
+} output_parameters_t;
+
+// backend interface
+typedef struct {
+  // may be NULL if no implemented
   void (*help)(void);
   char *name;
-
   // start of program
   int (*init)(int argc, char **argv);
   // at end of program
   void (*deinit)(void);
-  void (*prepare_to_play)(void); // sent when audio is received for the first time -- advance warning.
 
-  int (*prepare)(void); // looks and sets stuff in the config data structure
+  int (*prepare)(void); // send when a play session is about to begin
+
+  // Get an encoded configuration for the given channels, rate and depth
+  // The response may have a different rate, format and channel count!
+  // See FROM_ENCODED_FORMAL macros in common.h for the encoding scheme
+  // An encoded configuration will always be positive.
+  // 0 if not successful
+  // may be NULL if not implemented
+  // sps_format is not typed because the definition is in common.h, which can't be included here,
+  // sigh.
+  int32_t (*get_configuration)(unsigned int channels, unsigned int rate, unsigned int sps_format);
+
+  // Set the output configuration
+  // Returns 0 and a channel map (if available) if successful
+  // may be NULL if not implemented.
+  // Set channel_map to NULL if you don't want it.
+  // Otherwise, a space-separated channel map string will be returned
+  // and you are responsible for freeing it.
+  // If there isn't a channel map a NULL will be returned.
+  int (*configure)(int32_t encoded_output_format, char **channel_map);
 
   void (*start)(int sample_rate, int sample_format);
 
@@ -41,18 +71,18 @@ typedef struct {
   int (*play)(void *buf, int samples, int sample_type, uint32_t timestamp, uint64_t playtime);
   void (*stop)(void);
 
-  // may be null if no implemented
+  // may be NULL if no implemented
   int (*is_running)(
       void); // if implemented, will return 0 if everything is okay, non-zero otherwise
 
-  // may be null if not implemented
+  // may be NULL if no implemented
   void (*flush)(void);
 
   // returns the delay before the next frame to be sent to the device would actually be audible.
-  // almost certainly wrong if the buffer is empty, so put silent buffers into it to make it busy.
-  // will change dynamically, so keep watching it. Implemented in ALSA only.
+  // almost certainly wrong if the buffer is empty, so play silent buffers to make it busy.
+  // will change dynamically, so keep watching it.
   // returns a negative error code if there's a problem
-  int (*delay)(long *the_delay); // snd_pcm_sframes_t is a signed long
+  int (*delay)(long *the_delay); // snd_pcm_sframes_t is a long
   int (*stats)(uint64_t *raw_measurement_time, uint64_t *corrected_measurement_time,
                uint64_t *delay,
                uint64_t *frames_sent_to_dac); // use this to get the true rate of the DAC
@@ -60,8 +90,8 @@ typedef struct {
   // may be NULL, in which case soft volume is applied
   void (*volume)(double vol);
 
-  // may be NULL, in which case soft volume parameters are used
-  void (*parameters)(audio_parameters *info);
+  // may be NULL, in which case defaults are used
+  output_parameters_t *(*parameters)();
 
   // may be NULL, in which case software muting is used.
   // also, will return a 1 if it is actually using the mute facility, 0 otherwise
@@ -69,8 +99,19 @@ typedef struct {
 
 } audio_output;
 
+// this looks for a suitable configuration in the right order and checks possible
+// configurations using the check_configuration method passed in.
+int32_t search_for_suitable_configuration(
+    unsigned int channels, unsigned int rate, unsigned int format,
+    int (*check_configuration)(unsigned int channels, unsigned int rate, unsigned int format));
+
 audio_output *audio_get_output(const char *name);
 void audio_ls_outputs(void);
-void parse_general_audio_options(void);
+void parse_audio_options(const char *named_stanza, uint32_t default_format_set,
+                         uint32_t default_rate_set,
+                         uint32_t default_channel_set); // look in "general" and in the named stanza
+uint32_t get_format_settings(const char *stanza_name, const char *setting_name);
+uint32_t get_rate_settings(const char *stanza_name, const char *setting_name);
+uint32_t get_channel_settings(const char *stanza_name, const char *setting_name);
 
 #endif //_AUDIO_H

@@ -5,11 +5,11 @@
 # Required-Stop:     $remote_fs $syslog
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Short-Description: Shairport Synchronous AirPlay
+# Short-Description: Shairport Sync -- AirPlay Receiver
 # Description:       Implements a synchronous (multi-room-capable) AirPlay receiver
 ### END INIT INFO
 
-# Author: Mike Brady <mikebrady@eircom.net>
+# Author: Mike Brady <4265913+mikebrady@users.noreply.github.com>
 #
 # Do NOT "set -e"
 

@@ -1,7 +1,7 @@
 /*
  * jack output driver. This file is part of Shairport Sync.
- * Copyright (c) 2019 -- 2024 Mike Brady <4265913+mikebrady@users.noreply.github.com>,
- *                    Jörn Nettingsmeier <nettings@luchtbeweging.nl>
+ * Copyright (c) 2019--2025 Mike Brady <4265913+mikebrady@users.noreply.github.com>,
+ *                          Jörn Nettingsmeier <nettings@luchtbeweging.nl>
  *
  * All rights reserved.
  *
@@ -49,7 +49,6 @@ pthread_mutex_t client_mutex = PTHREAD_MUTEX_INITIALIZER;
 // So make it exactly the number of incoming audio channels!
 jack_port_t *port[NPORTS];
 const char *port_name[NPORTS] = {"out_L", "out_R"};
-
 
 int sps_sample_rate;
 
@@ -187,8 +186,9 @@ static int jack_init(__attribute__((unused)) int argc, __attribute__((unused)) c
   // instead.
   config.audio_backend_buffer_interpolation_threshold_in_seconds = 0.25;
 
-  // Do the "general" audio  options. Note, these options are in the "general" stanza!
-  parse_general_audio_options();
+  // this ensures that the Shairport Sync system will provide only 44100/S16/2 to this backend.
+  parse_audio_options(NULL, (1 << SPS_FORMAT_S16_LE), (1 << SPS_RATE_44100), (1 << 2));
+
 #ifdef CONFIG_SOXR
   config.jack_soxr_resample_quality = -1; // don't resample by default
 #endif
@@ -196,14 +196,14 @@ static int jack_init(__attribute__((unused)) int argc, __attribute__((unused)) c
   // Now the options specific to the backend, from the "jack" stanza:
   if (config.cfg != NULL) {
     const char *str;
-    if (config_lookup_string(config.cfg, "jack.client_name", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "jack.client_name", &str)) {
       config.jack_client_name = (char *)str;
     }
-    if (config_lookup_string(config.cfg, "jack.autoconnect_pattern", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "jack.autoconnect_pattern", &str)) {
       config.jack_autoconnect_pattern = (char *)str;
     }
 #ifdef CONFIG_SOXR
-    if (config_lookup_string(config.cfg, "jack.soxr_resample_quality", &str)) {
+    if (config_lookup_non_empty_string(config.cfg, "jack.soxr_resample_quality", &str)) {
       debug(1, "SOXR quality %s", str);
       config.jack_soxr_resample_quality = parse_soxr_quality_name(str);
     }
@@ -335,7 +335,8 @@ static void jack_start(int i_sample_rate, __attribute__((unused)) int i_sample_f
       soxr_delete(soxr);
     }
     soxr_error_t e = NULL;
-    soxr = soxr_create(sps_sample_rate, jack_sample_rate, NPORTS, &e, &io_spec, &quality_spec, NULL);
+    soxr =
+        soxr_create(sps_sample_rate, jack_sample_rate, NPORTS, &e, &io_spec, &quality_spec, NULL);
     if (!soxr) {
       die("Unable to create soxr resampler for JACK: %s", e);
     }
@@ -370,10 +371,12 @@ static int jack_delay(long *the_delay) {
   // jack_latency is set by the graph() callback, it's the average of the maximum
   // latencies of all our output ports. Adjust this constant baseline delay according
   // to the buffer fill level:
-  int64_t the_delay_in_jack_frames = jack_latency + audio_occupancy_now - frames_processed_since_latest_latency_check;
+  int64_t the_delay_in_jack_frames =
+      jack_latency + audio_occupancy_now - frames_processed_since_latest_latency_check;
   int64_t the_delay_in_sps_frames = (the_delay_in_jack_frames * sps_sample_rate) / jack_sample_rate;
   *the_delay = the_delay_in_sps_frames;
-  // debug(2, "reporting a delay of %ld frames at Shairport Sync's rate of %d FPS.",*the_delay, sps_sample_rate);
+  // debug(2, "reporting a delay of %ld frames at Shairport Sync's rate of %d FPS.",*the_delay,
+  // sps_sample_rate);
   return 0;
 }
 
@@ -430,7 +433,7 @@ audio_output audio_jack = {.name = "jack",
                            .help = NULL,
                            .init = &jack_init,
                            .deinit = &jack_deinit,
-                           .prepare = NULL,
+                           .configure = NULL,
                            .start = &jack_start,
                            .stop = NULL,
                            .is_running = NULL,

@@ -33,10 +33,10 @@ dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/Shair
 dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Set string:org.gnome.ShairportSync string:DriftTolerance variant:double:0.001
 
 # Is Loudness Enabled:
-dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Get string:org.gnome.ShairportSync string:LoudnessThreshold
+dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Get string:org.gnome.ShairportSync string:LoudnessEnabled
 
 # Enable Loudness Filter
-dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Set string:org.gnome.ShairportSync string:Loudness variant:boolean:true
+dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Set string:org.gnome.ShairportSync string:LoudnessEnabled variant:boolean:true
 
 # Get Loudness Threshold
 dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Get string:org.gnome.ShairportSync string:LoudnessThreshold
@@ -45,22 +45,28 @@ dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/Shair
 dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Set string:org.gnome.ShairportSync string:LoudnessThreshold variant:double:-15.0
 
 # Is Convolution enabled:
-dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Get string:org.gnome.ShairportSync string:Convolution
+dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Get string:org.gnome.ShairportSync string:ConvolutionEnabled
 
 # Enable Convolution
-dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Set string:org.gnome.ShairportSync string:Convolution variant:boolean:true
+dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Set string:org.gnome.ShairportSync string:ConvolutionEnabled variant:boolean:true
 
 # Get Convolution Gain:
 dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Get string:org.gnome.ShairportSync string:ConvolutionGain
 
-# Set Convolution Gain -- the gain applied before convolution is applied -- to -10.0 dB
+# Set Convolution Gain -- the gain applied after convolution is applied -- to -10.0 dB
 dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Set string:org.gnome.ShairportSync string:ConvolutionGain variant:double:-10
 
-# Get Convolution Impulse Response File:
-dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Get string:org.gnome.ShairportSync string:ConvolutionImpulseResponseFile
+# Get Convolution Impulse Response Files:
+dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Get string:org.gnome.ShairportSync string:ConvolutionImpulseResponseFiles
 
-# Set Convolution Impulse Response File:
-dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Set string:org.gnome.ShairportSync string:ConvolutionImpulseResponseFile variant:string:"/etc/shairport-sync/boom.wav"
+# Set Convolution Impulse Response Files:
+dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Set string:org.gnome.ShairportSync string:ConvolutionImpulseResponseFiles variant:string:"'/home/pi/filters/Sennheiser HD 205 minimum phase 48000Hz.wav', '/home/pi/filters/Sennheiser HD 205 minimum phase 44100Hz.wav'"
+
+# Get Convolution Impulse Response File Maximum Length:
+dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Get string:org.gnome.ShairportSync string:ConvolutionMaximumLengthInSeconds
+
+# Set Convolution Impulse Response File Maximum Length:
+dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Set string:org.gnome.ShairportSync string:ConvolutionMaximumLengthInSeconds variant:double:1
 
 # Get the Protocol Shairport Sync was built for -- AirPlay or AirPlay 2:
 dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Get string:org.gnome.ShairportSync string:Protocol

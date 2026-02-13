@@ -1,7 +1,7 @@
 /*
  * libao output driver. This file is part of Shairport.
  * Copyright (c) James Laird 2013
- * Copyright (c) Mike Brady 2014 -- 2022
+ * Copyright (c) Mike Brady 2014--2025
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -32,10 +32,161 @@
 #include <stdio.h>
 #include <unistd.h>
 
+typedef struct {
+  sps_format_t sps_format;
+  int bits_per_sample;
+  int byte_format;
+} sps_ao_t;
+
+// these are the only formats that audio_pw will ever allow itself to be configured with
+static sps_ao_t format_lookup[] = {{SPS_FORMAT_S16_LE, 16, AO_FMT_LITTLE},
+                                   {SPS_FORMAT_S16_BE, 16, AO_FMT_BIG},
+                                   {SPS_FORMAT_S32_LE, 32, AO_FMT_LITTLE},
+                                   {SPS_FORMAT_S32_BE, 32, AO_FMT_BIG}};
+
+// use an SPS_FORMAT_... to find an entry in the format_lookup table or return NULL
+static sps_ao_t *sps_format_lookup(sps_format_t to_find) {
+  sps_ao_t *response = NULL;
+  unsigned int i = 0;
+  while ((response == NULL) && (i < sizeof(format_lookup) / sizeof(sps_ao_t))) {
+    if (format_lookup[i].sps_format == to_find)
+      response = &format_lookup[i];
+    else
+      i++;
+  }
+  return response;
+}
+
 ao_device *dev = NULL;
 ao_option *ao_opts = NULL;
-ao_sample_format fmt;
+ao_sample_format ao_output_format;
 int driver = 0;
+static int32_t current_encoded_output_format = 0;
+
+static int check_settings(sps_format_t sample_format, unsigned int sample_rate,
+                          unsigned int channel_count) {
+
+  // debug(1, "ao check_settings: configuration: %u/%s/%u.", sample_rate,
+  //       sps_format_description_string(sample_format), channel_count);
+
+  int response = EINVAL;
+
+  sps_ao_t *format_info = sps_format_lookup(sample_format);
+  if (format_info != NULL) {
+
+    ao_sample_format check_fmt;
+    memset(&check_fmt, 0, sizeof(check_fmt));
+    check_fmt.bits = format_info->bits_per_sample;
+    check_fmt.rate = sample_rate;
+    check_fmt.channels = channel_count;
+    check_fmt.byte_format = format_info->byte_format;
+    // fmt.matrix = strdup("L,R");
+    ao_device *check_dev = ao_open_live(driver, &check_fmt, ao_opts);
+    if (check_dev != NULL) {
+      debug(3, "ao: check_settings %u/%s/%u works!", sample_rate,
+            sps_format_description_string(sample_format), channel_count);
+      if (ao_close(check_dev) == 0)
+        debug(1, "ao check_settings: error at ao_close");
+      response = 0;
+    } else {
+      debug(3, "ao: check_settings %u/%s/%u is not available!", sample_rate,
+            sps_format_description_string(sample_format), channel_count);
+    }
+
+    // response = 0;
+  }
+
+  // debug(1, "pa check_settings: configuration: %u/%s/%u %s.", sample_rate,
+  //       sps_format_description_string(sample_format), channel_count,
+  //       response == 0 ? "is okay" : "can not be configured");
+  return response;
+}
+
+static int check_configuration(unsigned int channels, unsigned int rate, unsigned int format) {
+  return check_settings(format, rate, channels);
+}
+
+static int32_t get_configuration(unsigned int channels, unsigned int rate, unsigned int format) {
+  uint64_t start_time = get_absolute_time_in_ns();
+  int32_t response =
+      search_for_suitable_configuration(channels, rate, format, &check_configuration);
+  int64_t elapsed_time = get_absolute_time_in_ns() - start_time;
+  debug(1, "ao: get_configuration took %0.3f mS.", elapsed_time * 0.000001);
+  return response;
+}
+
+static int configure(int32_t requested_encoded_format, char **channel_map) {
+  debug(3, "a0: configure %s.", short_format_description(requested_encoded_format));
+  int response = EINVAL;
+  if (current_encoded_output_format != requested_encoded_format) {
+    uint64_t start_time = get_absolute_time_in_ns();
+    if (current_encoded_output_format == 0)
+      debug(1, "a0: setting output configuration to %s.",
+            short_format_description(requested_encoded_format));
+    else
+      // note -- can't use short_format_description twice in one call because it returns the same
+      // string buffer each time
+      debug(1, "a0: changing output configuration to %s.",
+            short_format_description(requested_encoded_format));
+    current_encoded_output_format = requested_encoded_format;
+    sps_ao_t *format_info =
+        sps_format_lookup(FORMAT_FROM_ENCODED_FORMAT(current_encoded_output_format));
+
+    if (format_info == NULL)
+      die("ao: can't find format information!");
+
+    if (dev != NULL) {
+      if (ao_close(dev) == 0) {
+        debug(1, "ao configure: error closing existing device ao_close");
+      }
+    }
+    dev = NULL;
+    memset(&ao_output_format, 0, sizeof(ao_output_format));
+    ao_output_format.bits = format_info->bits_per_sample;
+    ao_output_format.rate = RATE_FROM_ENCODED_FORMAT(current_encoded_output_format);
+    ao_output_format.channels = CHANNELS_FROM_ENCODED_FORMAT(current_encoded_output_format);
+    ao_output_format.byte_format = format_info->byte_format;
+    switch (CHANNELS_FROM_ENCODED_FORMAT(current_encoded_output_format)) {
+    case 2:
+      ao_output_format.matrix = strdup("L,R");
+      break;
+    case 6:
+      ao_output_format.matrix = strdup("L,R,C,LFE,BR,BL");
+      break;
+    case 8:
+      ao_output_format.matrix = strdup("L,R,C,LFE,BR,BL,SL,SR");
+      break;
+    default:
+      break;
+    }
+    // fmt.matrix = strdup("L,R");
+    /*
+    dev = ao_open_live(driver, &ao_output_format, ao_opts);
+    if (dev != NULL) {
+      debug(
+          1, "ao: configure %u/%s/%u opened!",
+          RATE_FROM_ENCODED_FORMAT(current_encoded_output_format),
+          sps_format_description_string(FORMAT_FROM_ENCODED_FORMAT(current_encoded_output_format)),
+          CHANNELS_FROM_ENCODED_FORMAT(current_encoded_output_format));
+      response = 0;
+    } else {
+      debug(
+          1, "ao: configure %u/%s/%u is not available!",
+          RATE_FROM_ENCODED_FORMAT(current_encoded_output_format),
+          sps_format_description_string(FORMAT_FROM_ENCODED_FORMAT(current_encoded_output_format)),
+          CHANNELS_FROM_ENCODED_FORMAT(current_encoded_output_format));
+    }
+    */
+    int64_t elapsed_time = get_absolute_time_in_ns() - start_time;
+    debug(3, "pa: configure took %0.3f mS.", elapsed_time * 0.000001);
+  } else {
+    debug(3, "pa: setting output configuration  -- configuration unchanged, so nothing done.");
+  }
+  if ((response == 0) && (channel_map != NULL)) {
+    *channel_map = NULL; // nothing back here
+  }
+  return response;
+}
 
 static void help(void) {
   printf("    -d driver           set the output driver\n"
@@ -69,12 +220,10 @@ static void help(void) {
 }
 
 static int init(int argc, char **argv) {
-  int oldState;
-  pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
   ao_initialize();
   driver = ao_default_driver_id();
   if (driver == -1) {
-    warn("libao can not find a usable driver!");
+    warn("the ao backend can not find a usable output device with the default driver!");
   } else {
 
     // set up default values first
@@ -85,8 +234,14 @@ static int init(int argc, char **argv) {
     // get settings from settings file first, allow them to be overridden by
     // command line options
 
-    // do the "general" audio  options. Note, these options are in the "general" stanza!
-    parse_general_audio_options();
+    // get settings from settings file, passing in defaults for format_set, rate_set and channel_set
+    // Note, these options may be in the "general" stanza or the named stanza
+#ifdef CONFIG_FFMPEG
+    parse_audio_options("ao", SPS_FORMAT_SET, SPS_RATE_SET, SPS_CHANNEL_SET);
+#else
+    parse_audio_options("ao", SPS_FORMAT_NON_FFMPEG_SET, SPS_RATE_NON_FFMPEG_SET,
+                        SPS_CHANNNEL_NON_FFMPEG_SET);
+#endif
 
     optind = 1; // optind=0 is equivalent to optind=1 plus special behaviour
     argv--;     // so we shift the arguments to satisfy getopt()
@@ -127,66 +282,52 @@ static int init(int argc, char **argv) {
     if (optind < argc)
       die("Invalid audio argument: %s", argv[optind]);
 
-    memset(&fmt, 0, sizeof(fmt));
-
-    fmt.bits = 16;
-    fmt.rate = 44100;
-    fmt.channels = 2;
-    fmt.byte_format = AO_FMT_NATIVE;
-    fmt.matrix = strdup("L,R");
+    // get_permissible_configuration_settings();
   }
-  pthread_setcancelstate(oldState, NULL);
   return 0;
 }
 
 static void deinit(void) {
-  int oldState;
-  pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
   if (dev != NULL)
     ao_close(dev);
   dev = NULL;
   ao_shutdown();
-  pthread_setcancelstate(oldState, NULL);
-}
-
-static void start(__attribute__((unused)) int sample_rate,
-                  __attribute__((unused)) int sample_format) {
-  // debug(1,"libao start");
 }
 
 static int play(void *buf, int samples, __attribute__((unused)) int sample_type,
                 __attribute__((unused)) uint32_t timestamp,
                 __attribute__((unused)) uint64_t playtime) {
   int response = 0;
+
+  if (dev == NULL) {
+    debug(1, "ao play(): ao_open_live to play %d samples, bytes per sample: %u, channels: %u",
+          samples, ao_output_format.bits / 8, ao_output_format.channels);
+    dev = ao_open_live(driver, &ao_output_format, ao_opts);
+  }
+  // debug(1,"ao play(): play %d samples, bytes per sample: %u, channels: %u", samples,
+  // ao_output_format.bits/8, ao_output_format.channels);
   int oldState;
   pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
-  if (driver != -1) {
-    if (dev == NULL)
-      dev = ao_open_live(driver, &fmt, ao_opts);
-    if (dev != NULL)
-      response = ao_play(dev, buf, samples * 4);
-  }
+  response = ao_play(dev, buf, samples * ao_output_format.bits / 8 * ao_output_format.channels);
   pthread_setcancelstate(oldState, NULL);
   return response;
 }
 
 static void stop(void) {
-  // debug(1,"libao stop");
-  int oldState;
-  pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
   if (dev != NULL) {
+    debug(1, "ao stop(): ao_close");
     ao_close(dev);
     dev = NULL;
   }
-  pthread_setcancelstate(oldState, NULL);
 }
 
 audio_output audio_ao = {.name = "ao",
                          .help = &help,
                          .init = &init,
                          .deinit = &deinit,
-                         .prepare = NULL,
-                         .start = &start,
+                         .configure = &configure,
+                         .get_configuration = &get_configuration,
+                         // .start = &start,
                          .stop = &stop,
                          .is_running = NULL,
                          .flush = NULL,

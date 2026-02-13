@@ -1,33 +1,35 @@
 # Working with PulseAudio or PipeWire
-Many Linux systems have [PulseAudio](https://www.freedesktop.org/wiki/Software/PulseAudio/) or [PipeWire](https://pipewire.org) installed as [sound servers](https://en.wikipedia.org/wiki/Sound_server), typically providing
-audio facilities for the system's GUI. Unfortunately, they cause problems for Shairport Sync. As you'll see, these problems can be worked around.
+Many Linux systems, especially desktop Linuxes with a GUI, have [PipeWire](https://pipewire.org) or [PulseAudio](https://www.freedesktop.org/wiki/Software/PulseAudio/) installed as [sound servers](https://en.wikipedia.org/wiki/Sound_server).
+PipeWire and PulseAudio are widely used and have the great advantage of being easily able to mix audio from multiple sources. The slight downside is that audio may be further processed (e.g. transcoded) on its way to the output device.
 
-The following remarks apply to PulseAudio and PipeWire, so, for simplicity, let's refer to PulseAudio only.
+To use PipeWire or PulseAudio-based systems, Shairport Sync must be set up as a user service.
 
-To understand the problems, first consider a  Linux system that _does not_ have PulseAudio installed.
-1. Sound is managed by the Advanced Linux Sound Architecture ("[ALSA](https://www.alsa-project.org/wiki/Main_Page)") subsystem.
-2. The ALSA subsystem is loaded and becomes available at system startup.
-3. The ALSA `"default"` output device is mapped to the system's audio output DAC.
+### Considerations
+1. Shairport Sync will work without modification in a PipeWire- or PulseAudio-based system if built with the default ALSA backend. This is because PipeWire and PulseAudio both provide a default ALSA pseudo-device to receive and play audio from ALSA-compatible programs.
+2. Shairport Sync can be built with "native" PipeWire or PulseAudio backends by adding the `--with-pipewire` or `--with-pulseaudio` configuration flags when it is being built. This has the advantage of bypassing the ALSA compatability layer.
+3. To check if PipeWire support is built into Shairport Sync, check that the string `PipeWire` is included in the version string. (Enter `$ shairport-sync -V` to get the version string.)  Similarly, the version string will include `PulseAudio` if the PulseAudio backend is built in.
+4. Remember to specify which backend Shairport Sync should use in the configuration file or on the command line.
 
-Shairport Sync loads when system startup is complete and provides its service, routing audio to the ALSA default device.
+## Automatic Startup of Shairport Sync
 
-Now, consider a Linux system with a Graphical User Interface (GUI) that has PulseAudio installed.
-1. As before, sound is managed by the ALSA subsystem.
-2. As before, The ALSA subsystem is loaded and becomes available at system startup.
-3. PulseAudio loads and becomes a client of ALSA.
-4. The PulseAudio service becomes available after a user has logged in through the GUI. Importantly, if you don't log in through the GUI, you won't have a PulseAudio service.
-5. The ALSA `"default"` device no longer connects to a real output device. Instead audio sent to the `"default"` device is routed into PulseAudio. Importantly, if you have no PulseAudio service, then the ALSA default device either doesn't exist at all or goes nowhere.
+The main thing to remember about PipeWire and PulseAudio sound servers is that the services they offer only become available when a user logs in -- that is, they are set up as _user services_.
+Shairport Sync relies on them, so it must also be set up as a user service; it can not be set up as a system service because the PipeWire or PulseAudio services needed by Shairport Sync are not available when system services are launched just after system startup. 
 
-# The Problem
-When Shairport Sync is installed as a system service, it starts after the system has booted up.
-It runs under a low-priviliged user called `shairport-sync`. 
-Unfortunately, per (4) above, since it was not logged in through the GUI, it won't have a PulseAudio service. If you are using the `"pa"` backend, Shairport Sync may well crash.
-Per (5) above, the ALSA `"default"` device either won't exist or -- if it does exist -- won't work. Hence, using the `"alsa"` backend, Shairport Sync will either terminate or remain silent.
+### Starting Shairport Sync as a User Service
+To make Shairport Sync start as a user service, (assuming you built and installed Shairport Sync using the BUILD.md guide), ensure you are logged in as the appropriate user and enter:
+```
+$ systemctl --user enable shairport-sync
+```
+Make sure it is _not enabled_ as a system service:
+```
+# systemctl disable shairport-sync
+```
+and then reboot.
 
-# The Fixes
-There are three ways to address this problem:
-1. Stop using Shairport Sync as a system service. Instead, launch it from a terminal window after log-in through the GUI.
-Alternatively, create a user service startup script so that it will be launched automatically after the user has logged in. This means that the system can not run without user intervention.
-2. If you are using the `"alsa"` backend, set the output device to a real ALSA hardware output device. Use `$ shairport-sync -h` (or, better, [`sps-alsa-explore`](https://github.com/mikebrady/sps-alsa-explore)) to get a list of output devices, and use the configuration file to set the device. There is a possibility this might prevent PulseAudio from working properly. 
-# The Best Fix
-3. The best of all fixes is, if possible, to avoid using a system containing PulseAudio altogether. Linux operating systems typically have a "server", "lite" or "headless" version that has no GUI and no PulseAudio.
+#### Problems with User Service
+Shairport Sync will function perfectly well as a user service, but there are a number of things to bear in mind:
+
+1. The AirPlay service will only be available when the user is logged in. When the user logs out, Shairport Sync will terminate and the AirPlay service will disappear.
+2. If the Linux system is a desktop Linux with a GUI, audio will be sent to the default output only when the user is logged in through the GUI.
+
+Automatic user login may help address these problems.

@@ -48,6 +48,7 @@ mqtt =
 //	publish_raw = "no"; // Whether to publish all available metadata under the codes given in the 'metadata' docs.
 	publish_parsed = "yes"; // Whether to publish a small (but useful) subset of metadata under human-understandable topics.
 	publish_cover = "yes"; // Whether to publish the cover over MQTT in binary form. This may lead to a bit of load on the broker.
+//	publish_retain = "no"; // Whether to set the retain flag on published MQTT messages. When enabled, the broker stores the last message for each topic so new subscribers receive the most recent value immediately.
 //	enable_remote = "no"; // Whether to remote control via MQTT. RC is available under `topic`/remote.
 };
 ```
