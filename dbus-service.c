@@ -614,17 +614,18 @@ gboolean notify_convolution_impulse_response_files_callback(ShairportSync *skele
                                                             __attribute__((unused))
                                                             gpointer user_data) {
   char *th = (char *)shairport_sync_get_convolution_impulse_response_files(skeleton);
-  if (config.convolution_ir_files != NULL) {
+  if (th != NULL) {
     debug(1, ">> freeing current configuration impulse response filter files.");
     free_ir_filenames(config.convolution_ir_files, config.convolution_ir_file_count);
     config.convolution_ir_files = NULL;
     config.convolution_ir_file_count = 0;
+  
+    config.convolution_ir_files = parse_ir_filenames(th, &config.convolution_ir_file_count);
+    sanity_check_ir_files(1, config.convolution_ir_files, config.convolution_ir_file_count);
+    debug(1, ">> setting %d configuration impulse response filter%s",
+          config.convolution_ir_file_count, config.convolution_ir_file_count == 1 ? "" : "s");
+    config.convolution_ir_files_updated = 1;
   }
-  config.convolution_ir_files = parse_ir_filenames(th, &config.convolution_ir_file_count);
-  sanity_check_ir_files(1, config.convolution_ir_files, config.convolution_ir_file_count);
-  debug(1, ">> setting %d configuration impulse response filter%s",
-        config.convolution_ir_file_count, config.convolution_ir_file_count == 1 ? "" : "s");
-  config.convolution_ir_files_updated = 1;
   return TRUE;
 }
 #else

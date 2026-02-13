@@ -2282,10 +2282,9 @@ const char *av_channel_layout_name(uint64_t channel_layout) {
 #endif
 
 int main(int argc, char **argv) {
-  // initialise debug messages stuff -- level 1, no elapsed time, relative time, file and line
-  // the debug level will be reset to zero if no debug level is set
+  // initialise debug messages stuff -- level 0, no elapsed time, relative time, file and line
   // debug_init(int level, int show_elapsed_time, int show_relative_time, int show_file_and_line)
-  debug_init(1, 0, 1, 1);
+  debug_init(0, 0, 1, 1);
   memset(&config, 0, sizeof(config)); // also clears all strings, BTW
   /* Check if we are called with -V or --version parameter */
   if (argc >= 2 && ((strcmp(argv[1], "-V") == 0) || (strcmp(argv[1], "--version") == 0))) {
@@ -2517,7 +2516,7 @@ int main(int argc, char **argv) {
 #ifdef CONFIG_LIBDAEMON
   /* If we are going to daemonise, check that the daemon is not running already.*/
   if ((config.daemonise) && ((pid = daemon_pid_file_is_running()) >= 0)) {
-    warn("The %s deamon is already running with process ID (PID) %u.", config.appName, pid);
+    warn("The %s daemon is already running with process ID (PID) %u.", config.appName, pid);
     // daemon_log(LOG_ERR, "The %s daemon is already running as PID %u", config.appName, pid);
     return 1;
   }
