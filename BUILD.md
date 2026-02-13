@@ -14,7 +14,7 @@ While the overall operation of Shairport Sync has not changed much, it is really
 7. Installation has changed: when Shairport Sync and NQPTP are installed, their startup scripts have changed to provide them with more suitable privileges. You must remove any existing startup scripts.
 8. Jack Audio is deprecated and will be removed in a future update. Consider using PipeWire instead.
 
-A useful guide to Version 5 Configuration File Changes in Version 5 is available [here](CONFIGURATIONFILECHANGES.md). 
+A useful guide to Version 5 Configuration File Changes in Version 5 is available [here](CONFIGURATIONFILECHANGES5.md). 
 
 ## 0. General
 
