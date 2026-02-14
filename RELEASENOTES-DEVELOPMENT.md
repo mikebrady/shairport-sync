@@ -1,3 +1,7 @@
+Version 5.0-post-dev-1-g963380a8
+==
+* This is essentially release Version 5.0 or 5.0.0.
+
 Version 5.0-dev-168-g846e0e3d
 ==
 **MQTT Enhancement**
