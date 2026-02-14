@@ -3,16 +3,9 @@
 # Tag pattern
 # 'master'      - rolling, rolling-classic
 # 'development' - development, development-classic
-
 # When a tag is created.
-# Tag pattern: '[tag]' & '[tag]-classic'
-
-# TODO: Does not currently push 'latest' or 'classic' tags.
-
-# Builds but does not push a docker image for PRs.
-
+# Tag pattern: '[tag]' & '[tag]-classic', plus 'latest' & 'classic'
 name: Build and conditionally push docker image
-
 on:
   workflow_dispatch:
   push:
@@ -23,32 +16,26 @@ on:
       - "*"
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-
 jobs:
   docker-vars:
     uses: ./.github/workflows/docker-vars.yaml
-
   build-docker-image-and-publish:
     name: Build and conditionally push docker image
     needs:
       - docker-vars
     runs-on: ubuntu-22.04
-
     strategy:
       matrix:
         include:
           - name: classic
             dockerfile: ./docker/classic/Dockerfile
-            tag_suffix: "-classic-rc0"
             build_args: |
               SHAIRPORT_SYNC_BRANCH=.
           - name: main
             dockerfile: ./docker/Dockerfile
-            tag_suffix: "-rc0"
             build_args: |
               SHAIRPORT_SYNC_BRANCH=.
               NQPTP_BRANCH=${{ needs.docker-vars.outputs.nqptp_branch }}
-
     steps:
       - name: Login to Docker Registry
         uses: docker/login-action@v3.7.0
@@ -57,18 +44,14 @@ jobs:
           username: ${{ secrets.DOCKER_REGISTRY_USER }}
           password: ${{ secrets.DOCKER_REGISTRY_TOKEN }}
         if: needs.docker-vars.outputs.push_docker_image == 'true'
-
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3.7.0
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3.12.0
-
       - name: Checkout shairport sync repo
         uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 0
-
       - name: Build and push ${{ matrix.name }}
         uses: docker/build-push-action@v6.18.0
         env:
@@ -80,16 +63,21 @@ jobs:
           push: ${{ needs.docker-vars.outputs.push_docker_image == 'true' }}
           # Assign tags based on branch or tag type for clarity
           tags: |
-            ${{ github.ref_type == 'branch' && github.ref_name == 'development' 
-                && format('{0}:development{1}', env.registry_and_name, matrix.tag_suffix) || '' }}
-
-            ${{ github.ref_type == 'branch' && github.ref_name == 'master' 
-                && format('{0}:rolling{1}', env.registry_and_name, matrix.tag_suffix) || '' }}
-
-            ${{ github.ref_type == 'tag' 
-                && format('{0}:{1}{2}', env.registry_and_name, github.ref_name, matrix.tag_suffix) || '' }}
+            ${{ github.ref_type == 'branch' && github.ref_name == 'development' && matrix.name == 'main'
+                && format('{0}:development', env.registry_and_name) || '' }}
+            ${{ github.ref_type == 'branch' && github.ref_name == 'development' && matrix.name == 'classic'
+                && format('{0}:development-classic', env.registry_and_name) || '' }}
+            ${{ github.ref_type == 'branch' && github.ref_name == 'master' && matrix.name == 'main'
+                && format('{0}:rolling', env.registry_and_name) || '' }}
+            ${{ github.ref_type == 'branch' && github.ref_name == 'master' && matrix.name == 'classic'
+                && format('{0}:rolling-classic', env.registry_and_name) || '' }}
+            ${{ github.ref_type == 'tag' && matrix.name == 'main'
+                && format('{0}:{1}', env.registry_and_name, github.ref_name) || '' }}
+            ${{ github.ref_type == 'tag' && matrix.name == 'classic'
+                && format('{0}:{1}-classic', env.registry_and_name, github.ref_name) || '' }}
+            ${{ github.ref_type == 'tag' && matrix.name == 'main'
+                && format('{0}:latest', env.registry_and_name) || '' }}
+            ${{ github.ref_type == 'tag' && matrix.name == 'classic'
+                && format('{0}:classic', env.registry_and_name) || '' }}
           build-args: |
             ${{ matrix.build_args }}
-
-# TODO: Fix pushing of 'latest' and 'classic' tags.
-# env.is_tag == 'true' && env.branch_name == 'master' && format('{0}:latest{1}', env.registry_and_name, matrix.tag_suffix) || ''
