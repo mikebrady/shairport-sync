@@ -1,7 +1,7 @@
 # Build and Install Shairport Sync
 This guide is for a basic installation of Shairport Sync in a recent (2018 onwards) Linux or FreeBSD.
 
-## Important Note -- Upgrading to Version 5!
+## Important Note – Upgrading to Version 5!
 
 If you have been using Shairport Sync prior to Version 5.0 and are rebuilding or reinstalling Shairport Sync, be aware that a few important things have changed.
 While the overall operation of Shairport Sync has not changed much, it is really important to fully remove existing startup scripts and to check and update configuration files. Some important changes are highlighted here:
@@ -9,18 +9,18 @@ While the overall operation of Shairport Sync has not changed much, it is really
 1. The default sample rate has changed from 44,100 to 48,000 for buffered audio. Real-time audio streams remain at 44,100.
 2. Shairport Sync will also play surround sound (5.1 and 7.1) and lossless (48k) audio.
 3. Shairport Sync will automatically switch output rates and formats to correspond to input rates and formats. This can be controlled.
-4. Many build flags  have changed: for example `--with-systemd` is now `with-systemd-startup`.
+4. Many build flags  have changed: for example `--with-systemd` is now `--with-systemd-startup`.
 5. Many configuration settings names and facilities have changed. For example `convolution` is now `convolution_enabled`. Another example is that convolution is now multi-threaded, so a new `convolution_thread_pool_size` setting is available.
 7. Installation has changed: when Shairport Sync and NQPTP are installed, their startup scripts have changed to provide them with more suitable privileges. You must remove any existing startup scripts.
 8. Jack Audio is deprecated and will be removed in a future update. Consider using PipeWire instead.
 
-A useful guide to Version 5 Configuration File Changes in Version 5 is available [here](CONFIGURATIONFILECHANGES5.md). 
+A useful guide to Version 5 Configuration File Changes is available [here](CONFIGURATIONFILECHANGES5.md). 
 
 ## 0. General
 
 Shairport Sync can be built as an AirPlay 2 player (with [some limitations](AIRPLAY2.md#features-and-limitations)) or as classic Shairport Sync – a player for the older, but still supported, "classic" AirPlay (aka "AirPlay 1") protocol. Check ["What You Need"](AIRPLAY2.md#what-you-need) for some basic system requirements.
 
-Note that Shairport Sync does not work well in virtual machines -- YMMV.
+Note that Shairport Sync does not work well in virtual machines – YMMV.
 
 Overall, you'll be building and installing two programs – Shairport Sync itself and [NQPTP](https://github.com/mikebrady/nqptp), a companion app that Shairport Sync uses for AirPlay 2 timing. If you are building classic Shairport Sync, NQPTP is unnecessary and can be omitted.
 
@@ -83,7 +83,7 @@ If you are building classic Shairport Sync, the list of packages is shorter:
     libpopt-dev libconfig-dev libasound2-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev \
     libavutil-dev libavcodec-dev libavformat-dev
 ```
-Building on Ubuntu 24.10 or Debian 13 ("Trixie") and later -- and possibly on other distributions -- requires `systemd-dev`. It does no harm to attempt to install it -- the install will simply fail if the package doesn't exist:
+Building on Ubuntu 24.10 or Debian 13 ("Trixie") and later – and possibly on other distributions – requires `systemd-dev`. It does no harm to attempt to install it – the install will simply fail if the package doesn't exist:
 
 ```
 # apt install --no-install-recommends systemd-dev # it's okay if this fails because the package doesn't exist
@@ -147,7 +147,7 @@ hosts: files dns mdns
 ```
 Reboot for these changes to take effect.
 
-Next, install the packages that are needed for Shairport Sync and NQPTP. If you will be using using `--with-sndio` instead of `--with-alsa` -- see below -- you can omit the `alsa-utils` package.
+Next, install the packages that are needed for Shairport Sync and NQPTP. If you will be using using `--with-sndio` instead of `--with-alsa` – see below – you can omit the `alsa-utils` package.
 
 If you are building Shairport Sync for AirPlay 2, install the following packages:
 ```
@@ -205,7 +205,7 @@ When you are finished running Shairport Sync, use Control-C it to stop it.
 
 ## 5. Enable and Start Service
 ### Linux
-If your system uses either PipeWire or PulseAudio as sound servers (most "desktop" Linuxes use one or the other), Shairport Sync must be started as a user service. This is because the PipeWire or PulseAudio services -- needed by Shairport Sync -- are user services themselves, and they must be running before Shairport Sync starts. That implies that Shairport Sync must be started as a user service.
+If your system uses either PipeWire or PulseAudio as sound servers (most "desktop" Linuxes use one or the other), Shairport Sync must be started as a user service. This is because the PipeWire or PulseAudio services – needed by Shairport Sync – are user services themselves, and they must be running before Shairport Sync starts. That implies that Shairport Sync must be started as a user service.
 
 #### Checking for PipeWire or PulseAudio
 If PipeWire is installed and running, the following command should return status information, as follows:
@@ -241,7 +241,7 @@ On an unattended system, this difficulty can be overcome by using automatic user
 
 #### Enable Shairport Sync as a System Service
 
-If your system does not have either PipeWire or PulseAudio installed (see how to check above), then you can enable Shairport Sync as a system service that starts automatically when the system boots up. To do so -- assuming you have followed the build guide successfully -- enter the following command:
+If your system does not have either PipeWire or PulseAudio installed (see how to check above), then you can enable Shairport Sync as a system service that starts automatically when the system boots up. To do so – assuming you have followed the build guide successfully – enter the following command:
 ```
 # systemctl enable shairport-sync
 ```
@@ -265,7 +265,7 @@ If your system is _not_ using PipeWire or PulseAudio (see [above](#checking-for-
    ```
    $ sudo usermod -aG audio $USER
    ```
-2. Ensure that the ALSA default output device is not muted and has the volume turned up -- `alsamixer` is very useful for this. 
+2. Ensure that the ALSA default output device is not muted and has the volume turned up – `alsamixer` is very useful for this. 
 3. To explore the ALSA output devices on your system, consider using the [dacquery](https://github.com/mikebrady/dacquery) tool.
 
 ### Power Saving
