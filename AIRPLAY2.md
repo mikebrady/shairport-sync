@@ -68,7 +68,7 @@ Here are some guidelines:
 * Ports 319 and 320 must be free to use (i.e. they must not be in use by another service such as a PTP service) and must not be blocked by a firewall.
 * An up-to-date Linux, FreeBSD or OpenBSD system. This is important, as some of the libraries must be the latest available.
 
-* Due to realtime timing requirements, Shairport Sync does not work well on virtual machines outputting to ALSA, PipeWire, PulseAudio or Jack Audio. For the same reason, Shairport Sync does not work very well with with Bluetooth. YMMV of course, and you can have success where timing is not crucial, such as outputting to `stdout` or to a unix pipe.
+* Due to realtime timing requirements, Shairport Sync does not work well on virtual machines outputting to ALSA, PipeWire or PulseAudio. For the same reason, Shairport Sync does not work very well with with Bluetooth. YMMV of course, and you can have success where timing is not crucial, such as outputting to `stdout` or to a unix pipe.
 * Shairport Sync can not run in AirPlay 2 mode on a Mac because NQPTP, on which it relies, needs ports 319 and 320, which are already used by macOS.
 * A version of the [FFmpeg](https://www.ffmpeg.org) library with an AAC decoder capable of decoding Floating Planar -- `fltp` -- material must be in your system. There is a guide [here](TROUBLESHOOTING.md#aac-decoder-issues-airplay-2-only) to help you find out if your system has it.
 * An audio output. For preference, the output device should be capable of accepting stereo or multichannel at 44,100 and 48,000 frames per second. With FFmpeg support, audio will be transcoded and mixed to match output device capabilities as necessary.

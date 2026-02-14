@@ -1,6 +1,98 @@
-Minor Release Notes
+Version 5.0
 ====
-Minor release notes are attached to the releases themselves.
+This major release represents a significant advancement in Shairport Sync's capabilities, introducing multi-channel audio support, high-resolution playback, and comprehensive performance improvements.
+
+**Important Breaking Changes Notice:** Version 5.0 includes many breaking changes from previous versions of Shairport Sync. Please review the documentation carefully before upgrading. A useful guide to Version 5 Configuration File Changes in Version 5 is available [here](CONFIGURATIONFILECHANGES5.md). 
+
+**New Features**
+
+* **Multi-Channel and High-Resolution Audio Support**
+  * 48,000 frames per second ("48k") operation.
+  * 48k lossless stereo support.
+  * 5.1 and 7.1 surround sound support.
+  * Multi-channel and multi-rate operation on `ALSA`, PipeWire, PulseAudio, FreeBSD, `stdout` and Unix `pipe` output backends.
+
+* **Automatic Audio Format Selection**
+  * Flexible and controllable output format selection.
+  * Automatic rate, sample format, and channel count selection.
+
+* **Full FFmpeg Integration**
+  * Support for transcoding.
+  * Advanced resampling capabilities.
+  * New audio format support.
+
+* **Enhanced Resampling**
+  * New `vernier` resampling and interpolation method optimized for low-power CPUs.
+  * Better performance on resource-constrained devices.
+
+* **Convolution and Loudness Enhancements**
+  * Convolution system is now multithreaded and works on stereo and multichannel audio at 48k and 44.1k.
+  * Multiple impulse response (IR) files can now be provided via `convolution_ir_files` setting.
+  * New `convolution_thread_pool_size` setting for multithreaded processing (defaults to 1).
+  * Loudness processing now works with stereo and multichannel audio at 48k and 44.1k.
+  * Updated to the most recent [HiFi-LoFi FFT convolver](https://github.com/HiFi-LoFi/FFTConvolver).
+
+* **MQTT Enhancements**
+  * Added new `publish_retain` boolean option. When enabled, published MQTT messages have the `retain` flag set, so the MQTT broker stores the last message per topic and new subscribers receive the most recent value immediately. Thanks to [lululombard](https://github.com/lululombard) for [PR #2142](https://github.com/mikebrady/shairport-sync/pull/2142).
+
+* **D-Bus Enhancements**
+  * Added new `dbus_default_message_bus` command-line argument (can be `system` or `session`) to set the default message bus for both D-Bus native service and MPRIS service.
+
+**Performance Improvements**
+
+* Better operation on low-power devices down to Raspberry Pi B.
+* Improved efficiency on embedded systems.
+* Enhanced timestamp handling for better synchronization.
+* Improved sync error calculation.
+* Rebuilt buffered audio processor for cleaner handling of immediate and deferred flush requests.
+
+**Docker Enhancements**
+
+* Reduced Docker image sizes with slimmed-down `FFmpeg` library.
+* Removed `dhclient` from Docker images for smaller footprint.
+
+**Bug Fixes**
+
+* Fixed MQTT warning on service startup: "Could not establish a mqtt connection". The startup script now correctly states that the `mosquitto` service is required. Thanks to [Hugo Villeneuve](https://github.com/hvilleneuve29) for [PR #2137](https://github.com/mikebrady/shairport-sync/pull/2137).
+* Fixed compatibility with `mbedtls` library version 3.4+ (present on recent Linux versions). Thanks to [Christian Beier](https://github.com/bk138) for [finding](https://github.com/mikebrady/shairport-sync/issues/2115) and [fixing](https://github.com/mikebrady/shairport-sync/pull/2118) the bug.
+* Fixed PulseAudio backend so that `PA_ERR_NODATA` returns "No latency data yet". Thanks to [Vladimir Shakov](https://github.com/bogdad) for the [report and fix](https://github.com/mikebrady/shairport-sync/pull/2119).
+* Ensured old flush requests are deleted when a new play session starts. Thanks to [saujanyashah](https://github.com/saujanyashah) for the [report](https://github.com/mikebrady/shairport-sync/issues/2107).
+* Fixed format warnings on 64-bit and 32-bit systems
+* Removed compilation warnings on 32-bit builds
+* Improved argument checking for `debug()`, `inform()`, `warn()` and `die()` functions
+* Fixed "daemon" typos throughout codebase. Thanks to [Chris Boot](https://github.com/bootc) for [PR #1981](https://github.com/mikebrady/shairport-sync/pull/1981).
+* Added warning if a convolution impulse response file cannot be read due to bad path or permissions
+
+**Build System Improvements**
+
+* Unified service file with variable substitution for Avahi support, making it easier to add future service dependencies. Thanks to [Hugo Villeneuve](https://github.com/hvilleneuve29).
+* Network interface selection now only considers interfaces that are up, running and not loopback interfaces. Thanks to [Carl Johnson](https://github.com/SoarVermont) for the [suggestion](https://github.com/mikebrady/shairport-sync/issues/1996).
+
+**Configuration File Changes and Deprecations**
+
+* New settings: `convolution_ir_files` (replaces `convolution_ir_file`), `convolution_enabled` (replaces `convolution`), `convolution_max_length_in_seconds` (replaces `convolution_max_length`), `loudness_enabled` (replaces `loudness`).
+* New `convolution_thread_pool_size` setting (defaults to 1).
+* Deprecated settings: `convolution_ir_file`, `convolution`, `convolution_max_length`, `loudness`.
+* Corresponding D-Bus methods and properties have been updated.
+
+**Deprecation Notice**
+
+* The Jack Audio and `soundio` backends are deprecated and will be removed in a future release. Consider using the updated PipeWire backend instead.
+
+**Documentation Updates**
+
+* Updated BUILD.md with latest build instructions.
+* Updated AIRPLAY2.md with feature information.
+* Enhanced convolution and loudness documentation.
+
+**Maintenance**
+
+* Fixed FFmpeg deprecation warnings.
+* Bumped `actions/checkout` from 6.0.1 to 6.0.2.
+* Bumped `docker/login-action` from 3.6.0 to 3.7.0.
+* Bumped `docker/build-push-action` from 6.13.0 to 6.15.0.
+* Bumped `docker/setup-qemu-action` from 3.4.0 to 3.6.0.
+* Bumped `docker/setup-buildx-action` from 3.9.0 to 3.10.0.
 
 Version 4.3 -- Security Updates, Bug Fixes and Enhancements
 ====

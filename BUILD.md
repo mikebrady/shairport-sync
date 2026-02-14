@@ -1,6 +1,23 @@
 # Build and Install Shairport Sync
 This guide is for a basic installation of Shairport Sync in a recent (2018 onwards) Linux or FreeBSD.
 
+## Important Note -- Upgrading to Version 5!
+
+If you have been using Shairport Sync prior to Version 5.0 and are rebuilding or reinstalling Shairport Sync, be aware that a few important things have changed.
+While the overall operation of Shairport Sync has not changed much, it is really important to fully remove existing startup scripts and to check and update configuration files. Some important changes are highlighted here:
+
+1. The default sample rate has changed from 44,100 to 48,000 for buffered audio. Real-time audio streams remain at 44,100.
+2. Shairport Sync will also play surround sound (5.1 and 7.1) and lossless (48k) audio.
+3. Shairport Sync will automatically switch output rates and formats to correspond to input rates and formats. This can be controlled.
+4. Many build flags  have changed: for example `--with-systemd` is now `with-systemd-startup`.
+5. Many configuration settings names and facilities have changed. For example `convolution` is now `convolution_enabled`. Another example is that convolution is now multi-threaded, so a new `convolution_thread_pool_size` setting is available.
+7. Installation has changed: when Shairport Sync and NQPTP are installed, their startup scripts have changed to provide them with more suitable privileges. You must remove any existing startup scripts.
+8. Jack Audio is deprecated and will be removed in a future update. Consider using PipeWire instead.
+
+A useful guide to Version 5 Configuration File Changes in Version 5 is available [here](CONFIGURATIONFILECHANGES5.md). 
+
+## 0. General
+
 Shairport Sync can be built as an AirPlay 2 player (with [some limitations](AIRPLAY2.md#features-and-limitations)) or as classic Shairport Sync – a player for the older, but still supported, "classic" AirPlay (aka "AirPlay 1") protocol. Check ["What You Need"](AIRPLAY2.md#what-you-need) for some basic system requirements.
 
 Note that Shairport Sync does not work well in virtual machines -- YMMV.
@@ -66,8 +83,7 @@ If you are building classic Shairport Sync, the list of packages is shorter:
     libpopt-dev libconfig-dev libasound2-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev \
     libavutil-dev libavcodec-dev libavformat-dev
 ```
-
-Building on Ubuntu 24.10 or Debian 13 ("Trixie") and later may require `systemd-dev`. It does no harm to attempt to install it -- the install will simply fail if the package doesn't exist:
+Building on Ubuntu 24.10 or Debian 13 ("Trixie") and later -- and possibly on other distributions -- requires `systemd-dev`. It does no harm to attempt to install it -- the install will simply fail if the package doesn't exist:
 ```
 # apt install --no-install-recommends systemd-dev # it's okay if this fails because the package doesn't exist
 ```
@@ -255,7 +271,7 @@ If your system is _not_ using PipeWire or PulseAudio (see [above](#checking-for-
 ### Power Saving
 If your computer has an `Automatic Suspend` Power Saving Option, you should experiment with disabling it, because your computer has to be available for AirPlay service at all times.
 ### WiFi Power Management – Linux
-If you are using WiFi, you should turn off WiFi Power Management:
+If you are using WiFi, you should turn off WiFi Power Management. On a Raspberry Pi, for example, you can use the following commands:
 ```
 # iwconfig wlan0 power off
 ```
@@ -276,7 +292,7 @@ With AirPlay 2, you can follow the steps in [ADDINGTOHOME.md](ADDINGTOHOME.md) t
 
 At this point, you should have a basic functioning Shairport Sync installation. If you want more control – for example, using the ALSA backend, if you want to use a specific DAC, or if you want AirPlay to control the DAC's volume control – you can use settings in the configuration file or you can use command-line options.
 
-#### Configuration File
+#### Configuration Sample File
 When you run `# make install`, a configuration file is installed if one doesn't already exist. Additionally, a sample configuration file called `shairport-sync.conf.sample` is _always_ installed. This contains all the setting groups and all the settings available, commented out so that default values are used. The file contains explanations of the settings, useful hints and suggestions. The configuration file and the sample configuration file are installed in the `sysconfdir` you specified at the `./configure...` step above.
 
 Please take a look at [Advanced Topics](ADVANCED%20TOPICS/README.md) for some ideas about what else you can do to enhance the operation of Shairport Sync. For example, you can adjust synchronisation to compensate for delays in your system.

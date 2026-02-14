@@ -1,3 +1,5 @@
+name: Set variables for a Docker build (used by another workflow).
+
 on:
   workflow_call:
     outputs:
