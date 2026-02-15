@@ -109,7 +109,7 @@ static void resolve_callback(AvahiServiceResolver *r, AVAHI_GCC_UNUSED AvahiIfIn
     //    char a[AVAHI_ADDRESS_STR_MAX], *t;
     debug(3, "resolve_callback: Service '%s' of type '%s' in domain '%s':", name, type, domain);
     if (dbs->dacp_id) {
-      char *dacpid = strstr(name, "iTunes_Ctrl_");
+      const char *dacpid = strstr(name, "iTunes_Ctrl_");
       if (dacpid) {
         dacpid += strlen("iTunes_Ctrl_");
         while (*dacpid == '0')
