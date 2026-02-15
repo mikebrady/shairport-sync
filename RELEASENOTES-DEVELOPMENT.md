@@ -1,3 +1,7 @@
+Version 5.0-post-dev-6-gd32d5cb9
+==
+* Fix handling of missing `const` type qualifier and some follow-on warnings. Thanks to [Rudi Heitbaum](https://github.com/heitbaum) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2146).
+
 Version 5.0-post-dev-1-g963380a8
 ==
 * This is essentially release Version 5.0 or 5.0.0.
