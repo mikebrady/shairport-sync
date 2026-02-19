@@ -139,7 +139,7 @@ The examples below are based on Shairport Sync running as a system service and u
 #### Remote Control
 Remote Control commands are sent as requests to the player (iOS, iTunes, macOS Music, etc.). Different versions of the players implement different subsets of the following commands.
 
-**Note** Unfortunately, at this time -- early 2026 -- these requests are ignored, so remote control doesn't work.
+**Note:** Unfortunately, at this time -- early 2026 -- these requests are ignored, so remote control doesn't work.
 
 * Send the `play` command to the player:
 ```
@@ -154,13 +154,13 @@ Remote Control commands are sent as requests to the player (iOS, iTunes, macOS M
 #### Advanced Remote Control
 Some commands and properties are accessible only through the `AdvancedRemoteControl` interface.
 
-**Note** Unfortunately, at this time -- early 2026 -- these requests are ignored, so remote control doesn't work.
+**Note:** Unfortunately, at this time -- early 2026 -- these requests are ignored, so advance remote control doesn't work.
 
-* Check to see if AdvancedRemoteControl is available using the command:
+* Check to see if Advanced Remote Control is available using the command:
 ```
   dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Get string:org.gnome.ShairportSync.AdvancedRemoteControl string:Available
 ```
-* Set Volume using Advanced Remote Control -- only works if the org.gnome.ShairportSync.AdvancedRemoteControl is available.
+* Set Volume using Advanced Remote Control -- only works if the Advanced Remote Control is available.
 ```
   dbus-send --system --print-reply --type=method_call --dest=org.gnome.ShairportSync '/org/gnome/ShairportSync' org.gnome.ShairportSync.AdvancedRemoteControl.SetVolume int32:50
 ```
