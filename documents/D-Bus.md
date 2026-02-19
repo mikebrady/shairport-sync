@@ -136,10 +136,10 @@ The examples below are based on Shairport Sync running as a system service and u
 ```
   dbus-send --system --print-reply --type=method_call --dest=org.gnome.ShairportSync '/org/gnome/ShairportSync' org.gnome.ShairportSync.DropSession
 ```
-#### Control the player using Remote Control.
-  Remote Control commands are sent as requests to the player (iOS, iTunes, macOS Music, etc.). Different versions of the players implement different subsets of the following commands.
+#### Remote Control
+Remote Control commands are sent as requests to the player (iOS, iTunes, macOS Music, etc.). Different versions of the players implement different subsets of the following commands.
 
-  **Note** Unfortunately, at this time -- early 2026 -- these requests are ignored, so remote control doesn't work.
+**Note** Unfortunately, at this time -- early 2026 -- these requests are ignored, so remote control doesn't work.
 
 * Send the `play` command to the player:
 ```
@@ -151,19 +151,16 @@ The examples below are based on Shairport Sync running as a system service and u
 ```
   dbus-send --system --print-reply --type=method_call --dest=org.gnome.ShairportSync '/org/gnome/ShairportSync' org.gnome.ShairportSync.RemoteControl.SetAirplayVolume double:-10.0
 ```
-AdvancedRemoteControl interface. Some commands and properties are accessible only through the AdvancedRemoteControl interface. However, support for this is very limited in recent implementations.
+#### Advanced Remote Control
+Some commands and properties are accessible only through the `AdvancedRemoteControl` interface.
 
-* You can check to see if AdvancedRemoteControl is available using the command:
+**Note** Unfortunately, at this time -- early 2026 -- these requests are ignored, so remote control doesn't work.
+
+* Check to see if AdvancedRemoteControl is available using the command:
 ```
   dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Get string:org.gnome.ShairportSync.AdvancedRemoteControl string:Available
 ```
 * Set Volume using Advanced Remote Control -- only works if the org.gnome.ShairportSync.AdvancedRemoteControl is available.
 ```
   dbus-send --system --print-reply --type=method_call --dest=org.gnome.ShairportSync '/org/gnome/ShairportSync' org.gnome.ShairportSync.AdvancedRemoteControl.SetVolume int32:50
-```
-MPRIS interface commands. For MPRIS support, Shairport Sync must be built with the MPRIS interface support. Add the `--with-mpris-interface` flag at the `./configure…` stage. There is a simple test client that you can have built -- add the '--with-mpris-test-client' flag at the ./configure stage. You'll get an executable called shairport-sync-mpris-test-client. This is mostly compatible with the MPRIS standard, except that Volume is read-only, with a separate SetVolume method.
-
-* Set Volume, which must be between 0.0 and 1.0 and maps linearly onto the slider.
-```
-  dbus-send --system --print-reply --type=method_call --dest=org.mpris.MediaPlayer2.ShairportSync '/org/mpris/MediaPlayer2' org.mpris.MediaPlayer2.Player.SetVolume double:0.3
 ```
