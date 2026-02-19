@@ -9,22 +9,26 @@ $ shairport-sync -V
 
 ```
 Once Shairport Sync has been built with the D-Bus interface, it must then be installed correctly to provide a Shairport Sync service, on either the D-Bus system bus or the D Bus session bus.
-
 To become available as a system-wide service on the D-Bus system bus, it must be installed as a system service using the `# make install` step of the build process. This installs the appropriate service files and sets required permissions.
 Remember to enable Shairport Sync to start as a system service. You may also need to restart the entire system to allow the service to be seen.
 
 If Shairport Sync is installed as a user service, it will not be able to become a service on the D-Bus system bus, but it can be added to the D-Bus session bus. Edit the configuration file to select the session bus, or add the option `--dbus_default_message_bus=session` to the command line.
 
+### D-Feet
+On desktop Linuxes with a GUI, e.g. Ubuntu, D-Feet is a great tool for examining a D-Bus service:
+
+![Shairport Sync and DFeet](https://github.com/user-attachments/assets/613dab83-9b02-4312-9ad1-c94db1d0ef49)
+
 ### Sample Test Client
 
-There is a simple test client that you can build when building Shairport Sync itself. To build it, simply add the `--with-dbus-test-client` flag at the `./configure…` stage. Along with `shairport-sync` itself, you'll get another executable called `shairport-sync-dbus-test-client` which you can run from the command line.
+A simple test client can be built when you are building Shairport Sync itself. To build it, simply add the `--with-dbus-test-client` flag at the `./configure…` stage. Along with the `shairport-sync` executable application, you'll get another executable called `shairport-sync-dbus-test-client` which you can run from the command line.
 
 After attempting to send some commands, it will listen for property changes on the D-Bus interface and report them on the console.
 
 ### Command Line Examples
 
 The examples below are based on Shairport Sync running as a system service and use the standard CLI tool `dbus-send`:
-* Get "Active" Status -- `true` when Shairport Sync is playing (and for a short time later); `false` otherwise.
+* Get `Active` Status -- `true` when Shairport Sync is playing (and for a short time later); `false` otherwise.
 ```
   dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Get string:org.gnome.ShairportSync string:Active
 ```
@@ -141,6 +145,10 @@ Remote Control commands are sent as requests to the player (iOS, iTunes, macOS M
 
 **Note:** Unfortunately, at this time -- early 2026 -- these requests are ignored, so remote control doesn't work.
 
+* Check if Remote Control is available:
+```
+  dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Get string:org.gnome.ShairportSync.RemoteControl string:Available
+```
 * Send the `play` command to the player:
 ```
   dbus-send --system --print-reply --type=method_call --dest=org.gnome.ShairportSync '/org/gnome/ShairportSync' org.gnome.ShairportSync.RemoteControl.Play
@@ -156,11 +164,11 @@ Some commands and properties are accessible only through the `AdvancedRemoteCont
 
 **Note:** Unfortunately, at this time -- early 2026 -- these requests are ignored, so advance remote control doesn't work.
 
-* Check to see if Advanced Remote Control is available using the command:
+* Check if Advanced Remote Control is available:
 ```
   dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Get string:org.gnome.ShairportSync.AdvancedRemoteControl string:Available
 ```
-* Set Volume using Advanced Remote Control -- only works if the Advanced Remote Control is available.
+* Set Volume using Advanced Remote Control:
 ```
   dbus-send --system --print-reply --type=method_call --dest=org.gnome.ShairportSync '/org/gnome/ShairportSync' org.gnome.ShairportSync.AdvancedRemoteControl.SetVolume int32:50
 ```
