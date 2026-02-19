@@ -1,9 +1,13 @@
-# For the "Native" Shairport Sync D-Bus Interface support, Shairport Sync must be built with the D-Bus interface support. Add the '--with-dbus-interface' flag at the ./configure stage.
+# For the "Native" Shairport Sync D-Bus Interface support, Shairport Sync must be built with the D-Bus interface support -- to do this, add the '--with-dbus-interface' flag at the ./configure stage.
+# Secondly, for the Shairport Sync interface to become available on the D-Bus system bus, Shairport Sync must be installed and running as a system service. The example below assume that it is installed and running as a system service. 
 
 # There is a simple test client that you can build -- add the '--with-dbus-test-client' flag at the ./configure stage. You'll get an executable called shairport-sync-dbus-test-client
 # After attempting to send some commands, it will listen for property changes on the D-Bus interface and report them on the console.
 
 # Additionally, the following are examples of using the CLI command "dbus-send" to send D-Bus commands to Shairport Sync:
+
+# Get "Active" Status -- true when Shairport Sync is playing (and for a short time later); false otherwise.
+dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Get string:org.gnome.ShairportSync string:Active
 
 # Get Log Verbosity
 dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Get string:org.gnome.ShairportSync.Diagnostics string:Verbosity
