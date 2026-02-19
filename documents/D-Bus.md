@@ -21,7 +21,7 @@ On desktop Linuxes with a GUI, e.g. Ubuntu, D-Feet is a great tool for examining
 
 ### Sample Test Client
 
-A simple test client can be built when you are building Shairport Sync itself. To build it, simply add the `--with-dbus-test-client` flag at the `./configure…` stage. Along with the `shairport-sync` executable application, you'll get another executable called `shairport-sync-dbus-test-client` which you can run from the command line.
+A simple test client, written in C, can be built when you are building Shairport Sync itself. To build it, simply add the `--with-dbus-test-client` flag at the `./configure…` stage. Along with the `shairport-sync` executable application, you'll get another executable called `shairport-sync-dbus-test-client` which you can run from the command line.
 
 After attempting to send some commands, it will listen for property changes on the D-Bus interface and report them on the console.
 
