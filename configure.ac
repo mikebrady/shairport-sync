@@ -1,7 +1,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.50])
-AC_INIT([shairport-sync], [5.0rc0], [4265913+mikebrady@users.noreply.github.com])
+AC_INIT([shairport-sync], [5.0-post-dev], [4265913+mikebrady@users.noreply.github.com])
 : ${CFLAGS="-O3"}
 : ${CXXFLAGS="-O3"}
 AM_INIT_AUTOMAKE([subdir-objects])
@@ -389,8 +389,6 @@ AC_ARG_WITH(mqtt-client, [AS_HELP_STRING([--with-mqtt-client],[include a client 
 if test "x$with_mqtt_client" = "xyes" ; then
   AC_DEFINE([CONFIG_MQTT], 1, [Include a client for MQTT, the Message Queuing Telemetry Transport protocol])
   AC_CHECK_LIB([mosquitto], [mosquitto_lib_init], , AC_MSG_ERROR(MQTT support requires the mosquitto library -- libmosquitto-dev suggested!))
-  systemd_after_args="${systemd_after_args} mosquitto.service"
-  systemd_requires_args="${systemd_requires_args} mosquitto.service"
 fi
 AM_CONDITIONAL([USE_MQTT], [test "x$with_mqtt_client" = "xyes"])
 

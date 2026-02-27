@@ -198,8 +198,10 @@ void send_autodiscovery_messages(struct mosquitto *mosq) {
         (strcmp(sensors[i], "active") == 0 || strcmp(sensors[i], "playing") == 0);
     bool is_volume_sensor = strcmp(sensors[i], "volume") == 0;
 
-    snprintf(topic, sizeof(topic), "%s/%ssensor/%s_%s/%s/config", autodiscovery_prefix,
-             is_binary_sensor ? "binary_" : "", model, device_id_no_colons, sensors[i]);
+    const char* entity_type = is_binary_sensor ? "binary_sensor" : "sensor";
+
+    snprintf(topic, sizeof(topic), "%s/%s/%s_%s/%s/config", autodiscovery_prefix,
+             entity_type, model, device_id_no_colons, sensors[i]);
 
     snprintf(id_string, sizeof(id_string), "%s_%s_%s", model, device_name, sensors[i]);
 
@@ -211,9 +213,18 @@ void send_autodiscovery_messages(struct mosquitto *mosq) {
         "\"icon\": \"%s\","
         "\"unique_id\": \"%s\","
         "\"object_id\": \"%s\","
+        // As of Home Assistant 2025.10, `default_entity_id` replaces `object_id`.
+        // Home Assistant 2026.4 will remove support for `object_id`,
+        // so we add both for backward compatibility.
+        "\"default_entity_id\": \"%s.%s\","
         "%s%s%s"
         "}",
-        sensor_names[i], config.mqtt_topic, sensors[i], icons[i], id_string, id_string,
+        sensor_names[i], // name
+        config.mqtt_topic, sensors[i], //state_topic
+        icons[i], // icon
+        id_string, // unique_id
+        id_string, // object_id
+        entity_type, id_string, // default_entity_id
         is_binary_sensor ? "\"payload_on\": \"1\",\"payload_off\": \"0\"," : "",
         is_volume_sensor
             ? "\"value_template\": \"{{ ((value | regex_findall_index("

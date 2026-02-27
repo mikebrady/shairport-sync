@@ -474,7 +474,7 @@ void set_dacp_server_information(rtsp_conn_info *conn) {
   debug_mutex_unlock(&dacp_server_information_lock, 3);
 }
 
-void dacp_monitor_port_update_callback(char *dacp_id, uint16_t port) {
+void dacp_monitor_port_update_callback(const char *dacp_id, uint16_t port) {
   debug_mutex_lock(&dacp_server_information_lock, 500000, 2);
   debug(3,
         "dacp_monitor_port_update_callback with Remote ID \"%s\", target ID \"%s\" and port "
