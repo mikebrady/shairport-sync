@@ -50,7 +50,6 @@ shairport-sync.xcodeproj
 
 # separate build directories
 build
-classic
 
 # vscode
 .vscode
