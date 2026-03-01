@@ -1987,7 +1987,7 @@ static int do_play(void *buf, int samples) {
       }
 
       snd_pcm_state_t prior_state = state; // keep this for afterwards....
-      debug(3, "alsa: write %d frames.", samples);
+      debug(4, "alsa: write %d frames.", samples);
       ret = alsa_pcm_write(alsa_handle, buf, samples);
       if (ret == -EIO) {
         debug(1, "alsa: I/O Error.");
@@ -2380,7 +2380,7 @@ static void *alsa_buffer_monitor_thread_code(__attribute__((unused)) void *arg) 
                                    dither_random_number_store, current_encoded_output_format);
 
           ret = do_play(silence, frames_of_silence);
-          debug(3, "Played %u frames of silence on %u channels, equal to %zu bytes.",
+          debug(4, "Played %u frames of silence on %u channels, equal to %zu bytes.",
                 frames_of_silence, CHANNELS_FROM_ENCODED_FORMAT(current_encoded_output_format),
                 size_of_silence_buffer);
           frame_count++;

@@ -34,7 +34,7 @@
 ssize_t buffered_read(buffered_tcp_desc *descriptor, void *buf, size_t count,
                       size_t *bytes_remaining) {
   ssize_t response = -1;
-  if (debug_mutex_lock(&descriptor->mutex, 50000, 1) != 0)
+  if (debug_mutex_lock(&descriptor->mutex, 50000, 4) != 0)
     debug(1, "problem with mutex");
   pthread_cleanup_push(mutex_unlock, (void *)&descriptor->mutex);
   // wipe the slate dlean before reading...
@@ -115,7 +115,7 @@ void *buffered_tcp_reader(void *arg) {
 
   do {
     int have_time_to_sleep = 0;
-    if (debug_mutex_lock(&descriptor->mutex, 500000, 1) != 0)
+    if (debug_mutex_lock(&descriptor->mutex, 500000, 4) != 0)
       debug(1, "problem with mutex");
     pthread_cleanup_push(mutex_unlock, (void *)&descriptor->mutex);
     while (descriptor->buffer_occupancy == descriptor->buffer_max_size) {
@@ -148,7 +148,7 @@ void *buffered_tcp_reader(void *arg) {
     nread = recv(fd, descriptor->eoq, bytes_to_request, 0);
     // debug(1, "Received %d bytes for a buffer size of %d bytes.",nread,
     // descriptor->buffer_occupancy + nread);
-    if (debug_mutex_lock(&descriptor->mutex, 50000, 1) != 0)
+    if (debug_mutex_lock(&descriptor->mutex, 50000, 4) != 0)
       debug(1, "problem with not empty mutex");
     pthread_cleanup_push(mutex_unlock, (void *)&descriptor->mutex);
     if (nread < 0) {

@@ -517,7 +517,7 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
   while (1) {
     int result = 0;
     int32_t the_volume;
-    pthread_cleanup_debug_mutex_lock(&dacp_server_information_lock, 500000, 2);
+    pthread_cleanup_debug_mutex_lock(&dacp_server_information_lock, 500000, 4);
     if (dacp_server.scan_enable == 0) {
       metadata_hub_modify_prolog();
       int ch = (metadata_store.dacp_server_active != 0) ||
