@@ -68,7 +68,7 @@ void on_properties_changed(__attribute__((unused)) GDBusProxy *proxy, GVariant *
 void notify_loudness_callback(ShairportSync *proxy, __attribute__((unused)) gpointer user_data) {
   //  printf("\"notify_loudness_callback\" called with a gpointer of
   //  %lx.\n",(int64_t)user_data);
-  gboolean ebl = shairport_sync_get_loudness(proxy);
+  gboolean ebl = shairport_sync_get_loudness_enabled(proxy);
   if (ebl == TRUE)
     printf("Client reports loudness is enabled.\n");
   else
