@@ -1134,7 +1134,7 @@ enum rtsp_read_request_response rtsp_read_request(rtsp_conn_info *conn, rtsp_mes
           reply = rtsp_read_request_response_error;
           // goto shutdown;
         } else {
-          debug(3, "buf is reallocated at 0x%" PRIxPTR ".", (uintptr_t)buf);
+          debug(4, "buf is reallocated at 0x%" PRIxPTR ".", (uintptr_t)buf);
           buflen = msg_size;
         }
       }
@@ -1782,7 +1782,7 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
       }
     }
 
-    debug_mutex_unlock(&conn->flush_mutex, 3);
+    debug_mutex_unlock(&conn->flush_mutex, 4);
     plist_free(messagePlist);
   }
 
@@ -1860,7 +1860,7 @@ void handle_setrateanchori(rtsp_conn_info *conn, rtsp_message *req, rtsp_message
       uint64_t rate;
       plist_get_uint_val(item, &rate);
       debug(3, "anchor rate 0x%016" PRIx64 ".", rate);
-      pthread_cleanup_debug_mutex_lock(&conn->flush_mutex, 1000, 1);
+      pthread_cleanup_debug_mutex_lock(&conn->flush_mutex, 1000, 4);
       conn->ap2_rate = rate;
       if ((rate & 1) != 0) {
         ptp_send_control_message_string(
@@ -1874,6 +1874,7 @@ void handle_setrateanchori(rtsp_conn_info *conn, rtsp_message *req, rtsp_message
 #endif
         conn->ap2_play_enabled = 1;
       } else {
+        reset_ptp_anchor_info(conn);
         ptp_send_control_message_string("P"); // signify play is "P"ausing
         debug(2, "Connection %d: SETRATEANCHORI Pause playing.", conn->connection_number);
         conn->ap2_play_enabled = 0;
