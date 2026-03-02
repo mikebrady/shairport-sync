@@ -167,7 +167,7 @@ void mpris_metadata_watcher(struct metadata_bundle *argc, __attribute__((unused)
   */
 
   // Build the metadata array
-  debug(2, "Build metadata");
+  debug(4, "Build metadata");
   GVariantBuilder *dict_builder = g_variant_builder_new(G_VARIANT_TYPE("a{sv}"));
 
   // Add in the artwork URI if it exists.

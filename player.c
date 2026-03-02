@@ -1449,10 +1449,10 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
 
   // ignore a request to flush that has been made before the first packet...
   if (conn->packet_count == 0) {
-    debug_mutex_lock(&conn->flush_mutex, 1000, 1);
+    debug_mutex_lock(&conn->flush_mutex, 1000, 4);
     conn->flush_requested = 0;
     conn->flush_rtp_timestamp = 0;
-    debug_mutex_unlock(&conn->flush_mutex, 3);
+    debug_mutex_unlock(&conn->flush_mutex, 4);
   }
 
   pthread_cleanup_debug_mutex_lock(&conn->ab_mutex, 30000, 0);
@@ -4354,7 +4354,7 @@ void *player_thread_func(void *arg) {
                       gap_to_fix = (gap_to_fix_ns *
                                     RATE_FROM_ENCODED_FORMAT(config.current_output_configuration) + 1000000000/2) /
                                    1000000000; // this is frames at the output rate
-                      debug(3, "gap_to_fix: %u frames at input rate, %" PRId64 " frames at output rate.", -inframe->timestamp_gap, gap_to_fix);
+                      debug(4, "gap_to_fix: %u frames at input rate, %" PRId64 " frames at output rate.", -inframe->timestamp_gap, gap_to_fix);
                       // debug(3, "due to timstamp gap of %d frames, skip %" PRId64 " output
                       // frames.", inframe->timestamp_gap, gap_to_fix);
                     }
@@ -4768,7 +4768,7 @@ void *player_thread_func(void *arg) {
                       if (frames_to_skip > (unsigned int)play_samples) {
                         debug(3, "skipping a packet of %u frames.", play_samples);
                         debug_print_buffer(
-                            3, conn->outbuf,
+                            4, conn->outbuf,
                             play_samples *
                                 CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration) *
                                 sps_format_sample_size(FORMAT_FROM_ENCODED_FORMAT(
@@ -4789,10 +4789,10 @@ void *player_thread_func(void *arg) {
                                             play_samples_are_timed, inframe->timestamp,
                                             should_be_time);
 
-                        debug(3, "skipping the first %u frames (listed below) in a packet of %u frames.",
+                        debug(4, "skipping the first %u frames in a packet of %u frames.",
                               frames_to_skip, play_samples);
 
-                        debug_print_buffer(3, conn->outbuf, bytes_to_skip);
+                        debug_print_buffer(4, conn->outbuf, bytes_to_skip);
 
                         frames_played += play_samples - frames_to_skip;
                         frames_to_skip = 0;

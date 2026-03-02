@@ -1668,7 +1668,7 @@ static int set_mute_state() {
     }
     close_mixer();
   }
-  debug_mutex_unlock(&alsa_mixer_mutex, 3); // release the mutex
+  debug_mutex_unlock(&alsa_mixer_mutex, 4); // release the mutex
   pthread_cleanup_pop(0);                   // release the mutex
   pthread_setcancelstate(oldState, NULL);
   return response;
@@ -2163,7 +2163,7 @@ static int play(void *buf, int samples, __attribute__((unused)) int sample_type,
 }
 
 static void flush(void) {
-  pthread_cleanup_debug_mutex_lock(&alsa_mutex, 10000, 1);
+  pthread_cleanup_debug_mutex_lock(&alsa_mutex, 10000, 4);
   if (alsa_backend_state != abm_disconnected) { // must be playing or connected...
     // do nothing for a flush if config.keep_dac_busy is true
     if (config.keep_dac_busy == 0) {
@@ -2172,7 +2172,7 @@ static void flush(void) {
   } else {
     debug(3, "alsa: flush() -- called on a disconnected alsa backend");
   }
-  debug_mutex_unlock(&alsa_mutex, 3);
+  debug_mutex_unlock(&alsa_mutex, 4);
   pthread_cleanup_pop(0); // release the mutex
 }
 
@@ -2194,7 +2194,7 @@ static void do_volume(double vol) { // caller is assumed to have the alsa_mutex 
   int oldState;
   pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
   set_volume = vol;
-  pthread_cleanup_debug_mutex_lock(&alsa_mixer_mutex, 1000, 1);
+  pthread_cleanup_debug_mutex_lock(&alsa_mixer_mutex, 1000, 4);
   if (volume_set_request && (open_mixer() == 0)) {
     if (has_softvol) {
       if (ctl && elem_id) {
@@ -2224,7 +2224,7 @@ static void do_volume(double vol) { // caller is assumed to have the alsa_mutex 
     volume_set_request = 0; // any external request that has been made is now satisfied
     close_mixer();
   }
-  debug_mutex_unlock(&alsa_mixer_mutex, 3);
+  debug_mutex_unlock(&alsa_mixer_mutex, 4);
   pthread_cleanup_pop(0); // release the mutex
   pthread_setcancelstate(oldState, NULL);
 }

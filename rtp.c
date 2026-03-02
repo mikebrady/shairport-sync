@@ -1520,7 +1520,7 @@ int frame_to_ptp_local_time(uint32_t timestamp, uint64_t *time, rtsp_conn_info *
     *time = ltime;
     result = 0;
   } else {
-    debug(2, "frame_to_ptp_local_time can't get anchor local time information");
+    debug(4, "frame_to_ptp_local_time can't get anchor local time information");
   }
   return result;
 }
