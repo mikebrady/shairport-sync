@@ -1,3 +1,11 @@
+Version 5.0.1+-2-g22f283fe
+==
+**Bug Fix**
+* Update the D-Bus test client to refer to `shairport_sync_get_loudness_enabled` rather than `shairport_sync_get_loudness`. thankt to [flatsiedatsie](https://github.com/flatsiedatsie) for the [bug report](https://github.com/mikebrady/shairport-sync/issues/2155).
+
+**Other Changes**
+* Turn off many currently-irrelevant debug messages by setting their level to 4, meaning they will never be displayed.
+
 Version 5.0-post-dev-13-g5893eabf
 ==
 * The MQTT client in Shairport Sync has a Home-Assistant-specific configuration key called `object_id` used to define the entity's unique ID for HA. The term `object_id` has been deprecated by HA in favour of a new term: `defauly_entity_id`. This has now been added to Shairport Sync's MQTT client.
