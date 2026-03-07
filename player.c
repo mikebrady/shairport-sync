@@ -4539,9 +4539,9 @@ void *player_thread_func(void *arg) {
                         inframe->timestamp, centered_sync_error_time * 1000, occ);
                   unsigned int s;
                   for (s = 0; s < conn->sync_samples_count; s++) {
-                    debug(3, "sample: %u, value: %.3f ms", s, sync_samples[s] * 0.000001);
+                    debug(4, "sample: %u, value: %.3f ms", s, sync_samples[s] * 0.000001);
                   }
-                  debug(3, "sync_history_length: %u, samples_count: %u, sample_index: %u",
+                  debug(4, "sync_history_length: %u, samples_count: %u, sample_index: %u",
                         sync_history_length, conn->sync_samples_count, last_sample_index);
                 }
                 sync_error_out_of_bounds = 0;

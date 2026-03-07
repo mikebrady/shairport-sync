@@ -1706,7 +1706,7 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
   if (messagePlist != NULL) {
     plist_t item = plist_dict_get_item(messagePlist, "flushFromSeq");
     if (item == NULL) {
-      debug(3, "Can't find a flushFromSeq");
+      debug(4, "Can't find a flushFromSeq");
     } else {
       flushFromValid = 1;
       plist_get_uint_val(item, &flushFromSeq);
@@ -1718,7 +1718,7 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
       if (flushFromValid != 0)
         debug(1, "flushFromSeq without flushFromTS!");
       else
-        debug(3, "Can't find a flushFromTS");
+        debug(4, "Can't find a flushFromTS");
     } else {
       plist_get_uint_val(item, &flushFromTS);
       if (flushFromValid == 0)
@@ -1731,7 +1731,7 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
       debug(1, "Can't find the flushUntilSeq");
     } else {
       plist_get_uint_val(item, &flushUntilSeq);
-      debug(3, "flushUntilSeq is %" PRId64 ".", flushUntilSeq & 0x7fffff);
+      debug(4, "flushUntilSeq is %" PRId64 ".", flushUntilSeq & 0x7fffff);
     }
 
     item = plist_dict_get_item(messagePlist, "flushUntilTS");
@@ -1739,7 +1739,7 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
       debug(1, "Can't find the flushUntilTS");
     } else {
       plist_get_uint_val(item, &flushUntilTS);
-      debug(3, "flushUntilTS is %" PRId64 ".", flushUntilTS);
+      debug(4, "flushUntilTS is %" PRId64 ".", flushUntilTS);
     }
 
     debug_mutex_lock(&conn->flush_mutex, 1000, 4);
@@ -2368,9 +2368,9 @@ void handle_feedback(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message 
 
 void handle_command(rtsp_conn_info *conn, rtsp_message *req,
                     __attribute__((unused)) rtsp_message *resp) {
-  debug(4, "Connection %d: POST %s Content-Length %d", conn->connection_number, req->path,
+  debug(3, "Connection %d: POST %s Content-Length %d", conn->connection_number, req->path,
         req->contentlength);
-  debug_log_rtsp_message(4, NULL, req);
+  debug_log_rtsp_message(3, NULL, req);
   if (rtsp_message_contains_plist(req)) {
     plist_t command_dict = NULL;
     plist_from_memory(req->content, req->contentlength, &command_dict);
@@ -2404,7 +2404,7 @@ void handle_command(rtsp_conn_info *conn, rtsp_message *req,
                     if (subsidiary_plist) {
                       char *printable_plist = plist_as_xml_text(subsidiary_plist);
                       if (printable_plist) {
-                        debug(4, "Connection %d:\n==\n%s\n==", conn->connection_number, printable_plist);
+                        debug(3, "Connection %d:\n==\n%s\n==", conn->connection_number, printable_plist);
                         free(printable_plist);
                       } else {
                         debug(1, "Can't print the plist!");

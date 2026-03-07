@@ -423,7 +423,7 @@ void *rtp_buffered_audio_processor(void *arg) {
             debug(2, "immediate flush was %s.", ap2_immediate_flush_requested == 0 ? "off" : "on");
           } else if (conn->ap2_deferred_flush_requests[f].active != 0) {
             new_audio_block_needed = 1;
-            debug(3,
+            debug(4,
                   "deferred flush of block: %u, timestamp: %u, SSRC: \"%s\". flushFromTS: %12u, flushFromSeq: %12u, "
                   "flushUntilTS: %12u, flushUntilSeq: %12u, timestamp: %12u.",
                   seq_no, 
