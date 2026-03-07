@@ -1,6 +1,11 @@
+Version 5.0.1+-11-g07546c35
+==
+**Changes**
+* Turn off yet more currently-irrelevant debug messages by setting their level to 4, meaning they will never be displayed.
+* Use `NULL` instead of `0` to check for the presence of a classic AirPlay password. Makes no difference, but type-wise it is less misleading.
+
 Version 5.0.1+-8-gb09fd400
 ==
-
 **Bug Fix**
 * Defer rather than delete blocks of audio that are too far into the future, and also check for a valid clock when checking the timing of blocks. This is to attempt to deal with an unexpected situation where the timing of blocks of incoming audio seems to suddenly jump into the distant future,
 as if audio from the skipped-over interval has been dropped. Can this be classified as a bug fix? Who knows!
