@@ -1,3 +1,8 @@
+Version 5.0.1+-23-g7fb3506e
+==
+**Documentation Update**
+* Fixed dead link to the online [`man`](https://raw.githack.com/mikebrady/shairport-sync/development/man/shairport-sync.1.xml) page. Thanks to [CornelisJ](https://github.com/CornelisJ) for the [report](https://github.com/mikebrady/shairport-sync/issues/2158).
+
 Version 5.0.1+-13-ga14517d7
 ==
 **Change**
