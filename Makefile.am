@@ -111,6 +111,10 @@ if USE_AO
 shairport_sync_SOURCES += audio_ao.c
 endif
 
+if USE_COREAUDIO
+shairport_sync_SOURCES += audio_coreaudio.c
+endif
+
 if USE_SOUNDIO
 shairport_sync_SOURCES += audio_soundio.c
 endif
@@ -148,7 +152,11 @@ lib_tinyhttp_a_SOURCES =  tinyhttp/chunk.c tinyhttp/header.c tinyhttp/http.c
 endif
 
 if USE_AIRPLAY_2
+if USE_AIRPLAY2_NO_NQPTP
+shairport_sync_SOURCES += ap2_buffered_audio_processor.c ap2_event_receiver.c ap2_rc_event_receiver.c ptp-utilities-no-nqptp.c utilities/buffered_read.c utilities/structured_buffer.c utilities/mod23.c plists/get_info_response.c
+else
 shairport_sync_SOURCES += ap2_buffered_audio_processor.c ap2_event_receiver.c ap2_rc_event_receiver.c ptp-utilities.c utilities/buffered_read.c utilities/structured_buffer.c utilities/mod23.c plists/get_info_response.c
+endif
 shairport_sync_LDADD += lib_pair_ap.a
 lib_pair_ap_a_SOURCES = pair_ap/pair.c pair_ap/pair_fruit.c pair_ap/pair_homekit.c pair_ap/pair-tlv.c
 noinst_LIBRARIES += lib_pair_ap.a

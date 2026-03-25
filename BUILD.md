@@ -1,6 +1,95 @@
 # Build and Install Shairport Sync
 This guide is for a basic installation of Shairport Sync in a recent (2018 onwards) Linux or FreeBSD.
 
+## macOS (Homebrew)
+
+Shairport Sync can be built on macOS using [Homebrew](https://brew.sh).
+
+### Classic AirPlay (recommended on macOS)
+
+Install build tools and libraries:
+
+```
+brew install automake autoconf libtool pkg-config popt libconfig openssl@3
+```
+
+Build with Bonjour (`dns-sd`) advertising. CoreAudio is the default audio backend when targeting macOS (omit it with `--without-coreaudio` if you only want another backend such as stdout).
+
+```
+git clone https://github.com/mikebrady/shairport-sync.git
+cd shairport-sync
+autoreconf -fi
+./configure --with-dns_sd --with-ssl=openssl
+make
+```
+
+Notes:
+- If you omit `--with-os=darwin`, `./configure` will default to `darwin` when run on macOS.
+- Use `./shairport-sync -h` to see available audio and mDNS backends.
+
+### AirPlay 2 on macOS (NQPTP)
+
+macOS normally binds UDP ports `319` and `320` for **AirPlay Receiver** (the built-in AirPlay *server*).
+NQPTP needs those ports, so you must **turn off AirPlay Receiver** before running NQPTP:
+**System Settings → General → AirDrop & Handoff** (or **Sharing**, depending on your macOS version) → disable **AirPlay Receiver**.
+
+Upstream [NQPTP](https://github.com/mikebrady/nqptp) does not ship macOS support yet. This tree includes a patch you can apply to a NQPTP source checkout:
+
+```
+cd /path/to/nqptp
+patch -p1 < /path/to/shairport-sync/patches/nqptp-darwin.patch
+autoreconf -fi
+./configure && make
+sudo ./nqptp   # keep running; needs root for the PTP ports
+```
+
+Then build Shairport Sync **with** AirPlay 2 and **without** `--with-airplay2-no-nqptp` (same extra libraries as below). Start `nqptp` before `shairport-sync`.
+
+**Running NQPTP as a daemon**
+
+- **Linux:** NQPTP’s own build supports a systemd unit. Configure with `--with-systemd-startup`, run `make install`, then `systemctl enable --now nqptp` (see the [NQPTP README](https://github.com/mikebrady/nqptp)). That is the normal way to keep it running across reboots.
+- **macOS:** There is no upstream plist; you can install a **LaunchDaemon** so `nqptp` starts at boot as root (still required for UDP 319/320). Example `/Library/LaunchDaemons/org.shairport.nqptp.plist` (adjust the binary path to match `which nqptp` after `make install`):
+
+```
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+ "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>org.shairport.nqptp</string>
+  <key>ProgramArguments</key>
+  <array><string>/usr/local/bin/nqptp</string></array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+</dict>
+</plist>
+```
+
+Then: `sudo chown root:wheel /Library/LaunchDaemons/org.shairport.nqptp.plist` and `sudo launchctl bootstrap system /Library/LaunchDaemons/org.shairport.nqptp.plist`. Start Shairport Sync after NQPTP is up (separate LaunchDaemon or login item, or run manually).
+
+See `patches/README.md` for a short summary of the patch.
+
+### Experimental: AirPlay 2 without NQPTP timing (macOS only)
+
+If you cannot free ports `319`/`320` or run NQPTP, Shairport Sync can be built in **experimental** mode:
+AirPlay 2 without NQPTP timing (no multiroom sync; timing may drift):
+
+Install extra libraries:
+
+```
+brew install ffmpeg libplist libsodium libgcrypt ossp-uuid xxd
+brew install libplist-utils || true
+```
+
+Build:
+
+```
+autoreconf -fi
+./configure --with-airplay-2 --with-airplay2-no-nqptp --with-dns_sd --with-ssl=openssl
+make
+```
+
 ## Important Note – Upgrading to Version 5!
 
 If you have been using Shairport Sync prior to Version 5.0 and are rebuilding or reinstalling Shairport Sync, be aware that a few important things have changed.

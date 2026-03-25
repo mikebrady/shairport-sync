@@ -1,0 +1,31 @@
+name: macos AirPlay 2 (experimental, no NQPTP)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "development" ]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  build:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Install Dependencies
+        run: |
+          brew install automake autoconf libtool pkg-config
+          brew install popt libconfig openssl@3
+          brew install ffmpeg libplist libsodium libgcrypt ossp-uuid
+          brew install xxd || true
+
+      - name: Configure
+        run: |
+          autoreconf -fi
+          ./configure --with-airplay-2 --with-airplay2-no-nqptp --with-dns_sd --with-ssl=openssl
+
+      - name: Make
+        run: |
+          make
+
