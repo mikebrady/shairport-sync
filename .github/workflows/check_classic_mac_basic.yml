@@ -10,10 +10,10 @@ on:
 jobs:
   build:
 
-    runs-on: macos-13
+    runs-on: macos-latest
 
     steps:
-    - uses: actions/checkout@v4.2.2
+    - uses: actions/checkout@v6.0.2
     - name: Install Dependencies
       run: |
         brew install automake autoconf libtool pkg-config
@@ -21,9 +21,9 @@ jobs:
 
     - name: Configure
       run: |
+        export PKG_CONFIG_PATH="$(brew --prefix openssl@3)/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
         autoreconf -fi
         ./configure --with-stdout --with-dns_sd --with-ssl=openssl
-    
+
     - name: Make
-      run: |
-        make
+      run: make -j"$(sysctl -n hw.ncpu)"
