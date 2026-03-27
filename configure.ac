@@ -443,6 +443,8 @@ if test "x$with_airplay_2" = "xyes" ; then
     )
   ])
   AC_CHECK_LIB([uuid],[uuid_generate], [], [AC_MSG_ERROR([AirPlay 2 support requires the uuid library -- uuid-dev suggested])])
+  systemd_after_args="${systemd_after_args}${systemd_after_args:+ }nqptp.service"
+  systemd_requires_args="${systemd_requires_args}${systemd_requires_args:+ }nqptp.service"
 fi
 AM_CONDITIONAL([USE_AIRPLAY_2], [test "x$with_airplay_2" = "xyes"])
 
