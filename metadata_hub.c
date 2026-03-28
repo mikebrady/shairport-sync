@@ -373,7 +373,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       vl = vl << 32;                          // shift them into the correct location
       uint64_t ul = ntohl(*(uint32_t *)(data + sizeof(uint32_t))); // and the low order 32 bits
       vl = vl + ul;
-      debug(3, "MH Item ID seen: \"%" PRIx64 "\" of length %u.", vl, length);
+      debug(4, "MH Item ID seen: \"%" PRIx64 "\" of length %u.", vl, length);
       if ((vl != metadata_store.item_id) || (metadata_store.item_id_is_valid == 0)) {
         metadata_store.item_id = vl;
         metadata_store.item_id_changed = 1;
@@ -528,14 +528,14 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     case 'pcen':
       break;
     case 'mdst':
-      debug(3, "MH Metadata stream processing start.");
+      debug(4, "MH Metadata stream processing start.");
       metadata_packet_item_changed = 0;
       break;
     case 'mden':
       if (metadata_packet_item_changed != 0)
         debug(3, "MH Metadata stream processing end with changes.");
       else
-        debug(3, "MH Metadata stream processing end without changes.");
+        debug(4, "MH Metadata stream processing end without changes.");
       changed = metadata_packet_item_changed;
       break;
     case 'PICT':

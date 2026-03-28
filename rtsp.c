@@ -235,7 +235,7 @@ typedef struct {
 void pc_queue_init(pc_queue *the_queue, char *items, size_t item_size, uint32_t number_of_items,
                    const char *name) {
   if (name)
-    debug(2, "Creating metadata queue \"%s\".", name);
+    debug(4, "Creating metadata queue \"%s\".", name);
   else
     debug(1, "Creating an unnamed metadata queue.");
   pthread_mutex_init(&the_queue->pc_queue_lock, NULL);
@@ -290,11 +290,11 @@ int pc_queue_add_item(pc_queue *the_queue, const void *the_stuff, int block) {
   int rc;
   if (the_queue) {
     if (block == 0) {
-      rc = debug_mutex_lock(&the_queue->pc_queue_lock, 10000, 2);
+      rc = debug_mutex_lock(&the_queue->pc_queue_lock, 10000, 4);
       if (rc == EBUSY)
         return EBUSY;
     } else
-      rc = debug_mutex_lock(&the_queue->pc_queue_lock, 50000, 1);
+      rc = debug_mutex_lock(&the_queue->pc_queue_lock, 50000, 4);
     if (rc)
       debug(1, "Error %d (\"%s\") locking for pc_queue_add_item. Block is %d.", rc, strerror(rc),
             block);
@@ -346,7 +346,7 @@ int pc_queue_add_item(pc_queue *the_queue, const void *the_stuff, int block) {
 int pc_queue_get_item(pc_queue *the_queue, void *the_stuff) {
   int rc;
   if (the_queue) {
-    rc = debug_mutex_lock(&the_queue->pc_queue_lock, 50000, 1);
+    rc = debug_mutex_lock(&the_queue->pc_queue_lock, 50000, 4);
     if (rc)
       debug(1, "metadata queue \"%s\": error locking for pc_queue_get_item", the_queue->name);
     pthread_cleanup_push(pc_queue_cleanup_handler, (void *)the_queue);
@@ -367,7 +367,7 @@ int pc_queue_get_item(pc_queue *the_queue, void *the_stuff) {
       i = 0;
     the_queue->toq = i;
     the_queue->count--;
-    debug(3, "metadata queue- \"%s\" %d/%d.", the_queue->name, the_queue->count,
+    debug(4, "metadata queue- \"%s\" %d/%d.", the_queue->name, the_queue->count,
           the_queue->capacity);
     rc = pthread_cond_signal(&the_queue->pc_queue_item_removed_signal);
     if (rc)
@@ -531,7 +531,7 @@ static void track_thread(rtsp_conn_info *conn) {
       die("could not reallocate memory for conns");
     }
   }
-  debug_mutex_unlock(&conns_lock, 3);
+  debug_mutex_unlock(&conns_lock, 4);
 }
 
 // note: connection numbers start at 1, so an except_this_one value of zero means "all threads"
@@ -575,34 +575,34 @@ void cleanup_threads(void) {
   int i;
   int connection_count = 0;
   // debug(2, "culling threads.");
-  debug_mutex_lock(&conns_lock, 1000000, 3);
+  debug_mutex_lock(&conns_lock, 1000000, 4);
   for (i = 0; i < nconns; i++) {
     if ((conns[i] != NULL) && (conns[i]->running == 0)) {
-      debug(3, "found RTSP connection thread %d in a non-running state.",
+      debug(4, "found RTSP connection thread %d in a non-running state.",
             conns[i]->connection_number);
       pthread_join(conns[i]->thread, &retval);
-      debug(3, "Connection %d: deleted in cleanup.", conns[i]->connection_number);
+      debug(4, "Connection %d: deleted in cleanup.", conns[i]->connection_number);
       free(conns[i]);
       conns[i] = NULL;
     }
     if (conns[i] != NULL) {
-      debug(3, "Airplay Volume for connection %d is %.6f.", conns[i]->connection_number,
+      debug(4, "Airplay Volume for connection %d is %.6f.", conns[i]->connection_number,
             suggested_volume(conns[i]));
       connection_count++;
     }
   }
-  debug_mutex_unlock(&conns_lock, 3);
+  debug_mutex_unlock(&conns_lock, 4);
 
   if (old_connection_count != connection_count) {
     if (connection_count == 0) {
-      debug(3, "No active connections.");
+      debug(4, "No active connections.");
     } else if (connection_count == 1)
-      debug(3, "One active connection.");
+      debug(4, "One active connection.");
     else
-      debug(3, "%d active connections.", connection_count);
+      debug(4, "%d active connections.", connection_count);
     old_connection_count = connection_count;
   }
-  debug(3, "Airplay Volume for new connections is %.6f.", suggested_volume(NULL));
+  debug(4, "Airplay Volume for new connections is %.6f.", suggested_volume(NULL));
 }
 
 // park a null at the line ending, and return the next line pointer
@@ -630,12 +630,12 @@ static char *nextline(char *in, int inbuf) {
 }
 
 void msg_retain(rtsp_message *msg) {
-  int rc = debug_mutex_lock(&reference_counter_lock, 500000, 1);
+  int rc = debug_mutex_lock(&reference_counter_lock, 500000, 4);
   if (rc)
     debug(1, "Error %d locking reference counter lock", rc);
   if (msg > (rtsp_message *)0x00010000) {
     msg->referenceCount++;
-    debug(3, "msg_free increment reference counter message %d to %d.", msg->index_number,
+    debug(4, "msg_free increment reference counter message %d to %d.", msg->index_number,
           msg->referenceCount);
     // debug(1,"msg_retain -- item %d reference count %d.", msg->index_number, msg->referenceCount);
     rc = pthread_mutex_unlock(&reference_counter_lock);
@@ -648,7 +648,7 @@ void msg_retain(rtsp_message *msg) {
 
 rtsp_message *msg_init(void) {
   // no thread cancellation points here
-  int rc = debug_mutex_lock(&reference_counter_lock, 500000, 1);
+  int rc = debug_mutex_lock(&reference_counter_lock, 500000, 4);
   if (rc)
     debug(1, "Error %d locking reference counter lock", rc);
 
@@ -657,7 +657,7 @@ rtsp_message *msg_init(void) {
     memset(msg, 0, sizeof(rtsp_message));
     msg->referenceCount = 1; // from now on, any access to this must be protected with the lock
     msg->index_number = msg_indexes++;
-    debug(3, "msg_init message %d", msg->index_number);
+    debug(4, "msg_init message %d", msg->index_number);
   } else {
     die("msg_init -- can not allocate memory for rtsp_message %d.", msg_indexes);
   }
@@ -731,7 +731,7 @@ void msg_free(rtsp_message **msgh) {
     rtsp_message *msg = *msgh;
     msg->referenceCount--;
     if (msg->referenceCount)
-      debug(3, "msg_free decrement reference counter message %d to %d", msg->index_number,
+      debug(4, "msg_free decrement reference counter message %d to %d", msg->index_number,
             msg->referenceCount);
     if (msg->referenceCount == 0) {
       unsigned int i;
@@ -747,7 +747,7 @@ void msg_free(rtsp_message **msgh) {
         index = 0x10000; // ensure it doesn't fold to zero.
       *msgh =
           (rtsp_message *)(index); // put a version of the index number of the freed message in here
-      debug(3, "msg_free freed message %d", msg->index_number);
+      debug(4, "msg_free freed message %d", msg->index_number);
       free(msg);
     } else {
       // debug(1,"msg_free item %d -- decrement reference to
@@ -771,7 +771,7 @@ int msg_handle_line(rtsp_message **pmsg, char *line) {
     char *sp, *p;
     sp = NULL; // this is to quieten a compiler warning
 
-    debug(3, "RTSP/HTTP Message Received: \"%s\".", line);
+    debug(4, "RTSP/HTTP Message Received: \"%s\".", line);
 
     p = strtok_r(line, " ", &sp);
     if (!p)
@@ -804,7 +804,7 @@ int msg_handle_line(rtsp_message **pmsg, char *line) {
     *p = 0;
     p += 2;
     msg_add_header(msg, line, p);
-    debug(3, "    %s: %s.", line, p);
+    debug(4, "    %s: %s.", line, p);
     return -1;
   } else {
     char *cl = msg_get_header(msg, "Content-Length");
@@ -1042,7 +1042,7 @@ enum rtsp_read_request_response rtsp_read_request(rtsp_conn_info *conn, rtsp_mes
     debug(1, "Connection %d: rtsp_read_request: can't get a buffer.", conn->connection_number);
     reply = rtsp_read_request_response_error;
   } else {
-    debug(3, "buf is allocated at 0x%" PRIxPTR ".", (uintptr_t)buf);
+    debug(4, "buf is allocated at 0x%" PRIxPTR ".", (uintptr_t)buf);
     pthread_cleanup_push(malloc_cleanup, &buf);
     ssize_t nread;
     ssize_t inbuf = 0;
@@ -1134,7 +1134,7 @@ enum rtsp_read_request_response rtsp_read_request(rtsp_conn_info *conn, rtsp_mes
           reply = rtsp_read_request_response_error;
           // goto shutdown;
         } else {
-          debug(3, "buf is reallocated at 0x%" PRIxPTR ".", (uintptr_t)buf);
+          debug(4, "buf is reallocated at 0x%" PRIxPTR ".", (uintptr_t)buf);
           buflen = msg_size;
         }
       }
@@ -1706,11 +1706,11 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
   if (messagePlist != NULL) {
     plist_t item = plist_dict_get_item(messagePlist, "flushFromSeq");
     if (item == NULL) {
-      debug(3, "Can't find a flushFromSeq");
+      debug(4, "Can't find a flushFromSeq");
     } else {
       flushFromValid = 1;
       plist_get_uint_val(item, &flushFromSeq);
-      debug(3, "flushFromSeq is %" PRId64 ".", flushFromSeq);
+      debug(3, "flushFromSeq is %" PRId64 ".", flushFromSeq & 0x7fffff);
     }
 
     item = plist_dict_get_item(messagePlist, "flushFromTS");
@@ -1718,7 +1718,7 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
       if (flushFromValid != 0)
         debug(1, "flushFromSeq without flushFromTS!");
       else
-        debug(3, "Can't find a flushFromTS");
+        debug(4, "Can't find a flushFromTS");
     } else {
       plist_get_uint_val(item, &flushFromTS);
       if (flushFromValid == 0)
@@ -1731,7 +1731,7 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
       debug(1, "Can't find the flushUntilSeq");
     } else {
       plist_get_uint_val(item, &flushUntilSeq);
-      debug(3, "flushUntilSeq is %" PRId64 ".", flushUntilSeq);
+      debug(4, "flushUntilSeq is %" PRId64 ".", flushUntilSeq & 0x7fffff);
     }
 
     item = plist_dict_get_item(messagePlist, "flushUntilTS");
@@ -1739,10 +1739,10 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
       debug(1, "Can't find the flushUntilTS");
     } else {
       plist_get_uint_val(item, &flushUntilTS);
-      debug(3, "flushUntilTS is %" PRId64 ".", flushUntilTS);
+      debug(4, "flushUntilTS is %" PRId64 ".", flushUntilTS);
     }
 
-    debug_mutex_lock(&conn->flush_mutex, 1000, 1);
+    debug_mutex_lock(&conn->flush_mutex, 1000, 4);
 
     if (flushFromValid == 0) {
       // an immediate flush is requested
@@ -1782,7 +1782,7 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
       }
     }
 
-    debug_mutex_unlock(&conn->flush_mutex, 3);
+    debug_mutex_unlock(&conn->flush_mutex, 4);
     plist_free(messagePlist);
   }
 
@@ -1860,7 +1860,7 @@ void handle_setrateanchori(rtsp_conn_info *conn, rtsp_message *req, rtsp_message
       uint64_t rate;
       plist_get_uint_val(item, &rate);
       debug(3, "anchor rate 0x%016" PRIx64 ".", rate);
-      pthread_cleanup_debug_mutex_lock(&conn->flush_mutex, 1000, 1);
+      pthread_cleanup_debug_mutex_lock(&conn->flush_mutex, 1000, 4);
       conn->ap2_rate = rate;
       if ((rate & 1) != 0) {
         ptp_send_control_message_string(
@@ -1874,6 +1874,7 @@ void handle_setrateanchori(rtsp_conn_info *conn, rtsp_message *req, rtsp_message
 #endif
         conn->ap2_play_enabled = 1;
       } else {
+        reset_ptp_anchor_info(conn);
         ptp_send_control_message_string("P"); // signify play is "P"ausing
         debug(2, "Connection %d: SETRATEANCHORI Pause playing.", conn->connection_number);
         conn->ap2_play_enabled = 0;
@@ -2319,9 +2320,9 @@ void handle_configure(rtsp_conn_info *conn __attribute__((unused)),
 
 void handle_feedback(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *req,
                      __attribute__((unused)) rtsp_message *resp) {
-  debug(3, "Connection %d: POST %s Content-Length %d", conn->connection_number, req->path,
+  debug(4, "Connection %d: POST %s Content-Length %d", conn->connection_number, req->path,
         req->contentlength);
-  debug_log_rtsp_message(3, NULL, req);
+  debug_log_rtsp_message(4, NULL, req);
 
   int is_playing = 0;
   int type = 0;
@@ -2361,7 +2362,7 @@ void handle_feedback(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message 
     // plist_free(payload_plist);
 
     msg_add_header(resp, "Content-Type", "application/x-apple-binary-plist");
-    debug_log_rtsp_message(3, "FEEDBACK response:", resp);
+    debug_log_rtsp_message(4, "FEEDBACK response:", resp);
   }
 }
 
@@ -2403,7 +2404,7 @@ void handle_command(rtsp_conn_info *conn, rtsp_message *req,
                     if (subsidiary_plist) {
                       char *printable_plist = plist_as_xml_text(subsidiary_plist);
                       if (printable_plist) {
-                        debug(3, "\n%s", printable_plist);
+                        debug(3, "Connection %d:\n==\n%s\n==", conn->connection_number, printable_plist);
                         free(printable_plist);
                       } else {
                         debug(1, "Can't print the plist!");
@@ -3857,13 +3858,13 @@ void *metadata_thread_function(__attribute__((unused)) void *ignore) {
     pthread_cleanup_push(metadata_pack_cleanup_function, (void *)&pack);
     if (config.metadata_enabled) {
       if (pack.carrier) {
-        debug(3, "     pipe: type %x, code %x, length %u, message %d.", pack.type, pack.code,
+        debug(4, "     pipe: type %x, code %x, length %u, message %d.", pack.type, pack.code,
               pack.length, pack.carrier->index_number);
       } else {
-        debug(3, "     pipe: type %x, code %x, length %u.", pack.type, pack.code, pack.length);
+        debug(4, "     pipe: type %x, code %x, length %u.", pack.type, pack.code, pack.length);
       }
       metadata_process(pack.type, pack.code, pack.data, pack.length);
-      debug(3, "     pipe: done.");
+      debug(4, "     pipe: done.");
     }
     pthread_cleanup_pop(1);
   }
@@ -3887,18 +3888,18 @@ void *metadata_multicast_thread_function(__attribute__((unused)) void *ignore) {
     pthread_cleanup_push(metadata_pack_cleanup_function, (void *)&pack);
     if (config.metadata_enabled) {
       if (pack.carrier) {
-        debug(3,
+        debug(4,
               "                                                                    multicast: type "
               "%x, code %x, length %u, message %d.",
               pack.type, pack.code, pack.length, pack.carrier->index_number);
       } else {
-        debug(3,
+        debug(4,
               "                                                                    multicast: type "
               "%x, code %x, length %u.",
               pack.type, pack.code, pack.length);
       }
       metadata_multicast_process(pack.type, pack.code, pack.data, pack.length);
-      debug(3,
+      debug(4,
             "                                                                    multicast: done.");
     }
     pthread_cleanup_pop(1);
@@ -3924,14 +3925,14 @@ void *metadata_hub_thread_function(__attribute__((unused)) void *ignore) {
     pc_queue_get_item(&metadata_hub_queue, &pack);
     pthread_cleanup_push(metadata_pack_cleanup_function, (void *)&pack);
     if (pack.carrier) {
-      debug(3, "                    hub: type %x, code %x, length %u, message %d.", pack.type,
+      debug(4, "                    hub: type %x, code %x, length %u, message %d.", pack.type,
             pack.code, pack.length, pack.carrier->index_number);
     } else {
-      debug(3, "                    hub: type %x, code %x, length %u.", pack.type, pack.code,
+      debug(4, "                    hub: type %x, code %x, length %u.", pack.type, pack.code,
             pack.length);
     }
     metadata_hub_process_metadata(pack.type, pack.code, pack.data, pack.length);
-    debug(3, "                    hub: done.");
+    debug(4, "                    hub: done.");
     pthread_cleanup_pop(1);
   }
   pthread_cleanup_pop(1); // will never happen
@@ -4222,7 +4223,7 @@ static void handle_get_parameter(__attribute__((unused)) rtsp_conn_info *conn, r
 }
 
 static void handle_set_parameter(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
-  debug(3, "Connection %d: SET_PARAMETER", conn->connection_number);
+  debug(4, "Connection %d: SET_PARAMETER", conn->connection_number);
   // if (!req->contentlength)
   //    debug(1, "received empty SET_PARAMETER request.");
 
@@ -4255,7 +4256,7 @@ static void handle_set_parameter(rtsp_conn_info *conn, rtsp_message *req, rtsp_m
     // not all items have RTP-time stuff in them, which is okay
 
     if (!strncmp(ct, "application/x-dmap-tagged", 25)) {
-      debug(3, "received metadata tags in SET_PARAMETER request.");
+      debug(4, "received metadata tags in SET_PARAMETER request.");
       if (p == NULL)
         debug(1, "Missing RTP-Time info for metadata");
       if (p)
@@ -5018,7 +5019,7 @@ void rtsp_conversation_thread_cleanup_function(void *arg) {
 }
 
 void msg_cleanup_function(void *arg) {
-  debug(3, "msg_cleanup_function called 0x%" PRIxPTR ".", (uintptr_t)arg);
+  debug(4, "msg_cleanup_function called 0x%" PRIxPTR ".", (uintptr_t)arg);
   msg_free((rtsp_message **)arg);
 }
 
@@ -5063,18 +5064,18 @@ static void *rtsp_conversation_thread_func(void *pconn) {
 
   while (conn->stop == 0) {
     pthread_testcancel();
-    int debug_level = 2; // for printing the request and response
+    int debug_level = 4; // for printing the request and response
 
     // check to see if a conn has been zeroed
 
-    debug_mutex_lock(&conns_lock, 1000000, 3);
+    debug_mutex_lock(&conns_lock, 1000000, 4);
     int i;
     for (i = 0; i < nconns; i++) {
       if ((conns[i] != NULL) && (conns[i]->connection_number == 0)) {
         debug(1, "conns[%d] has a Connection Number of 0!", i);
       }
     }
-    debug_mutex_unlock(&conns_lock, 3);
+    debug_mutex_unlock(&conns_lock, 4);
 
     reply = rtsp_read_request(conn, &req);
     if (reply == rtsp_read_request_response_ok) {

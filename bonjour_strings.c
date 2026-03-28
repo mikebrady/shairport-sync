@@ -79,7 +79,8 @@ void build_bonjour_strings(__attribute((unused)) rtsp_conn_info *conn) {
   txt_records[entry_number++] = "cn=0,1";
   txt_records[entry_number++] = "da=true";
   txt_records[entry_number++] = "et=0,1";
-
+  if (config.password != NULL)
+    txt_records[entry_number++] = "pw=true";
   uint64_t features_hi = config.airplay_features;
   features_hi = (features_hi >> 32) & 0xffffffff;
   uint64_t features_lo = config.airplay_features;
@@ -136,7 +137,7 @@ void build_bonjour_strings(__attribute((unused)) rtsp_conn_info *conn) {
   txt_records[entry_number++] = "cn=0,1";
   txt_records[entry_number++] = "ch=2";
   txt_records[entry_number++] = "txtvers=1";
-  if (config.password == 0)
+  if (config.password == NULL)
     txt_records[entry_number++] = "pw=false";
   else
     txt_records[entry_number++] = "pw=true";

@@ -9,9 +9,7 @@ on:
     
 jobs:
   build:
-
-    runs-on: macos-15
-
+    runs-on: macos-latest
     steps:
     - uses: actions/checkout@v6.0.2
     - name: Install Dependencies

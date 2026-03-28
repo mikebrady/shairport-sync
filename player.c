@@ -402,7 +402,7 @@ static void swr_alloc_cleanup_handler(void *arg) {
 }
 
 static void av_packet_alloc_cleanup_handler(void *arg) {
-  debug(3, "av_packet_alloc_cleanup_handler");
+  debug(4, "av_packet_alloc_cleanup_handler");
   AVPacket **pkt = arg;
   av_packet_free(pkt);
 }
@@ -1144,7 +1144,7 @@ int64_t avframe_to_audio(rtsp_conn_info *conn, AVFrame *decoded_frame, uint8_t *
 
   int number_of_output_samples_expected = swr_get_out_samples(conn->swr, decoded_frame->nb_samples);
 
-  debug(3, "A maximum of %d output samples expected for %d input samples.",
+  debug(4, "A maximum of %d output samples expected for %d input samples.",
         number_of_output_samples_expected, decoded_frame->nb_samples);
   // allocate enough space for the required number of output channels
   // and the number of samples decoded
@@ -1155,10 +1155,10 @@ int64_t avframe_to_audio(rtsp_conn_info *conn, AVFrame *decoded_frame, uint8_t *
   int samples_generated =
       swr_convert(conn->swr, &pcm_audio, number_of_output_samples_expected,
                   (const uint8_t **)decoded_frame->extended_data, decoded_frame->nb_samples);
-  debug(3, "conversion time for %u incoming samples: %.3f milliseconds.", decoded_frame->nb_samples,
+  debug(4, "conversion time for %u incoming samples: %.3f milliseconds.", decoded_frame->nb_samples,
         (get_absolute_time_in_ns() - conversion_start_time) * 0.000001);
   if (samples_generated > 0) {
-    debug(3, "swr generated %d frames of %" PRId64 " channels.", samples_generated,
+    debug(4, "swr generated %d frames of %" PRId64 " channels.", samples_generated,
           conn->resampler_output_channels);
     // samples_generated will be different from
     // the number of samples input if the output rate is different from the input
@@ -1449,10 +1449,10 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
 
   // ignore a request to flush that has been made before the first packet...
   if (conn->packet_count == 0) {
-    debug_mutex_lock(&conn->flush_mutex, 1000, 1);
+    debug_mutex_lock(&conn->flush_mutex, 1000, 4);
     conn->flush_requested = 0;
     conn->flush_rtp_timestamp = 0;
-    debug_mutex_unlock(&conn->flush_mutex, 3);
+    debug_mutex_unlock(&conn->flush_mutex, 4);
   }
 
   pthread_cleanup_debug_mutex_lock(&conn->ab_mutex, 30000, 0);
@@ -2296,7 +2296,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
             uint64_t should_be_time;
             frame_to_local_time(curframe->timestamp, &should_be_time, conn);
             int64_t time_difference = should_be_time - get_absolute_time_in_ns();
-            debug(3, "Check packet from buffer %u, timestamp %u, %f seconds ahead.", conn->ab_read,
+            debug(4, "Check packet from buffer %u, timestamp %u, %f seconds ahead.", conn->ab_read,
                   curframe->timestamp, 0.000000001 * time_difference);
           } else {
             debug(3, "Check packet from buffer %u, empty.", conn->ab_read);
@@ -3210,8 +3210,8 @@ int stuff_buffer_soxr_32(int32_t *inptr, int length, sps_format_t l_output_forma
     };
   }
 
-  if (packets_processed % 1250 == 0) {
-    debug(3,
+  if ((packets_processed % 1250 == 0) && (stat_n > 0)) {
+    debug(4,
           "soxr_oneshot execution time in nanoseconds: mean, standard deviation and max "
           "for %" PRId32 " interpolations in the last "
           "1250 packets. %10.6f, %10.6f, %10.6f.",
@@ -4269,7 +4269,7 @@ void *player_thread_func(void *arg) {
               output_buffer_delay_time =
                   output_buffer_delay_time /
                   RATE_FROM_ENCODED_FORMAT(config.current_output_configuration);
-              debug(3,
+              debug(4,
                     "current_delay: %" PRId64 ", output_buffer_delay_time: %.3f, output rate: %u.",
                     current_delay, output_buffer_delay_time * 0.000000001,
                     RATE_FROM_ENCODED_FORMAT(config.current_output_configuration));
@@ -4352,8 +4352,9 @@ void *player_thread_func(void *arg) {
                       gap_to_fix = -inframe->timestamp_gap; // this is frames at the input rate
                       int64_t gap_to_fix_ns = (gap_to_fix * 1000000000) / conn->input_rate;
                       gap_to_fix = (gap_to_fix_ns *
-                                    RATE_FROM_ENCODED_FORMAT(config.current_output_configuration)) /
+                                    RATE_FROM_ENCODED_FORMAT(config.current_output_configuration) + 1000000000/2) /
                                    1000000000; // this is frames at the output rate
+                      debug(4, "gap_to_fix: %u frames at input rate, %" PRId64 " frames at output rate.", -inframe->timestamp_gap, gap_to_fix);
                       // debug(3, "due to timstamp gap of %d frames, skip %" PRId64 " output
                       // frames.", inframe->timestamp_gap, gap_to_fix);
                     }
@@ -4471,16 +4472,16 @@ void *player_thread_func(void *arg) {
                       amount_to_stuff = -1 * (inbuflength / 350);
                       if (amount_to_stuff == 0)
                         amount_to_stuff = -1;
-                      debug(3, "drop a frame, inbuflength is %d, amount_to_stuff is %d.",
+                      debug(4, "drop a frame, inbuflength is %d, amount_to_stuff is %d.",
                             inbuflength, amount_to_stuff);
                     } else if (centered_sync_error_ns < (-tolerance_ns)) {
                       amount_to_stuff = +1 * (inbuflength / 350);
                       if (amount_to_stuff == 0)
                         amount_to_stuff = 1;
-                      debug(3, "add a frame, inbuflength is %d, amount_to_stuff is %d.",
+                      debug(4, "add a frame, inbuflength is %d, amount_to_stuff is %d.",
                             inbuflength, amount_to_stuff);
                     } else {
-                      debug(3,
+                      debug(4,
                             "error is within tolerance: centered_sync_error_ns: %" PRId64
                             ", tolerance_ns: %" PRId64 " ns.",
                             centered_sync_error_ns, tolerance_ns);
@@ -4490,7 +4491,7 @@ void *player_thread_func(void *arg) {
               }
 
               if (amount_to_stuff)
-                debug(3,
+                debug(4,
                       //                          "stuff: %+d, sync_error: %+5.3f milliseconds.",
                       //                          amount_to_stuff, sync_error * 1000);
                       "stuff: %+d, sync_errors actual: %+5.3f milliseconds, bufferlength: %d, "
@@ -4538,9 +4539,9 @@ void *player_thread_func(void *arg) {
                         inframe->timestamp, centered_sync_error_time * 1000, occ);
                   unsigned int s;
                   for (s = 0; s < conn->sync_samples_count; s++) {
-                    debug(3, "sample: %u, value: %.3f ms", s, sync_samples[s] * 0.000001);
+                    debug(4, "sample: %u, value: %.3f ms", s, sync_samples[s] * 0.000001);
                   }
-                  debug(3, "sync_history_length: %u, samples_count: %u, sample_index: %u",
+                  debug(4, "sync_history_length: %u, samples_count: %u, sample_index: %u",
                         sync_history_length, conn->sync_samples_count, last_sample_index);
                 }
                 sync_error_out_of_bounds = 0;
@@ -4767,7 +4768,7 @@ void *player_thread_func(void *arg) {
                       if (frames_to_skip > (unsigned int)play_samples) {
                         debug(3, "skipping a packet of %u frames.", play_samples);
                         debug_print_buffer(
-                            3, conn->outbuf,
+                            4, conn->outbuf,
                             play_samples *
                                 CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration) *
                                 sps_format_sample_size(FORMAT_FROM_ENCODED_FORMAT(
@@ -4775,19 +4776,23 @@ void *player_thread_func(void *arg) {
                         frames_to_skip -= play_samples;
                       } else {
 
-                        char *offset = conn->outbuf;
-                        offset +=
-                            frames_to_skip *
+                        
+
+                        size_t bytes_to_skip = frames_to_skip *
                             CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration) *
                             sps_format_sample_size(
                                 FORMAT_FROM_ENCODED_FORMAT(config.current_output_configuration));
-                        config.output->play(offset, play_samples - frames_to_skip,
+
+                        char *play_starting_point = conn->outbuf + bytes_to_skip;
+                          
+                        config.output->play(play_starting_point, play_samples - frames_to_skip,
                                             play_samples_are_timed, inframe->timestamp,
                                             should_be_time);
 
-                        debug(3, "skipping the first %u frames in a packet of %u frames.",
+                        debug(4, "skipping the first %u frames in a packet of %u frames.",
                               frames_to_skip, play_samples);
-                        debug_print_buffer(3, conn->outbuf, offset - conn->outbuf);
+
+                        debug_print_buffer(4, conn->outbuf, bytes_to_skip);
 
                         frames_played += play_samples - frames_to_skip;
                         frames_to_skip = 0;
@@ -4967,7 +4972,7 @@ static void player_send_volume_metadata(uint8_t vol_mode_both, double airplay_vo
 }
 
 void player_volume_without_notification(double airplay_volume, rtsp_conn_info *conn) {
-  debug_mutex_lock(&conn->volume_control_mutex, 5000, 1);
+  debug_mutex_lock(&conn->volume_control_mutex, 5000, 4);
   // first, see if we are hw only, sw only, both with hw attenuation on the top or both with sw
   // attenuation on top
 
@@ -5149,7 +5154,7 @@ void player_volume_without_notification(double airplay_volume, rtsp_conn_info *c
       double temp_fix_volume = 65536.0 * pow(10, software_attenuation / 2000);
 
       if (config.ignore_volume_control == 0)
-        debug(3, "Software attenuation set to %f, i.e %f out of 65,536, for airplay volume of %f",
+        debug(4, "Software attenuation set to %f, i.e %f out of 65,536, for airplay volume of %f",
               software_attenuation, temp_fix_volume, airplay_volume);
       else
         debug(3, "Software attenuation set to %f, i.e %f out of 65,536. Volume control is ignored.",
@@ -5158,7 +5163,7 @@ void player_volume_without_notification(double airplay_volume, rtsp_conn_info *c
       conn->fix_volume = temp_fix_volume;
     }
     if (conn != NULL)
-      debug(3, "Connection %d: AirPlay Volume set to %.3f, Output Level set to: %.2f dB.",
+      debug(4, "Connection %d: AirPlay Volume set to %.3f, Output Level set to: %.2f dB.",
             conn->connection_number, airplay_volume, scaled_attenuation / 100.0);
     else
       debug(3, "AirPlay Volume set to %.3f, Output Level set to: %.2f dB. NULL conn.",
@@ -5176,7 +5181,7 @@ void player_volume_without_notification(double airplay_volume, rtsp_conn_info *c
       config.output->mute(0);
     conn->software_mute_enabled = 0;
 
-    debug(3,
+    debug(4,
           "player_volume_without_notification: volume mode is %d, airplay volume is %.2f, "
           "software_attenuation dB: %.2f, hardware_attenuation dB: %.2f, muting "
           "is disabled.",
@@ -5185,7 +5190,7 @@ void player_volume_without_notification(double airplay_volume, rtsp_conn_info *c
   // here, store the volume for possible use in the future
   config.airplay_volume = airplay_volume;
   conn->own_airplay_volume = airplay_volume;
-  debug_mutex_unlock(&conn->volume_control_mutex, 3);
+  debug_mutex_unlock(&conn->volume_control_mutex, 4);
 }
 
 void player_volume(double airplay_volume, rtsp_conn_info *conn) {

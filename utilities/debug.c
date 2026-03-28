@@ -196,7 +196,7 @@ void _debug(const char *filename, const int linenumber, int level, const char *f
     return;
   int oldState;
   pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);
-  char b[1024];
+  char b[1024 * 64];
   b[0] = 0;
   pthread_mutex_lock(&debug_timing_lock);
   uint64_t time_now = debug_get_absolute_time_in_ns();
@@ -255,18 +255,18 @@ void _debug_print_buffer(const char *thefilename, const int linenumber, int leve
     char *obfp = obf;
     unsigned int obfc;
     for (obfc = 0; obfc < buf_len; obfc++) {
-      snprintf(obfp, 3, "%02X", buf[obfc]);
+      snprintf(obfp, 3, "%02X", (unsigned char)buf[obfc]);
       obfp += 2;
       if (obfc != buf_len - 1) {
         if (obfc % 32 == 31) {
           snprintf(obfp, 5, " || ");
-          obfp += 4;
+          obfp += strlen(" || ");
         } else if (obfc % 16 == 15) {
           snprintf(obfp, 4, " | ");
-          obfp += 3;
+          obfp += strlen(" | ");;
         } else if (obfc % 4 == 3) {
           snprintf(obfp, 2, " ");
-          obfp += 1;
+          obfp += strlen(" ");;
         }
       }
     };

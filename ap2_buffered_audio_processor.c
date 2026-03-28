@@ -198,6 +198,8 @@ void *rtp_buffered_audio_processor(void *arg) {
   int packets_played_in_this_sequence = 0;
 
   int play_enabled = 0;
+  
+  int very_early_packets_signalled = 0;
   // double requested_lead_time = 0.0; // normal lead time minimum -- maybe  it should be about 0.1
 
   // wait until our timing information is valid
@@ -332,7 +334,7 @@ void *rtp_buffered_audio_processor(void *arg) {
 
     if (finished == 0) {
       pthread_cleanup_debug_mutex_lock(&conn->flush_mutex, 25000,
-                                       1); // 25 ms is a long time to wait!
+                                       4); // 25 ms is a long time to wait!
       if (blocks_read != 0) {
         if (conn->ap2_immediate_flush_requested != 0) {
           if (ap2_immediate_flush_requested == 0) {
@@ -368,7 +370,7 @@ void *rtp_buffered_audio_processor(void *arg) {
 
 
           } else {
-            debug(3, "immediate flush of block %u until block %u", seq_no,
+            debug(4, "immediate flush of block %u until block %u", seq_no,
                   conn->ap2_immediate_flush_until_sequence_number);
             ap2_immediate_flush_requested = 1;
             new_audio_block_needed = 1; //
@@ -421,10 +423,13 @@ void *rtp_buffered_audio_processor(void *arg) {
             debug(2, "immediate flush was %s.", ap2_immediate_flush_requested == 0 ? "off" : "on");
           } else if (conn->ap2_deferred_flush_requests[f].active != 0) {
             new_audio_block_needed = 1;
-            debug(3,
-                  "deferred flush of block: %u. flushFromTS: %12u, flushFromSeq: %12u, "
+            debug(4,
+                  "deferred flush of block: %u, timestamp: %u, SSRC: \"%s\". flushFromTS: %12u, flushFromSeq: %12u, "
                   "flushUntilTS: %12u, flushUntilSeq: %12u, timestamp: %12u.",
-                  seq_no, conn->ap2_deferred_flush_requests[f].flushFromTS,
+                  seq_no, 
+                  timestamp,
+                  get_ssrc_name(payload_ssrc),
+                  conn->ap2_deferred_flush_requests[f].flushFromTS,
                   conn->ap2_deferred_flush_requests[f].flushFromSeq,
                   conn->ap2_deferred_flush_requests[f].flushUntilTS,
                   conn->ap2_deferred_flush_requests[f].flushUntilSeq, timestamp);
@@ -441,27 +446,37 @@ void *rtp_buffered_audio_processor(void *arg) {
         // debug(1,"player buffer size and occupancy: %u and %u", player_buffer_size,
         // player_buffer_occupancy);
 
-        // If we are playing and there is room in the player buffer, go ahead and decode the block
+        // If we are playing and there is room in the player buffer, and the block it not too
+        // early, go ahead and decode the block
         // and send it to the player. Otherwise, keep the block and sleep for a while.
-        if ((play_enabled != 0) &&
-            (((1.0 * player_buffer_occupancy * conn->frames_per_packet) / conn->input_rate) <=
-             config.audio_decoded_buffer_desired_length)) {
-          uint64_t buffer_should_be_time;
-          frame_to_local_time(timestamp, &buffer_should_be_time, conn);
 
+        // calculate if there is room in the decoded audio buffer...
+        int audio_decoded_buffer_below_desired_length = ((1.0 * player_buffer_occupancy * conn->frames_per_packet) / conn->input_rate) <= config.audio_decoded_buffer_desired_length;
+        uint64_t buffer_should_be_time;
+        
+        int have_valid_time = (frame_to_local_time(timestamp, &buffer_should_be_time, conn) == 0);
+        
+        // calculate the lead time to make sure it's not too early...
+        int64_t lead_time = buffer_should_be_time - get_absolute_time_in_ns();
+                
+        if ((play_enabled != 0) && (have_valid_time != 0) &&
+            (audio_decoded_buffer_below_desired_length != 0) &&
+            (lead_time * 1E-9 < (config.audio_decoded_buffer_desired_length + 0.1))) {
+            
+            very_early_packets_signalled = 0; //reset very early packet warning signaller
+          
           // try to identify blocks that are timed to before the last buffer, and drop 'em
           int64_t time_from_last_buffer_time =
               buffer_should_be_time - previous_buffer_should_be_time;
 
           if ((packets_played_in_this_sequence == 0) || (time_from_last_buffer_time > 0)) {
-            int64_t lead_time = buffer_should_be_time - get_absolute_time_in_ns();
+            
             payload_length = 0;
             if (ssrc_is_recognised(payload_ssrc) != 0) {
               // prepare_decoding_chain(conn, payload_ssrc);
               unsigned long long new_payload_length = 0;
               payload_pointer = m + leading_free_space_length;
-              if ((lead_time < (int64_t)30000000000L) &&
-                  (lead_time >= 0)) { // only decipher the packet if it's not too late or too early
+              if (lead_time >= 0) { // only decipher the packet if it's not too late
                 int response = -1;    // guess that there is a problem
                 if (conn->session_key != NULL) {
                   unsigned char nonce[12];
@@ -589,7 +604,7 @@ void *rtp_buffered_audio_processor(void *arg) {
                     uint32_t packet_size = player_put_packet(
                         payload_ssrc, sequence_number_for_player, timestamp, payload_pointer,
                         payload_length, mute, timestamp_difference, conn);
-                    debug(3, "block %u, timestamp %u, length %u sent to the player.", seq_no,
+                    debug(4, "block %u, timestamp %u, length %u sent to the player.", seq_no,
                           timestamp, packet_size);
                     sequence_number_for_player++;                 // simply increment
                     expected_timestamp = timestamp + packet_size; // for the next time
@@ -620,6 +635,11 @@ void *rtp_buffered_audio_processor(void *arg) {
           }
           new_audio_block_needed = 1; // the block has been used up and is no longer current
         } else {
+          if ((have_valid_time != 0) && (very_early_packets_signalled == 0) && (lead_time * 1E-9 > (config.audio_decoded_buffer_desired_length + 0.2))) {
+            debug(1, "incoming frame suddenly (?) has a lead time of %f seconds, with a desired decoded buffer length of %f.", 1.0 * lead_time * 1E-9, config.audio_decoded_buffer_desired_length);
+            very_early_packets_signalled = 1;
+          }
+        
           usleep(20000); // wait for a while
         }
       }
