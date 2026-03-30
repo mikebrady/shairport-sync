@@ -1,4 +1,4 @@
-name: macos classic, libao, BREW -- classic only, because macOS can't host NQPTP.
+name: macos classic, CoreAudio, BREW
 
 on:
   workflow_dispatch:
@@ -14,16 +14,14 @@ jobs:
     - uses: actions/checkout@v6.0.2
     - name: Install Dependencies
       run: |
-        brew install automake
-        brew install popt
-        brew install libconfig
-        brew install libao
+        brew install automake autoconf libtool pkg-config
+        brew install popt libconfig openssl@3
 
     - name: Configure
       run: |
+        export PKG_CONFIG_PATH="$(brew --prefix openssl@3)/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
         autoreconf -fi
-        ./configure --with-os=darwin --with-ao --with-stdout --with-dns_sd --with-ssl=openssl
-    
+        ./configure --with-stdout --with-dns_sd --with-ssl=openssl
+
     - name: Make
-      run: |
-        make
+      run: make -j"$(sysctl -n hw.ncpu)"
