@@ -46,8 +46,8 @@ void convolver_pool_init(size_t numThreads, size_t numConvolvers) {
   if (!pool.init(numThreads, numConvolvers)) {
     debug(1, "failed to initialize thread pool!");
   } else {
-    debug(1, "thread pool initialized with %u threads and %u convolvers.", numThreads,
-          numConvolvers);
+    debug(1, "thread pool initialized with %u thread%s and %u convolver%s.", numThreads, numThreads == 1 ? "" : "s",
+          numConvolvers, numConvolvers == 1 ? "" : "s");
   }
 }
 
