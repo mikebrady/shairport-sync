@@ -228,8 +228,8 @@ if test "x$with_avahi" = "xyes" ; then
   AC_DEFINE([CONFIG_AVAHI], 1, [Include Avahi-based mDNS support.])
   AC_CHECK_LIB([avahi-client], [avahi_client_new], , AC_MSG_ERROR(Avahi support requires the avahi-client library!))
   AC_CHECK_LIB([avahi-common],[avahi_strerror], , AC_MSG_ERROR(Avahi support requires the avahi-common library!))
-  systemd_after_args="${systemd_after_args} avahi-daemon.service"
-  systemd_requires_args="${systemd_requires_args} avahi-daemon.service"
+  systemd_after_args="${systemd_after_args}${systemd_after_args:+ }avahi-daemon.service"
+  systemd_requires_args="${systemd_requires_args}${systemd_requires_args:+ }avahi-daemon.service"
 fi
 AM_CONDITIONAL([USE_AVAHI], [test "x$with_avahi" = "xyes"])
 
@@ -443,6 +443,8 @@ if test "x$with_airplay_2" = "xyes" ; then
     )
   ])
   AC_CHECK_LIB([uuid],[uuid_generate], [], [AC_MSG_ERROR([AirPlay 2 support requires the uuid library -- uuid-dev suggested])])
+  systemd_after_args="${systemd_after_args}${systemd_after_args:+ }nqptp.service"
+  systemd_requires_args="${systemd_requires_args}${systemd_requires_args:+ }nqptp.service"
 fi
 AM_CONDITIONAL([USE_AIRPLAY_2], [test "x$with_airplay_2" = "xyes"])
 
