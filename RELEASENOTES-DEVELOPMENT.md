@@ -1,4 +1,13 @@
-Verion 5.0.1+-32-g20a87fef
+Version 5.0.1+-36-g6729802d
+==
+**Update**
+* The Shairport Sync `systemd` service file has been updated as follows:
+  * Use POSIX shell parameter expansion functionality to prevent adding leading space in option values.
+  * Add `nqptp.service` to the `After` and `Requires` options when building for Airplay 2.
+  
+  Many thanks to [mikelei8291](https://github.com/mikelei8291) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2174).
+
+Version 5.0.1+-32-g20a87fef
 ==
 **Build Bugfix**
 * Fix a bug at the `.configure...` stage of a build of Classic Shairport Sync whereby the UUID library was incorrectly required if the FFmpeg library was being used. (The wording on a few associated warning messages was also fixed.) Thanks to [phexian](https://github.com/phexian) for the [report](https://github.com/mikebrady/shairport-sync/issues/2177).
