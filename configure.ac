@@ -412,6 +412,7 @@ AM_CONDITIONAL([USE_METADATA], [test "x$with_metadata" = "xyes"])
 # Look for AirPlay 2 flag
 AC_ARG_WITH(airplay-2, [AS_HELP_STRING([--with-airplay-2],[Build for AirPlay 2])])
 if test "x$with_airplay_2" = "xyes" ; then
+  using_ffmpeg=true
   AC_DEFINE([CONFIG_AIRPLAY_2], 1, [Build for AirPlay 2])
   AC_CHECK_PROG(PLISTUTIL_CHECK,plistutil,yes)
   AS_IF([test x"$PLISTUTIL_CHECK" != x"yes"], [AC_MSG_ERROR([plistutil can not be found. Please install plistutil for building for AirPlay 2. Maybe it's in the apt package libplist-utils.])])
@@ -498,8 +499,11 @@ AM_CONDITIONAL([USE_HAMMERTON], [test $using_ffmpeg = false])
 # Look for Apple ALAC flag
 AC_ARG_WITH(apple-alac,[AS_HELP_STRING([--with-apple-alac],[include support for the Apple ALAC decoder (deprecated)])])
 if test "x${with_apple_alac}"  = "xyes" ; then
+  if test "x${with_airplay_2}"  = "xyes" ; then
+    AC_MSG_ERROR([the Apple ALAC Decoder (deprecated) can not be used in AirPlay 2.])
+  fi
   if test $using_ffmpeg = true ; then
-    AC_MSG_RESULT([Note: the FFMPEG decoder, included in the build, supercedes the Apple ALAC decoder, which is deprecated. Consider omitting the Apple ALAC decoder.])
+    AC_MSG_WARN([the FFMPEG decoder, included in the build, supercedes the Apple ALAC Decoder, which is deprecated. Consider omitting the Apple ALAC Decoder.])
   fi 
   AC_DEFINE([CONFIG_APPLE_ALAC], 1, [Include support for using the Apple ALAC Decoder (deprecated)])
   if  test "x${with_pkg_config}" = xyes ; then
