@@ -1,9 +1,16 @@
+Version 5.0.1+-38-gf784e463
+==
+**Build Update**
+* The Apple ALAC Decoder can no longer be included in an AirPlay 2 build. The reason is that FFmpeg -- used instead -- deals comprehensively with ALAC, AAC, multichannel, mixdown and rate transcoding and is well maintained.
+
+  The Apple ALAC Decoder is known to have security issues and is no longer maintained. This update prevents it from being included in Shairport Sync for AirPlay 2.
+
 Version 5.0.1+-36-g6729802d
 ==
 **Update**
 * The Shairport Sync `systemd` service file has been updated as follows:
-  * Use POSIX shell parameter expansion functionality to prevent adding leading space in option values.
-  * Add `nqptp.service` to the `After` and `Requires` options when building for Airplay 2.
+  * It uses POSIX shell parameter expansion functionality to prevent adding leading space in option values.
+  * It adds `nqptp.service` to the `After` and `Requires` options when building for Airplay 2.
   
   Many thanks to [mikelei8291](https://github.com/mikelei8291) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2174).
 
