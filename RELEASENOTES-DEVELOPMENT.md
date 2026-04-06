@@ -1,3 +1,11 @@
+Verion 5.0.1+-32-g20a87fef
+==
+**Build Bugfix**
+* Fix a bug at the `.configure...` stage of a build of Classic Shairport Sync whereby the UUID library was incorrectly required if the FFmpeg library was being used. (The wording on a few associated warning messages was also fixed.) Thanks to [phexian](https://github.com/phexian) for the [report](https://github.com/mikebrady/shairport-sync/issues/2177).
+  
+**Dependabot Update**
+* A Dependabot update to a building tool was added.
+
 Version 5.0.1+-23-g7fb3506e
 ==
 **Documentation Update**
@@ -6,7 +14,7 @@ Version 5.0.1+-23-g7fb3506e
 Version 5.0.1+-13-ga14517d7
 ==
 **Change**
-* When built for AirPlay 2, add pw=true to the Bonjour raop properties if the classic AirPlay password is set. This might help with Owntone compatibility.
+* When built for AirPlay 2, add `pw=true` to the Bonjour raop properties if the classic AirPlay password is set. This might help with Owntone compatibility.
 
 Version 5.0.1+-11-g07546c35
 ==
