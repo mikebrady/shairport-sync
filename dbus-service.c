@@ -739,7 +739,7 @@ gboolean notify_alacdecoder_callback(ShairportSync *skeleton,
 
 #ifdef CONFIG_AIRPLAY_2 
   if (strcasecmp(th, "ffmpeg") != 0) {
-    warn(" This setting request is ignored: for AirPlay 2, the FFmpeg decoder must be used.",
+    warn(" This request, to set the decoder to \"%s\", is ignored. For AirPlay 2, the FFmpeg decoder is always used.",
          th);
   }
 #else
