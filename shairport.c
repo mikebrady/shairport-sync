@@ -195,13 +195,12 @@ int has_fltp_capable_aac_decoder(void) {
 #endif
 
 #ifdef CONFIG_SOXR
-pthread_t soxr_time_check_thread;
-int soxr_time_check_thread_started = 0;
+pthread_t *soxr_time_check_thread = NULL;
 void *soxr_time_check(__attribute__((unused)) void *arg) {
   // this just checks how long it takes to process adding and subtracing a frame
   // from a buffer at 44100
-  //  #include <syscall.h>
-  //  debug(1, "soxr_time_check PID %d", syscall(SYS_gettid));
+  // #include <syscall.h>
+  // debug(1, "soxr_time_check PID %ld", syscall(SYS_gettid));
 
   const int buffer_length = 352;
   int32_t inbuffer[buffer_length * 2];
@@ -221,7 +220,7 @@ void *soxr_time_check(__attribute__((unused)) void *arg) {
       (uint64_t)1500000000 + soxr_start_time; // loop for a second and a half, max -- no need to be
                                               // able to cancel it, do _don't even try_!
   while (get_absolute_time_in_ns() < loop_until_time) {
-
+    pthread_testcancel();
     number_of_iterations++;
     for (i = 0; i < buffer_length; i++) {
       double w = sin(i * (frequency + number_of_iterations * 2) * 2 * M_PI / 44100);
@@ -229,6 +228,9 @@ void *soxr_time_check(__attribute__((unused)) void *arg) {
       inbuffer[i * 2] = wint;
       inbuffer[i * 2 + 1] = wint;
     }
+
+    int oldState;
+    pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
 
     soxr_io_spec_t io_spec;
     io_spec.itype = SOXR_INT32_I;
@@ -256,6 +258,8 @@ void *soxr_time_check(__attribute__((unused)) void *arg) {
                  outbuffer, buffer_length - 1, &odone, // Output.
                  &io_spec,                             // Input, output and transfer spec.
                  NULL, NULL);                          // Default configuration.
+    
+    pthread_setcancelstate(oldState, NULL);
   }
 
   int64_t soxr_execution_time =
@@ -271,8 +275,8 @@ void *soxr_time_check(__attribute__((unused)) void *arg) {
     debug(1, "No soxr-timing iterations performed, so \"vernier\" iteration will be used.");
     config.soxr_delay_index = 0; // used as a flag
   }
-  debug(2, "soxr_delay: %d nanoseconds, soxr_delay_threshold: %d milliseconds.",
-        config.soxr_delay_index, config.soxr_delay_threshold / 1000000);
+  debug(2, "soxr_delay maximum permissible: %d milliseconds, actual: %f milliseconds.",
+        config.soxr_delay_threshold / 1000000, 1E-6 * config.soxr_delay_index);
   if ((config.packet_stuffing == ST_soxr) &&
       (config.soxr_delay_index > config.soxr_delay_threshold))
     inform("Note: this device may be too slow for \"soxr\" interpolation. Consider choosing the "
@@ -1847,6 +1851,7 @@ void exit_rtsp_listener() {
 }
 
 void exit_function() {
+  debug(1, "exit_function called");
   if (type_of_exit_cleanup != TOE_emergency) {
     // the following is to ensure that if libdaemon has been included
     // that most of this code will be skipped when the parent process is exiting
@@ -1902,12 +1907,18 @@ void exit_function() {
       }
 
 #ifdef CONFIG_SOXR
-      // be careful -- not sure if the thread can be cancelled cleanly, so wait for it to shut down
-      if (soxr_time_check_thread_started != 0) {
-        debug(2, "Waiting for SoXr timecheck to terminate...");
-        pthread_join(soxr_time_check_thread, NULL);
-        soxr_time_check_thread_started = 0;
-        debug(2, "Waiting for SoXr timecheck to terminate done");
+      {
+        int oldState;
+        pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
+        if (soxr_time_check_thread != NULL) {
+          debug(1, "Waiting for SoXr timecheck to terminate...");
+          pthread_cancel(*soxr_time_check_thread);
+          pthread_join(*soxr_time_check_thread, NULL);
+          free(soxr_time_check_thread);
+          soxr_time_check_thread = NULL;
+          debug(1, "SoXr timecheck terminated");
+        }
+        pthread_setcancelstate(oldState, NULL);
       }
 
 #endif
@@ -2346,6 +2357,7 @@ int main(int argc, char **argv) {
   openlog(NULL, 0, LOG_DAEMON);
 #endif
   type_of_exit_cleanup = TOE_normal; // what kind of exit cleanup needed
+  debug(1, "adding the exit function");
   atexit(exit_function);
 
   // get a device id -- the first non-local MAC address
@@ -2957,7 +2969,9 @@ int main(int argc, char **argv) {
               config.output_channel_map[i] = strdup(channel_id);
               debug(2, "output channel %d is \"%s\".", i, config.output_channel_map[i]);
             } else {
-              warn("channel \"%s\" is not recognised -- output channel %d will be silent.",
+            
+              
+              warn("during channel mapping, \"%s\" was not recognised as a channel name -- as a result, output channel %d will be silent.",
                    channel_id, i);
               config.output_channel_map[i] = strdup("--");
             }
@@ -3153,8 +3167,20 @@ int main(int argc, char **argv) {
   debug(option_print_level, "loudness reference level is %f", config.loudness_reference_volume_db);
 
 #ifdef CONFIG_SOXR
-  named_pthread_create(&soxr_time_check_thread, NULL, &soxr_time_check, NULL, "soxr_checker");
-  soxr_time_check_thread_started = 1;
+
+  {
+    int oldState;
+    pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
+    soxr_time_check_thread = malloc(sizeof(pthread_t));
+    if (soxr_time_check_thread != NULL) {
+      named_pthread_create(soxr_time_check_thread, NULL, &soxr_time_check, NULL, "soxr_checker");
+    } else {
+      debug(1,"couldn't get memory to start the soxr_checker");
+    }
+    pthread_setcancelstate(oldState, NULL); // make this un-cancellable
+
+  }
+  
 #endif
 
 #ifdef CONFIG_FFMPEG
