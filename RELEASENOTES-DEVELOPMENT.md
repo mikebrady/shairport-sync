@@ -1,3 +1,11 @@
+Version 5.0.3-dev
+==
+**Small Changes**
+* Add warnings if string or boolean configuration parameters were present but not strings.
+* Improve behaviour when there is a large timing uncertainty/granularity and a large audio buffer. e.g. on some virtual machines.
+* Make the SoxR delay checker thread behave better when being cancelled.
+* Remove some debug messages, quieten some others, add a few.
+
 Version 5.0.1+-38-gf784e463
 ==
 **Build Update**
