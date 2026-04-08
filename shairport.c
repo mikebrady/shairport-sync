@@ -1851,7 +1851,6 @@ void exit_rtsp_listener() {
 }
 
 void exit_function() {
-  debug(1, "exit_function called");
   if (type_of_exit_cleanup != TOE_emergency) {
     // the following is to ensure that if libdaemon has been included
     // that most of this code will be skipped when the parent process is exiting
@@ -1861,7 +1860,6 @@ void exit_function() {
         (config.daemonise == 0)) { // if this is the daemon process that is exiting or it's not
                                    // actually daemonised at all
 #endif
-      debug(2, "exit function called...");
       /*
       Actually, there is no terminate_mqtt() function.
       #ifdef CONFIG_MQTT
@@ -1911,12 +1909,10 @@ void exit_function() {
         int oldState;
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
         if (soxr_time_check_thread != NULL) {
-          debug(1, "Waiting for SoXr timecheck to terminate...");
           pthread_cancel(*soxr_time_check_thread);
           pthread_join(*soxr_time_check_thread, NULL);
           free(soxr_time_check_thread);
           soxr_time_check_thread = NULL;
-          debug(1, "SoXr timecheck terminated");
         }
         pthread_setcancelstate(oldState, NULL);
       }
@@ -2005,7 +2001,7 @@ void exit_function() {
 #else
     mdns_unregister(); // once the dacp handler is done and all player threrads are done it should
                        // be safe
-    debug(1, "normal exit");
+    debug(2, "normal exit");
 #endif
   } else {
     debug(1, "emergency exit");
