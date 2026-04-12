@@ -235,6 +235,7 @@ void *rtp_buffered_audio_processor(void *arg) {
       uint16_t data_len;
       // here we read from the buffer that our thread has been reading
 
+      // debug(1,"read a block");
       size_t bytes_remaining_in_buffer;
       nread =
           read_sized_block(buffered_audio, &data_len, sizeof(data_len), &bytes_remaining_in_buffer);
@@ -249,6 +250,7 @@ void *rtp_buffered_audio_processor(void *arg) {
         // get the block itself
         // debug(1,"buffered audio packet of size %u detected.", data_len - 2);
         nread = read_sized_block(buffered_audio, packet, data_len - 2, &bytes_remaining_in_buffer);
+        // debug(1,"block read");
 
         // diagnostic
         if ((conn->ap2_audio_buffer_minimum_size < 0) ||
@@ -442,7 +444,7 @@ void *rtp_buffered_audio_processor(void *arg) {
       // to decode it and pass it to the player
       if (new_audio_block_needed == 0) {
         // is there space in the player thread's buffer system?
-        size_t player_buffer_occupancy = get_audio_buffer_occupancy(conn);
+        // size_t player_buffer_occupancy = get_audio_buffer_occupancy(conn);
         // debug(1,"player buffer size and occupancy: %u and %u", player_buffer_size,
         // player_buffer_occupancy);
 
@@ -451,17 +453,41 @@ void *rtp_buffered_audio_processor(void *arg) {
         // and send it to the player. Otherwise, keep the block and sleep for a while.
 
         // calculate if there is room in the decoded audio buffer...
-        int audio_decoded_buffer_below_desired_length = ((1.0 * player_buffer_occupancy * conn->frames_per_packet) / conn->input_rate) <= config.audio_decoded_buffer_desired_length;
+        
+        // debug(1, "frames buffered: %f seconds, desired length: %f seconds.", (1.0 * player_buffer_occupancy * conn->frames_per_packet) / conn->input_rate, config.audio_decoded_buffer_desired_length);
+        
+        // int audio_decoded_buffer_below_desired_length = ((1.0 * player_buffer_occupancy * conn->frames_per_packet) / conn->input_rate) <= config.audio_decoded_buffer_desired_length;
         uint64_t buffer_should_be_time;
         
         int have_valid_time = (frame_to_local_time(timestamp, &buffer_should_be_time, conn) == 0);
         
         // calculate the lead time to make sure it's not too early...
         int64_t lead_time = buffer_should_be_time - get_absolute_time_in_ns();
-                
-        if ((play_enabled != 0) && (have_valid_time != 0) &&
-            (audio_decoded_buffer_below_desired_length != 0) &&
-            (lead_time * 1E-9 < (config.audio_decoded_buffer_desired_length + 0.1))) {
+        
+        
+        // debug(1,"play_enabled: %d, have_valid_time: %d, audio_decoded_buffer_below_desired_length: %d, lead_time * 1E-9: %f, (config.audio_decoded_buffer_desired_length + 0.1): %f, player_buffer_occupancy: %zu",
+        //  play_enabled, have_valid_time, audio_decoded_buffer_below_desired_length, lead_time * 1E-9, (config.audio_decoded_buffer_desired_length + 0.1), player_buffer_occupancy
+        // );
+             
+        // A slight problem here is that counting the number of buffers may not be sufficient,
+        // because the actual device may be
+        // taking data in large quantities at a single time.
+
+        // So we just have to ensure that there
+        // is enough of a lead time maintained for sufficient audio to be available to prevent
+        // the device from under-running.
+        
+        // If means that the Shairport Sync player might riun out of audio occasionally, but
+        // as long as the device has enough in its buffer, everything is fine.
+        
+        // But it also means that Shairport Sync's buffers must be sufficient to hold all the
+        // entire lead-time's amount of audio in case the device has a zero-sized buffer.
+            
+        if ((play_enabled != 0) && (have_valid_time != 0)
+//            (audio_decoded_buffer_below_desired_length != 0) &&
+            && (lead_time * 1E-9 < (config.audio_decoded_buffer_desired_length + 0.1))
+//            && (audio_decoded_buffer_below_desired_length != 0)
+            ) {
             
             very_early_packets_signalled = 0; //reset very early packet warning signaller
           
@@ -639,8 +665,7 @@ void *rtp_buffered_audio_processor(void *arg) {
             debug(1, "incoming frame suddenly (?) has a lead time of %f seconds, with a desired decoded buffer length of %f.", 1.0 * lead_time * 1E-9, config.audio_decoded_buffer_desired_length);
             very_early_packets_signalled = 1;
           }
-        
-          usleep(20000); // wait for a while
+          usleep(((1000000 * conn->frames_per_packet) / conn->input_rate) * 2); // wait for approximately the length of two packets
         }
       }
     }

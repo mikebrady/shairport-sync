@@ -1,7 +1,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.50])
-AC_INIT([shairport-sync], [5.0.1+], [4265913+mikebrady@users.noreply.github.com])
+AC_INIT([shairport-sync], [5.0.3-dev], [4265913+mikebrady@users.noreply.github.com])
 : ${CFLAGS="-O3"}
 : ${CXXFLAGS="-O3"}
 AM_INIT_AUTOMAKE([subdir-objects])
@@ -236,8 +236,8 @@ if test "x$with_avahi" = "xyes" ; then
   AC_DEFINE([CONFIG_AVAHI], 1, [Include Avahi-based mDNS support.])
   AC_CHECK_LIB([avahi-client], [avahi_client_new], , AC_MSG_ERROR(Avahi support requires the avahi-client library!))
   AC_CHECK_LIB([avahi-common],[avahi_strerror], , AC_MSG_ERROR(Avahi support requires the avahi-common library!))
-  systemd_after_args="${systemd_after_args} avahi-daemon.service"
-  systemd_requires_args="${systemd_requires_args} avahi-daemon.service"
+  systemd_after_args="${systemd_after_args}${systemd_after_args:+ }avahi-daemon.service"
+  systemd_requires_args="${systemd_requires_args}${systemd_requires_args:+ }avahi-daemon.service"
 fi
 AM_CONDITIONAL([USE_AVAHI], [test "x$with_avahi" = "xyes"])
 
@@ -436,6 +436,7 @@ AM_CONDITIONAL([USE_METADATA], [test "x$with_metadata" = "xyes"])
 # Look for AirPlay 2 flag
 AC_ARG_WITH(airplay-2, [AS_HELP_STRING([--with-airplay-2],[Build for AirPlay 2])])
 if test "x$with_airplay_2" = "xyes" ; then
+  using_ffmpeg=true
   AC_DEFINE([CONFIG_AIRPLAY_2], 1, [Build for AirPlay 2])
   AC_CHECK_PROG(PLISTUTIL_CHECK,plistutil,yes)
   AS_IF([test x"$PLISTUTIL_CHECK" != x"yes"], [AC_MSG_ERROR([plistutil can not be found. Please install plistutil for building for AirPlay 2. Maybe it's in the apt package libplist-utils.])])
@@ -466,9 +467,9 @@ if test "x$with_airplay_2" = "xyes" ; then
       [AC_MSG_ERROR([Airplay 2 support requires libgcrypt -- libgcrypt-dev suggested])]
     )
   ])
-  AC_SEARCH_LIBS([uuid_generate], [uuid],
-    [],
-    [AC_MSG_ERROR([AirPlay 2 support requires uuid_generate (uuid library / headers).])])
+  AC_CHECK_LIB([uuid],[uuid_generate], [], [AC_MSG_ERROR([AirPlay 2 support requires the uuid library -- uuid-dev suggested])])
+  systemd_after_args="${systemd_after_args}${systemd_after_args:+ }nqptp.service"
+  systemd_requires_args="${systemd_requires_args}${systemd_requires_args:+ }nqptp.service"
 fi
 AM_CONDITIONAL([USE_AIRPLAY_2], [test "x$with_airplay_2" = "xyes"])
 
@@ -495,7 +496,7 @@ if test "x$with_ffmpeg" = "xyes" -o "x$with_airplay_2" = "xyes" ; then
   PKG_CHECK_MODULES(
     [libavutil], [libavutil],
     [CFLAGS="${libavutil_CFLAGS} ${CFLAGS}" LIBS="${libavutil_LIBS} ${LIBS}"],
-    [AC_MSG_ERROR(AirPlay 2 support requires libavutil -- libavutil-dev suggested)]
+    [AC_MSG_ERROR(FFmpeg requires libavutil -- libavutil-dev suggested)]
   )
   PKG_CHECK_MODULES(
     [libavcodec], [libavcodec],
@@ -503,7 +504,7 @@ if test "x$with_ffmpeg" = "xyes" -o "x$with_airplay_2" = "xyes" ; then
     [AC_CHECK_LIB(
       [avcodec], [avcodec_find_decoder],
       [],
-      [AC_MSG_ERROR(AirPlay 2 support requires libavcodec -- libavcodec-dev suggested)]
+      [AC_MSG_ERROR(FFmpeg requires libavcodec -- libavcodec-dev suggested)]
     )]
   )
   PKG_CHECK_MODULES(
@@ -512,7 +513,7 @@ if test "x$with_ffmpeg" = "xyes" -o "x$with_airplay_2" = "xyes" ; then
     [AC_CHECK_LIB(
       [avformat], [avformat_new_stream],
       [],
-      [AC_MSG_ERROR([AirPlay 2 support requires libavformat -- libavformat-dev suggested])]
+      [AC_MSG_ERROR([FFmpeg requires libavformat -- libavformat-dev suggested])]
     )]
   )
   PKG_CHECK_MODULES(
@@ -521,16 +522,7 @@ if test "x$with_ffmpeg" = "xyes" -o "x$with_airplay_2" = "xyes" ; then
     [AC_CHECK_LIB(
       [swresample], [swr_convert],
       [],
-      [AC_MSG_ERROR([AirPlay 2 support requires libswresample -- libswresample-dev suggested])]
-    )]
-  )
-  PKG_CHECK_MODULES(
-    [libuuid], [uuid],
-    [CFLAGS="${libuuid_CFLAGS} ${CFLAGS}" LIBS="${libuuid_LIBS} ${LIBS}"],
-    [AC_CHECK_LIB(
-      [uuid], [uuid_generate],
-      [],
-      [AC_MSG_ERROR([AirPlay 2 support requires the uuid library -- uuid-dev suggested])]
+      [AC_MSG_ERROR([FFmpeg requires libswresample -- libswresample-dev suggested])]
     )]
   )
 else
@@ -545,8 +537,11 @@ AM_CONDITIONAL([USE_HAMMERTON], [test $using_ffmpeg = false])
 # Look for Apple ALAC flag
 AC_ARG_WITH(apple-alac,[AS_HELP_STRING([--with-apple-alac],[include support for the Apple ALAC decoder (deprecated)])])
 if test "x${with_apple_alac}"  = "xyes" ; then
+  if test "x${with_airplay_2}"  = "xyes" ; then
+    AC_MSG_ERROR([the Apple ALAC Decoder (deprecated) can not be used in AirPlay 2.])
+  fi
   if test $using_ffmpeg = true ; then
-    AC_MSG_RESULT([Note: the FFMPEG decoder, included in the build, supercedes the Apple ALAC decoder, which is deprecated. Consider omitting the Apple ALAC decoder.])
+    AC_MSG_WARN([the FFMPEG decoder, included in the build, supercedes the Apple ALAC Decoder, which is deprecated. Consider omitting the Apple ALAC Decoder.])
   fi 
   AC_DEFINE([CONFIG_APPLE_ALAC], 1, [Include support for using the Apple ALAC Decoder (deprecated)])
   if  test "x${with_pkg_config}" = xyes ; then

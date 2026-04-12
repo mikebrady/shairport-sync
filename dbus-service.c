@@ -737,6 +737,12 @@ gboolean notify_alacdecoder_callback(ShairportSync *skeleton,
                                      __attribute__((unused)) gpointer user_data) {
   char *th = (char *)shairport_sync_get_alacdecoder(skeleton);
 
+#ifdef CONFIG_AIRPLAY_2 
+  if (strcasecmp(th, "ffmpeg") != 0) {
+    warn(" This request, to set the decoder to \"%s\", is ignored. For AirPlay 2, the FFmpeg decoder is always used.",
+         th);
+  }
+#else
   if ((strcasecmp(th, "hammerton") == 0) &&
       ((config.decoders_supported & (1 << decoder_hammerton)) != 0))
     config.decoder_in_use = 1 << decoder_hammerton;
@@ -747,12 +753,13 @@ gboolean notify_alacdecoder_callback(ShairportSync *skeleton,
            ((config.decoders_supported & (1 << decoder_ffmpeg_alac)) != 0))
     config.decoder_in_use = 1 << decoder_ffmpeg_alac;
   else {
-    warn("An unrecognised or unsupported ALAC decoder: \"%s\" was requested via D-Bus interface. "
+    warn("An unrecognised or unsupported decoder: \"%s\" was requested via D-Bus interface. "
          "(Possibly "
          "support for this decoder was not compiled "
          "into this version of Shairport Sync.)",
          th);
   }
+#endif
 
   return TRUE;
 }
