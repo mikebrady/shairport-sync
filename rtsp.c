@@ -2828,6 +2828,8 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
               plist_array_append_item(addresses, plist_new_string(conn->self_ip_string));
               //            debug(1,"self ip: \"%s\"", conn->self_ip_string);
 
+              int oldState;
+              pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);
               struct ifaddrs *addrs, *iap;
               getifaddrs(&addrs);
               for (iap = addrs; iap != NULL; iap = iap->ifa_next) {
@@ -2862,6 +2864,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
                 }
               }
               freeifaddrs(addrs);
+              pthread_setcancelstate(oldState, NULL);
 
               // debug(1,"initial timing peer command: \"%s\".", timing_list_message);
               // ptp_send_control_message_string(timing_list_message);
