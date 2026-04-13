@@ -41,6 +41,9 @@ extern audio_output audio_sndio;
 #ifdef CONFIG_AO
 extern audio_output audio_ao;
 #endif
+#ifdef CONFIG_COREAUDIO
+extern audio_output audio_coreaudio;
+#endif
 #ifdef CONFIG_SOUNDIO
 extern audio_output audio_soundio;
 #endif
@@ -64,6 +67,9 @@ extern audio_output audio_stdout;
 #endif
 
 static audio_output *outputs[] = {
+#ifdef CONFIG_COREAUDIO
+    &audio_coreaudio,
+#endif
 #ifdef CONFIG_ALSA
     &audio_alsa,
 #endif
