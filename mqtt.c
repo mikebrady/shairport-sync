@@ -259,11 +259,10 @@ void mqtt_publish(char *topic, char *data_in, uint32_t length_in) {
       MOSQ_ERR_SUCCESS) {
     switch (rc) {
     case MOSQ_ERR_NO_CONN:
-      inform("[MQTT]: Publish to topic \"%s\" failed: not connected to broker", fulltopic);
+      debug(1, "[MQTT]: Publish failed: not connected to broker");
       break;
     default:
-      inform("[MQTT]: Publish to topic \"%s\" failed: %s (rc=%d)", fulltopic,
-             mosquitto_strerror(rc), rc);
+      debug(1, "[MQTT]: Publish failed: unknown error");
       break;
     }
   }
