@@ -1,6 +1,36 @@
+/*
+ * Convolver Thread Pool. This file is part of Shairport Sync
+ * Copyright (c) Mike Brady 2026
+ * All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or
+ * sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ */
+
 #include "ConvolverThreadPool.h"
 #include "FFTConvolver.h"
 #include "config.h"
+
+extern "C" void _debug(const char *filename, const int linenumber, int level, const char *format,
+                       ...);
+#define debug(...) _debug(__FILE__, __LINE__, __VA_ARGS__)
 
 ConvolverThreadPool::ConvolverThreadPool()
     : _convolvers(), _threads(), _taskQueue(), _queueMutex(), _condition(), _completionCV(),
@@ -106,6 +136,16 @@ void ConvolverThreadPool::waitForAll() {
 }
 
 void ConvolverThreadPool::clearState(size_t convolverId) {
+  // Do the replacement assertion check first, and then wait for all tasks to stop
+  if (convolverId < _convolvers.size()) {
+    waitForAll();
+  } else {
+    debug(1, "assert(convolverId < _convolvers.size()) failed, with convolverId: %u and _convolvers.size(): %u.", convolverId, _convolvers.size());
+  } 
+}
+
+/* this is the old version
+void ConvolverThreadPool::clearState(size_t convolverId) {
   assert(convolverId < _convolvers.size());
 
   // Make sure no tasks are running before clearing state
@@ -113,6 +153,7 @@ void ConvolverThreadPool::clearState(size_t convolverId) {
 
   // _convolvers[convolverId]->clearState();
 }
+*/
 
 void ConvolverThreadPool::clearAllStates() {
   // Make sure no tasks are running before clearing state

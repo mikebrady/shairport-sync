@@ -2687,7 +2687,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
         // wait if the buffer is empty
         if ((conn->ab_synced != 0) && (conn->ab_read == conn->ab_write)) { // the buffer is empty!
           if (notified_buffer_empty == 0) {
-            debug(2, "Connection %d: Buffer Empty", conn->connection_number);
+            debug(4, "Connection %d: Buffer Empty", conn->connection_number);
             notified_buffer_empty = 1;
             // reset_input_flow_metrics(conn); // don't do a full flush parameters reset
             // conn->initial_reference_time = 0;
