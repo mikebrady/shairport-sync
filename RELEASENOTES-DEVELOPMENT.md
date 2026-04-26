@@ -1,5 +1,8 @@
 Version 5.0.3-dev-4-g07ca1891
 ==
+**Release**
+* This is effectively release 5.0.3
+  
 **Bug Fix**
 * Make code using `getifaddrs()` uncancellable to prevent a mysterious `Unexpected error 9 on netlink descriptor` error. Thanks to [microfx](https://github.com/microfx) for reporting the [issue](https://github.com/mikebrady/shairport-sync/issues/2184).
 

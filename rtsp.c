@@ -2490,7 +2490,6 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
 
               int oldState;
               pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
-
               struct ifaddrs *addrs, *iap;
               getifaddrs(&addrs);
               for (iap = addrs; iap != NULL; iap = iap->ifa_next) {
