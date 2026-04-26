@@ -396,13 +396,13 @@ typedef struct {
   uint32_t airplay_statusflags;
   char *airplay_fex;       // a base64-encoded version of the airplay_features in little-endian form
   char *airplay_device_id; // for the Bonjour advertisement and the GETINFO PList
-  char *airplay_pin;       // non-NULL, 4 char PIN, if required for pairing
   char *airplay_pi;        // UUID in the Bonjour advertisement and the GETINFO Plist
   char *airplay_pgid;      // UUID in the txtAirPlay data sent on the event channel
   char *airplay_psi;       // type 4 fixed UUID
   uint8_t airplay_pk[32];  // public key
   char *pk_string;
   char *nqptp_shared_memory_interface_name; // client name for nqptp service
+  int enable_HK_Access_Control; // true if the device is part of an Apple Home
 #endif
   int unfixable_error_reported; // only report once.
 
@@ -478,19 +478,6 @@ uint16_t nextFreeUDPPort();
 
 extern volatile int debuglev;
 
-void _die(const char *filename, const int linenumber, const char *format, ...);
-void _warn(const char *filename, const int linenumber, const char *format, ...);
-void _inform(const char *filename, const int linenumber, const char *format, ...);
-void _debug(const char *filename, const int linenumber, int level, const char *format, ...);
-void _debug_print_buffer(const char *thefilename, const int linenumber, int level, void *buf,
-                         size_t buf_len);
-
-#define die(...) _die(__FILE__, __LINE__, __VA_ARGS__)
-#define debug(...) _debug(__FILE__, __LINE__, __VA_ARGS__)
-#define warn(...) _warn(__FILE__, __LINE__, __VA_ARGS__)
-#define inform(...) _inform(__FILE__, __LINE__, __VA_ARGS__)
-#define debug_print_buffer(...) _debug_print_buffer(__FILE__, __LINE__, __VA_ARGS__)
-
 // Thanks to https://stackoverflow.com/a/1597129 for the inspiration for this identifier generation
 #define MAKEUNIQUEID2(x, y) x##y
 #define MADEID(x, y) MAKEUNIQUEID2(x, y)
@@ -561,7 +548,7 @@ extern int type_of_exit_cleanup; // normal, emergency, dbus requested...
 extern uint64_t minimum_dac_queue_size;
 
 int config_lookup_non_empty_string(const config_t *cfg, const char *path, const char **value);
-int config_set_lookup_bool(config_t *cfg, char *where, int *dst);
+int config_set_lookup_bool(config_t *cfg, const char *where, int *dst);
 int check_string_or_list_setting(config_setting_t *setting, const char *item);
 int check_int_or_list_setting(config_setting_t *setting, const int item);
 

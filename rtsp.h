@@ -3,6 +3,27 @@
 
 #include "player.h"
 
+typedef struct {
+  int index_number;
+  uint32_t referenceCount; // we might start using this...
+  unsigned int nheaders;
+  char *name[16];
+  char *value[16];
+
+  uint32_t contentlength;
+  char *content;
+
+  // for requests
+  char method[16];
+  char path[256];
+
+  // for responses
+  int respcode;
+} rtsp_message;
+
+void msg_retain(rtsp_message *msg);
+void msg_free(rtsp_message **msgh);
+
 extern pthread_rwlock_t principal_conn_lock;
 extern rtsp_conn_info *principal_conn;
 extern rtsp_conn_info **conns;
@@ -27,19 +48,6 @@ play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption);
 // this will release the play lock only if the conn has it or if the conn is NULL
 void release_play_lock(rtsp_conn_info *conn);
 
-// initialise and completely delete the metadata stuff
-
-void metadata_init(void);
-void metadata_stop(void);
-
-// sends metadata out to the metadata pipe, if enabled.
-// It is sent with the type 'ssnc' the given code, data and length
-// The handler at the other end must know what to do with the data
-// e.g. if it's malloced, to free it, etc.
-// nothing is done automatically
-
-int send_ssnc_metadata(const uint32_t code, const char *data, const uint32_t length,
-                       const int block);
 
 #ifdef CONFIG_AIRPLAY_2
 ssize_t read_encrypted(int fd, pair_cipher_bundle *ctx, void *buf, size_t count);

@@ -5,7 +5,7 @@
  * then you need a metadata hub,
  * where everything is stored
  * This file is part of Shairport Sync.
- * Copyright (c) Mike Brady 2017--2025
+ * Copyright (c) Mike Brady 2017--2026
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -44,7 +44,9 @@
 
 #include "common.h"
 #include "dacp.h"
-#include "metadata_hub.h"
+#include "hub.h"
+#include "pc_queue.h"
+#include "core.h"
 
 #ifdef CONFIG_MBEDTLS
 #include <mbedtls/md5.h>
@@ -58,6 +60,12 @@
 #ifdef CONFIG_OPENSSL
 #include <openssl/evp.h>
 #endif
+
+// metadata queue definitions
+pc_queue metadata_hub_queue;
+#define metadata_hub_queue_size 500
+metadata_package metadata_hub_queue_items[metadata_hub_queue_size];
+pthread_t metadata_hub_thread;
 
 struct metadata_bundle metadata_store;
 
@@ -709,4 +717,57 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
   }
   pthread_cleanup_pop(0); // don't remove the lock
   metadata_hub_modify_epilog(changed);
+}
+
+void metadata_hub_close(void) {}
+
+void metadata_hub_thread_cleanup_function(__attribute__((unused)) void *arg) {
+  // debug(2, "metadata_hub_thread_cleanup_function called");
+  metadata_hub_close();
+}
+
+void *metadata_hub_thread_function(__attribute__((unused)) void *ignore) {
+  //  #include <syscall.h>
+  //  debug(1, "metadata_hub_thread_function PID %d", syscall(SYS_gettid));
+  metadata_package pack;
+  pthread_cleanup_push(metadata_hub_thread_cleanup_function, NULL);
+  while (1) {
+    pc_queue_get_item(&metadata_hub_queue, &pack);
+    pthread_cleanup_push(metadata_pack_cleanup_function, (void *)&pack);
+    if (pack.carrier) {
+      debug(4, "                    hub: type %x, code %x, length %u, message %d.", pack.type,
+            pack.code, pack.length, pack.carrier->index_number);
+    } else {
+      debug(4, "                    hub: type %x, code %x, length %u.", pack.type, pack.code,
+            pack.length);
+    }
+    metadata_hub_process_metadata(pack.type, pack.code, pack.data, pack.length);
+    debug(4, "                    hub: done.");
+    pthread_cleanup_pop(1);
+  }
+  pthread_cleanup_pop(1); // will never happen
+  pthread_exit(NULL);
+}
+
+void metadata_hub_queue_init() {
+  // create a pc_queue for the metadata hub
+  pc_queue_init(&metadata_hub_queue, (char *)&metadata_hub_queue_items, sizeof(metadata_package),
+                metadata_hub_queue_size, "hub");
+  if (named_pthread_create(&metadata_hub_thread, NULL, metadata_hub_thread_function, NULL,
+                           "metadata hub") != 0)
+    debug(1, "Failed to create metadata hub thread!");
+}
+
+void metadata_hub_queue_stop() {
+    // debug(2, "metadata stop hub thread.");
+    pthread_cancel(metadata_hub_thread);
+    pthread_join(metadata_hub_thread, NULL);
+    pc_queue_delete(&metadata_hub_queue);
+    // debug(2, "metadata stop hub done.");
+}
+
+int send_metadata_to_hub_queue(const uint32_t type, const uint32_t code,
+                           const char *data, const uint32_t length, rtsp_message *carrier,
+                           int block) {
+    return send_metadata_to_queue(&metadata_hub_queue, type, code, data, length, carrier, block);
 }

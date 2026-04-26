@@ -1041,32 +1041,49 @@ uint8_t *rsa_apply(uint8_t *input, int inlen, int *outlen, int mode) {
 #endif
 
 int config_lookup_non_empty_string(const config_t *cfg, const char *path, const char **value) {
-  int response = config_lookup_string(cfg, path, value);
-  if (response == CONFIG_TRUE) {
-    if ((value != NULL) && ((*value == NULL) || (*value[0] == 0))) {
-      warn("The \"%s\" parameter is an empty string and has been ignored.", path);
-      response = CONFIG_FALSE;
+  int response = CONFIG_FALSE;
+  config_setting_t *s = config_lookup(cfg, path);
+  if (s != NULL) {
+    // the setting exists, but might not be a string
+    if (config_setting_type(s) == CONFIG_TYPE_STRING) {
+      if (value != NULL) {
+        *value = config_setting_get_string(s);
+        response = CONFIG_TRUE;
+        // the string might be empty...
+        if ((*value == NULL) || (*value[0] == 0)) {
+          warn("The \"%s\" parameter is an empty string and has been ignored.", path);
+          response = CONFIG_FALSE;
+        }
+      }
+    } else {
+      warn("the \"%s\" parameter is not a string, as required, and has been ignored.", path);
     }
   }
   return response;
 }
 
-int config_set_lookup_bool(config_t *cfg, char *where, int *dst) {
-  const char *str = 0;
-  if (config_lookup_string(cfg, where, &str)) {
-    if (strcasecmp(str, "no") == 0) {
-      (*dst) = 0;
-      return 1;
-    } else if (strcasecmp(str, "yes") == 0) {
-      (*dst) = 1;
-      return 1;
+int config_set_lookup_bool(config_t *cfg, const char *where, int *dst) {
+  const char *str = NULL;
+  int response = CONFIG_FALSE;
+  config_setting_t *s = config_lookup(cfg, where);
+  if (s != NULL) { 
+    if (config_setting_type(s) == CONFIG_TYPE_STRING) {
+      str = config_setting_get_string(s);
+      if (strcasecmp(str, "no") == 0) {
+        (*dst) = 0;
+        response = CONFIG_TRUE;
+      } else if (strcasecmp(str, "yes") == 0) {
+        (*dst) = 1;
+        response = CONFIG_TRUE;
+      } else {
+        die("invalid boolean parameter \"%s\" option choice \"%s\". It should be \"yes\" or \"no\"", where, str);
+        return 0;
+      }
     } else {
-      die("Invalid %s option choice \"%s\". It should be \"yes\" or \"no\"", where, str);
-      return 0;
+        warn("the \"%s\" parameter is not a string with a value of \"yes\" or \"no\", as required, and has been ignored.", where);
     }
-  } else {
-    return 0;
   }
+  return response;
 }
 
 // remember to free the returned array of strings.
@@ -2322,6 +2339,8 @@ int get_device_id(uint8_t *id, int int_length) {
 
   int64_t time_to_wait;
   do {
+    int oldState;
+    pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
     if (getifaddrs(&ifaddr) == 0) {
       t = id;
       int found = 0;
@@ -2361,6 +2380,7 @@ int get_device_id(uint8_t *id, int int_length) {
       }
       freeifaddrs(ifaddr);
     }
+    pthread_setcancelstate(oldState, NULL);
     // wait a little time if we haven't got a response
     if (response != 0) {
       usleep(100000);

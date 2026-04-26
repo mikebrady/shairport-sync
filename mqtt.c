@@ -11,10 +11,21 @@
 
 #include "rtp.h"
 
+#ifdef CONFIG_DACP_CLIENT
 #include "dacp.h"
-#include "metadata_hub.h"
+#endif
+#include "metadata/hub.h"
+#include "metadata/core.h"
+#include "metadata/pc_queue.h"
+
 #include "mqtt.h"
 #include <mosquitto.h>
+// this is for receiving metadata
+
+pc_queue metadata_mqtt_queue;
+#define metadata_mqtt_queue_size 500
+metadata_package metadata_mqtt_queue_items[metadata_mqtt_queue_size];
+pthread_t metadata_mqtt_thread;
 
 // this holds the mosquitto client
 struct mosquitto *global_mosq = NULL;
@@ -71,7 +82,9 @@ void on_message(__attribute__((unused)) struct mosquitto *mosq,
         release_play_lock(NULL); // stop any current session and don't replace it
       } else {
         debug(2, "[MQTT]: DACP Command: %s\n", commands[it]);
+#ifdef CONFIG_DACP_CLIENT
         send_simple_dacp_command(commands[it]);
+#endif
       }
       break;
     }
@@ -443,3 +456,62 @@ int initialise_mqtt() {
 
   return 0;
 }
+
+// metadata handling stuff
+void metadata_mqtt_close(void) {}
+
+void metadata_mqtt_thread_cleanup_function(__attribute__((unused)) void *arg) {
+  // debug(2, "metadata_mqtt_thread_cleanup_function called");
+  metadata_mqtt_close();
+  // debug(2, "metadata_mqtt_thread_cleanup_function done");
+}
+
+void *metadata_mqtt_thread_function(__attribute__((unused)) void *ignore) {
+  //  #include <syscall.h>
+  //  debug(1, "metadata_mqtt_thread_function PID %d", syscall(SYS_gettid));
+  metadata_package pack;
+  pthread_cleanup_push(metadata_mqtt_thread_cleanup_function, NULL);
+  while (1) {
+    pc_queue_get_item(&metadata_mqtt_queue, &pack);
+    pthread_cleanup_push(metadata_pack_cleanup_function, (void *)&pack);
+    if (config.mqtt_enabled) {
+      if (pack.carrier) {
+        debug(3,
+              "                                        mqtt: type %x, code %x, length %u, message "
+              "%d.",
+              pack.type, pack.code, pack.length, pack.carrier->index_number);
+      } else {
+        debug(3, "                                        mqtt: type %x, code %x, length %u.",
+              pack.type, pack.code, pack.length);
+      }
+      mqtt_process_metadata(pack.type, pack.code, pack.data, pack.length);
+      debug(3, "                                        mqtt: done.");
+    }
+
+    pthread_cleanup_pop(1);
+  }
+  pthread_cleanup_pop(1); // will never happen
+  pthread_exit(NULL);
+}
+
+void metadata_mqtt_queue_init() {
+  // create a pc_queue for the MQTT handler
+  pc_queue_init(&metadata_mqtt_queue, (char *)&metadata_mqtt_queue_items, sizeof(metadata_package),
+                metadata_mqtt_queue_size, "mqtt");
+  if (named_pthread_create(&metadata_mqtt_thread, NULL, metadata_mqtt_thread_function, NULL,
+                           "metadata mqtt") != 0)
+    debug(1, "Failed to create metadata mqtt thread!");
+}
+void metadata_mqtt_queue_stop() {
+    // debug(2, "metadata stop mqtt thread.");
+    pthread_cancel(metadata_mqtt_thread);
+    pthread_join(metadata_mqtt_thread, NULL);
+    pc_queue_delete(&metadata_mqtt_queue);
+    // debug(2, "metadata stop mqtt done.");
+}
+int send_metadata_to_mqtt_queue(const uint32_t type, const uint32_t code,
+                           const char *data, const uint32_t length, rtsp_message *carrier,
+                           int block) {
+    return send_metadata_to_queue(&metadata_mqtt_queue, type, code, data, length, carrier, block);
+}
+

@@ -43,7 +43,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "metadata_hub.h"
+#include "metadata/hub.h"
 #include "tinyhttp/http.h"
 
 typedef struct {
@@ -397,10 +397,10 @@ void relinquish_dacp_server_information(rtsp_conn_info *conn) {
   // as the conn's connection number
   // this is to signify that the player has stopped, but only if another thread (with a different
   // index) hasn't already taken over the dacp service
-  debug_mutex_lock(&dacp_server_information_lock, 500000, 2);
+  debug_mutex_lock(&dacp_server_information_lock, 500000, 4);
   if (dacp_server.players_connection_thread_index == conn->connection_number)
     dacp_server.players_connection_thread_index = 0;
-  debug_mutex_unlock(&dacp_server_information_lock, 3);
+  debug_mutex_unlock(&dacp_server_information_lock, 4);
 }
 
 // this will be running on the thread of its caller, not of the conversation thread...

@@ -35,9 +35,11 @@
 
 #include "rtp.h"
 
+#ifdef CONFIG_DACP_CLIENT
 #include "dacp.h"
+#endif
 
-#include "metadata_hub.h"
+#include "metadata/hub.h"
 #include "mpris-service.h"
 
 static guint ownerID = 0;
@@ -240,28 +242,36 @@ static gboolean on_handle_quit(MediaPlayer2 *skeleton, GDBusMethodInvocation *in
 
 static gboolean on_handle_next(MediaPlayer2Player *skeleton, GDBusMethodInvocation *invocation,
                                __attribute__((unused)) gpointer user_data) {
+#ifdef CONFIG_DACP_CLIENT
   send_simple_dacp_command("nextitem");
+#endif
   media_player2_player_complete_next(skeleton, invocation);
   return TRUE;
 }
 
 static gboolean on_handle_previous(MediaPlayer2Player *skeleton, GDBusMethodInvocation *invocation,
                                    __attribute__((unused)) gpointer user_data) {
+#ifdef CONFIG_DACP_CLIENT
   send_simple_dacp_command("previtem");
+#endif
   media_player2_player_complete_previous(skeleton, invocation);
   return TRUE;
 }
 
 static gboolean on_handle_stop(MediaPlayer2Player *skeleton, GDBusMethodInvocation *invocation,
                                __attribute__((unused)) gpointer user_data) {
+#ifdef CONFIG_DACP_CLIENT
   send_simple_dacp_command("stop");
+#endif
   media_player2_player_complete_stop(skeleton, invocation);
   return TRUE;
 }
 
 static gboolean on_handle_pause(MediaPlayer2Player *skeleton, GDBusMethodInvocation *invocation,
                                 __attribute__((unused)) gpointer user_data) {
+#ifdef CONFIG_DACP_CLIENT
   send_simple_dacp_command("pause");
+#endif
   media_player2_player_complete_pause(skeleton, invocation);
   return TRUE;
 }
@@ -269,14 +279,18 @@ static gboolean on_handle_pause(MediaPlayer2Player *skeleton, GDBusMethodInvocat
 static gboolean on_handle_play_pause(MediaPlayer2Player *skeleton,
                                      GDBusMethodInvocation *invocation,
                                      __attribute__((unused)) gpointer user_data) {
+#ifdef CONFIG_DACP_CLIENT
   send_simple_dacp_command("playpause");
+#endif
   media_player2_player_complete_play_pause(skeleton, invocation);
   return TRUE;
 }
 
 static gboolean on_handle_play(MediaPlayer2Player *skeleton, GDBusMethodInvocation *invocation,
                                __attribute__((unused)) gpointer user_data) {
+#ifdef CONFIG_DACP_CLIENT
   send_simple_dacp_command("play");
+#endif
   media_player2_player_complete_play(skeleton, invocation);
   return TRUE;
 }
@@ -284,11 +298,13 @@ static gboolean on_handle_play(MediaPlayer2Player *skeleton, GDBusMethodInvocati
 static gboolean on_handle_set_volume(MediaPlayer2Player *skeleton,
                                      GDBusMethodInvocation *invocation, const gdouble volume,
                                      __attribute__((unused)) gpointer user_data) {
+#ifdef CONFIG_DACP_CLIENT
   double ap_volume = mpris_volume_to_airplay_volume(volume);
   debug(2, "Set mpris volume to %.6f, i.e. airplay volume to %.6f.", volume, ap_volume);
   char command[256] = "";
   snprintf(command, sizeof(command), "setproperty?dmcp.device-volume=%.6f", ap_volume);
   send_simple_dacp_command(command);
+#endif
   media_player2_player_complete_play(skeleton, invocation);
   return TRUE;
 }

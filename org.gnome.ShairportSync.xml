@@ -40,7 +40,7 @@
     <property name="ElapsedTime" type="b" access="readwrite" />
     <property name="DeltaTime" type="b" access="readwrite" />
     <property name="FileAndLine" type="b" access="readwrite" />
-  </interface>
+  </interface>  
   <interface name="org.gnome.ShairportSync.RemoteControl">
 		<method name='FastForward'/>
 		<method name='Rewind'/>

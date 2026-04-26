@@ -40,7 +40,10 @@
 
 #include "activity_monitor.h"
 #include "common.h"
-#include "rtsp.h"
+
+#ifdef CONFIG_METADATA
+#include "metadata/core.h"
+#endif
 
 #ifdef CONFIG_DBUS_INTERFACE
 #include "dbus-service.h"
@@ -128,7 +131,7 @@ void activity_monitor_signify_activity(int active) {
     pthread_mutex_unlock(&activity_monitor_mutex);
   }
   // lock the mutex again to send a signal
-  pthread_cleanup_debug_mutex_lock(&activity_monitor_mutex, 10000, 1);
+  pthread_cleanup_debug_mutex_lock(&activity_monitor_mutex, 10000, 4);
   pthread_cond_signal(&activity_monitor_cv);
   pthread_cleanup_pop(1); // release the mutex
 }

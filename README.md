@@ -16,7 +16,7 @@ Shairport Sync does not support AirPlay video or photo streaming.
 * Next Steps and Advanced Topics are [here](ADVANCED%20TOPICS/README.md).
 * Runtime settings are documented [here](scripts/shairport-sync.conf).
 * Build configuration options are detailed in [CONFIGURATION FLAGS.md](CONFIGURATION%20FLAGS.md).
-* The `man` page, detailing command line options, is [here](https://htmlpreview.github.io/?https://github.com/mikebrady/shairport-sync/blob/development/man/shairport-sync.html).
+* The `man` page, detailing command line options, is [here](https://raw.githack.com/mikebrady/shairport-sync/development/man/shairport-sync.1.xml).
 * Some advanced topics and developed in [ADVANCED TOPICS](https://github.com/mikebrady/shairport-sync/tree/master/ADVANCED%20TOPICS).
 
 # Features

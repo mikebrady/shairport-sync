@@ -306,7 +306,7 @@ static int get_permissible_configuration_settings() {
               debug(3, "\"%s\" can handle %u channels.", alsa_out_dev, c);
             } else {
               // the device can't handle this number of channels
-              debug(3, "\"%s\" can not handle %u channels.", alsa_out_dev, c);
+              debug(4, "\"%s\" can not handle %u channels.", alsa_out_dev, c);
               config.channel_set &=
                   ~(1 << c); // the alsa device can't accommodate this number of channels
             }
@@ -332,7 +332,7 @@ static int get_permissible_configuration_settings() {
               debug(3, "\"%s\" can handle a rate of %u fps.", alsa_out_dev,
                     sps_rate_actual_rate(r));
             } else {
-              debug(3, "\"%s\" can not handle a rate of %u fps.", alsa_out_dev,
+              debug(4, "\"%s\" can not handle a rate of %u fps.", alsa_out_dev,
                     sps_rate_actual_rate(r));
               config.rate_set &= ~(1 << r); // the alsa device doesn't do this rate
             }
@@ -357,7 +357,7 @@ static int get_permissible_configuration_settings() {
               debug(3, "\"%s\" can handle the %s format.", alsa_out_dev,
                     sps_format_description_string(f));
             } else {
-              debug(3, "\"%s\" can not handle the %s format.", alsa_out_dev,
+              debug(4, "\"%s\" can not handle the %s format.", alsa_out_dev,
                     sps_format_description_string(f));
               config.format_set &= ~(1 << f); // the alsa device doesn't do this format
             }
@@ -2177,14 +2177,14 @@ static void flush(void) {
 }
 
 static void stop(void) {
-  pthread_cleanup_debug_mutex_lock(&alsa_mutex, 10000, 1);
+  pthread_cleanup_debug_mutex_lock(&alsa_mutex, 10000, 4);
   if (alsa_backend_state != abm_disconnected) { // must be playing or connected...
     if (config.keep_dac_busy == 0) {
       do_close();
     }
   } else
     debug(3, "alsa: stop() -- called on a disconnected alsa backend");
-  debug_mutex_unlock(&alsa_mutex, 3);
+  debug_mutex_unlock(&alsa_mutex, 4);
   pthread_cleanup_pop(0); // release the mutex
 }
 
@@ -2252,7 +2252,7 @@ static void *alsa_buffer_monitor_thread_code(__attribute__((unused)) void *arg) 
   //  #include <syscall.h>
   //  debug(1, "alsa_buffer_monitor_thread_code PID %d", syscall(SYS_gettid));
   // Wait until the output configuration has been set by the main program
-  debug(2, "alsa: alsa_buffer_monitor_thread_code started.");
+  debug(1, "alsa: alsa_buffer_monitor_thread_code started.");
   int frame_count = 0;
   int error_count = 0;
   int error_detected = 0;

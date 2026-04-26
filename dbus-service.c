@@ -37,8 +37,11 @@
 
 #include "rtp.h"
 
+#ifdef CONFIG_DACP_CLIENT
 #include "dacp.h"
-#include "metadata_hub.h"
+#endif
+
+#include "metadata/hub.h"
 
 #include "dbus-service.h"
 
@@ -335,7 +338,9 @@ static gboolean on_handle_set_volume(ShairportSyncAdvancedRemoteControl *skeleto
                                      GDBusMethodInvocation *invocation, const gint volume,
                                      __attribute__((unused)) gpointer user_data) {
   debug(2, "Set volume to %d.", volume);
+#ifdef CONFIG_DACP_CLIENT
   dacp_set_volume(volume);
+#endif
   shairport_sync_advanced_remote_control_complete_set_volume(skeleton, invocation);
   return TRUE;
 }
@@ -343,7 +348,9 @@ static gboolean on_handle_set_volume(ShairportSyncAdvancedRemoteControl *skeleto
 static gboolean on_handle_fast_forward(ShairportSyncRemoteControl *skeleton,
                                        GDBusMethodInvocation *invocation,
                                        __attribute__((unused)) gpointer user_data) {
+#ifdef CONFIG_DACP_CLIENT
   send_simple_dacp_command("beginff");
+#endif
   shairport_sync_remote_control_complete_fast_forward(skeleton, invocation);
   return TRUE;
 }
@@ -351,7 +358,9 @@ static gboolean on_handle_fast_forward(ShairportSyncRemoteControl *skeleton,
 static gboolean on_handle_rewind(ShairportSyncRemoteControl *skeleton,
                                  GDBusMethodInvocation *invocation,
                                  __attribute__((unused)) gpointer user_data) {
+#ifdef CONFIG_DACP_CLIENT
   send_simple_dacp_command("beginrew");
+#endif
   shairport_sync_remote_control_complete_rewind(skeleton, invocation);
   return TRUE;
 }
@@ -359,7 +368,9 @@ static gboolean on_handle_rewind(ShairportSyncRemoteControl *skeleton,
 static gboolean on_handle_toggle_mute(ShairportSyncRemoteControl *skeleton,
                                       GDBusMethodInvocation *invocation,
                                       __attribute__((unused)) gpointer user_data) {
+#ifdef CONFIG_DACP_CLIENT
   send_simple_dacp_command("mutetoggle");
+#endif
   shairport_sync_remote_control_complete_toggle_mute(skeleton, invocation);
   return TRUE;
 }
@@ -367,7 +378,9 @@ static gboolean on_handle_toggle_mute(ShairportSyncRemoteControl *skeleton,
 static gboolean on_handle_next(ShairportSyncRemoteControl *skeleton,
                                GDBusMethodInvocation *invocation,
                                __attribute__((unused)) gpointer user_data) {
+#ifdef CONFIG_DACP_CLIENT
   send_simple_dacp_command("nextitem");
+#endif
   shairport_sync_remote_control_complete_next(skeleton, invocation);
   return TRUE;
 }
@@ -375,7 +388,9 @@ static gboolean on_handle_next(ShairportSyncRemoteControl *skeleton,
 static gboolean on_handle_previous(ShairportSyncRemoteControl *skeleton,
                                    GDBusMethodInvocation *invocation,
                                    __attribute__((unused)) gpointer user_data) {
+#ifdef CONFIG_DACP_CLIENT
   send_simple_dacp_command("previtem");
+#endif
   shairport_sync_remote_control_complete_previous(skeleton, invocation);
   return TRUE;
 }
@@ -383,7 +398,9 @@ static gboolean on_handle_previous(ShairportSyncRemoteControl *skeleton,
 static gboolean on_handle_pause(ShairportSyncRemoteControl *skeleton,
                                 GDBusMethodInvocation *invocation,
                                 __attribute__((unused)) gpointer user_data) {
+#ifdef CONFIG_DACP_CLIENT
   send_simple_dacp_command("pause");
+#endif
   shairport_sync_remote_control_complete_pause(skeleton, invocation);
   return TRUE;
 }
@@ -391,7 +408,9 @@ static gboolean on_handle_pause(ShairportSyncRemoteControl *skeleton,
 static gboolean on_handle_play_pause(ShairportSyncRemoteControl *skeleton,
                                      GDBusMethodInvocation *invocation,
                                      __attribute__((unused)) gpointer user_data) {
+#ifdef CONFIG_DACP_CLIENT
   send_simple_dacp_command("playpause");
+#endif
   shairport_sync_remote_control_complete_play_pause(skeleton, invocation);
   return TRUE;
 }
@@ -399,7 +418,9 @@ static gboolean on_handle_play_pause(ShairportSyncRemoteControl *skeleton,
 static gboolean on_handle_play(ShairportSyncRemoteControl *skeleton,
                                GDBusMethodInvocation *invocation,
                                __attribute__((unused)) gpointer user_data) {
+#ifdef CONFIG_DACP_CLIENT                               
   send_simple_dacp_command("play");
+#endif
   shairport_sync_remote_control_complete_play(skeleton, invocation);
   return TRUE;
 }
@@ -407,7 +428,9 @@ static gboolean on_handle_play(ShairportSyncRemoteControl *skeleton,
 static gboolean on_handle_stop(ShairportSyncRemoteControl *skeleton,
                                GDBusMethodInvocation *invocation,
                                __attribute__((unused)) gpointer user_data) {
+#ifdef CONFIG_DACP_CLIENT
   send_simple_dacp_command("stop");
+#endif
   shairport_sync_remote_control_complete_stop(skeleton, invocation);
   return TRUE;
 }
@@ -415,7 +438,9 @@ static gboolean on_handle_stop(ShairportSyncRemoteControl *skeleton,
 static gboolean on_handle_resume(ShairportSyncRemoteControl *skeleton,
                                  GDBusMethodInvocation *invocation,
                                  __attribute__((unused)) gpointer user_data) {
+#ifdef CONFIG_DACP_CLIENT
   send_simple_dacp_command("playresume");
+#endif
   shairport_sync_remote_control_complete_resume(skeleton, invocation);
   return TRUE;
 }
@@ -423,7 +448,9 @@ static gboolean on_handle_resume(ShairportSyncRemoteControl *skeleton,
 static gboolean on_handle_shuffle_songs(ShairportSyncRemoteControl *skeleton,
                                         GDBusMethodInvocation *invocation,
                                         __attribute__((unused)) gpointer user_data) {
+#ifdef CONFIG_DACP_CLIENT
   send_simple_dacp_command("shuffle_songs");
+#endif
   shairport_sync_remote_control_complete_shuffle_songs(skeleton, invocation);
   return TRUE;
 }
@@ -431,7 +458,9 @@ static gboolean on_handle_shuffle_songs(ShairportSyncRemoteControl *skeleton,
 static gboolean on_handle_volume_up(ShairportSyncRemoteControl *skeleton,
                                     GDBusMethodInvocation *invocation,
                                     __attribute__((unused)) gpointer user_data) {
+#ifdef CONFIG_DACP_CLIENT
   send_simple_dacp_command("volumeup");
+#endif
   shairport_sync_remote_control_complete_volume_up(skeleton, invocation);
   return TRUE;
 }
@@ -439,7 +468,9 @@ static gboolean on_handle_volume_up(ShairportSyncRemoteControl *skeleton,
 static gboolean on_handle_volume_down(ShairportSyncRemoteControl *skeleton,
                                       GDBusMethodInvocation *invocation,
                                       __attribute__((unused)) gpointer user_data) {
+#ifdef CONFIG_DACP_CLIENT
   send_simple_dacp_command("volumedown");
+#endif
   shairport_sync_remote_control_complete_volume_down(skeleton, invocation);
   return TRUE;
 }
@@ -449,9 +480,11 @@ static gboolean on_handle_set_airplay_volume(ShairportSyncRemoteControl *skeleto
                                              const gdouble volume,
                                              __attribute__((unused)) gpointer user_data) {
   debug(2, "Set airplay volume to %.6f.", volume);
+#ifdef CONFIG_DACP_CLIENT
   char command[256] = "";
   snprintf(command, sizeof(command), "setproperty?dmcp.device-volume=%.6f", volume);
   send_simple_dacp_command(command);
+#endif
   shairport_sync_remote_control_complete_set_airplay_volume(skeleton, invocation);
   return TRUE;
 }
@@ -683,17 +716,7 @@ gboolean notify_volume_callback(ShairportSync *skeleton,
   gdouble iv = shairport_sync_get_volume(skeleton);
   if (((iv >= -30.0) && (iv <= 0.0)) || (iv == -144.0)) {
     debug(2, ">> set volume to %7.4f.", iv);
-
-    pthread_rwlock_rdlock(&principal_conn_lock); // don't let the principal_conn be changed
-    pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
-
-    if (principal_conn != NULL) {
-      player_volume(iv, principal_conn);
-      principal_conn->own_airplay_volume = iv;
-      principal_conn->own_airplay_volume_set = 1;
-    }
-    pthread_cleanup_pop(1); // release the principal_conn lock
-    config.airplay_volume = iv;
+    config.airplay_volume = iv;  
   } else {
     debug(1, ">> invalid volume: %f. Ignored.", iv);
     shairport_sync_set_volume(skeleton, config.airplay_volume);
@@ -737,6 +760,12 @@ gboolean notify_alacdecoder_callback(ShairportSync *skeleton,
                                      __attribute__((unused)) gpointer user_data) {
   char *th = (char *)shairport_sync_get_alacdecoder(skeleton);
 
+#ifdef CONFIG_AIRPLAY_2 
+  if (strcasecmp(th, "ffmpeg") != 0) {
+    warn(" This request, to set the decoder to \"%s\", is ignored. For AirPlay 2, the FFmpeg decoder is always used.",
+         th);
+  }
+#else
   if ((strcasecmp(th, "hammerton") == 0) &&
       ((config.decoders_supported & (1 << decoder_hammerton)) != 0))
     config.decoder_in_use = 1 << decoder_hammerton;
@@ -747,12 +776,13 @@ gboolean notify_alacdecoder_callback(ShairportSync *skeleton,
            ((config.decoders_supported & (1 << decoder_ffmpeg_alac)) != 0))
     config.decoder_in_use = 1 << decoder_ffmpeg_alac;
   else {
-    warn("An unrecognised or unsupported ALAC decoder: \"%s\" was requested via D-Bus interface. "
+    warn("An unrecognised or unsupported decoder: \"%s\" was requested via D-Bus interface. "
          "(Possibly "
          "support for this decoder was not compiled "
          "into this version of Shairport Sync.)",
          th);
   }
+#endif
 
   return TRUE;
 }
@@ -838,6 +868,7 @@ gboolean notify_volume_control_profile_callback(ShairportSync *skeleton,
   return TRUE;
 }
 
+#ifdef CONFIG_DACP_CLIENT
 gboolean notify_shuffle_callback(ShairportSyncAdvancedRemoteControl *skeleton,
                                  __attribute__((unused)) gpointer user_data) {
   // debug(1,"notify_shuffle_callback called");
@@ -847,9 +878,17 @@ gboolean notify_shuffle_callback(ShairportSyncAdvancedRemoteControl *skeleton,
     send_simple_dacp_command("setproperty?dacp.shufflestate=0");
   return TRUE;
 }
+#else
+gboolean notify_shuffle_callback(__attribute__((unused)) ShairportSyncAdvancedRemoteControl *skeleton,
+                                 __attribute__((unused)) gpointer user_data) {
+  return TRUE;
+}
+#endif
 
+#ifdef CONFIG_DACP_CLIENT
 gboolean notify_loop_status_callback(ShairportSyncAdvancedRemoteControl *skeleton,
                                      __attribute__((unused)) gpointer user_data) {
+
   // debug(1,"notify_loop_status_callback called");
   char *th = (char *)shairport_sync_advanced_remote_control_get_loop_status(skeleton);
   //  enum volume_control_profile_type previous_volume_control_profile =
@@ -884,6 +923,12 @@ gboolean notify_loop_status_callback(ShairportSyncAdvancedRemoteControl *skeleto
   }
   return TRUE;
 }
+#else
+gboolean notify_loop_status_callback(__attribute__((unused)) ShairportSyncAdvancedRemoteControl *skeleton,
+                                     __attribute__((unused)) gpointer user_data) {
+  return TRUE;
+}
+#endif
 
 static gboolean on_handle_quit(ShairportSync *skeleton, GDBusMethodInvocation *invocation,
                                __attribute__((unused)) const gchar *command,
@@ -900,10 +945,12 @@ static gboolean on_handle_remote_command(ShairportSync *skeleton, GDBusMethodInv
                                          __attribute__((unused)) gpointer user_data) {
   debug(1, "RemoteCommand with command \"%s\".", command);
   int reply = 0;
+  char *client_reply_hex = "";
+#ifdef CONFIG_DACP_CLIENT
   char *client_reply = NULL;
   ssize_t reply_size = 0;
   reply = dacp_send_command((const char *)command, &client_reply, &reply_size);
-  char *client_reply_hex = alloca(reply_size * 2 + 1);
+  client_reply_hex = alloca(reply_size * 2 + 1);
   if (client_reply_hex) {
     char *p = client_reply_hex;
     if (client_reply) {
@@ -917,6 +964,7 @@ static gboolean on_handle_remote_command(ShairportSync *skeleton, GDBusMethodInv
     }
     *p = '\0';
   }
+#endif
   shairport_sync_complete_remote_command(skeleton, invocation, reply, client_reply_hex);
   return TRUE;
 }
@@ -958,7 +1006,6 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
 
   shairportSyncAdvancedRemoteControlSkeleton =
       shairport_sync_advanced_remote_control_skeleton_new();
-
   g_dbus_interface_skeleton_export(
       G_DBUS_INTERFACE_SKELETON(shairportSyncAdvancedRemoteControlSkeleton), connection,
       "/org/gnome/ShairportSync", NULL);
@@ -1015,9 +1062,10 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
 
   g_signal_connect(shairportSyncDiagnosticsSkeleton, "notify::file-and-line",
                    G_CALLBACK(notify_file_and_line_callback), NULL);
-
+  
   g_signal_connect(shairportSyncRemoteControlSkeleton, "handle-fast-forward",
                    G_CALLBACK(on_handle_fast_forward), NULL);
+          
   g_signal_connect(shairportSyncRemoteControlSkeleton, "handle-rewind",
                    G_CALLBACK(on_handle_rewind), NULL);
   g_signal_connect(shairportSyncRemoteControlSkeleton, "handle-toggle-mute",
