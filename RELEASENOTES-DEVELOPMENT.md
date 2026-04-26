@@ -1,4 +1,4 @@
-Version 5.0.4-dev-2-g83de0207
+Version 5.0.4-dev-5-g936b8387
 ==
 **New Features**
 * AirPlay 2 Passwords. Until now, you could set a password only for Classic AirPlay. Now, setting a password is effective for both AirPlay 2 and Classic AirPlay.
