@@ -1,3 +1,16 @@
+Version 5.0.4-dev-2-g83de0207
+==
+**New Features**
+* AirPlay 2 Passwords. Until now, you could set a password only for Classic AirPlay. Now, setting a password is effective for both AirPlay 2 and Classic AirPlay.
+* Metadata multicast is now optional, so can, in principle, be omitted. This is still experimental.
+* DACP support is optional and can, in principle, be omitted. This is still experimental.
+
+**Bug Fixes and Stability Improvements**
+* Calls to some libraries have been made uncancellable in order to improve application stability when terminating or when pre-empting an active play session. These changes are not yet complete.
+
+**Other Changes**
+* Some rationalisation of source files is being undertaken.
+
 Version 5.0.3-dev-4-g07ca1891
 ==
 **Release**
