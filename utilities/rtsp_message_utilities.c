@@ -1,14 +1,16 @@
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
-#include <plist/plist.h>
 #include "rtsp_message_utilities.h"
 #include "../rtsp.h"
 #include "../common.h"
 
+#ifdef CONFIG_AIRPLAY_2
+#include <plist/plist.h>
 #ifdef HAVE_LIBPLIST_GE_2_3_0
 #define plist_from_memory(plist_data, length, plist)                                               \
   plist_from_memory((plist_data), (length), (plist), NULL)
+#endif
 #endif
 
 // every time we want to retain or release a reference count, lock it with this
@@ -256,7 +258,7 @@ void _debug_log_rtsp_message(rtsp_conn_info *conn, const char *filename, const i
   } else
 #endif
   {
-    _debug(filename, linenumber, level, "  No Content Plist. Content length: %u.",
+    _debug(filename, linenumber, level, "  Content length: %u.",
            message->contentlength);
     if (message->contentlength > 0) {
       _debug_print_buffer(filename, linenumber, level, message->content, message->contentlength);
