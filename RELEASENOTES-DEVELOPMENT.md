@@ -1,3 +1,7 @@
+Version 5.0.5-dev-2-g2400aae4
+==
+This is effectively 5.0.4-dev-9-g68b6d4df.
+
 Version 5.0.4-dev-9-g68b6d4df
 ==
 **Bug Fix**
