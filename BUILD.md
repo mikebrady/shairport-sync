@@ -83,7 +83,7 @@ If you are building classic Shairport Sync, the list of packages is shorter:
     libpopt-dev libconfig-dev libasound2-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev \
     libavutil-dev libavcodec-dev libavformat-dev
 ```
-Building on Ubuntu 24.10 or Debian 13 ("Trixie") and later – and possibly on other distributions – requires `systemd-dev`. It does no harm to attempt to install it – the install will simply fail if the package doesn't exist:
+Building on Ubuntu 24.10 or Debian 13 ("Trixie") and later – and possibly on other distributions – requires `systemd-dev`. Be very careful here if you are using backports -- there is a [report](https://github.com/mikebrady/shairport-sync/issues/2195#issuecomment-4325326002) that installing `systemd-dev` on a backported system can severely damage it:
 
 ```
 # apt install --no-install-recommends systemd-dev # it's okay if this fails because the package doesn't exist
