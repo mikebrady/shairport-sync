@@ -1553,8 +1553,8 @@ void handle_pair_add(rtsp_conn_info *conn __attribute__((unused)), rtsp_message 
       free(conn->ap2_client_name);
     conn->ap2_client_name = strdup(hdr);
   }                                                
-  debug(1, "Connection %d from \"%s\": handle_pair_add", conn->connection_number, conn->ap2_client_name);
-  debug_log_rtsp_message_conn(conn, 1, "pair-add request", req);
+  debug(4, "Connection %d from \"%s\": handle_pair_add", conn->connection_number, conn->ap2_client_name);
+  debug_log_rtsp_message_conn(conn, 4, "pair-add request", req);
   uint8_t *body = NULL;
   size_t body_len = 0;
   int ret = pair_add(PAIR_SERVER_HOMEKIT, &body, &body_len, pairing_add_cb, NULL,
@@ -1567,7 +1567,7 @@ void handle_pair_add(rtsp_conn_info *conn __attribute__((unused)), rtsp_message 
   resp->content = (char *)body; // these will be freed when the data is sent
   resp->contentlength = body_len;
   msg_add_header(resp, "Content-Type", "application/octet-stream");
-  debug_log_rtsp_message_conn(conn, 1, "pair-add response", resp);
+  debug_log_rtsp_message_conn(conn, 4, "pair-add response", resp);
 }
 
 void handle_pair_list(rtsp_conn_info *conn __attribute__((unused)), rtsp_message *req,
@@ -1578,7 +1578,8 @@ void handle_pair_list(rtsp_conn_info *conn __attribute__((unused)), rtsp_message
       free(conn->ap2_client_name);
     conn->ap2_client_name = strdup(hdr);
   }                                                
-  debug(1, "Connection %d from \"%s\": handle_pair_list", conn->connection_number, conn->ap2_client_name);
+  debug(4, "Connection %d from \"%s\": handle_pair_list", conn->connection_number, conn->ap2_client_name);
+  debug_log_rtsp_message_conn(conn, 4, "pair-list request", req);
   uint8_t *body = NULL;
   size_t body_len = 0;
   int ret = pair_list(PAIR_SERVER_HOMEKIT, &body, &body_len, pairing_list_cb, NULL,
@@ -1591,7 +1592,7 @@ void handle_pair_list(rtsp_conn_info *conn __attribute__((unused)), rtsp_message
   resp->content = (char *)body; // these will be freed when the data is sent
   resp->contentlength = body_len;
   msg_add_header(resp, "Content-Type", "application/octet-stream");
-  debug_log_rtsp_message_conn(conn, 1, "pair-list response", resp);
+  debug_log_rtsp_message_conn(conn, 4, "pair-list response", resp);
 }
 
 void handle_pair_remove(rtsp_conn_info *conn __attribute__((unused)), rtsp_message *req,
@@ -1603,7 +1604,8 @@ void handle_pair_remove(rtsp_conn_info *conn __attribute__((unused)), rtsp_messa
       free(conn->ap2_client_name);
     conn->ap2_client_name = strdup(hdr);
   }                                                
-  debug(1, "Connection %d from \"%s\": handle_pair_remove", conn->connection_number, conn->ap2_client_name);
+  debug(4, "Connection %d from \"%s\": handle_pair_remove", conn->connection_number, conn->ap2_client_name);
+  debug_log_rtsp_message_conn(conn, 4, "pair-remove request", req);
   uint8_t *body = NULL;
   size_t body_len = 0;
   int ret = pair_remove(PAIR_SERVER_HOMEKIT, &body, &body_len, pairing_remove_cb, NULL,
@@ -1616,7 +1618,7 @@ void handle_pair_remove(rtsp_conn_info *conn __attribute__((unused)), rtsp_messa
   resp->content = (char *)body; // these will be freed when the data is sent
   resp->contentlength = body_len;
   msg_add_header(resp, "Content-Type", "application/octet-stream");
-  debug_log_rtsp_message_conn(conn, 1, "pair-remove response", resp);
+  debug_log_rtsp_message_conn(conn, 4, "pair-remove response", resp);
 }
 
 void handle_pair_verify(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
@@ -1633,8 +1635,8 @@ void handle_pair_verify(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *r
     mstage = '0' + b[2];
   }
                                                  
-  debug(1, "Connection %d from \"%s\": handle_pair_verify, stage M%c, Content-Length %d", conn->connection_number, conn->ap2_client_name, mstage, req->contentlength);
-  debug_log_rtsp_message_conn(conn, 2, "pair-verify request", req);
+  debug(4, "Connection %d from \"%s\": handle_pair_verify, stage M%c, Content-Length %d", conn->connection_number, conn->ap2_client_name, mstage, req->contentlength);
+  debug_log_rtsp_message_conn(conn, 4, "pair-verify request", req);
   int ret;
   uint8_t *body = NULL;
   size_t body_len = 0;
@@ -1642,7 +1644,7 @@ void handle_pair_verify(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *r
 
   if (!conn->ap2_pairing_context.verify_ctx) {
     conn->ap2_pairing_context.verify_ctx =
-        pair_verify_new(PAIR_SERVER_HOMEKIT, NULL, NULL, NULL, config.airplay_device_id);
+        pair_verify_new(PAIR_SERVER_HOMEKIT, NULL, NULL, NULL, config.airplay_pi);
     if (!conn->ap2_pairing_context.verify_ctx) {
       debug(1, "Error creating verify context");
       resp->respcode = 500; // Internal Server Error
@@ -1681,7 +1683,7 @@ out:
   resp->contentlength = body_len;
   if (body)
     msg_add_header(resp, "Content-Type", "application/octet-stream");
-  debug_log_rtsp_message_conn(conn, 2, "pair-verify response", resp);
+  debug_log_rtsp_message_conn(conn, 4, "pair-verify response", resp);
 }
 
 void handle_pair_pin_start(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
@@ -1692,10 +1694,10 @@ void handle_pair_pin_start(rtsp_conn_info *conn, rtsp_message *req, rtsp_message
       free(conn->ap2_client_name);
     conn->ap2_client_name = strdup(hdr);
   }
-  debug(1, "Connection %d from \"%s\": handle_pair_pin_start, Content-Length %d", conn->connection_number,
+  debug(4, "Connection %d from \"%s\": handle_pair_pin_start, Content-Length %d", conn->connection_number,
         conn->ap2_client_name,
         req->contentlength);
-  debug_log_rtsp_message_conn(conn, 1, "handle_pair_pin_start", req);
+  debug_log_rtsp_message_conn(conn, 4, "handle_pair_pin_start", req);
 
   uint8_t *body = NULL;
   size_t body_len = 0;
@@ -1704,7 +1706,7 @@ void handle_pair_pin_start(rtsp_conn_info *conn, rtsp_message *req, rtsp_message
   resp->contentlength = body_len;
   if (body != NULL)
     msg_add_header(resp, "Content-Type", "application/octet-stream");
-  debug_log_rtsp_message(1, "pair-pin-start response", resp);
+  debug_log_rtsp_message(4, "pair-pin-start response", resp);
 }
 
 void handle_pair_setup(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
@@ -1715,21 +1717,18 @@ void handle_pair_setup(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *re
       free(conn->ap2_client_name);
     conn->ap2_client_name = strdup(hdr);
   }
-  debug(2, "Connection %d from \"%s\": handle_pair_setup, Content-Length %d", conn->connection_number,
+  debug(4, "Connection %d from \"%s\": handle_pair_setup, Content-Length %d", conn->connection_number,
         conn->ap2_client_name,
         req->contentlength);
-  debug_log_rtsp_message_conn(conn, 2, "pair-setup request", req);
+  debug_log_rtsp_message_conn(conn, 4, "pair-setup request", req);
 
   int ret;
   uint8_t *body = NULL;
   size_t body_len = 0;
-  debug(3, "Connection %d: handle_pair_setup Content-Length %d", conn->connection_number,
-        req->contentlength);
-  debug_log_rtsp_message(3, "handle_pair_setup", req);
 
   if (!conn->ap2_pairing_context.setup_ctx) {
     conn->ap2_pairing_context.setup_ctx = pair_setup_new(PAIR_SERVER_HOMEKIT, config.password,
-                                                         NULL, NULL, config.airplay_device_id);
+                                                         NULL, NULL, config.airplay_pi);
     if (!conn->ap2_pairing_context.setup_ctx) {
       debug(1, "Error creating setup context");
       resp->respcode = 500; // Internal Server Error
@@ -1773,7 +1772,7 @@ out:
   resp->contentlength = body_len;
   if (body)
     msg_add_header(resp, "Content-Type", "application/octet-stream");
-  debug_log_rtsp_message_conn(conn, 2, "pair-setup response", resp);
+  debug_log_rtsp_message_conn(conn, 4, "pair-setup response", resp);
 }
 
 void handle_fp_setup(__attribute__((unused)) rtsp_conn_info *conn, rtsp_message *req,
@@ -1785,9 +1784,9 @@ void handle_fp_setup(__attribute__((unused)) rtsp_conn_info *conn, rtsp_message 
       free(conn->ap2_client_name);
     conn->ap2_client_name = strdup(hdr);
   }
-  debug(2, "Connection %d from \"%s\": handle_fp_setup,", conn->connection_number,
+  debug(4, "Connection %d from \"%s\": handle_fp_setup,", conn->connection_number,
         conn->ap2_client_name);
-  debug_log_rtsp_message_conn(conn, 2, "fp-setup request", req);
+  debug_log_rtsp_message_conn(conn, 4, "fp-setup request", req);
 
 
   /* Fairplay magic */
@@ -1887,6 +1886,7 @@ void handle_fp_setup(__attribute__((unused)) rtsp_conn_info *conn, rtsp_message 
   resp->content = response; // these will be freed when the data is sent
   resp->contentlength = len;
   msg_add_header(resp, "Content-Type", "application/octet-stream");
+  debug_log_rtsp_message_conn(conn, 4, "fp-setup response", resp);
 }
 
 /*
@@ -1906,7 +1906,7 @@ void handle_fp_setup(__attribute__((unused)) rtsp_conn_info *conn, rtsp_message 
 void handle_configure(rtsp_conn_info *conn __attribute__((unused)),
                       rtsp_message *req __attribute__((unused)), rtsp_message *resp) {
 
-  debug_log_rtsp_message_conn(conn, 1, "POST /configure req:", req);
+  debug_log_rtsp_message_conn(conn, 4, "POST /configure req:", req);
   
   int existingEnable_HK_Access_Control = config.enable_HK_Access_Control;
   
@@ -1936,15 +1936,15 @@ void handle_configure(rtsp_conn_info *conn __attribute__((unused)),
           // leave the response dict empty
         }
       } else {
-        debug(1, "no Enable_HK_Access_Control item in POST /configure ConfigurationDictionary");
+        debug(4, "no Enable_HK_Access_Control item in POST /configure ConfigurationDictionary");
       }
-      debug(1, "enable_HK_Access_Control is %u.", enable_HK_Access_Control);    
+      debug(4, "enable_HK_Access_Control is %u.", enable_HK_Access_Control);    
     } else {
-       debug(1, "no ConfigurationDictionary in POST /configure plist");
+       debug(4, "no ConfigurationDictionary in POST /configure plist");
     }
     plist_free(messagePlist);
   } else {
-    debug(1, "no plist in POST /configure request");
+    debug(4, "no plist in POST /configure request");
   }
   
   if (config.enable_HK_Access_Control != 0) {
@@ -1961,7 +1961,7 @@ void handle_configure(rtsp_conn_info *conn __attribute__((unused)),
   plist_free(response_plist);
 
   msg_add_header(resp, "Content-Type", "application/x-apple-binary-plist");
-  debug_log_rtsp_message_conn(conn, 1, "POST /configure response:", resp);
+  debug_log_rtsp_message_conn(conn, 4, "POST /configure response:", resp);
 }
 
 void handle_feedback(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *req,
@@ -2490,6 +2490,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
 
               int oldState;
               pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
+
               struct ifaddrs *addrs, *iap;
               getifaddrs(&addrs);
               for (iap = addrs; iap != NULL; iap = iap->ifa_next) {
