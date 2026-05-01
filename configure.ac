@@ -10,12 +10,20 @@ AC_CONFIG_HEADERS([config.h])
 AC_PROG_RANLIB
 AC_SUBST([HOME], [$HOME])
 
+# Identify the build host OS (used for defaults).
+AC_CANONICAL_HOST
+
 # Derived from the Avahi configure.ac file
 # Specifying the OS type, defaulting to linux.
 #
 AC_ARG_WITH(os, AS_HELP_STRING([--with-os=OSType],[Specify the distribution to target: One of linux, freebsd, openbsd or darwin]))
 if test "z$with_os" = "z"; then
-  with_os="linux"
+  case "$host_os" in
+    darwin*) with_os="darwin" ;;
+    freebsd*) with_os="freebsd" ;;
+    openbsd*) with_os="openbsd" ;;
+    *) with_os="linux" ;;
+  esac
 fi
 with_os=`echo ${with_os} | tr '[[:upper:]]' '[[:lower:]]' `
 case "x${with_os}" in
@@ -297,6 +305,22 @@ if test "x$with_ao" = "xyes" ; then
 fi
 AM_CONDITIONAL([USE_AO], [test "x$with_ao" = "xyes"])
 
+# Look for CoreAudio flag (macOS). Enabled by default when targeting Darwin.
+AC_ARG_WITH([coreaudio],
+  [AS_HELP_STRING([--without-coreaudio],
+    [omit CoreAudio output (macOS/Darwin only); default is on for Darwin])],
+  [],
+  [if test "x${with_os}" = xdarwin ; then with_coreaudio=yes ; fi])
+if test "x$with_coreaudio" = "xyes" ; then
+  if test "x${with_os}" != xdarwin ; then
+    AC_MSG_ERROR([CoreAudio support requires --with-os=darwin (or configure on macOS).])
+  fi
+  AC_DEFINE([CONFIG_COREAUDIO], 1, [Include a CoreAudio (macOS) audio backend.])
+  # Frameworks are resolved by the linker; no pkg-config for these.
+  LIBS="${LIBS} -framework AudioToolbox -framework AudioUnit -framework CoreAudio -framework CoreServices"
+fi
+AM_CONDITIONAL([USE_COREAUDIO], [test "x$with_coreaudio" = "xyes"])
+
 # Look for Soundio flag
 AC_ARG_WITH(soundio, [AS_HELP_STRING([--with-soundio],[choose soundio API support.])])
 if test "x$with_soundio" = "xyes" ; then
@@ -472,6 +496,20 @@ if test "x$with_airplay_2" = "xyes" ; then
   systemd_requires_args="${systemd_requires_args}${systemd_requires_args:+ }nqptp.service"
 fi
 AM_CONDITIONAL([USE_AIRPLAY_2], [test "x$with_airplay_2" = "xyes"])
+
+# Experimental: allow AirPlay 2 builds without NQPTP on macOS.
+AC_ARG_WITH([airplay2-no-nqptp],
+  [AS_HELP_STRING([--with-airplay2-no-nqptp],[Build AirPlay 2 without NQPTP timing (experimental; darwin only). Use when macOS AirPlay Receiver holds PTP ports or NQPTP is unavailable; see BUILD.md for full NQPTP on macOS.])])
+if test "x$with_airplay2_no_nqptp" = "xyes" ; then
+  if test "x$with_airplay_2" != "xyes" ; then
+    AC_MSG_ERROR([--with-airplay2-no-nqptp requires --with-airplay-2])
+  fi
+  if test "x${with_os}" != xdarwin ; then
+    AC_MSG_ERROR([--with-airplay2-no-nqptp is only supported with --with-os=darwin])
+  fi
+  AC_DEFINE([CONFIG_AIRPLAY2_NO_NQPTP], 1, [Build AirPlay 2 without NQPTP timing (experimental; no multiroom sync).])
+fi
+AM_CONDITIONAL([USE_AIRPLAY2_NO_NQPTP], [test "x$with_airplay2_no_nqptp" = "xyes"])
 
 # Look for ffmpeg flag
 

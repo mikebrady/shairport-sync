@@ -3274,7 +3274,7 @@ int main(int argc, char **argv) {
   glib_worker_thread = g_thread_new("glib worker", glib_worker_thread_function, NULL);
 #endif
 
-#ifdef CONFIG_AIRPLAY_2
+#if defined(CONFIG_AIRPLAY_2) && !defined(CONFIG_AIRPLAY2_NO_NQPTP)
 
   ptp_send_control_message_string(
       "T"); // send this message to get nqptp to create the named shm interface
@@ -3295,10 +3295,21 @@ int main(int argc, char **argv) {
   } while (continue_waiting != 0);
 
   if ((response == -1) && (errno == ENOENT)) {
+#ifdef COMPILE_FOR_OSX
+    die("Shairport Sync can not find the nqptp service on this system. Start nqptp (e.g. sudo) "
+        "before shairport-sync; on macOS you need a Darwin-capable nqptp build (see BUILD.md and "
+        "patches/nqptp-darwin.patch). If nqptp exits or never starts, turn off AirPlay Receiver in "
+        "System Settings so UDP ports 319 and 320 are free.");
+#else
     die("Shairport Sync can not find the nqptp service on this system.  Is nqptp installed and "
         "running?");
+#endif
   } else if ((response == -1) && (errno == EACCES)) {
+#ifdef COMPILE_FOR_OSX
+    die("Shairport Sync must have read access to the nqptp POSIX shared memory segment.");
+#else
     die("Shairport Sync must have read access to the nqptp shared memory file in /dev/shm/.");
+#endif
   } else if (response != 0) {
     die("an error occurred accessing the nqptp service.");
   }
@@ -3321,6 +3332,12 @@ int main(int argc, char **argv) {
     debug(1, "NQPTP is online.");
   else
     debug(1, "NQPTP came online after %.3f milliseconds.", 0.000001 * time_spent_waiting);
+#endif
+
+#if defined(CONFIG_AIRPLAY_2) && defined(CONFIG_AIRPLAY2_NO_NQPTP)
+  warn("AirPlay 2 is running without NQPTP timing support (experimental). Multiroom sync will not "
+       "work and timing may drift.");
+  (void)ptp_shm_interface_open(); // initialise stub timing provider
 #endif
 
 #ifdef CONFIG_METADATA

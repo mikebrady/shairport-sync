@@ -69,7 +69,8 @@ Here are some guidelines:
 * An up-to-date Linux, FreeBSD or OpenBSD system. This is important, as some of the libraries must be the latest available.
 
 * Due to realtime timing requirements, Shairport Sync does not work well on virtual machines outputting to ALSA, PipeWire or PulseAudio. For the same reason, Shairport Sync does not work very well with with Bluetooth. YMMV of course, and you can have success where timing is not crucial, such as outputting to `stdout` or to a unix pipe.
-* Shairport Sync can not run in AirPlay 2 mode on a Mac because NQPTP, on which it relies, needs ports 319 and 320, which are already used by macOS.
+* On macOS, **AirPlay Receiver** (the system’s built-in AirPlay *server*) often holds UDP ports 319 and 320, which NQPTP needs. Turn **AirPlay Receiver** off in **System Settings** (see [BUILD.md](BUILD.md) → *AirPlay 2 on macOS*), build NQPTP with the Darwin patch in `patches/nqptp-darwin.patch`, run `nqptp` with appropriate privileges, then build Shairport Sync with normal AirPlay 2 + NQPTP support.
+  * If you cannot free those ports or run NQPTP, experimental builds can use `--with-airplay2-no-nqptp` to run without NQPTP timing. That disables proper PTP-based synchronisation (no multiroom sync; timing may drift).
 * A version of the [FFmpeg](https://www.ffmpeg.org) library with an AAC decoder capable of decoding Floating Planar -- `fltp` -- material must be in your system. There is a guide [here](TROUBLESHOOTING.md#aac-decoder-issues-airplay-2-only) to help you find out if your system has it.
 * An audio output. For preference, the output device should be capable of accepting stereo or multichannel at 44,100 and 48,000 frames per second. With FFmpeg support, audio will be transcoded and mixed to match output device capabilities as necessary.
 * You can use [`dacquery`](https://github.com/mikebrady/dacquery) to test the suitability of hardware ALSA audio devices on your system.
