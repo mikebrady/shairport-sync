@@ -54,6 +54,9 @@
 #include <libavcodec/avcodec.h>
 #include <sodium.h>
 #include <uuid/uuid.h>
+#include "utilities/generate_random_uuid.h"
+#include "utilities/generate_device_uuid.h"
+
 #endif
 
 #ifdef CONFIG_MBEDTLS
@@ -84,8 +87,12 @@
 #include "dacp.h"
 #endif
 
+#if defined(CONFIG_METADATA)
+#include "metadata/core.h"
+#endif
+
 #if defined(CONFIG_METADATA_HUB)
-#include "metadata_hub.h"
+#include "metadata/hub.h"
 #endif
 
 #ifdef CONFIG_DBUS_INTERFACE
@@ -341,6 +348,7 @@ void usage(char *progname) {
     printf("    -t, --timeout=SECONDS   Go back to idle mode from play mode after a break in communications of this many seconds (default 60). Set to 0 never to exit play mode.\n");
     printf("    --tolerance=TOLERANCE   [Deprecated] Allow a synchronization error of TOLERANCE frames (default 88) before trying to correct it.\n");
     printf("    --logOutputLevel        Log the output level setting -- a debugging option, useful for determining the optimum maximum volume.\n");
+
 #ifdef CONFIG_LIBDAEMON
     printf("    -d, --daemon            Daemonise.\n");
     printf("    -j, --justDaemoniseNoPIDFile            Daemonise without a PID file.\n");
@@ -351,6 +359,10 @@ void usage(char *progname) {
     printf("    --metadata-pipename=PIPE send metadata to PIPE, e.g. --metadata-pipename=/tmp/%s-metadata.\n", config.appName);
     printf("                            The default is /tmp/%s-metadata.\n", config.appName);
     printf("    -g, --get-coverart      Include cover art in the metadata to be gathered and sent.\n");
+#endif
+#if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
+    printf("    --dbus-default-message-bus=BUS Use the BUS specified for the native D-Bus and MPRIS interfaces.\n");
+    printf("                            BUS must be \"system\" (default) or \"session\".\n");
 #endif
     printf("    --log-to-syslog         Send debug and statistics information through syslog\n");
     printf("                            If used, this should be the first command line argument.\n");
@@ -539,6 +551,7 @@ int parse_options(int argc, char **argv) {
   // for unexpected circumstances
 
   config.model = strdup("ShairportSync");
+  //config.model = strdup("AirPort10,115");
   // config.model = strdup("AudioAccessory5,1");
 
   // config.srcvers = strdup(PACKAGE_VERSION);
@@ -556,6 +569,9 @@ int parse_options(int argc, char **argv) {
   else
 #endif
     config.firmware_version = strdup(PACKAGE_VERSION);
+
+  free(config.firmware_version);
+  config.firmware_version = strdup("5.2");
 
 #ifdef CONFIG_METADATA
   /* Get the metadata setting. */
@@ -585,83 +601,6 @@ int parse_options(int argc, char **argv) {
   // not made active again (not used)
 #endif
 
-#ifdef CONFIG_AIRPLAY_2
-  // the features code is a 64-bit number, but in the mDNS advertisement, the least significant 32
-  // bit are given first for example, if the features number is 0x1C340405F4A00, it will be given as
-  // features=0x405F4A00,0x1C340 in the mDNS string, and in a signed decimal number in the plist:
-  // 496155702020608 this setting here is the source of both the plist features response and the
-  // mDNS string.
-  // note: 0x300401F4A00 works but with weird delays and stuff
-  // config.airplay_features = 0x1C340405FCA00;
-  uint64_t mask =
-      ((uint64_t)1 << 17) | ((uint64_t)1 << 16) | ((uint64_t)1 << 15) | ((uint64_t)1 << 50);
-  config.airplay_features =
-      // 0x114BD04A5FCA00 & (~mask);
-      0x1C340405D4A00 & (~mask); // APX + Authentication4 (b14) with no metadata (see below)
-
-  /*
-    config.airplay_features |= (uint64_t)1 << 21; // Audio Format 4
-
-    config.airplay_features |= (uint64_t)1 << 25; // Unknown
-    config.airplay_features |= (uint64_t)1 << 36; // Unknown
-    config.airplay_features |= (uint64_t)1 << 39; // Unknown
-    config.airplay_features |= (uint64_t)1 << 43; // Supports System Pairing
-    config.airplay_features |= (uint64_t)1 << 47; // Unknown
-
-    // 0xB
-    config.airplay_features |= (uint64_t)1 << 63; // Unknown
-    config.airplay_features |= (uint64_t)1 << 61; // Unknown
-    config.airplay_features |= (uint64_t)1 << 60; // Unknown
-    // ...0xC
-    // // config.airplay_features |= (uint64_t)1 << 59; // Unknown
-    config.airplay_features |= (uint64_t)1 << 58; // Unknown
-
-    // ...0x3
-    config.airplay_features |= (uint64_t)1 << 53; // Unknown
-    config.airplay_features |= (uint64_t)1 << 52; // Unknown
-  */
-
-  // config.airplay_features |= ((uint64_t)1 << 58) | ((uint64_t)1 << 60) | ((uint64_t)1 << 58);
-
-  // 60 seems to interfere with disconnecting from a group
-
-  // Advertised with mDNS and returned with GET /info, see
-  // https://openairplay.github.io/airplay-spec/status_flags.html 0x4: Audio cable attached, no PIN
-  // required (transient pairing), 0x204: Audio cable attached, OneTimePairingRequired 0x604: Audio
-  // cable attached, OneTimePairingRequired, device was setup for Homekit access control
-  config.airplay_statusflags = 0;
-  config.airplay_statusflags |= 1 << 2; // Audio cable is attached
-  // config.airplay_statusflags |= 1 << 10; // DeviceWasSetupForHKAccessControl
-  // config.airplay_statusflags |= 1 << 11; // DeviceSupportsRelay
-  // config.airplay_statusflags |= 1 << 19; // Unknown. Seems to control whether individual volume
-  // controls are shown and whether the SPS devices shows when its active.
-
-  // Set to NULL to work with transient pairing
-  config.airplay_pin = NULL;
-
-  // use the MAC address placed in config.hw_addr to generate the default airplay_device_id
-  uint64_t temporary_airplay_id = nctoh64(config.hw_addr);
-  temporary_airplay_id =
-      temporary_airplay_id >> 16; // we only use the first 6 bytes but have imported 8.
-
-  // now generate a UUID
-  // from https://stackoverflow.com/questions/51053568/generating-a-random-uuid-in-c
-  // with thanks
-  uuid_t binuuid;
-  uuid_generate_random(binuuid);
-
-  char *uuid = malloc(UUID_STR_LEN + 1); // leave space for the NUL at the end
-  // Produces a UUID string at uuid consisting of lower-case letters
-  uuid_unparse_lower(binuuid, uuid);
-  config.airplay_pi = uuid;
-
-  char *pgid_uuid = malloc(UUID_STR_LEN + 1); // leave space for the NUL at the end
-  uuid_generate_random(binuuid);
-  uuid_unparse_lower(binuuid, pgid_uuid);
-  config.airplay_pgid = pgid_uuid;
-
-#endif
-
   // config_setting_t *setting;
   const char *str = NULL;
   int value = 0;
@@ -669,6 +608,11 @@ int parse_options(int argc, char **argv) {
 
   // debug(1, "Looking for the configuration file \"%s\".", config.configfile);
 
+  // use the MAC address placed in config.hw_addr to generate the default airplay_device_id
+  uint64_t temporary_airplay_id = nctoh64(config.hw_addr);
+  temporary_airplay_id =
+    temporary_airplay_id >> 16; // we only use the first 6 bytes but have imported 8.
+  
   config_init(&config_file_stuff);
 
   config_file_real_path = realpath(config.configfile, NULL);
@@ -1469,7 +1413,6 @@ int parse_options(int argc, char **argv) {
           "avahi enabled, or disable remote control.");
     }
 #endif
-#endif
 
 #ifdef CONFIG_AIRPLAY_2
     long long aid;
@@ -1485,6 +1428,8 @@ int parse_options(int argc, char **argv) {
     }
 
 #endif
+#endif
+
   }
 
   // now, do the command line options again, but this time do them fully -- it's a unix convention
@@ -1604,7 +1549,10 @@ int parse_options(int argc, char **argv) {
   // a uuid_t and an md5 hash are both 128 bits, 16 bytes
   uuid_t result;
   memset(result, 0, sizeof(result));
-  memcpy(result, config.ap1_prefix, sizeof(result));
+  if (sizeof(config.ap1_prefix) < sizeof(result))
+    memcpy(result, config.ap1_prefix, sizeof(config.ap1_prefix));
+  else
+    memcpy(result, config.ap1_prefix, sizeof(result));
 
   // OpenSSL is mandatory for AirPlay 2 anyway
 #ifdef CONFIG_OPENSSL
@@ -1631,8 +1579,8 @@ int parse_options(int argc, char **argv) {
   // Produces a UUID string at uuid consisting of lower-case letters
   uuid_unparse_lower(result, psi_uuid);
   config.airplay_psi = psi_uuid;
+  
   debug(3, "size of pk is %zu.", sizeof(config.airplay_pk));
-
   pair_public_key_get(PAIR_SERVER_HOMEKIT, config.airplay_pk, config.airplay_device_id);
   char buf[128];
   char *ptr = buf;
@@ -1641,18 +1589,38 @@ int parse_options(int argc, char **argv) {
     ptr += sprintf(ptr, "%02x", config.airplay_pk[pk_index]);
   *ptr = '\0';
   config.pk_string = strdup(buf);
+  
+  // the features code is a 64-bit number, but in the mDNS advertisement, the least significant 32
+  // bit are given first for example, if the features number is 0x1C340405F4A00, it will be given as
+  // features=0x405F4A00,0x1C340 in the mDNS string, and in a signed decimal number in the plist:
+  // 496155702020608 this setting here is the source of both the plist features response and the
+  // mDNS string.
+
+  config.airplay_features =
+       0x00018340405C4A00; // no AP2 metadata (b50), no AP1 text (b17), no AP1 progress (b16), no AP1 artwork (b15)
+  //     0x0001C340405C4A00; // no AP2 metadata (b50), no AP1 text (b17), no AP1 progress (b16), no AP1 artwork (b15)
+  //     0x0001C340445D0A00;
+  // config.airplay_features |= (1 << 26); // 0x0x4000000
+
+  // features=0x0001C340445D0A00 -- AirPort Express 
 
 #ifdef CONFIG_METADATA
   // If we are asking for metadata, turn on the relevant bits
-  if (config.metadata_enabled != 0) {
-    config.airplay_features |= (uint64_t)1 << 16; // progress, 17 is text, 50 is in a binary plist
-    config.airplay_features |= (uint64_t)1 << 17; // text, 50 is in a binary plist
-    // config.airplay_features |=
-    //  (uint64_t)1 << 50; // binary plist
+  
+  // If bit 50 is set, metadata is sent via plists in POST /command payloads.
+  // The data consists of textual information about what is playing and cover art
+  // It does not seem possible to turn off the cover art.
 
-    // If we are asking for artwork, turn on the relevant bit
-    if (config.get_coverart)
-      config.airplay_features |= (uint64_t)1 << 15; // artwork
+  // While bit 50 is set, no data comes through the "classic" way. That is
+  // no progress, text or picture data comes through in the way that
+  // it comes through in Classic AirPlay (aka AirPlay 1).
+  
+  // Although it is less flexible about what metadata is sent, bit 50 being set
+  // provides much more information, so should be the default for AirPlay 2
+  
+  if (config.metadata_enabled != 0) {
+    config.airplay_features |= (uint64_t)1 << 50; // metadata in a binary plist, including more state information    
+    // config.airplay_features |= ((uint64_t)1 << 15) | ((uint64_t)1 << 16) | ((uint64_t)1 << 17); // older metadata flags artwork, progress and text respectively
   }
 #endif
 
@@ -1673,6 +1641,23 @@ int parse_options(int argc, char **argv) {
   if (padding)
     *padding = 0;
   debug(2, "airplay_fex is \"%s\"", config.airplay_fex);
+  
+  // now the status flags
+  // Advertised with mDNS and returned with GET /info, see
+  // https://openairplay.github.io/airplay-spec/status_flags.html
+  
+  config.airplay_statusflags = 0;
+  config.airplay_statusflags |= 1 << 2; // Audio cable is attached
+  if (config.password != NULL) {
+    config.airplay_statusflags |= 1 << 7; // Password required
+  }
+  // config.airplay_statusflags |= 1 << 10; // DeviceWasSetupForHKAccessControl
+  // config.airplay_statusflags |= 1 << 11; // DeviceSupportsRelay
+  // config.airplay_statusflags |= 1 << 19; // Unknown. Seems to control whether individual volume
+  // controls are shown and whether the SPS devices shows when its active.
+
+  config.airplay_pi = generate_device_uuid(config.airplay_device_id);
+  config.airplay_pgid = generate_random_uuid();
 #endif
 
 #ifdef CONFIG_LIBDAEMON
@@ -1955,8 +1940,6 @@ void exit_function() {
         free(config.nqptp_shared_memory_interface_name);
       if (config.airplay_device_id)
         free(config.airplay_device_id);
-      if (config.airplay_pin)
-        free(config.airplay_pin);
       if (config.airplay_pi)
         free(config.airplay_pi);
       if (config.airplay_pgid)
@@ -3202,7 +3185,7 @@ int main(int argc, char **argv) {
           if (idx != 0)
             strncat(channel_map, " ", sizeof(channel_map) - 1);
           strncat(channel_map, chName, sizeof(channel_map) - 1 - strlen(channel_map));
-          debug(3, "Channel %d: \"%s\"", idx, chName);
+          debug(4, "Channel %d: \"%s\"", idx, chName);
         } else {
           debug(1, "Insufficient space for the name of channel %d.", idx);
         }

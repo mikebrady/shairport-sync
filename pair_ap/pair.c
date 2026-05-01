@@ -95,7 +95,7 @@ hash_init(enum hash_alg alg, HashCTX *c)
 }
 
 int
-hash_update(enum hash_alg alg, HashCTX *c, const void *data, size_t len)
+hash_update(__attribute__((unused)) enum hash_alg alg, HashCTX *c, const void *data, size_t len)
 {
 #if CONFIG_OPENSSL
   switch (alg)

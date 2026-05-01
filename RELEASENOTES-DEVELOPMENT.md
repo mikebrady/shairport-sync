@@ -1,3 +1,33 @@
+Version 5.0.5-dev-2-g2400aae4
+==
+This is effectively 5.0.4-dev-9-g68b6d4df.
+
+Version 5.0.4-dev-9-g68b6d4df
+==
+**Bug Fix**
+* Fixed missing configuration mapping parameter in PulseAudio backend initialisation. This bug would prevent the PulseAudio backend from initialising, preventing Shairport Sync from working.
+  
+Version 5.0.4-dev-5-g936b8387
+==
+**New Features**
+* AirPlay 2 Passwords. Until now, you could set a password only for Classic AirPlay. Now, setting a password is effective for both AirPlay 2 and Classic AirPlay.
+* Metadata multicast is now optional, so can, in principle, be omitted. This is still experimental.
+* DACP support is optional and can, in principle, be omitted. This is still experimental.
+
+**Bug Fixes and Stability Improvements**
+* Calls to some libraries have been made uncancellable in order to improve application stability when terminating or when pre-empting an active play session. These changes are not yet complete.
+
+**Other Changes**
+* Some rationalisation of source files is being undertaken.
+
+Version 5.0.3-dev-4-g07ca1891
+==
+**Release**
+* This is effectively release 5.0.3
+  
+**Bug Fix**
+* Make code using `getifaddrs()` uncancellable to prevent a mysterious `Unexpected error 9 on netlink descriptor` error. Thanks to [microfx](https://github.com/microfx) for reporting the [issue](https://github.com/mikebrady/shairport-sync/issues/2184).
+
 Version 5.0.3-dev
 ==
 **Small Changes**

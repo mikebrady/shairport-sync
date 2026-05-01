@@ -1,6 +1,7 @@
 #pragma once
 #include "common.h"
 #include "config.h"
+#include "rtsp.h"
 #include <pthread.h>
 
 #define number_of_watchers 2
@@ -189,3 +190,11 @@ void _metadata_hub_read_epilog(const char *filename, const int linenumber);
 
 #define metadata_hub_read_prolog(void) _metadata_hub_read_prolog(__FILE__, __LINE__)
 #define metadata_hub_read_epilog(void) _metadata_hub_modify_epilog(__FILE__, __LINE__)
+
+// metadata queue stuff
+void metadata_hub_queue_init();
+void metadata_hub_queue_stop();
+int send_metadata_to_hub_queue(const uint32_t type, const uint32_t code,
+                           const char *data, const uint32_t length, rtsp_message *carrier,
+                           int block);
+

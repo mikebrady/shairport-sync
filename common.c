@@ -2339,6 +2339,8 @@ int get_device_id(uint8_t *id, int int_length) {
 
   int64_t time_to_wait;
   do {
+    int oldState;
+    pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
     if (getifaddrs(&ifaddr) == 0) {
       t = id;
       int found = 0;
@@ -2378,6 +2380,7 @@ int get_device_id(uint8_t *id, int int_length) {
       }
       freeifaddrs(ifaddr);
     }
+    pthread_setcancelstate(oldState, NULL);
     // wait a little time if we haven't got a response
     if (response != 0) {
       usleep(100000);

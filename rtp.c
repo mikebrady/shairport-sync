@@ -1514,7 +1514,7 @@ int frame_to_ptp_local_time(uint32_t timestamp, uint64_t *time, rtsp_conn_info *
     int64_t time_difference = frame_difference;
     time_difference = time_difference * 1000000000;
     if (conn->input_rate == 0) {
-      debug(1,"in a call to frame_to_ptp_local_time, conn->input_rate is zero!");
+      debug(1,"Connection %d: in a call to frame_to_ptp_local_time, conn->input_rate is zero!", conn->connection_number);
       time_difference = 0;
     } else {
       time_difference = time_difference / conn->input_rate;

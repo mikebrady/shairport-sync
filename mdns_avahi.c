@@ -32,7 +32,11 @@
 
 #include "common.h"
 #include "mdns.h"
-#include "rtsp.h"
+
+#ifdef CONFIG_METADATA
+#include "metadata/core.h"
+#endif
+
 #ifdef CONFIG_DACP_CLIENT
 #include "dacp.h"
 #endif

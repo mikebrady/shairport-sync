@@ -1,6 +1,9 @@
 /*
- * Network Utilities. This file is part of Shairport Sync.
- * Copyright (c) Mike Brady 2014--2025
+ * Generate a random UUID. This file is part of Shairport Sync
+ * Copyright (c) Mike Brady 2026
+
+ * Modifications, including those associated with audio synchronization, multithreading and
+ * metadata handling copyright (c) Mike Brady 2014--2025
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -23,25 +26,22 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
+ 
+#include <stdlib.h>
+#include <uuid/uuid.h>
+ 
+#include "generate_random_uuid.h"
 
-#include <errno.h>
-#include <string.h>
-#include "network_utilities.h"
+// user is responsible for deallocating returned string
+char *generate_random_uuid() {
+  // generate a UUID
+  // from https://stackoverflow.com/questions/51053568/generating-a-random-uuid-in-c
+  // with thanks
+  uuid_t binuuid;
+  uuid_generate_random(binuuid);
 
-int eintr_checked_accept(int sockfd, struct sockaddr *addr,
-                  socklen_t *addrlen) {
-  int response;
-  do {
-    response =  accept(sockfd, addr, addrlen);
-    
-    if (response == -1) {
-      char errorstring[1024];
-      strerror_r(errno, (char *)errorstring, sizeof(errorstring));
-      debug(1,
-        "error %d accept()ing a socket %d: \"%s\". (Note: error %d will be ignored.)",
-        errno, sockfd, errorstring, EINTR);
-    }
-    
-  } while((response == -1) && (errno == EINTR));
-  return response;
+  char *uuid = malloc(UUID_STR_LEN + 1); // leave space for the NUL at the end
+  // Produces a UUID string at uuid consisting of lower-case letters
+  uuid_unparse_lower(binuuid, uuid);
+  return uuid;
 }

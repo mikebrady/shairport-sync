@@ -257,6 +257,7 @@ typedef struct {
 typedef struct {
   int connection_number;           // for debug ID purposes, nothing else...
   int is_playing;                  // set true by player_play, set false by player_stop
+  int input_format_is_valid;       // set when the input format is known and set in this structure
   unsigned int sync_samples_index; // for estimating the gap between the highest and lowest timing
                                    // error over the past n samples
   unsigned int sync_samples_count; // the array of samples is defined locally
@@ -272,7 +273,7 @@ typedef struct {
                              // otherwise
   int software_mute_enabled; // if we don't have a real mute that we can use
   int fd;
-  int authorized;   // set if a password is required and has been supplied
+  int authorized;   // set if a password is required and has been supplied or not required. Also always set in AirPlay 2 mode.
   char *auth_nonce; // the session nonce, if needed
   stream_cfg stream;
   SOCKADDR remote, local;
@@ -412,6 +413,7 @@ typedef struct {
                                // (will be unspecified if not build for AirPlay 2)
 
 #ifdef CONFIG_AIRPLAY_2
+  plist_t sessionPlist;
   char *airplay_gid; // UUID in the Bonjour advertisement -- if NULL, the group UUID is the same as
                      // the pi UUID
   airplay_t airplay_type; // are we using AirPlay 1 or AirPlay 2 protocol on this connection?
@@ -423,6 +425,8 @@ typedef struct {
   pthread_t rtp_ap2_control_thread;
   pthread_t rtp_realtime_audio_thread;
   pthread_t rtp_buffered_audio_thread;
+  pthread_mutex_t event_sender_mutex;
+  int event_channel_fd; // zero if closed, controlled by event_sender_mutex
 
   int ap2_event_receiver_exited;
 

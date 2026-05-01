@@ -149,7 +149,7 @@ void build_bonjour_strings(__attribute((unused)) rtsp_conn_info *conn) {
   entry_number = 0;
 
   secondary_txt_records[entry_number++] = "acl=0";
-  secondary_txt_records[entry_number++] = "btaddr=00:00:00:00:00:00";
+  // secondary_txt_records[entry_number++] = "btaddr=00:00:00:00:00:00";
   secondary_txt_records[entry_number++] =
       bnprintf(deviceIdString, sizeof(deviceIdString), "deviceid=%s", config.airplay_device_id);
   secondary_txt_records[entry_number++] =

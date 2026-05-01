@@ -3,7 +3,7 @@
  * Copyright (c) James Laird 2013
 
  * Modifications, including those associated with audio synchronization, multithreading and
- * metadata handling copyright (c) Mike Brady 2014--2025
+ * metadata handling copyright (c) Mike Brady 2014--2026
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -53,6 +53,7 @@
 
 #include "activity_monitor.h"
 #include "config.h"
+#include "utilities/rtsp_message_utilities.h"
 
 #ifdef CONFIG_OPENSSL
 #include <openssl/evp.h>
@@ -74,12 +75,13 @@
 #include "rtp.h"
 #include "rtsp.h"
 
-#ifdef CONFIG_METADATA_HUB
-#include "metadata_hub.h"
+#ifdef CONFIG_METADATA
+#include "metadata/pc_queue.h"
+#include "metadata/core.h"
 #endif
 
-#ifdef CONFIG_MQTT
-#include "mqtt.h"
+#ifdef CONFIG_METADATA_HUB
+#include "metadata/hub.h"
 #endif
 
 #ifdef AF_INET6
@@ -89,11 +91,10 @@
 #endif
 
 #ifdef CONFIG_AIRPLAY_2
+#include <plist/plist.h>
 #include "ap2_buffered_audio_processor.h"
 #include "ap2_event_receiver.h"
-#include "ap2_rc_event_receiver.h"
 #include "pair_ap/pair.h"
-#include "plist/plist.h"
 #include "plists/get_info_response.h"
 #include "ptp-utilities.h"
 
@@ -114,8 +115,6 @@
 #include "mdns.h"
 #include "utilities/network_utilities.h"
 
-#define METADATA_SNDBUF (4 * 1024 * 1024)
-
 enum rtsp_read_request_response {
   rtsp_read_request_response_ok,
   rtsp_read_request_response_pending,
@@ -129,8 +128,6 @@ enum rtsp_read_request_response {
 rtsp_conn_info *principal_conn;
 rtsp_conn_info **conns;
 
-int metadata_running = 0;
-
 // always lock this when accessing the principal conn value
 // use a read lock when consulting and holding it
 // use a write lock if you want to change it
@@ -139,10 +136,6 @@ pthread_rwlock_t principal_conn_lock = PTHREAD_RWLOCK_INITIALIZER;
 // always lock this when accessing the list of connection threads
 pthread_mutex_t conns_lock = PTHREAD_MUTEX_INITIALIZER;
 
-// every time we want to retain or release a reference count, lock it with this
-// if a reference count is read as zero, it means the it's being deallocated.
-static pthread_mutex_t reference_counter_lock = PTHREAD_MUTEX_INITIALIZER;
-
 // only one thread is allowed to use the player at once.
 // it monitors the request variable (at least when interrupted)
 // static pthread_mutex_t playing_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -150,236 +143,6 @@ static pthread_mutex_t reference_counter_lock = PTHREAD_MUTEX_INITIALIZER;
 // static pthread_t playing_thread = 0;
 
 int RTSP_connection_index = 1;
-
-#ifdef CONFIG_METADATA
-typedef struct {
-  pthread_mutex_t pc_queue_lock;
-  pthread_cond_t pc_queue_item_added_signal;
-  pthread_cond_t pc_queue_item_removed_signal;
-  char *name;
-  size_t item_size;  // number of bytes in each item
-  uint32_t count;    // number of items in the queue
-  uint32_t capacity; // maximum number of items
-  uint32_t toq;      // first item to take
-  uint32_t eoq;      // free space at end of queue
-  void *items;       // a pointer to where the items are actually stored
-} pc_queue;          // producer-consumer queue
-#endif
-
-static int msg_indexes = 1;
-
-typedef struct {
-  int index_number;
-  uint32_t referenceCount; // we might start using this...
-  unsigned int nheaders;
-  char *name[16];
-  char *value[16];
-
-  uint32_t contentlength;
-  char *content;
-
-  // for requests
-  char method[16];
-  char path[256];
-
-  // for responses
-  int respcode;
-} rtsp_message;
-
-#ifdef CONFIG_AIRPLAY_2
-
-int add_pstring_to_malloc(const char *s, void **allocation, size_t *size) {
-  int response = 0;
-  void *p = *allocation;
-  if (p == NULL) {
-    p = malloc(strlen(s) + 1);
-    if (p == NULL) {
-      debug(1, "error allocating memory");
-    } else {
-      *allocation = p;
-      *size = *size + strlen(s) + 1;
-      uint8_t *b = (uint8_t *)p;
-      *b = strlen(s);
-      p = p + 1;
-      memcpy(p, s, strlen(s));
-      response = 1;
-    }
-  } else {
-    p = realloc(p, *size + strlen(s) + 1);
-    if (p == NULL) { // assuming we never allocate a zero byte space
-      debug(1, "error reallocating memory");
-    } else {
-      *allocation = p;
-      uint8_t *b = (uint8_t *)p + *size;
-      *b = strlen(s);
-      p = p + *size + 1;
-      memcpy(p, s, strlen(s));
-      *size = *size + strlen(s) + 1;
-      response = 1;
-    }
-  }
-  return response;
-}
-
-#endif
-
-#ifdef CONFIG_METADATA
-typedef struct {
-  uint32_t type;
-  uint32_t code;
-  char *data;
-  uint32_t length;
-  rtsp_message *carrier;
-} metadata_package;
-
-void pc_queue_init(pc_queue *the_queue, char *items, size_t item_size, uint32_t number_of_items,
-                   const char *name) {
-  if (name)
-    debug(4, "Creating metadata queue \"%s\".", name);
-  else
-    debug(1, "Creating an unnamed metadata queue.");
-  pthread_mutex_init(&the_queue->pc_queue_lock, NULL);
-  pthread_cond_init(&the_queue->pc_queue_item_added_signal, NULL);
-  pthread_cond_init(&the_queue->pc_queue_item_removed_signal, NULL);
-  the_queue->item_size = item_size;
-  the_queue->items = items;
-  the_queue->count = 0;
-  the_queue->capacity = number_of_items;
-  the_queue->toq = 0;
-  the_queue->eoq = 0;
-  if (name == NULL)
-    the_queue->name = NULL;
-  else
-    the_queue->name = strdup(name);
-}
-
-void pc_queue_delete(pc_queue *the_queue) {
-  if (the_queue->name)
-    debug(2, "Deleting metadata queue \"%s\".", the_queue->name);
-  else
-    debug(1, "Deleting an unnamed metadata queue.");
-  if (the_queue->name != NULL)
-    free(the_queue->name);
-  // debug(2, "destroying pc_queue_item_removed_signal");
-  pthread_cond_destroy(&the_queue->pc_queue_item_removed_signal);
-  // debug(2, "destroying pc_queue_item_added_signal");
-  pthread_cond_destroy(&the_queue->pc_queue_item_added_signal);
-  // debug(2, "destroying pc_queue_lock");
-  pthread_mutex_destroy(&the_queue->pc_queue_lock);
-  // debug(2, "destroying signals and locks done");
-}
-
-int send_metadata(const uint32_t type, const uint32_t code, const char *data, const uint32_t length,
-                  rtsp_message *carrier, int block);
-
-int send_ssnc_metadata(const uint32_t code, const char *data, const uint32_t length,
-                       const int block) {
-  return send_metadata('ssnc', code, data, length, NULL, block);
-}
-
-void pc_queue_cleanup_handler(void *arg) {
-  // debug(1, "pc_queue_cleanup_handler called.");
-  pc_queue *the_queue = (pc_queue *)arg;
-  int rc = pthread_mutex_unlock(&the_queue->pc_queue_lock);
-  if (rc)
-    debug(1, "Error unlocking for pc_queue_add_item or pc_queue_get_item.");
-}
-
-int pc_queue_add_item(pc_queue *the_queue, const void *the_stuff, int block) {
-  int response = 0;
-  int rc;
-  if (the_queue) {
-    if (block == 0) {
-      rc = debug_mutex_lock(&the_queue->pc_queue_lock, 10000, 4);
-      if (rc == EBUSY)
-        return EBUSY;
-    } else
-      rc = debug_mutex_lock(&the_queue->pc_queue_lock, 50000, 4);
-    if (rc)
-      debug(1, "Error %d (\"%s\") locking for pc_queue_add_item. Block is %d.", rc, strerror(rc),
-            block);
-    pthread_cleanup_push(pc_queue_cleanup_handler, (void *)the_queue);
-    // leave this out if you want this to return if the queue is already full
-    // irrespective of the block flag.
-    /*
-                while (the_queue->count == the_queue->capacity) {
-                        rc = pthread_cond_wait(&the_queue->pc_queue_item_removed_signal,
-       &the_queue->pc_queue_lock); if (rc) debug(1, "Error waiting for item to be removed");
-                }
-                */
-    if (the_queue->count < the_queue->capacity) {
-      uint32_t i = the_queue->eoq;
-      void *p = the_queue->items + the_queue->item_size * i;
-      //    void * p = &the_queue->qbase + the_queue->item_size*the_queue->eoq;
-      memcpy(p, the_stuff, the_queue->item_size);
-
-      // update the pointer
-      i++;
-      if (i == the_queue->capacity)
-        // fold pointer if necessary
-        i = 0;
-      the_queue->eoq = i;
-      the_queue->count++;
-      // debug(2,"metadata queue+ \"%s\" %d/%d.", the_queue->name, the_queue->count,
-      // the_queue->capacity);
-      if (the_queue->count == the_queue->capacity)
-        debug(3, "metadata queue \"%s\": is now full with %d items in it!", the_queue->name,
-              the_queue->count);
-      rc = pthread_cond_signal(&the_queue->pc_queue_item_added_signal);
-      if (rc)
-        debug(1, "metadata queue \"%s\": error signalling after pc_queue_add_item",
-              the_queue->name);
-    } else {
-      response = EWOULDBLOCK; // a bit arbitrary, this.
-      debug(3,
-            "metadata queue \"%s\": is already full with %d items in it. Not adding this item to "
-            "the queue.",
-            the_queue->name, the_queue->count);
-    }
-    pthread_cleanup_pop(1); // unlock the queue lock.
-  } else {
-    debug(1, "Adding an item to a NULL queue");
-  }
-  return response;
-}
-
-int pc_queue_get_item(pc_queue *the_queue, void *the_stuff) {
-  int rc;
-  if (the_queue) {
-    rc = debug_mutex_lock(&the_queue->pc_queue_lock, 50000, 4);
-    if (rc)
-      debug(1, "metadata queue \"%s\": error locking for pc_queue_get_item", the_queue->name);
-    pthread_cleanup_push(pc_queue_cleanup_handler, (void *)the_queue);
-    while (the_queue->count == 0) {
-      rc = pthread_cond_wait(&the_queue->pc_queue_item_added_signal, &the_queue->pc_queue_lock);
-      if (rc)
-        debug(1, "metadata queue \"%s\": error waiting for item to be added", the_queue->name);
-    }
-    uint32_t i = the_queue->toq;
-    //    void * p = &the_queue->qbase + the_queue->item_size*the_queue->toq;
-    void *p = the_queue->items + the_queue->item_size * i;
-    memcpy(the_stuff, p, the_queue->item_size);
-
-    // update the pointer
-    i++;
-    if (i == the_queue->capacity)
-      // fold pointer if necessary
-      i = 0;
-    the_queue->toq = i;
-    the_queue->count--;
-    debug(4, "metadata queue- \"%s\" %d/%d.", the_queue->name, the_queue->count,
-          the_queue->capacity);
-    rc = pthread_cond_signal(&the_queue->pc_queue_item_removed_signal);
-    if (rc)
-      debug(1, "metadata queue \"%s\": error signalling after pc_queue_get_item", the_queue->name);
-    pthread_cleanup_pop(1); // unlock the queue lock.
-  } else {
-    debug(1, "Removing an item from a NULL queue");
-  }
-  return 0;
-}
-
-#endif
 
 // The principal_conn variable points to the connection that
 // controls the mDNS status and flags and that is potentially
@@ -469,12 +232,13 @@ play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) 
               principal_conn->client_ip_string, principal_conn->client_rtsp_port,
               principal_conn->self_ip_string, principal_conn->self_rtsp_port);
         close(principal_conn->fd);
-        // principal_conn->fd = 0;
+        principal_conn->fd = 0;
+        usleep(1000000);
       }
       rtsp_conn_info *previous_principal_conn = principal_conn;
       principal_conn = conn;                           // make the conn the new principal_conn
       pthread_cancel(previous_principal_conn->thread); // cancel the previous one...
-
+      usleep(1000000);
       if (principal_conn == NULL) {
 #ifdef CONFIG_AIRPLAY_2
         config.airplay_statusflags &= (0xffffffff - (1 << 11)); // DeviceSupportsRelay
@@ -509,7 +273,7 @@ play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) 
 // keep track of the threads we have spawned so we can join() them
 static int nconns = 0;
 static void track_thread(rtsp_conn_info *conn) {
-  debug_mutex_lock(&conns_lock, 1000000, 3);
+  debug_mutex_lock(&conns_lock, 1000000, 4);
   // look for an empty slot first
   int i = 0;
   int found = 0;
@@ -628,270 +392,6 @@ static char *nextline(char *in, int inbuf) {
   }
   return out;
 }
-
-void msg_retain(rtsp_message *msg) {
-  int rc = debug_mutex_lock(&reference_counter_lock, 500000, 4);
-  if (rc)
-    debug(1, "Error %d locking reference counter lock", rc);
-  if (msg > (rtsp_message *)0x00010000) {
-    msg->referenceCount++;
-    debug(4, "msg_free increment reference counter message %d to %d.", msg->index_number,
-          msg->referenceCount);
-    // debug(1,"msg_retain -- item %d reference count %d.", msg->index_number, msg->referenceCount);
-    rc = pthread_mutex_unlock(&reference_counter_lock);
-    if (rc)
-      debug(1, "Error %d unlocking reference counter lock", rc);
-  } else {
-    debug(1, "invalid rtsp_message pointer 0x%" PRIxPTR " passed to retain", (uintptr_t)msg);
-  }
-}
-
-rtsp_message *msg_init(void) {
-  // no thread cancellation points here
-  int rc = debug_mutex_lock(&reference_counter_lock, 500000, 4);
-  if (rc)
-    debug(1, "Error %d locking reference counter lock", rc);
-
-  rtsp_message *msg = malloc(sizeof(rtsp_message));
-  if (msg) {
-    memset(msg, 0, sizeof(rtsp_message));
-    msg->referenceCount = 1; // from now on, any access to this must be protected with the lock
-    msg->index_number = msg_indexes++;
-    debug(4, "msg_init message %d", msg->index_number);
-  } else {
-    die("msg_init -- can not allocate memory for rtsp_message %d.", msg_indexes);
-  }
-  // debug(1,"msg_init -- create item %d.", msg->index_number);
-
-  rc = pthread_mutex_unlock(&reference_counter_lock);
-  if (rc)
-    debug(1, "Error %d unlocking reference counter lock", rc);
-
-  return msg;
-}
-
-int msg_add_header(rtsp_message *msg, char *name, char *value) {
-  if (msg->nheaders >= sizeof(msg->name) / sizeof(char *)) {
-    warn("too many headers?!");
-    return 1;
-  }
-
-  msg->name[msg->nheaders] = strdup(name);
-  msg->value[msg->nheaders] = strdup(value);
-  msg->nheaders++;
-
-  return 0;
-}
-
-char *msg_get_header(rtsp_message *msg, char *name) {
-  unsigned int i;
-  for (i = 0; i < msg->nheaders; i++)
-    if (!strcasecmp(msg->name[i], name))
-      return msg->value[i];
-  return NULL;
-}
-
-void _debug_print_msg_headers(const char *filename, const int linenumber, int level,
-                              rtsp_message *msg) {
-  unsigned int i;
-  if (msg->respcode != 0)
-    _debug(filename, linenumber, level, "  Response Code: %d.", msg->respcode);
-  for (i = 0; i < msg->nheaders; i++) {
-    _debug(filename, linenumber, level, "  Type: \"%s\", content: \"%s\"", msg->name[i],
-           msg->value[i]);
-  }
-}
-
-/*
-static void debug_print_msg_content(int level, rtsp_message *msg) {
-  if (msg->contentlength) {
-    char *obf = malloc(msg->contentlength * 2 + 1);
-    if (obf) {
-      char *obfp = obf;
-      int obfc;
-      for (obfc = 0; obfc < msg->contentlength; obfc++) {
-        snprintf(obfp, 3, "%02X", msg->content[obfc]);
-        obfp += 2;
-      };
-      *obfp = 0;
-      debug(level, "Content (hex): \"%s\"", obf);
-      free(obf);
-    } else {
-      debug(level, "Can't allocate space for debug buffer");
-    }
-  } else {
-    debug(level, "No content");
-  }
-}
-*/
-
-void msg_free(rtsp_message **msgh) {
-  debug_mutex_lock(&reference_counter_lock, 1000, 0);
-  if (*msgh > (rtsp_message *)0x00010000) {
-    rtsp_message *msg = *msgh;
-    msg->referenceCount--;
-    if (msg->referenceCount)
-      debug(4, "msg_free decrement reference counter message %d to %d", msg->index_number,
-            msg->referenceCount);
-    if (msg->referenceCount == 0) {
-      unsigned int i;
-      for (i = 0; i < msg->nheaders; i++) {
-        free(msg->name[i]);
-        free(msg->value[i]);
-      }
-      if (msg->content)
-        free(msg->content);
-      // debug(1,"msg_free item %d -- free.",msg->index_number);
-      uintptr_t index = (msg->index_number) & 0xFFFF;
-      if (index == 0)
-        index = 0x10000; // ensure it doesn't fold to zero.
-      *msgh =
-          (rtsp_message *)(index); // put a version of the index number of the freed message in here
-      debug(4, "msg_free freed message %d", msg->index_number);
-      free(msg);
-    } else {
-      // debug(1,"msg_free item %d -- decrement reference to
-      // %d.",msg->index_number,msg->referenceCount);
-    }
-  } else if (*msgh != NULL) {
-    debug(1,
-          "msg_free: error attempting to free an allocated but already-freed rtsp_message, number "
-          "%" PRIxPTR ".",
-          (uintptr_t)*msgh);
-  }
-  debug_mutex_unlock(&reference_counter_lock, 0);
-}
-
-int msg_handle_line(rtsp_message **pmsg, char *line) {
-  rtsp_message *msg = *pmsg;
-
-  if (!msg) {
-    msg = msg_init();
-    *pmsg = msg;
-    char *sp, *p;
-    sp = NULL; // this is to quieten a compiler warning
-
-    debug(4, "RTSP/HTTP Message Received: \"%s\".", line);
-
-    p = strtok_r(line, " ", &sp);
-    if (!p)
-      goto fail;
-    strncpy(msg->method, p, sizeof(msg->method) - 1);
-
-    p = strtok_r(NULL, " ", &sp);
-    if (!p)
-      goto fail;
-    strncpy(msg->path, p, sizeof(msg->path) - 1);
-
-    p = strtok_r(NULL, " ", &sp);
-    if (!p)
-      goto fail;
-    if ((strcmp(p, "RTSP/1.0") != 0) && (strcmp(p, "HTTP/1.1") != 0)) {
-      debug(1, "Problem with Message: \"%s\"", p);
-      goto fail;
-    }
-
-    return -1;
-  }
-
-  if (strlen(line)) {
-    char *p;
-    p = strstr(line, ": ");
-    if (!p) {
-      warn("bad header: >>%s<<", line);
-      goto fail;
-    }
-    *p = 0;
-    p += 2;
-    msg_add_header(msg, line, p);
-    debug(4, "    %s: %s.", line, p);
-    return -1;
-  } else {
-    char *cl = msg_get_header(msg, "Content-Length");
-    if (cl)
-      return atoi(cl);
-    else
-      return 0;
-  }
-
-fail:
-  debug(1, "msg_handle_line fail");
-  msg_free(pmsg);
-  *pmsg = NULL;
-  return 0;
-}
-
-#ifdef CONFIG_AIRPLAY_2
-
-int rtsp_message_contains_plist(rtsp_message *message) {
-  int reply = 0; // assume there is no plist in the message
-  if ((message->contentlength >= strlen("bplist00")) &&
-      (strstr(message->content, "bplist00") == message->content))
-    reply = 1;
-  return reply;
-}
-
-plist_t plist_from_rtsp_content(rtsp_message *message) {
-  plist_t the_plist = NULL;
-  if (rtsp_message_contains_plist(message)) {
-    plist_from_memory(message->content, message->contentlength, &the_plist);
-  }
-  return the_plist;
-}
-
-char *plist_as_xml_text(plist_t the_plist) {
-  // caller must free the returned character buffer
-  // convert it to xml format
-  uint32_t size;
-  char *plist_out = NULL;
-  plist_to_xml(the_plist, &plist_out, &size);
-
-  // put it into a NUL-terminated string
-  char *reply = malloc(size + 1);
-  if (reply) {
-    memcpy(reply, plist_out, size);
-    reply[size] = '\0';
-  }
-  if (plist_out)
-    free(plist_out);
-  return reply;
-}
-
-// caller must free the returned character buffer
-char *rtsp_plist_content(rtsp_message *message) {
-  char *reply = NULL;
-  // first, check if it has binary plist content
-  if (rtsp_message_contains_plist(message))
-    reply = plist_as_xml_text(plist_from_rtsp_content(message));
-  return reply;
-}
-
-#endif
-
-void _debug_log_rtsp_message(const char *filename, const int linenumber, int level, char *prompt,
-                             rtsp_message *message) {
-  if (level > debug_level())
-    return;
-  if ((prompt) && (*prompt != '\0')) // okay to pass NULL or an empty list...
-    _debug(filename, linenumber, level, "%s", prompt);
-  _debug_print_msg_headers(filename, linenumber, level, message);
-#ifdef CONFIG_AIRPLAY_2
-  char *plist_content = rtsp_plist_content(message);
-  if (plist_content) {
-    _debug(filename, linenumber, level, "  Content Plist (as XML):\n--\n%s--", plist_content);
-    free(plist_content);
-  } else
-#endif
-  {
-    _debug(filename, linenumber, level, "  No Content Plist. Content length: %d.",
-           message->contentlength);
-  }
-}
-
-#define debug_log_rtsp_message(level, prompt, message)                                             \
-  _debug_log_rtsp_message(__FILE__, __LINE__, level, prompt, message)
-#define debug_print_msg_headers(level, message)                                                    \
-  _debug_print_msg_headers(__FILE__, __LINE__, level, message)
 
 #ifdef CONFIG_AIRPLAY_2
 static void buf_add(sized_buffer *buf, uint8_t *in, size_t in_len) {
@@ -1343,9 +843,9 @@ int msg_write_response(rtsp_conn_info *conn, rtsp_message *resp) {
 #ifdef CONFIG_AIRPLAY_2
 void handle_record_2(rtsp_conn_info *conn, __attribute((unused)) rtsp_message *req,
                      rtsp_message *resp) {
-  debug(2, "Connection %d: RECORD on %s", conn->connection_number,
+  debug(2, "Connection %d: RECORD (AP2) on %s", conn->connection_number,
         get_category_string(conn->airplay_stream_category));
-  debug_log_rtsp_message(3, "RECORD incoming message", req);
+  debug_log_rtsp_message_conn(conn, 2, "RECORD (AP2) incoming message", req);
   msg_add_header(resp, "Audio-Latency", "0");
   resp->respcode = 200;
 }
@@ -1400,6 +900,39 @@ void handle_record(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) 
 
 #ifdef CONFIG_AIRPLAY_2
 
+int add_pstring_to_malloc(const char *s, void **allocation, size_t *size) {
+  int response = 0;
+  void *p = *allocation;
+  if (p == NULL) {
+    p = malloc(strlen(s) + 1);
+    if (p == NULL) {
+      debug(1, "error allocating memory");
+    } else {
+      *allocation = p;
+      *size = *size + strlen(s) + 1;
+      uint8_t *b = (uint8_t *)p;
+      *b = strlen(s);
+      p = p + 1;
+      memcpy(p, s, strlen(s));
+      response = 1;
+    }
+  } else {
+    p = realloc(p, *size + strlen(s) + 1);
+    if (p == NULL) { // assuming we never allocate a zero byte space
+      debug(1, "error reallocating memory");
+    } else {
+      *allocation = p;
+      uint8_t *b = (uint8_t *)p + *size;
+      *b = strlen(s);
+      p = p + *size + 1;
+      memcpy(p, s, strlen(s));
+      *size = *size + strlen(s) + 1;
+      response = 1;
+    }
+  }
+  return response;
+}
+
 void generateTxtDataValueInfo(rtsp_conn_info *conn, void **response, size_t *responseLength) {
   void *qualifier_response_data = NULL;
   size_t qualifier_response_data_length = 0;
@@ -1419,10 +952,19 @@ void generateTxtDataValueInfo(rtsp_conn_info *conn, void **response, size_t *res
           &qualifier_response_data, &qualifier_response_data_length) == 0)
     debug(1, "Problem");
 
+/*
+  uint64_t features_hi = 0x0001C340445D0A00L;
+  features_hi = (features_hi >> 32) & 0xffffffff;
+  uint64_t features_lo = 0x0001C340445D0A00L;
+  features_lo = features_lo & 0xffffffff;
+*/
+
+
   uint64_t features_hi = config.airplay_features;
   features_hi = (features_hi >> 32) & 0xffffffff;
   uint64_t features_lo = config.airplay_features;
   features_lo = features_lo & 0xffffffff;
+
 
   if (add_pstring_to_malloc(bnprintf(localString, sizeof(localString),
                                      "features=0x%" PRIX64 ",0x%" PRIX64 "", features_lo,
@@ -1453,7 +995,7 @@ void generateTxtDataValueInfo(rtsp_conn_info *conn, void **response, size_t *res
     gcgl = conn->groupContainsGroupLeader;
 
   // should have igl here;
-  if (add_pstring_to_malloc(bnprintf(localString, sizeof(localString), "igl=%0"),
+  if (add_pstring_to_malloc(bnprintf(localString, sizeof(localString), "igl=%d", 0),
                             &qualifier_response_data, &qualifier_response_data_length) == 0)
     debug(1, "Problem");
 
@@ -1519,6 +1061,8 @@ plist_t generateInfoPlist(rtsp_conn_info *conn) {
 
     // debug(1,"qualifier_response_data_length: %u.", qualifier_response_data_length);
 
+    plist_dict_set_item(response_plist, "psi", plist_new_string(config.airplay_psi));
+
     plist_dict_set_item(response_plist, "featuresEx", plist_new_string(config.airplay_fex));
 
     plist_dict_set_item(response_plist, "features", plist_new_uint(config.airplay_features));
@@ -1526,9 +1070,7 @@ plist_t generateInfoPlist(rtsp_conn_info *conn) {
     plist_dict_set_item(response_plist, "deviceID", plist_new_string(config.airplay_device_id));
     plist_dict_set_item(response_plist, "pi", plist_new_string(config.airplay_pi));
     plist_dict_set_item(response_plist, "name", plist_new_string(config.service_name));
-    char *vs = get_version_string();
     plist_dict_set_item(response_plist, "model", plist_new_string(config.model));
-    free(vs);
     plist_dict_set_item(response_plist, "pk",
                         plist_new_data((const char *)config.airplay_pk, sizeof(config.airplay_pk)));
     char senderAddress[256];
@@ -1561,7 +1103,7 @@ plist_t generateInfoPlist(rtsp_conn_info *conn) {
       }
       plist_dict_set_item(supported_formats_plist, "bufferStream",
                           plist_new_uint(bufferStreamFormats));
-      debug(3, "bufferedStream formats: 0x%" PRIX64 ".", bufferStreamFormats);
+      debug(4, "bufferedStream formats: 0x%" PRIX64 ".", bufferStreamFormats);
       plist_dict_set_item(response_plist, "supportedFormats", supported_formats_plist);
     }
   }
@@ -1967,7 +1509,7 @@ static void pairing_remove(struct pairings *pairing) {
 
 static int pairing_add_cb(uint8_t public_key[32], const char *device_id,
                           void *cb_arg __attribute__((unused))) {
-  debug(2, "pair-add cb for %s", device_id);
+  debug(1, "pair-add cb for %s", device_id);
 
   struct pairings *pairing = pairing_find(device_id);
   if (pairing) {
@@ -1981,7 +1523,7 @@ static int pairing_add_cb(uint8_t public_key[32], const char *device_id,
 
 static int pairing_remove_cb(uint8_t public_key[32] __attribute__((unused)), const char *device_id,
                              void *cb_arg __attribute__((unused))) {
-  debug(2, "pair-remove cb for %s", device_id);
+  debug(1, "pair-remove cb for %s", device_id);
 
   struct pairings *pairing = pairing_find(device_id);
   if (!pairing) {
@@ -1995,7 +1537,7 @@ static int pairing_remove_cb(uint8_t public_key[32] __attribute__((unused)), con
 
 static void pairing_list_cb(pair_cb enum_cb, void *enum_cb_arg,
                             void *cb_arg __attribute__((unused))) {
-  debug(2, "pair-list cb");
+  debug(1, "pair-list cb");
 
   for (struct pairings *pairing = pairings; pairing; pairing = pairing->next) {
     enum_cb(pairing->public_key, pairing->device_id, enum_cb_arg);
@@ -2004,7 +1546,15 @@ static void pairing_list_cb(pair_cb enum_cb, void *enum_cb_arg,
 
 void handle_pair_add(rtsp_conn_info *conn __attribute__((unused)), rtsp_message *req,
                      rtsp_message *resp) {
-  debug(2, "Connection %d: handle_pair_add", conn->connection_number);
+                     
+  char *hdr = msg_get_header(req, "X-Apple-Client-Name");
+  if (hdr) {
+    if (conn->ap2_client_name)
+      free(conn->ap2_client_name);
+    conn->ap2_client_name = strdup(hdr);
+  }                                                
+  debug(1, "Connection %d from \"%s\": handle_pair_add", conn->connection_number, conn->ap2_client_name);
+  debug_log_rtsp_message_conn(conn, 1, "pair-add request", req);
   uint8_t *body = NULL;
   size_t body_len = 0;
   int ret = pair_add(PAIR_SERVER_HOMEKIT, &body, &body_len, pairing_add_cb, NULL,
@@ -2017,12 +1567,18 @@ void handle_pair_add(rtsp_conn_info *conn __attribute__((unused)), rtsp_message 
   resp->content = (char *)body; // these will be freed when the data is sent
   resp->contentlength = body_len;
   msg_add_header(resp, "Content-Type", "application/octet-stream");
-  debug_log_rtsp_message(2, "pair-add response", resp);
+  debug_log_rtsp_message_conn(conn, 1, "pair-add response", resp);
 }
 
 void handle_pair_list(rtsp_conn_info *conn __attribute__((unused)), rtsp_message *req,
                       rtsp_message *resp) {
-  debug(2, "Connection %d: handle_pair_list", conn->connection_number);
+  char *hdr = msg_get_header(req, "X-Apple-Client-Name");
+  if (hdr) {
+    if (conn->ap2_client_name)
+      free(conn->ap2_client_name);
+    conn->ap2_client_name = strdup(hdr);
+  }                                                
+  debug(1, "Connection %d from \"%s\": handle_pair_list", conn->connection_number, conn->ap2_client_name);
   uint8_t *body = NULL;
   size_t body_len = 0;
   int ret = pair_list(PAIR_SERVER_HOMEKIT, &body, &body_len, pairing_list_cb, NULL,
@@ -2035,12 +1591,19 @@ void handle_pair_list(rtsp_conn_info *conn __attribute__((unused)), rtsp_message
   resp->content = (char *)body; // these will be freed when the data is sent
   resp->contentlength = body_len;
   msg_add_header(resp, "Content-Type", "application/octet-stream");
-  debug_log_rtsp_message(2, "pair-list response", resp);
+  debug_log_rtsp_message_conn(conn, 1, "pair-list response", resp);
 }
 
 void handle_pair_remove(rtsp_conn_info *conn __attribute__((unused)), rtsp_message *req,
                         rtsp_message *resp) {
-  debug(3, "Connection %d: handle_pair_remove", conn->connection_number);
+                        
+  char *hdr = msg_get_header(req, "X-Apple-Client-Name");
+  if (hdr) {
+    if (conn->ap2_client_name)
+      free(conn->ap2_client_name);
+    conn->ap2_client_name = strdup(hdr);
+  }                                                
+  debug(1, "Connection %d from \"%s\": handle_pair_remove", conn->connection_number, conn->ap2_client_name);
   uint8_t *body = NULL;
   size_t body_len = 0;
   int ret = pair_remove(PAIR_SERVER_HOMEKIT, &body, &body_len, pairing_remove_cb, NULL,
@@ -2053,12 +1616,25 @@ void handle_pair_remove(rtsp_conn_info *conn __attribute__((unused)), rtsp_messa
   resp->content = (char *)body; // these will be freed when the data is sent
   resp->contentlength = body_len;
   msg_add_header(resp, "Content-Type", "application/octet-stream");
-  debug_log_rtsp_message(3, "pair-remove response", resp);
+  debug_log_rtsp_message_conn(conn, 1, "pair-remove response", resp);
 }
 
 void handle_pair_verify(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
-  debug(3, "Connection %d: handle_pair_verify Content-Length %d", conn->connection_number,
-        req->contentlength);
+  char *hdr = msg_get_header(req, "X-Apple-Client-Name");
+  if (hdr) {
+    if (conn->ap2_client_name)
+      free(conn->ap2_client_name);
+    conn->ap2_client_name = strdup(hdr);
+  } 
+  // try to pick up the stages
+  uint8_t *b = (uint8_t *)req->content;
+  char mstage = '-';
+  if ((req->contentlength >= 3) && (b[0] == 6) && (b[1] == 1) && (b[1] <= 9)) {
+    mstage = '0' + b[2];
+  }
+                                                 
+  debug(1, "Connection %d from \"%s\": handle_pair_verify, stage M%c, Content-Length %d", conn->connection_number, conn->ap2_client_name, mstage, req->contentlength);
+  debug_log_rtsp_message_conn(conn, 2, "pair-verify request", req);
   int ret;
   uint8_t *body = NULL;
   size_t body_len = 0;
@@ -2105,24 +1681,45 @@ out:
   resp->contentlength = body_len;
   if (body)
     msg_add_header(resp, "Content-Type", "application/octet-stream");
-  debug_log_rtsp_message(3, "pair-verify response", resp);
+  debug_log_rtsp_message_conn(conn, 2, "pair-verify response", resp);
 }
 
 void handle_pair_pin_start(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
+
+  char *hdr = msg_get_header(req, "X-Apple-Client-Name");
+  if (hdr) {
+    if (conn->ap2_client_name)
+      free(conn->ap2_client_name);
+    conn->ap2_client_name = strdup(hdr);
+  }
+  debug(1, "Connection %d from \"%s\": handle_pair_pin_start, Content-Length %d", conn->connection_number,
+        conn->ap2_client_name,
+        req->contentlength);
+  debug_log_rtsp_message_conn(conn, 1, "handle_pair_pin_start", req);
+
   uint8_t *body = NULL;
   size_t body_len = 0;
-  debug(2, "Connection %d: pair-pin-start Content-Length %d", conn->connection_number,
-        req->contentlength);
-  debug_log_rtsp_message(2, "handle_pair_pin_start", req);
 
   resp->content = (char *)body; // these will be freed when the data is sent
   resp->contentlength = body_len;
   if (body != NULL)
     msg_add_header(resp, "Content-Type", "application/octet-stream");
-  debug_log_rtsp_message(2, "pair-pin-start response", resp);
+  debug_log_rtsp_message(1, "pair-pin-start response", resp);
 }
 
 void handle_pair_setup(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
+
+  char *hdr = msg_get_header(req, "X-Apple-Client-Name");
+  if (hdr) {
+    if (conn->ap2_client_name)
+      free(conn->ap2_client_name);
+    conn->ap2_client_name = strdup(hdr);
+  }
+  debug(2, "Connection %d from \"%s\": handle_pair_setup, Content-Length %d", conn->connection_number,
+        conn->ap2_client_name,
+        req->contentlength);
+  debug_log_rtsp_message_conn(conn, 2, "pair-setup request", req);
+
   int ret;
   uint8_t *body = NULL;
   size_t body_len = 0;
@@ -2131,7 +1728,7 @@ void handle_pair_setup(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *re
   debug_log_rtsp_message(3, "handle_pair_setup", req);
 
   if (!conn->ap2_pairing_context.setup_ctx) {
-    conn->ap2_pairing_context.setup_ctx = pair_setup_new(PAIR_SERVER_HOMEKIT, config.airplay_pin,
+    conn->ap2_pairing_context.setup_ctx = pair_setup_new(PAIR_SERVER_HOMEKIT, config.password,
                                                          NULL, NULL, config.airplay_device_id);
     if (!conn->ap2_pairing_context.setup_ctx) {
       debug(1, "Error creating setup context");
@@ -2154,19 +1751,18 @@ void handle_pair_setup(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *re
     // don't activate yet, the response to this request is still plaintext
     conn->ap2_pairing_context.control_cipher_bundle.cipher_ctx =
         pair_cipher_new(PAIR_SERVER_HOMEKIT, 3, conn->pair_setup_result->shared_secret,
-                        conn->pair_setup_result->shared_secret_len,
-                        ""); // last argument is the (possible) dynamic salt suffix
+                        conn->pair_setup_result->shared_secret_len, ""); // last argument is the (possible) dynamic salt suffix
     if (!conn->ap2_pairing_context.control_cipher_bundle.cipher_ctx) {
-      debug(1, "Error setting up rtsp control channel ciphering\n");
+      debug(1, "Error setting up rtsp control channel ciphering");
       goto out;
     }
     conn->ap2_pairing_context.control_cipher_bundle.description = strdup("Control Stream");
+    
     conn->ap2_pairing_context.event_cipher_bundle.cipher_ctx =
         pair_cipher_new(PAIR_SERVER_HOMEKIT, 4, conn->pair_setup_result->shared_secret,
-                        conn->pair_setup_result->shared_secret_len,
-                        ""); // last argument is the (possible) dynamic salt suffix
+                        conn->pair_setup_result->shared_secret_len, ""); // last argument is the (possible) dynamic salt suffix
     if (!conn->ap2_pairing_context.event_cipher_bundle.cipher_ctx) {
-      debug(1, "Error setting up rtsp control channel ciphering\n");
+      debug(1, "Error setting up rtsp event channel ciphering");
       goto out;
     }
     conn->ap2_pairing_context.event_cipher_bundle.description = strdup("Event Stream");
@@ -2177,11 +1773,22 @@ out:
   resp->contentlength = body_len;
   if (body)
     msg_add_header(resp, "Content-Type", "application/octet-stream");
-  debug_log_rtsp_message(3, "pair-setup response", resp);
+  debug_log_rtsp_message_conn(conn, 2, "pair-setup response", resp);
 }
 
 void handle_fp_setup(__attribute__((unused)) rtsp_conn_info *conn, rtsp_message *req,
                      rtsp_message *resp) {
+
+  char *hdr = msg_get_header(req, "X-Apple-Client-Name");
+  if (hdr) {
+    if (conn->ap2_client_name)
+      free(conn->ap2_client_name);
+    conn->ap2_client_name = strdup(hdr);
+  }
+  debug(2, "Connection %d from \"%s\": handle_fp_setup,", conn->connection_number,
+        conn->ap2_client_name);
+  debug_log_rtsp_message_conn(conn, 2, "fp-setup request", req);
+
 
   /* Fairplay magic */
   static uint8_t server_fp_reply1[] =
@@ -2298,24 +1905,63 @@ void handle_fp_setup(__attribute__((unused)) rtsp_conn_info *conn, rtsp_message 
 */
 void handle_configure(rtsp_conn_info *conn __attribute__((unused)),
                       rtsp_message *req __attribute__((unused)), rtsp_message *resp) {
-  uint8_t public_key[32];
 
-  pair_public_key_get(PAIR_SERVER_HOMEKIT, public_key, config.airplay_device_id);
-
+  debug_log_rtsp_message_conn(conn, 1, "POST /configure req:", req);
+  
+  int existingEnable_HK_Access_Control = config.enable_HK_Access_Control;
+  
   plist_t response_plist = plist_new_dict();
 
-  plist_dict_set_item(response_plist, "Identifier", plist_new_string(config.airplay_pi));
-  plist_dict_set_item(response_plist, "Enable_HK_Access_Control", plist_new_bool(1));
-  plist_dict_set_item(response_plist, "PublicKey",
-                      plist_new_data((const char *)public_key, sizeof(public_key)));
-  plist_dict_set_item(response_plist, "Device_Name", plist_new_string(config.service_name));
-  plist_dict_set_item(response_plist, "Access_Control_Level", plist_new_uint(0));
-
+  // look for a configuration dictionary
+  plist_t messagePlist = plist_from_rtsp_content(req);
+  if (messagePlist != NULL) {
+    // look for the keyed dict "ConfigurationDictionary"
+    plist_t configurationDict = plist_dict_get_item(messagePlist, "ConfigurationDictionary");
+    if (configurationDict != NULL) {
+      uint8_t enable_HK_Access_Control = 0;
+      plist_t enableItem = plist_dict_get_item(configurationDict,"Enable_HK_Access_Control");
+      if (enableItem != NULL) {
+        plist_get_bool_val(enableItem, &enable_HK_Access_Control);
+        
+        if (enable_HK_Access_Control != 0) {
+          config.enable_HK_Access_Control = 1;
+          plist_dict_set_item(response_plist, "Identifier", plist_new_string(config.airplay_pi));
+          plist_dict_set_item(response_plist, "Enable_HK_Access_Control", plist_new_bool(1));
+          plist_dict_set_item(response_plist, "PublicKey",
+                            plist_new_data((const char *)config.airplay_pk, sizeof(config.airplay_pk)));
+          plist_dict_set_item(response_plist, "Device_Name", plist_new_string(config.service_name));
+          plist_dict_set_item(response_plist, "Access_Control_Level", plist_new_uint(0));        
+        } else {
+           config.enable_HK_Access_Control = 0;
+          // leave the response dict empty
+        }
+      } else {
+        debug(1, "no Enable_HK_Access_Control item in POST /configure ConfigurationDictionary");
+      }
+      debug(1, "enable_HK_Access_Control is %u.", enable_HK_Access_Control);    
+    } else {
+       debug(1, "no ConfigurationDictionary in POST /configure plist");
+    }
+    plist_free(messagePlist);
+  } else {
+    debug(1, "no plist in POST /configure request");
+  }
+  
+  if (config.enable_HK_Access_Control != 0) {
+    config.airplay_statusflags |= (1 << 10); // DeviceWasSetupForHKAccessControl
+  } else {
+    config.airplay_statusflags &= (0xffffffff - (1 << 10));
+  }
+  
+  if (config.enable_HK_Access_Control != existingEnable_HK_Access_Control) {
+    build_bonjour_strings(principal_conn);
+    mdns_update(NULL, secondary_txt_records);
+  }
   plist_to_bin(response_plist, &resp->content, &resp->contentlength);
   plist_free(response_plist);
 
   msg_add_header(resp, "Content-Type", "application/x-apple-binary-plist");
-  debug_log_rtsp_message(2, "POST /configure response:", resp);
+  debug_log_rtsp_message_conn(conn, 1, "POST /configure response:", resp);
 }
 
 void handle_feedback(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *req,
@@ -2325,6 +1971,7 @@ void handle_feedback(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message 
   debug_log_rtsp_message(4, NULL, req);
 
   int is_playing = 0;
+  int connection_number = 0;
   int type = 0;
   double rate = 0.0;
 
@@ -2334,6 +1981,7 @@ void handle_feedback(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message 
   pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
   if ((principal_conn != NULL) && (principal_conn->is_playing != 0)) {
     is_playing = 1;
+    connection_number = principal_conn->connection_number;
     type = principal_conn->type;
     rate = 1.0 * principal_conn->input_rate;
   }
@@ -2343,9 +1991,9 @@ void handle_feedback(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message 
 
   if (is_playing != 0) {
     if ((type != 96) && (type != 103))
-      debug(1, "Connection %d, feedback unexpected type: %u.", conn->connection_number, type);
+      debug(1, "Connection %d, feedback unexpected type: %u.", connection_number, type);
     if ((rate != 44100.0) && (rate != 48000.0))
-      debug(2, "Connection %d, feedback unexpected rate: %f.", conn->connection_number, rate);
+      debug(2, "Connection %d, feedback unexpected rate: %f.", connection_number, rate);
     plist_t payload_plist = plist_new_dict();
     plist_dict_set_item(payload_plist, "type", plist_new_uint(type));
     plist_dict_set_item(payload_plist, "sr", plist_new_real(rate));
@@ -2372,6 +2020,13 @@ void handle_command(rtsp_conn_info *conn, rtsp_message *req,
         req->contentlength);
   debug_log_rtsp_message(3, NULL, req);
   if (rtsp_message_contains_plist(req)) {
+    // we are not going to load the plist here because we don't wamt
+    // to incur the memory and processing cost. So we'll just send it to the
+    // metadata handling code and it can be dealt with there.
+#ifdef CONFIG_METADATA
+    send_metadata('ssnc', 'copl', req->content, req->contentlength, req, 1); // COmmand PList (and release 'req' afterwards)
+#endif
+    /*                     
     plist_t command_dict = NULL;
     plist_from_memory(req->content, req->contentlength, &command_dict);
     if (command_dict != NULL) {
@@ -2380,6 +2035,9 @@ void handle_command(rtsp_conn_info *conn, rtsp_message *req,
       if (item != NULL) {
         char *typeValue = NULL;
         plist_get_string_val(item, &typeValue);
+        debug(1, "Connection %d: POST /command plist type \"%s\" received.",
+              conn->connection_number, typeValue);
+        debug_log_rtsp_message(1, NULL, req);
         if ((typeValue != NULL) && (strcmp(typeValue, "updateMRSupportedCommands") == 0)) {
           item = plist_dict_get_item(command_dict, "params");
           if (item != NULL) {
@@ -2404,7 +2062,7 @@ void handle_command(rtsp_conn_info *conn, rtsp_message *req,
                     if (subsidiary_plist) {
                       char *printable_plist = plist_as_xml_text(subsidiary_plist);
                       if (printable_plist) {
-                        debug(3, "Connection %d:\n==\n%s\n==", conn->connection_number, printable_plist);
+                        debug(4, "Connection %d:\n==\n%s\n==", conn->connection_number, printable_plist);
                         free(printable_plist);
                       } else {
                         debug(1, "Can't print the plist!");
@@ -2426,10 +2084,6 @@ void handle_command(rtsp_conn_info *conn, rtsp_message *req,
             debug(1, "Connection %d: POST /command no params dict.", conn->connection_number);
           }
           resp->respcode = 200;
-        } else {
-          debug(1, "Connection %d: POST /command plist type \"%s\" received.",
-                conn->connection_number, typeValue);
-          debug_log_rtsp_message(2, NULL, req);
         }
         if (typeValue != NULL)
           free(typeValue);
@@ -2441,6 +2095,7 @@ void handle_command(rtsp_conn_info *conn, rtsp_message *req,
     } else {
       debug(1, "Connection %d: POST /command plist cannot be inputted.", conn->connection_number);
     }
+    */
   } else {
     debug(1, "Connection %d: POST /command contains no plist", conn->connection_number);
   }
@@ -2564,7 +2219,7 @@ void handle_teardown(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message 
 #ifdef CONFIG_AIRPLAY_2
 void handle_options_2(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *req,
                       rtsp_message *resp) {
-  debug_log_rtsp_message(2, "OPTIONS request", req);
+  debug_log_rtsp_message_conn(conn, 1, "OPTIONS request", req);
   debug(3, "Connection %d: OPTIONS", conn->connection_number);
   resp->respcode = 200;
   msg_add_header(resp, "Public",
@@ -2578,10 +2233,11 @@ void handle_options_2(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message
 void handle_teardown_2(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *req,
                        rtsp_message *resp) {
 
-  debug(2, "Connection %d: TEARDOWN 2 %s.", conn->connection_number,
+  debug(2, "Connection %d from \"%s\": TEARDOWN 2 %s.", conn->connection_number,
+        conn->ap2_client_name,
         get_category_string(conn->airplay_stream_category));
   debug_log_rtsp_message(2, "TEARDOWN 2: ", req);
-
+  
   if (conn->player_thread) {
     debug(2, "TEARDOWN 2 is stopping a player thread before exiting...");
     player_stop(conn);                    // this nulls the player_thread and cancels the threads...
@@ -2650,23 +2306,24 @@ static void check_and_send_plist_metadata(plist_t messagePlist, const char *plis
 
 void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
   int err;
-  debug(2, "Connection %d: SETUP (AirPlay 2) on %s", conn->connection_number,
-        get_category_string(conn->airplay_stream_category));
-  debug_log_rtsp_message(2, "SETUP (AirPlay 2) incoming message", req);
 
   plist_t messagePlist = plist_from_rtsp_content(req);
+  
+  if (messagePlist != NULL) {
+    // if (conn->sessionPlist)
+    //   plist_free(conn->sessionPlist);
+    conn->sessionPlist = messagePlist;
+  }
   plist_t setupResponsePlist = plist_new_dict();
   resp->respcode = 501;
 
   // see if we can get a name for the client
-  char *clientNameString = NULL;
 
   plist_t nameItem = plist_dict_get_item(messagePlist, "name");
   if (nameItem != NULL) {
-    plist_get_string_val(nameItem, &conn->ap2_client_name); // generates a malloced string
-    clientNameString = strdup(conn->ap2_client_name);
-  } else {
-    clientNameString = strdup("<unknown>");
+    if (conn->ap2_client_name)
+      free(conn->ap2_client_name);
+    plist_get_string_val(nameItem, &conn->ap2_client_name); // we need to free it!
   }
 
   // see if the incoming plist contains a "streams" array
@@ -2688,7 +2345,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
         if (strcmp(timingProtocolString, "PTP") == 0) {
           debug(2, "Connection %d: AP2 PTP connection from %s:%u (\"%s\") to self at %s:%u.",
                 conn->connection_number, conn->client_ip_string, conn->client_rtsp_port,
-                clientNameString, conn->self_ip_string, conn->self_rtsp_port);
+                conn->ap2_client_name, conn->self_ip_string, conn->self_rtsp_port);
           conn->airplay_stream_category = ptp_stream;
           conn->timing_type = ts_ptp;
 
@@ -2697,7 +2354,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
         } else if (strcmp(timingProtocolString, "NTP") == 0) {
           debug(1, "Connection %d: SETUP: NTP setup from %s:%u (\"%s\") to self at %s:%u.",
                 conn->connection_number, conn->client_ip_string, conn->client_rtsp_port,
-                clientNameString, conn->self_ip_string, conn->self_rtsp_port);
+                conn->ap2_client_name, conn->self_ip_string, conn->self_rtsp_port);
           conn->airplay_stream_category = ntp_stream;
           conn->timing_type = ts_ntp;
           do_pthread_setname(&conn->thread, "ap2_ntp_%d", conn->connection_number);
@@ -2706,7 +2363,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
                 "Connection %d: SETUP: a \"None\" setup detected from %s:%u (\"%s\") to self at "
                 "%s:%u.",
                 conn->connection_number, conn->client_ip_string, conn->client_rtsp_port,
-                clientNameString, conn->self_ip_string, conn->self_rtsp_port);
+                conn->ap2_client_name, conn->self_ip_string, conn->self_rtsp_port);
           // now check to see if it's got the "isRemoteControlOnly" item and check it's true
           plist_t isRemoteControlOnly = plist_dict_get_item(messagePlist, "isRemoteControlOnly");
           if (isRemoteControlOnly != NULL) {
@@ -2717,7 +2374,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
                     "Connection %d: SETUP: Remote Control Only connection from %s:%u (\"%s\") to "
                     "self at %s:%u.",
                     conn->connection_number, conn->client_ip_string, conn->client_rtsp_port,
-                    clientNameString, conn->self_ip_string, conn->self_rtsp_port);
+                    conn->ap2_client_name, conn->self_ip_string, conn->self_rtsp_port);
               conn->airplay_stream_category = remote_control_stream;
               do_pthread_setname(&conn->thread, "ap2_rc_%d", conn->connection_number);
             } else {
@@ -2733,6 +2390,11 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
                   conn->connection_number);
           }
         }
+        
+        debug(2, "Connection %d from \"%s\": Initial (i.e. no streams array) SETUP (AirPlay 2) on %s", conn->connection_number,
+        conn->ap2_client_name,
+        get_category_string(conn->airplay_stream_category));
+        debug_log_rtsp_message_conn(conn, 2, "Initial (i.e. no streams array) SETUP (AirPlay 2) incoming message", req);
 
         // here, we know it's an initial setup and we know the kind of setup being requested
         // if it's a full service PTP stream, we get groupUUID, groupContainsGroupLeader and
@@ -2828,6 +2490,8 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
               plist_array_append_item(addresses, plist_new_string(conn->self_ip_string));
               //            debug(1,"self ip: \"%s\"", conn->self_ip_string);
 
+              int oldState;
+              pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
               struct ifaddrs *addrs, *iap;
               getifaddrs(&addrs);
               for (iap = addrs; iap != NULL; iap = iap->ifa_next) {
@@ -2862,6 +2526,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
                 }
               }
               freeifaddrs(addrs);
+              pthread_setcancelstate(oldState, NULL);
 
               // debug(1,"initial timing peer command: \"%s\".", timing_list_message);
               // ptp_send_control_message_string(timing_list_message);
@@ -2890,6 +2555,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
 
               debug(2, "Connection %d: TCP PTP event port opened: %u.", conn->connection_number,
                     conn->local_event_port);
+
 
               if (conn->rtp_event_thread != NULL)
                 debug(1, "previous rtp_event_thread allocation not freed, it seems.");
@@ -2962,7 +2628,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
           conn->rtp_event_thread = malloc(sizeof(pthread_t));
           if (conn->rtp_event_thread == NULL)
             die("Couldn't allocate space for pthread_t");
-          named_pthread_create(conn->rtp_event_thread, NULL, &ap2_rc_event_receiver, (void *)conn,
+          named_pthread_create(conn->rtp_event_thread, NULL, &ap2_event_receiver, (void *)conn,
                                "ap2_rc_evt_%d", conn->connection_number);
           plist_dict_set_item(setupResponsePlist, "eventPort",
                               plist_new_uint(conn->local_event_port));
@@ -2993,9 +2659,12 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
       warn("Unrecognised SETUP incoming message -- ignored.");
     }
   } else {
-    debug(2, "Connection %d: SETUP on %s. A \"streams\" array has been found",
-          conn->connection_number, get_category_string(conn->airplay_stream_category));
-    debug_log_rtsp_message(3, "SETUP (AirPlay 2) SETUP with streams incoming message", req);
+  
+    debug(2, "Connection %d from \"%s\": Subsequent (i.e. with streams array) SETUP (AirPlay 2) on %s", conn->connection_number,
+    conn->ap2_client_name,
+    get_category_string(conn->airplay_stream_category));
+    debug_log_rtsp_message_conn(conn, 2, "Subsequent (i.e. with streams array) SETUP (AirPlay 2) incoming message", req);
+
     if (conn->airplay_stream_category == ptp_stream) {
 
       if (conn->player_thread) {
@@ -3107,8 +2776,8 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
       conn->type = item_value;
       switch (item_value) {
       case 96: {
-        debug(1, "Connection %d. AP2 Realtime ALAC/44100/S16/2 Stream.", conn->connection_number);
-        debug_log_rtsp_message(2, "Realtime Audio Stream SETUP incoming message", req);
+        debug(4, "Connection %d. AP2 Realtime Audio Stream SETUP.", conn->connection_number);
+        debug_log_rtsp_message(4, "AP2 Realtime Audio Stream SETUP incoming message:", req);
 
         conn->stream.type = ast_apple_lossless;
         conn->airplay_stream_type = realtime_stream;
@@ -3117,12 +2786,20 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
         if (item != NULL) {
           plist_get_uint_val(item, &item_value);
           // see https://emanuelecozzi.net/docs/airplay2/audio/ for values
-          debug(2, "Sample rate: %" PRId64 ".", item_value);
           conn->input_rate = item_value;
+          debug(4, "Set conn->input_rate: %u.", conn->input_rate);
         } else {
-          debug(1, "No sample rate (sr) property found in setup.");
+          debug(1, "Connection %d. No sample rate (sr) property found in setup.", conn->connection_number);
         }
-        conn->frames_per_packet = 352;
+
+        item = plist_dict_get_item(stream0, "spf"); // samples per frame
+        if (item != NULL) {
+          plist_get_uint_val(item, &item_value);
+          conn->frames_per_packet = item_value;
+          debug(4, "Set conn->frames_per_packet: %u.", conn->frames_per_packet);
+        } else {
+          debug(1, "Connection %d. No samples per frame (spf) property found in setup.", conn->connection_number);
+        }
 
         // bind a new UDP port and get a socket
         conn->local_realtime_audio_port = 0; // any port
@@ -3235,8 +2912,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
             snprintf(salt_suffix, sizeof(salt_suffix), "%" PRIu64 "", seed);
             conn->ap2_pairing_context.data_cipher_bundle.cipher_ctx =
                 pair_cipher_new(PAIR_SERVER_HOMEKIT, 5, conn->pair_setup_result->shared_secret,
-                                conn->pair_setup_result->shared_secret_len,
-                                salt_suffix); // last argument is the (possible) dynamic salt suffix
+                                conn->pair_setup_result->shared_secret_len, salt_suffix); // last argument is the (possible) dynamic salt suffix
             if (conn->ap2_pairing_context.data_cipher_bundle.cipher_ctx != NULL) {
               conn->ap2_pairing_context.data_cipher_bundle.description = strdup("DataStream");
               // get a port to use as an data port
@@ -3294,8 +2970,6 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
     msg_add_header(resp, "Content-Type", "application/x-apple-binary-plist");
   }
   plist_free(messagePlist);
-  if (clientNameString != NULL)
-    free(clientNameString);
 }
 #endif
 
@@ -3463,11 +3137,11 @@ void handle_set_parameter_parameter(rtsp_conn_info *conn, rtsp_message *req,
       debug(3, "Connection %d: request to set AirPlay Volume to: %f.", conn->connection_number,
             volume);
       // if we are playing, go ahead and change the volume
-#ifdef CONFIG_DBUS_INTERFACE
-      if (dbus_service_is_running()) {
-        shairport_sync_set_volume(shairportSyncSkeleton, volume);
-      } else {
-#endif
+// #ifdef CONFIG_DBUS_INTERFACE
+//       if (dbus_service_is_running()) {
+//         shairport_sync_set_volume(shairportSyncSkeleton, volume);
+//       } else {
+// #endif
         pthread_rwlock_rdlock(&principal_conn_lock); // don't let the principal_conn be changed
         pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
         if (principal_conn == conn) {
@@ -3488,9 +3162,9 @@ void handle_set_parameter_parameter(rtsp_conn_info *conn, rtsp_message *req,
           conn->own_airplay_volume_set = 1;
         }
         pthread_cleanup_pop(1); // release the principal_conn lock
-#ifdef CONFIG_DBUS_INTERFACE
-      }
-#endif
+// #ifdef CONFIG_DBUS_INTERFACE
+//       }
+// #endif
     } else if (strncmp(cp, "progress: ", strlen("progress: ")) ==
                0) { // this can be sent even when metadata is not solicited
 
@@ -3509,663 +3183,6 @@ void handle_set_parameter_parameter(rtsp_conn_info *conn, rtsp_message *req,
 }
 
 #ifdef CONFIG_METADATA
-// Metadata is not used by shairport-sync.
-// Instead we send all metadata to a fifo pipe, so that other apps can listen to
-// the pipe and use the metadata.
-
-// We use two 4-character codes to identify each piece of data and we send the
-// data itself, if any,
-// in base64 form.
-
-// The first 4-character code, called the "type", is either:
-//    'core' for all the regular metadadata coming from iTunes, etc., or
-//    'ssnc' (for 'shairport-sync') for all metadata coming from Shairport Sync
-//    itself, such as
-//    start/end delimiters, etc.
-
-// For 'core' metadata, the second 4-character code is the 4-character metadata
-// code coming from
-// iTunes etc.
-// For 'ssnc' metadata, the second 4-character code is used to distinguish the
-// messages.
-
-// Cover art is not tagged in the same way as other metadata, it seems, so is
-// sent as an 'ssnc' type
-// metadata message with the code 'PICT'
-// Here are the 'ssnc' codes defined so far:
-//    'PICT' -- the payload is a picture, either a JPEG or a PNG. Check the
-//    first few bytes to see
-//    which.
-//    'abeg' -- active mode entered. No arguments
-//    'aend' -- active mode exited. No arguments
-//    'pbeg' -- play stream begin. No arguments
-//    'pend' -- play stream end. No arguments
-//    'pfls' -- play stream flush. The argument is an unsigned 32-bit
-//               frame number. It seems that all frames up to but not
-//               including this frame are to be flushed.
-//
-//    'prsm' -- play stream resume. No arguments. (deprecated)
-//    'paus' -- buffered audio stream paused. No arguments.
-//    'pres' -- buffered audio stream resumed. No arguments.
-//		'pffr' -- the first frame of a play session has been received and has been validly
-//              timed. The argument is
-//              "<frame_number>/<time_it_should_be_played_in_64_bit_nanoseconds>"."
-//		'pdis' -- a discontinuity in the timestamps of incoming frames has been detected.
-//              timed. The argument is  "<frame_number>/<discontinuity>".
-//              discontinuity is the actual frame number less the expected frame number
-//              positive means a gap
-//    'pvol' -- play volume. The volume is sent as a string --
-//    "airplay_volume,volume,lowest_volume,highest_volume"
-//              volume, lowest_volume and highest_volume are given in dB.
-//              The "airplay_volume" is what's sent to the player, and is from
-//              0.00 down to -30.00,
-//              with -144.00 meaning mute.
-//              This is linear on the volume control slider of iTunes or iOS
-//              AirPlay.
-//    'prgr' -- progress -- this is metadata from AirPlay consisting of RTP
-//    timestamps for the start
-//    of the current play sequence, the current play point and the end of the
-//    play sequence.
-//              I guess the timestamps wrap at 2^32.
-//    'mdst' -- a sequence of metadata is about to start; will have, as data,
-//    the rtptime associated with the metadata, if available
-//    'mden' -- a sequence of metadata has ended; will have, as data, the
-//    rtptime associated with the metadata, if available
-//    'pcst' -- a picture is about to be sent; will have, as data, the rtptime
-//    associated with the picture, if available
-//    'pcen' -- a picture has been sent; will have, as data, the rtptime
-//    associated with the metadata, if available
-//    'snam' -- A device -- e.g. "Joe's iPhone" -- has opened a play session.
-//    Specifically, it's the "X-Apple-Client-Name" string
-//    'snua' -- A "user agent" -- e.g. "iTunes/12..." -- has opened a play
-//    session. Specifically, it's the "User-Agent" string
-//    The next two two tokens are to facilitate remote control of the source.
-//    There is some information at http://nto.github.io/AirPlay.html about
-//    remote control of the source.
-//
-//    'daid' -- this is the source's DACP-ID (if it has one -- it's not
-//    guaranteed), useful if you want to remotely control the source. Use this
-//    string to identify the source's remote control on the network.
-//    'acre' -- this is the source's Active-Remote token, necessary if you want
-//    to send commands to the source's remote control (if it has one).
-//		`clip` -- the payload is the IP number of the client, i.e. the sender of audio.
-//		Can be an IPv4 or an IPv6 number. In AirPlay 2 operation, it is sent as soon
-//    as the client has exclusive access to the player and after any existing
-//    play session has been interrupted and terminated.
-//		`conn` -- the payload is the IP number of the client, i.e. the sender of audio.
-//		Can be an IPv4 or an IPv6 number. This is an AirPlay-2-only message.
-//    It is sent as soon as the client requests access to the player.
-//    If Shairport Sync is already playing, this message is sent before the current
-//    play session is stopped.
-//		`svip` -- the payload is the IP number of the server, i.e. the player itself.
-//		Can be an IPv4 or an IPv6 number.
-//		`svna` -- the payload is the service name of the player, i.e. the name by
-//		which it is seen in the AirPlay menu.
-//    `disc` -- the payload is the IP number of the client, i.e. the sender of audio.
-//		Can be an IPv4 or an IPv6 number. This is an AirPlay-2-only message.
-//    It is sent when a client has been disconnected.
-//		`dapo` -- the payload is the port number (as text) on the server to which remote
-// control commands should be sent. It is 3689 for iTunes but varies for iOS devices.
-//    ``
-
-//		A special sub-protocol is used for sending large data items over UDP
-//    If the payload exceeded 4 MB, it is chunked using the following format:
-//    "ssnc", "chnk", packet_ix, packet_counts, packet_tag, packet_type, chunked_data.
-//    Notice that the number of items is different to the standard
-
-static int fd = -1;
-// static int dirty = 0;
-
-pc_queue metadata_queue;
-#define metadata_queue_size 500
-metadata_package metadata_queue_items[metadata_queue_size];
-pthread_t metadata_thread;
-
-#ifdef CONFIG_METADATA_HUB
-pc_queue metadata_hub_queue;
-#define metadata_hub_queue_size 500
-metadata_package metadata_hub_queue_items[metadata_hub_queue_size];
-pthread_t metadata_hub_thread;
-#endif
-
-#ifdef CONFIG_MQTT
-pc_queue metadata_mqtt_queue;
-#define metadata_mqtt_queue_size 500
-metadata_package metadata_mqtt_queue_items[metadata_mqtt_queue_size];
-pthread_t metadata_mqtt_thread;
-#endif
-
-static int metadata_sock = -1;
-static struct sockaddr_in metadata_sockaddr;
-static char *metadata_sockmsg;
-pc_queue metadata_multicast_queue;
-#define metadata_multicast_queue_size 500
-metadata_package metadata_multicast_queue_items[metadata_queue_size];
-pthread_t metadata_multicast_thread;
-
-void metadata_create_multicast_socket(void) {
-  if (config.metadata_enabled == 0)
-    return;
-
-  // Unlike metadata pipe, socket is opened once and stays open,
-  // so we can call it in create
-  if (config.metadata_sockaddr && config.metadata_sockport) {
-    metadata_sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (metadata_sock < 0) {
-      debug(1, "Could not open metadata socket");
-    } else {
-      int buffer_size = METADATA_SNDBUF;
-      setsockopt(metadata_sock, SOL_SOCKET, SO_SNDBUF, &buffer_size, sizeof(buffer_size));
-      bzero((char *)&metadata_sockaddr, sizeof(metadata_sockaddr));
-      metadata_sockaddr.sin_family = AF_INET;
-      metadata_sockaddr.sin_addr.s_addr = inet_addr(config.metadata_sockaddr);
-      metadata_sockaddr.sin_port = htons(config.metadata_sockport);
-      metadata_sockmsg = malloc(config.metadata_sockmsglength);
-      if (metadata_sockmsg) {
-        memset(metadata_sockmsg, 0, config.metadata_sockmsglength);
-      } else {
-        die("Could not malloc metadata multicast socket buffer");
-      }
-    }
-  }
-}
-
-void metadata_delete_multicast_socket(void) {
-  if (config.metadata_enabled == 0)
-    return;
-  if (metadata_sock != -1) {
-    shutdown(metadata_sock, SHUT_RDWR); // we want to immediately deallocate the buffer
-    close(metadata_sock);
-  }
-  if (metadata_sockmsg)
-    free(metadata_sockmsg);
-}
-
-void metadata_open(void) {
-  if (config.metadata_enabled == 0)
-    return;
-
-  size_t pl = strlen(config.metadata_pipename) + 1;
-
-  char *path = malloc(pl + 1);
-  snprintf(path, pl + 1, "%s", config.metadata_pipename);
-
-  fd = try_to_open_pipe_for_writing(path);
-  free(path);
-}
-
-static void metadata_close(void) {
-  if (fd < 0)
-    return;
-  close(fd);
-  fd = -1;
-}
-
-void metadata_multicast_process(uint32_t type, uint32_t code, char *data, uint32_t length) {
-  // debug(1, "Process multicast metadata with type %x, code %x and length %u.", type, code,
-  // length);
-  if (metadata_sock >= 0 && length < config.metadata_sockmsglength - 8) {
-    char *ptr = metadata_sockmsg;
-    uint32_t v;
-    v = htonl(type);
-    memcpy(ptr, &v, 4);
-    ptr += 4;
-    v = htonl(code);
-    memcpy(ptr, &v, 4);
-    ptr += 4;
-    memcpy(ptr, data, length);
-    sendto(metadata_sock, metadata_sockmsg, length + 8, 0, (struct sockaddr *)&metadata_sockaddr,
-           sizeof(metadata_sockaddr));
-  } else if (metadata_sock >= 0) {
-    // send metadata in numbered chunks using the protocol:
-    // ("ssnc", "chnk", packet_ix, packet_counts, packet_tag, packet_type, chunked_data)
-
-    uint32_t chunk_ix = 0;
-    if (config.metadata_sockmsglength == 24)
-      die("A divide by zero almost occurred (config.metadata_sockmsglength = 24).");
-    uint32_t chunk_total = length / (config.metadata_sockmsglength - 24);
-    if (chunk_total * (config.metadata_sockmsglength - 24) < length) {
-      chunk_total++;
-    }
-    uint32_t remaining = length;
-    uint32_t v;
-    char *data_crsr = data;
-    do {
-      char *ptr = metadata_sockmsg;
-      memcpy(ptr, "ssncchnk", 8);
-      ptr += 8;
-      v = htonl(chunk_ix);
-      memcpy(ptr, &v, 4);
-      ptr += 4;
-      v = htonl(chunk_total);
-      memcpy(ptr, &v, 4);
-      ptr += 4;
-      v = htonl(type);
-      memcpy(ptr, &v, 4);
-      ptr += 4;
-      v = htonl(code);
-      memcpy(ptr, &v, 4);
-      ptr += 4;
-      size_t datalen = remaining;
-      if (datalen > config.metadata_sockmsglength - 24) {
-        datalen = config.metadata_sockmsglength - 24;
-      }
-      memcpy(ptr, data_crsr, datalen);
-      data_crsr += datalen;
-      sendto(metadata_sock, metadata_sockmsg, datalen + 24, 0,
-             (struct sockaddr *)&metadata_sockaddr, sizeof(metadata_sockaddr));
-      chunk_ix++;
-      remaining -= datalen;
-      if (remaining == 0)
-        break;
-    } while (1);
-  }
-}
-
-void metadata_process(uint32_t type, uint32_t code, char *data, uint32_t length) {
-  // debug(1, "Process metadata with type %x, code %x and length %u.", type, code, length);
-  int ret = 0;
-  // readers may go away and come back
-
-  if (fd < 0)
-    metadata_open();
-  if (fd < 0)
-    return;
-  char thestring[1024];
-  snprintf(thestring, 1024, "<item><type>%x</type><code>%x</code><length>%u</length>", type, code,
-           length);
-  // ret = non_blocking_write(fd, thestring, strlen(thestring));
-  ret = write(fd, thestring, strlen(thestring));
-  if (ret < 0) {
-    // debug(1,"metadata_process error %d exit 1",ret);
-    return;
-  }
-  if ((data != NULL) && (length > 0)) {
-    snprintf(thestring, 1024, "\n<data encoding=\"base64\">\n");
-    // ret = non_blocking_write(fd, thestring, strlen(thestring));
-    ret = write(fd, thestring, strlen(thestring));
-    if (ret < 0) {
-      // debug(1,"metadata_process error %d exit 2",ret);
-      return;
-    }
-    // here, we write the data in base64 form using our nice base64 encoder
-    // but, we break it into lines of 76 output characters, except for the last
-    // one.
-    // thus, we send groups of (76/4)*3 =  57 bytes to the encoder at a time
-    size_t remaining_count = length;
-    char *remaining_data = data;
-    // size_t towrite_count;
-    char outbuf[76];
-    while ((remaining_count) && (ret >= 0)) {
-      size_t towrite_count = remaining_count;
-      if (towrite_count > 57)
-        towrite_count = 57;
-      size_t outbuf_size = 76; // size of output buffer on entry, length of result on exit
-      if (base64_encode_so((unsigned char *)remaining_data, towrite_count, outbuf, &outbuf_size) ==
-          NULL)
-        debug(1, "Error encoding base64 data.");
-      // debug(1,"Remaining count: %d ret: %d, outbuf_size:
-      // %d.",remaining_count,ret,outbuf_size);
-      // ret = non_blocking_write(fd, outbuf, outbuf_size);
-      ret = write(fd, outbuf, outbuf_size);
-      if (ret < 0) {
-        // debug(1,"metadata_process error %d exit 3",ret);
-        return;
-      }
-      remaining_data += towrite_count;
-      remaining_count -= towrite_count;
-    }
-    snprintf(thestring, 1024, "</data>");
-    // ret = non_blocking_write(fd, thestring, strlen(thestring));
-    ret = write(fd, thestring, strlen(thestring));
-    if (ret < 0) {
-      // debug(1,"metadata_process error %d exit 4",ret);
-      return;
-    }
-  }
-  snprintf(thestring, 1024, "</item>\n");
-  // ret = non_blocking_write(fd, thestring, strlen(thestring));
-  ret = write(fd, thestring, strlen(thestring));
-  if (ret < 0) {
-    // debug(1,"metadata_process error %d exit 5",ret);
-    return;
-  }
-}
-
-void metadata_pack_cleanup_function(void *arg) {
-  // debug(1, "metadata_pack_cleanup_function called");
-  metadata_package *pack = (metadata_package *)arg;
-  if (pack->carrier)
-    msg_free(&pack->carrier); // release the message
-  else if (pack->data)
-    free(pack->data);
-  // debug(1, "metadata_pack_cleanup_function exit");
-}
-
-void metadata_thread_cleanup_function(__attribute__((unused)) void *arg) {
-  // debug(2, "metadata_thread_cleanup_function called");
-  metadata_close();
-}
-
-void *metadata_thread_function(__attribute__((unused)) void *ignore) {
-  //  #include <syscall.h>
-  //  debug(1, "metadata_thread_function PID %d", syscall(SYS_gettid));
-  metadata_create_multicast_socket();
-  metadata_package pack;
-  pthread_cleanup_push(metadata_thread_cleanup_function, NULL);
-  while (1) {
-    pc_queue_get_item(&metadata_queue, &pack);
-    pthread_cleanup_push(metadata_pack_cleanup_function, (void *)&pack);
-    if (config.metadata_enabled) {
-      if (pack.carrier) {
-        debug(4, "     pipe: type %x, code %x, length %u, message %d.", pack.type, pack.code,
-              pack.length, pack.carrier->index_number);
-      } else {
-        debug(4, "     pipe: type %x, code %x, length %u.", pack.type, pack.code, pack.length);
-      }
-      metadata_process(pack.type, pack.code, pack.data, pack.length);
-      debug(4, "     pipe: done.");
-    }
-    pthread_cleanup_pop(1);
-  }
-  pthread_cleanup_pop(1); // will never happen
-  pthread_exit(NULL);
-}
-
-void metadata_multicast_thread_cleanup_function(__attribute__((unused)) void *arg) {
-  // debug(2, "metadata_multicast_thread_cleanup_function called");
-  metadata_delete_multicast_socket();
-}
-
-void *metadata_multicast_thread_function(__attribute__((unused)) void *ignore) {
-  //  #include <syscall.h>
-  //  debug(1, "metadata_multicast_thread_function PID %d", syscall(SYS_gettid));
-  metadata_create_multicast_socket();
-  metadata_package pack;
-  pthread_cleanup_push(metadata_multicast_thread_cleanup_function, NULL);
-  while (1) {
-    pc_queue_get_item(&metadata_multicast_queue, &pack);
-    pthread_cleanup_push(metadata_pack_cleanup_function, (void *)&pack);
-    if (config.metadata_enabled) {
-      if (pack.carrier) {
-        debug(4,
-              "                                                                    multicast: type "
-              "%x, code %x, length %u, message %d.",
-              pack.type, pack.code, pack.length, pack.carrier->index_number);
-      } else {
-        debug(4,
-              "                                                                    multicast: type "
-              "%x, code %x, length %u.",
-              pack.type, pack.code, pack.length);
-      }
-      metadata_multicast_process(pack.type, pack.code, pack.data, pack.length);
-      debug(4,
-            "                                                                    multicast: done.");
-    }
-    pthread_cleanup_pop(1);
-  }
-  pthread_cleanup_pop(1); // will never happen
-  pthread_exit(NULL);
-}
-
-#ifdef CONFIG_METADATA_HUB
-void metadata_hub_close(void) {}
-
-void metadata_hub_thread_cleanup_function(__attribute__((unused)) void *arg) {
-  // debug(2, "metadata_hub_thread_cleanup_function called");
-  metadata_hub_close();
-}
-
-void *metadata_hub_thread_function(__attribute__((unused)) void *ignore) {
-  //  #include <syscall.h>
-  //  debug(1, "metadata_hub_thread_function PID %d", syscall(SYS_gettid));
-  metadata_package pack;
-  pthread_cleanup_push(metadata_hub_thread_cleanup_function, NULL);
-  while (1) {
-    pc_queue_get_item(&metadata_hub_queue, &pack);
-    pthread_cleanup_push(metadata_pack_cleanup_function, (void *)&pack);
-    if (pack.carrier) {
-      debug(4, "                    hub: type %x, code %x, length %u, message %d.", pack.type,
-            pack.code, pack.length, pack.carrier->index_number);
-    } else {
-      debug(4, "                    hub: type %x, code %x, length %u.", pack.type, pack.code,
-            pack.length);
-    }
-    metadata_hub_process_metadata(pack.type, pack.code, pack.data, pack.length);
-    debug(4, "                    hub: done.");
-    pthread_cleanup_pop(1);
-  }
-  pthread_cleanup_pop(1); // will never happen
-  pthread_exit(NULL);
-}
-#endif
-
-#ifdef CONFIG_MQTT
-void metadata_mqtt_close(void) {}
-
-void metadata_mqtt_thread_cleanup_function(__attribute__((unused)) void *arg) {
-  // debug(2, "metadata_mqtt_thread_cleanup_function called");
-  metadata_mqtt_close();
-  // debug(2, "metadata_mqtt_thread_cleanup_function done");
-}
-
-void *metadata_mqtt_thread_function(__attribute__((unused)) void *ignore) {
-  //  #include <syscall.h>
-  //  debug(1, "metadata_mqtt_thread_function PID %d", syscall(SYS_gettid));
-  metadata_package pack;
-  pthread_cleanup_push(metadata_mqtt_thread_cleanup_function, NULL);
-  while (1) {
-    pc_queue_get_item(&metadata_mqtt_queue, &pack);
-    pthread_cleanup_push(metadata_pack_cleanup_function, (void *)&pack);
-    if (config.mqtt_enabled) {
-      if (pack.carrier) {
-        debug(3,
-              "                                        mqtt: type %x, code %x, length %u, message "
-              "%d.",
-              pack.type, pack.code, pack.length, pack.carrier->index_number);
-      } else {
-        debug(3, "                                        mqtt: type %x, code %x, length %u.",
-              pack.type, pack.code, pack.length);
-      }
-      mqtt_process_metadata(pack.type, pack.code, pack.data, pack.length);
-      debug(3, "                                        mqtt: done.");
-    }
-
-    pthread_cleanup_pop(1);
-  }
-  pthread_cleanup_pop(1); // will never happen
-  pthread_exit(NULL);
-}
-#endif
-
-void metadata_init(void) {
-  if (config.metadata_enabled) {
-    // create the metadata pipe, if necessary
-    size_t pl = strlen(config.metadata_pipename) + 1;
-    char *path = malloc(pl + 1);
-    snprintf(path, pl + 1, "%s", config.metadata_pipename);
-    mode_t oldumask = umask(000);
-    if (mkfifo(path, 0666) && errno != EEXIST)
-      die("Could not create metadata pipe \"%s\".", path);
-    umask(oldumask);
-    debug(1, "metadata pipe name is \"%s\".", path);
-
-    // try to open it
-    fd = try_to_open_pipe_for_writing(path);
-    // we check that it's not a "real" error. From the "man 2 open" page:
-    // "ENXIO  O_NONBLOCK | O_WRONLY is set, the named file is a FIFO, and no process has the FIFO
-    // open for reading." Which is okay.
-    if ((fd == -1) && (errno != ENXIO)) {
-      char errorstring[1024];
-      strerror_r(errno, (char *)errorstring, sizeof(errorstring));
-      debug(1, "metadata_init -- error %d (\"%s\") opening pipe: \"%s\".", errno,
-            (char *)errorstring, path);
-      warn("can not open metadata pipe -- error %d (\"%s\") opening pipe: \"%s\".", errno,
-           (char *)errorstring, path);
-    }
-    free(path);
-
-    // initialise the metadata queues first, otherwise the might be a race condition
-    // create a pc_queue for the metadata pipe
-    pc_queue_init(&metadata_queue, (char *)&metadata_queue_items, sizeof(metadata_package),
-                  metadata_queue_size, "pipe");
-
-    if (named_pthread_create(&metadata_thread, NULL, metadata_thread_function, NULL,
-                             "metadata pipe") != 0)
-      debug(1, "Failed to create metadata thread!");
-
-    // create a pc_queue for the metadata_multicast_queue
-    pc_queue_init(&metadata_multicast_queue, (char *)&metadata_multicast_queue_items,
-                  sizeof(metadata_package), metadata_multicast_queue_size, "multicast");
-    if (named_pthread_create(&metadata_multicast_thread, NULL, metadata_multicast_thread_function,
-                             NULL, "metadata mcst") != 0)
-      debug(1, "Failed to create metadata multicast thread!");
-  }
-#ifdef CONFIG_METADATA_HUB
-  // create a pc_queue for the metadata hub
-  pc_queue_init(&metadata_hub_queue, (char *)&metadata_hub_queue_items, sizeof(metadata_package),
-                metadata_hub_queue_size, "hub");
-  if (named_pthread_create(&metadata_hub_thread, NULL, metadata_hub_thread_function, NULL,
-                           "metadata hub") != 0)
-    debug(1, "Failed to create metadata hub thread!");
-#endif
-#ifdef CONFIG_MQTT
-  // create a pc_queue for the MQTT handler
-  pc_queue_init(&metadata_mqtt_queue, (char *)&metadata_mqtt_queue_items, sizeof(metadata_package),
-                metadata_mqtt_queue_size, "mqtt");
-  if (named_pthread_create(&metadata_mqtt_thread, NULL, metadata_mqtt_thread_function, NULL,
-                           "metadata mqtt") != 0)
-    debug(1, "Failed to create metadata mqtt thread!");
-#endif
-  metadata_running = 1;
-}
-
-void metadata_stop(void) {
-  if (metadata_running) {
-    debug(2, "metadata_stop called.");
-#ifdef CONFIG_MQTT
-    // debug(2, "metadata stop mqtt thread.");
-    pthread_cancel(metadata_mqtt_thread);
-    pthread_join(metadata_mqtt_thread, NULL);
-    pc_queue_delete(&metadata_mqtt_queue);
-    // debug(2, "metadata stop mqtt done.");
-#endif
-#ifdef CONFIG_METADATA_HUB
-    // debug(2, "metadata stop hub thread.");
-    pthread_cancel(metadata_hub_thread);
-    pthread_join(metadata_hub_thread, NULL);
-    pc_queue_delete(&metadata_hub_queue);
-    // debug(2, "metadata stop hub done.");
-#endif
-    if (config.metadata_enabled) {
-      // debug(2, "metadata stop multicast thread.");
-      if (metadata_multicast_thread) {
-        pthread_cancel(metadata_multicast_thread);
-        pthread_join(metadata_multicast_thread, NULL);
-        pc_queue_delete(&metadata_multicast_queue);
-        // debug(2, "metadata stop multicast done.");
-      }
-      if (metadata_thread) {
-        // debug(2, "metadata stop metadata_thread thread.");
-        pthread_cancel(metadata_thread);
-        pthread_join(metadata_thread, NULL);
-        pc_queue_delete(&metadata_queue);
-        // debug(2, "metadata_stop finished successfully.");
-      }
-    }
-  }
-}
-
-int send_metadata_to_queue(pc_queue *queue, const uint32_t type, const uint32_t code,
-                           const char *data, const uint32_t length, rtsp_message *carrier,
-                           int block) {
-
-  // clang-format off
-  // parameters:
-  //   type,
-  //   code,
-  //   pointer to data or NULL,
-  //   length of data or NULL,
-  //   the rtsp_message or NULL,
-
-  // the rtsp_message is sent for 'core' messages, because it contains the data
-  // and must not be freed until the data has been read.
-  // So, it is passed to send_metadata to be retained, sent to the thread where metadata
-  // is processed and released (and probably freed).
-
-  // The rtsp_message is also sent for certain non-'core' messages.
-
-  // The reading of the parameters is a bit complex:
-  // If the rtsp_message field is non-null, then it represents an rtsp_message
-  // and the data pointer is assumed to point to something within it.
-  // The reference counter of the rtsp_message is incremented here and
-  // should be decremented by the metadata handler when finished.
-  // If the reference count reduces to zero, the message will be freed.
-
-  // If the rtsp_message is NULL, then if the pointer is non-null then the data it
-  // points to, of the length specified, is memcpy'd and passed to the metadata
-  // handler. The handler should free it when done.
-
-  // If the rtsp_message is NULL and the pointer is also NULL, nothing further
-  // is done.
-  // clang-format on
-
-  metadata_package pack;
-  pack.type = type;
-  pack.code = code;
-  pack.length = length;
-  pack.carrier = carrier;
-  pack.data = (char *)data;
-  if (pack.carrier) {
-    msg_retain(pack.carrier);
-  } else {
-    if (data)
-      pack.data = memdup(data, length); // only if it's not a null
-  }
-
-  // debug(1, "send_metadata_to_queue %x/%x", type, code);
-  int rc = pc_queue_add_item(queue, &pack, block);
-  if (rc != 0) {
-    if (pack.carrier) {
-      if (rc == EWOULDBLOCK)
-        debug(2,
-              "metadata queue \"%s\" full, dropping message item: type %x, code %x, data %" PRIxPTR ", "
-              "length %u, message %d.",
-              queue->name, pack.type, pack.code, (uintptr_t)pack.data, pack.length,
-              pack.carrier->index_number);
-      msg_free(&pack.carrier);
-    } else {
-      if (rc == EWOULDBLOCK)
-        debug(
-            2,
-            "metadata queue \"%s\" full, dropping data item: type %x, code %x, data %" PRIxPTR ", length %u.",
-            queue->name, pack.type, pack.code, (uintptr_t)pack.data, pack.length);
-      if (pack.data)
-        free(pack.data);
-    }
-  }
-  return rc;
-}
-
-int send_metadata(const uint32_t type, const uint32_t code, const char *data, const uint32_t length,
-                  rtsp_message *carrier, int block) {
-  int rc = 0;
-  if (config.metadata_enabled) {
-    rc = send_metadata_to_queue(&metadata_queue, type, code, data, length, carrier, block);
-    rc =
-        send_metadata_to_queue(&metadata_multicast_queue, type, code, data, length, carrier, block);
-  }
-
-#ifdef CONFIG_METADATA_HUB
-  rc = send_metadata_to_queue(&metadata_hub_queue, type, code, data, length, carrier, block);
-#endif
-
-#ifdef CONFIG_MQTT
-  rc = send_metadata_to_queue(&metadata_mqtt_queue, type, code, data, length, carrier, block);
-#endif
-
-  return rc;
-}
 
 static void handle_set_parameter_metadata(__attribute__((unused)) rtsp_conn_info *conn,
                                           rtsp_message *req,
@@ -4301,7 +3318,7 @@ static void handle_set_parameter(rtsp_conn_info *conn, rtsp_message *req, rtsp_m
     } else
 #endif
         if (!strncmp(ct, "text/parameters", 15)) {
-      // debug(2, "received parameters in SET_PARAMETER request.");
+      debug(3, "received parameters in SET_PARAMETER request.");
       handle_set_parameter_parameter(conn, req, resp); // this could be volume or progress
     } else {
       debug(1, "Connection %d: received unknown Content-Type \"%s\" in SET_PARAMETER request.",
@@ -4404,6 +3421,7 @@ static void handle_announce(rtsp_conn_info *conn, rtsp_message *req, rtsp_messag
       debug(2, "An uncompressed PCM stream has been detected.");
       conn->stream.type = ast_uncompressed;
       conn->frames_per_packet = 352; // number of audio frames per packet.
+      debug(2, "Set conn->input_rate: 44100");
       conn->input_rate = 44100;
       conn->input_num_channels = 2;
       conn->input_bit_depth = 16;
@@ -4510,6 +3528,7 @@ static void handle_announce(rtsp_conn_info *conn, rtsp_message *req, rtsp_messag
       // done later).
       conn->frames_per_packet = conn->stream.fmtp[1]; // number of audio frames per packet.
       conn->input_rate = conn->stream.fmtp[11];
+      debug(2, "Set conn->input_rate: %u.", conn->input_rate);
       conn->input_num_channels = conn->stream.fmtp[7];
       conn->input_bit_depth = conn->stream.fmtp[3];
       conn->input_bytes_per_frame = conn->input_num_channels * ((conn->input_bit_depth + 7) / 8);
@@ -4540,7 +3559,7 @@ static void handle_announce(rtsp_conn_info *conn, rtsp_message *req, rtsp_messag
             debug(2, "AirPlay version %d detected.", conn->AirPlayVersion);
           }
         }
-
+        conn->input_format_is_valid = 1;
 #ifdef CONFIG_METADATA
         send_metadata('ssnc', 'snua', hdr, strlen(hdr), req, 1);
 #endif
@@ -4677,7 +3696,7 @@ static char *make_nonce(void) {
   return base64_enc(random, 8); // returns a pointer to malloc'ed memory
 }
 
-static int rtsp_auth(char **nonce, rtsp_message *req, rtsp_message *resp) {
+static int rtsp_classic_airplay_auth(char **nonce, rtsp_message *req, rtsp_message *resp) {
 
   if (!config.password)
     return 0;
@@ -5011,6 +4030,12 @@ void rtsp_conversation_thread_cleanup_function(void *arg) {
     rc = pthread_mutex_destroy(&conn->flush_mutex);
     if (rc)
       debug(1, "Connection %d: error %d destroying flush_mutex.", conn->connection_number, rc);
+#ifdef CONFIG_AIRPLAY_2
+    rc = pthread_mutex_destroy(&conn->event_sender_mutex);
+    if (rc)
+      debug(1, "Connection %d: error %d destroying event_sender_mutex.", conn->connection_number,
+            rc);
+#endif
     debug(3, "Connection %d: Closed.", conn->connection_number);
     conn->running = 0; // for the garbage collector
     release_play_lock(conn);
@@ -5046,6 +4071,12 @@ static void *rtsp_conversation_thread_func(void *pconn) {
   if (rc)
     die("Connection %d: error %d initialising player_create_delete_mutex.", conn->connection_number,
         rc);
+
+  #ifdef CONFIG_AIRPLAY_2
+    rc = pthread_mutex_init(&conn->event_sender_mutex, NULL);
+  if (rc)
+    die("Connection %d: error %d initialising event_sender_mutex.", conn->connection_number, rc);
+  #endif  
 
   // nothing before this is cancellable
   pthread_cleanup_push(rtsp_conversation_thread_cleanup_function, (void *)conn);
@@ -5106,8 +4137,18 @@ static void *rtsp_conversation_thread_func(void *pconn) {
       msg_add_header(resp, "Server", "AirTunes/105.1");
 #endif
 
-      if ((conn->authorized == 1) || (rtsp_auth(&conn->auth_nonce, req, resp)) == 0) {
-        conn->authorized = 1; // it must have been authorized or didn't need a password
+
+
+// we are only concerned with classic_airplay_authorized if we are running in classic AirPlay mode
+// either because the build is for classic AirPlay only or, if the build is for AirPlay 2,
+// we happen to be running in classic AirPlay compatibility mode
+
+      if ((conn->authorized == 1) || 
+#ifdef CONFIG_AIRPLAY_2
+        (conn->airplay_type != ap_1) ||
+#endif      
+        (rtsp_classic_airplay_auth(&conn->auth_nonce, req, resp) == 0)) {
+        conn->authorized = 1; // it must have been classic airplay and authorized or didn't need a password, or not classic AirPlay at all
         struct method_handler *mh;
         int method_selected = 0;
         for (mh = method_handlers; mh->method; mh++) {
@@ -5167,7 +4208,8 @@ static void *rtsp_conversation_thread_func(void *pconn) {
         so_linger.l_linger = 0;
         err = setsockopt(conn->fd, SOL_SOCKET, SO_LINGER, &so_linger, sizeof so_linger);
         if (err)
-          debug(1, "Could not set the RTSP socket to abort due to a write error on closing.");
+          debug(1, "Connection %d: Could not set the RTSP socket to abort due to a write error on closing.",
+              conn->connection_number);
         conn->stop = 1;
         // if (debuglev >= 1)
         //  debuglev = 3; // see what happens next

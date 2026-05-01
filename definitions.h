@@ -5,6 +5,10 @@
 
 #include "config.h"
 
+
+// for generating our own UUIDs
+#define SHAIRPORT_SYNC_DEVICE_NAMESPACE "01d7c137-6316-455d-a52f-dfb529f26adf"
+
 #if defined(__APPLE__) && defined(__MACH__)
 /* Apple OSX and iOS (Darwin). ------------------------------ */
 #include <TargetConditionals.h>
