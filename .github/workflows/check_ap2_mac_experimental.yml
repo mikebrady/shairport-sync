@@ -27,5 +27,5 @@ jobs:
           ./configure --with-airplay-2 --with-airplay2-no-nqptp --with-dns_sd --with-ssl=openssl
 
       - name: Make
-        run: make -j"$(sysctl -n hw.ncpu)"
+        run: make
 
