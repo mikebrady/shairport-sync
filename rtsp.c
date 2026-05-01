@@ -2023,7 +2023,9 @@ void handle_command(rtsp_conn_info *conn, rtsp_message *req,
     // we are not going to load the plist here because we don't wamt
     // to incur the memory and processing cost. So we'll just send it to the
     // metadata handling code and it can be dealt with there.
+#ifdef CONFIG_METADATA
     send_metadata('ssnc', 'copl', req->content, req->contentlength, req, 1); // COmmand PList (and release 'req' afterwards)
+#endif
     /*                     
     plist_t command_dict = NULL;
     plist_from_memory(req->content, req->contentlength, &command_dict);
