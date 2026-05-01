@@ -168,7 +168,7 @@ static void browse_callback(AvahiServiceBrowser *b, AvahiIfIndex interface, Avah
     debug(3, "(Browser) REMOVE: service '%s' of type '%s' in domain '%s'.", name, type, domain);
 #ifdef CONFIG_DACP_CLIENT
     dacp_browser_struct *dbs = (dacp_browser_struct *)userdata;
-    char *dacpid = strstr(name, "iTunes_Ctrl_");
+    const char *dacpid = strstr(name, "iTunes_Ctrl_");
     if (dacpid) {
       dacpid += strlen("iTunes_Ctrl_");
       while (*dacpid == '0')
