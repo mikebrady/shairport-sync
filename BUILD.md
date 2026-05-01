@@ -86,7 +86,7 @@ If you are building classic Shairport Sync, the list of packages is shorter:
 Building on Ubuntu 24.10 or Debian 13 ("Trixie") and later – and possibly on other distributions – requires `systemd-dev`. Be very careful here if you are using backports -- there is a [report](https://github.com/mikebrady/shairport-sync/issues/2195#issuecomment-4325326002) that installing `systemd-dev` on a backported system can severely damage it:
 
 ```
-# apt install --no-install-recommends systemd-dev # it's okay if this fails because the package doesn't exist
+# apt install --no-install-recommends systemd-dev
 ```
 
 ### Fedora (Fedora 40)
