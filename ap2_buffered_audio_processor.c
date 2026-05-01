@@ -327,7 +327,7 @@ void *rtp_buffered_audio_processor(void *arg) {
         finished = 1;
       } else if (nread < 0) {
         char errorstring[1024];
-        strerror_r(errno, (char *)errorstring, sizeof(errorstring));
+        (void) !strerror_r(errno, (char *)errorstring, sizeof(errorstring)); // (void) ! to suppress unused response warning
         debug(1, "error in rtp_buffered_audio_processor %d: \"%s\". Could not recv a data_len .",
               errno, errorstring);
         finished = 1;
