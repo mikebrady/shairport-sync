@@ -24,4 +24,4 @@ jobs:
         ./configure --with-stdout --with-dns_sd --with-ssl=openssl
 
     - name: Make
-      run: make -j"$(sysctl -n hw.ncpu)"
+      run: make
