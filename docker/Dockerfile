@@ -74,6 +74,7 @@ RUN apk -U add \
         libsodium-dev \
         libtool \
         pipewire-dev \
+        cjson-dev \
         mosquitto-dev \
         popt-dev \
         pulseaudio-dev \
