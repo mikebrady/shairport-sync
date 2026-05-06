@@ -1,7 +1,7 @@
 ARG NQPTP_BRANCH=main
-ARG FFMPEG_BRANCH=release/7.1
+ARG FFMPEG_BRANCH=release/8.1
 ARG SHAIRPORT_SYNC_BRANCH=.
-ARG ALPINE_VERSION=20250108
+ARG ALPINE_VERSION=3.23.4
 
 ##### FFMPEGLITE #####
 FROM alpine:$ALPINE_VERSION AS ffmpeglite
@@ -28,10 +28,9 @@ RUN ./configure \
   --disable-network \
   --disable-iamf \
   --disable-pixelutils \
-  --disable-postproc \
   --enable-decoder=alac \
   --enable-decoder=aac
-RUN make -j $(nproc)
+RUN make
 RUN make install
 ##### FFMPEGLITE END #####
 
@@ -51,7 +50,7 @@ RUN git clone --depth=1 -b "$NQPTP_BRANCH" https://github.com/mikebrady/nqptp
 WORKDIR /nqptp
 RUN autoreconf -i
 RUN ./configure
-RUN make -j $(nproc)
+RUN make
 WORKDIR /
 ##### NQPTP END #####
 
@@ -102,7 +101,7 @@ RUN ../configure --sysconfdir=/etc --with-alsa --with-pulseaudio --with-soxr --w
         --with-airplay-2 --with-metadata --with-dummy --with-pipe --with-dbus-interface \
         --with-stdout --with-mpris-interface --with-mqtt-client \
         --with-convolution --with-pipewire
-RUN make -j $(nproc)
+RUN make
 RUN DESTDIR=install make install
 WORKDIR /
 ##### SPS END #####
