@@ -458,7 +458,7 @@ uint32_t get_channel_settings(const char *stanza_name, const char *setting_name)
           for (i = 0; i < channel_counts_count; i++) {
             debug(3, "channel count setting %d: %d.", i, channel_counts[i]);
 
-            if ((channel_counts[i] >= 1) && (channel_counts[i] <= 8)) {
+            if ((channel_counts[i] >= 1) && (channel_counts[i] <= SPS_GREATEST_CHANNEL_COUNT)) {
 #ifdef CONFIG_FFMPEG
               channel_set |= (1 << channel_counts[i]);
 #else
@@ -492,7 +492,7 @@ uint32_t get_channel_settings(const char *stanza_name, const char *setting_name)
   char numbuf[32];
   unsigned int c;
   uint32_t t_channel_set = channel_set;
-  for (c = 0; c <= 8; c++) {
+  for (c = 0; c <= SPS_GREATEST_CHANNEL_COUNT; c++) {
     if ((t_channel_set & (1 << c)) != 0) {
       snprintf(numbuf, sizeof(numbuf) - 1, "%u", c);
       snprintf(p, sizeof(buf) - (p - buf) - 1, "%s", numbuf);
