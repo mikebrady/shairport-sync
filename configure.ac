@@ -405,7 +405,7 @@ fi
 if test "x$with_mpris_interface" = "xyes" || test "x$with_dbus_interface" = "xyes" || test "x$with_mqtt_client" = "xyes" ; then
   REQUESTED_EXTENDED_METADATA_SUPPORT=1
   AC_DEFINE([CONFIG_METADATA_HUB], 1, [Needed by the compiler.])
-  AC_DEFINE([CONFIG_DACP_CLIENT], 1, [Needed by the compiler.])
+#  AC_DEFINE([CONFIG_DACP_CLIENT], 1, [Needed by the compiler.])
 fi
 AM_CONDITIONAL([USE_METADATA_HUB], [test "x$REQUESTED_EXTENDED_METADATA_SUPPORT" = "x1"])
 AM_CONDITIONAL([USE_DACP_CLIENT], [test "x$REQUESTED_EXTENDED_METADATA_SUPPORT" = "x1"])

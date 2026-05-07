@@ -555,9 +555,11 @@ int parse_options(int argc, char **argv) {
   // config.model = strdup("AudioAccessory5,1");
 
   // config.srcvers = strdup(PACKAGE_VERSION);
-  // config.srcvers = strdup("760.13.1");
+  config.srcvers = strdup("760.13.1");
+  
+  // config.srcvers = strdup("940.23.1");
 
-  config.srcvers = strdup("366.0");
+  // config.srcvers = strdup("366.0");
 
   // config.osvers = strdup(VERSION);
   config.osvers = strdup("15.0");
@@ -1597,8 +1599,8 @@ int parse_options(int argc, char **argv) {
   // mDNS string.
 
   config.airplay_features =
-       0x00018340405C4A00; // no AP2 metadata (b50), no AP1 text (b17), no AP1 progress (b16), no AP1 artwork (b15)
-  //     0x0001C340405C4A00; // no AP2 metadata (b50), no AP1 text (b17), no AP1 progress (b16), no AP1 artwork (b15)
+  //     0x00018340405C4A00; // no AP2 metadata (b50), no AP1 text (b17), no AP1 progress (b16), no AP1 artwork (b15) bit 46 off
+       0x0001C340405C4A00; // no AP2 metadata (b50), no AP1 text (b17), no AP1 progress (b16), no AP1 artwork (b15)
   //     0x0001C340445D0A00;
   // config.airplay_features |= (1 << 26); // 0x0x4000000
 

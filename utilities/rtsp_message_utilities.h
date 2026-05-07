@@ -30,4 +30,5 @@ void _debug_print_msg_headers(rtsp_conn_info *conn, const char *filename, const 
 #ifdef CONFIG_AIRPLAY_2
 int rtsp_message_contains_plist(rtsp_message *message);
 plist_t plist_from_rtsp_content(rtsp_message *message);
+void decodeAndLogPlist(plist_t plist_to_log);
 #endif

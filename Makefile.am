@@ -27,7 +27,10 @@ noinst_LIBRARIES =
 
 # See below for the flags for the test client program
 
-shairport_sync_SOURCES = shairport.c bonjour_strings.c rtsp.c mdns.c common.c rtp.c player.c audio.c loudness.c activity_monitor.c utilities/debug.c utilities/network_utilities.c utilities/rtsp_message_utilities.c
+shairport_sync_SOURCES = shairport.c bonjour_strings.c rtsp.c mdns.c common.c rtp.c player.c audio.c \
+  loudness.c activity_monitor.c \
+  remote/remote.c \
+  utilities/debug.c utilities/network_utilities.c utilities/rtsp_message_utilities.c
 
 if BUILD_FOR_DARWIN
   AM_CXXFLAGS = -I/usr/local/include -Wno-multichar -Wall -Wextra -Wno-deprecated-declarations -pthread -DSYSCONFDIR=\"$(sysconfdir)\"
@@ -152,16 +155,17 @@ if USE_MQTT
 shairport_sync_SOURCES += mqtt.c
 endif
 
-if USE_DACP_CLIENT
-shairport_sync_SOURCES += dacp.c
-shairport_sync_LDADD += lib_tinyhttp.a
-noinst_LIBRARIES += lib_tinyhttp.a
-lib_tinyhttp_a_SOURCES =  tinyhttp/chunk.c tinyhttp/header.c tinyhttp/http.c
-endif
+
+# if USE_DACP_CLIENT
+# shairport_sync_SOURCES += dacp.c
+# shairport_sync_LDADD += lib_tinyhttp.a
+# noinst_LIBRARIES += lib_tinyhttp.a
+# lib_tinyhttp_a_SOURCES =  tinyhttp/chunk.c tinyhttp/header.c tinyhttp/http.c
+# endif
 
 if USE_AIRPLAY_2
 shairport_sync_SOURCES += ap2_buffered_audio_processor.c ap2_event_receiver.c \
-  ap2_event_message_handler.c ptp-utilities.c \
+  ptp-utilities.c \
   utilities/buffered_read.c utilities/structured_buffer.c utilities/mod23.c \
   utilities/generate_random_uuid.c utilities/generate_device_uuid.c \
   plists/get_info_response.c

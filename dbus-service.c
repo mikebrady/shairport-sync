@@ -41,9 +41,9 @@
 #include "dacp.h"
 #endif
 
-#include "metadata/hub.h"
-
 #include "dbus-service.h"
+#include "metadata/hub.h"
+#include "remote/remote.h"
 
 #ifdef CONFIG_CONVOLUTION
 #include <FFTConvolver/convolver.h>
@@ -479,12 +479,9 @@ static gboolean on_handle_set_airplay_volume(ShairportSyncRemoteControl *skeleto
                                              GDBusMethodInvocation *invocation,
                                              const gdouble volume,
                                              __attribute__((unused)) gpointer user_data) {
-  debug(2, "Set airplay volume to %.6f.", volume);
-#ifdef CONFIG_DACP_CLIENT
-  char command[256] = "";
-  snprintf(command, sizeof(command), "setproperty?dmcp.device-volume=%.6f", volume);
-  send_simple_dacp_command(command);
-#endif
+
+  debug(1, "Set airplay volume to %.3f.", volume);
+  remote_set_airplay_volume(volume);
   shairport_sync_remote_control_complete_set_airplay_volume(skeleton, invocation);
   return TRUE;
 }

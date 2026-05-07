@@ -1,6 +1,7 @@
 /*
- * AirPlay 2 Event Port Command Sender. This file is part of Shairport Sync
- * Copyright (c) Mike Brady 2025
+ * Remote Operations
+ * This file is part of Shairport Sync.
+ * Copyright (c) Mike Brady 2017--2026
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -24,21 +25,27 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "ap2_event_message_handler.h"
-#include "common.h"
+#include "remote.h"
 #include "rtsp.h"
+#include "player.h"
+#include "metadata/hub.h"
+
+#ifdef CONFIG_DACP_CLIENT
+#include "dacp.h"
+#endif
+
+#ifdef CONFIG_AIRPLAY_2
+#include "ap2_event_receiver.h"
+#include "utilities/rtsp_message_utilities.h"
 #include "utilities/structured_buffer.h"
 #include "utilities/generate_random_uuid.h"
 
-
-void decodeAndLogPlist(plist_t plist_to_log) { 
-  if (plist_to_log != NULL) {
-    char *plist_as_string = plist_as_xml_text(plist_to_log);
-    if (plist_as_string != NULL) {
-      debug(3, "--\n%s\n--\n", plist_as_string);
-      free(plist_as_string);
-    }
-  }
+double airplayVolumeToUnitVolume(double airplayVolume) {
+  double response = 0.0;
+  if ((airplayVolume >= -30.0) && (airplayVolume <= 0.0)) {
+    response = airplayVolume/30.0 + 1.0;
+  }     
+  return response;
 }
 
 plist_t prepareNSKeyedArchiver(const char *uid) {
@@ -153,43 +160,6 @@ plist_t prepareNSKeyedArchiver(const char *uid) {
   return archive_plist; /* caller is responsible for disposing of] this */
 }
 
-// will return -1 if there is an error or port is not open, 0 if the port was closed and a positive
-// number if okay
-ssize_t ap2_event_port_send_message(rtsp_conn_info *conn, char *data, size_t data_length) {
-  ssize_t result = -1; // assume a problem
-  debug_mutex_lock(&conn->event_sender_mutex, 1000000, 4);
-  pthread_cleanup_push(mutex_unlock, &conn->event_sender_mutex);
-  if (conn->event_channel_fd != 0) {
-    result = write_encrypted(conn->event_channel_fd, &conn->ap2_pairing_context.event_cipher_bundle,
-                             data, data_length);
-    if ((result != -1) && ((size_t)result == data_length)) {
-      debug(3, "Connection %d: Packet of %zu bytes successfully written on the Event Port.",
-            conn->connection_number, result);
-      uint8_t packet[4096];
-      result =
-          read_encrypted(conn->event_channel_fd, &conn->ap2_pairing_context.event_cipher_bundle,
-                         packet, sizeof(packet));
-      debug(3, "Connection %d: Packet of %zu bytes successfully read on the Event Port.",
-            conn->connection_number, result);
-      if (result > 0) {
-        packet[result] = '\0';
-        debug(3, "Connection %d: Packet Received on Event Port with contents: \n--\n%s\n--\n",
-              conn->connection_number, packet);
-      } else {
-        debug(2, "Connection %d: Event Port connection closed by client", conn->connection_number);
-      }
-    } else {
-      result = -1; // this covers a situation where the result is positive but not the same as the
-                   // data_length
-    }
-  } else {
-    debug(1, "Connection %d: attempt to send a command to the event port over a closed socket",
-          conn->connection_number);
-  }
-  pthread_cleanup_pop(1); // unlock the mutex
-  return result;
-}
-
 // this creates a plist will all the components of a modernMediaRemoteCommand,
 // but not the "modernMediaRemoteCommand""-keyed item itself,
 // nor the "value""-keyed item
@@ -227,63 +197,136 @@ void completeModernMediaRemoteCommand(plist_t command_plist, const char *command
   plist_dict_set_item(command_plist, "params", params_plist);
 }
 
-ssize_t ap2_event_port_post_command(rtsp_conn_info *conn, plist_t command) {
-  ssize_t result = 0;
-  decodeAndLogPlist(command);  
-  structured_buffer *sbuf = sbuf_new(4096);
-  if (sbuf != NULL) {
-    pthread_cleanup_push(sbuf_cleanup, sbuf);
-    char *plistString = NULL;
-    uint32_t plistStringLength = 0;
-    
-    plist_to_bin(command, &plistString, &plistStringLength);
-    if (plistString != NULL) {
-      sbuf_printf(sbuf, "POST /command RTSP/1.0\r\nContent-Length: %u\r\n", plistStringLength);
-      sbuf_printf(sbuf, "Content-Type: application/x-apple-binary-plist\r\n\r\n");
-      sbuf_append(sbuf, plistString, plistStringLength);
-      free(plistString); // should be plist_to_bin_free, but it's not defined in older
-                         // libraries
-      char *b = 0;
-      size_t l = 0;
-      sbuf_buf_and_length(sbuf, &b, &l);
-      result = ap2_event_port_send_message(conn, b, l);
-      debug(3, "Connection %d: POST /command sent on the event port. Result is %zd.",
-            conn->connection_number, result);
-      sbuf_clear(sbuf);
-    }
-    pthread_cleanup_pop(1); // delete the structured buffer
-  }
-  return result;  
+ssize_t ap2_event_send_modern_media_remote_command(rtsp_conn_info *conn, unsigned int command_number) {
+  ssize_t result = -1;
+  char command_number_string[32];
+  snprintf(command_number_string, sizeof(command_number_string), "%u", command_number);
+  plist_t modernMediaCommand = plist_new_dict();
+  plist_dict_set_item(modernMediaCommand,"modernMediaRemoteCommand", plist_new_string(command_number_string));
+  // plist_dict_set_item(modernMediaCommand,"value", plist_new_string(command_values[command_number]));
+  char *random_UUID = generate_random_uuid();
+  completeModernMediaRemoteCommand(modernMediaCommand,random_UUID, conn->airplay_gid);
+  free(random_UUID);
+  result = ap2_event_port_post_command(conn, modernMediaCommand);
+  plist_free(modernMediaCommand);
+  return result;
 }
 
-ssize_t ap2_event_send_update_info(rtsp_conn_info *conn) {
-  // sends the updateInfo plist on the event port
+ssize_t ap2_event_send_dev_mule() {
   ssize_t result = -1;
-  plist_t value_plist = generateInfoPlist(conn);
-  if (value_plist != NULL) {
-    void *txtData = NULL;
-    size_t txtDataLength = 0;
-    generateTxtDataValueInfo(conn, &txtData, &txtDataLength);
-    plist_dict_set_item(value_plist, "txtAirPlay", plist_new_data(txtData, txtDataLength));
-    free(txtData);
-    plist_t update_info_plist = plist_new_dict();
-    if (update_info_plist != NULL) {
-      plist_dict_set_item(update_info_plist, "type", plist_new_string("updateInfo"));
-      plist_dict_set_item(update_info_plist, "value", value_plist);
-      
-      char *plist_as_string = plist_as_xml_text(update_info_plist);
-      if (plist_as_string != NULL) {
-        debug(3, "update_info_plist is:\n--\n\"%s\"\n--\n", plist_as_string);
-        free(plist_as_string);
-      }
-      
-      result = ap2_event_port_post_command(conn, update_info_plist);           
-      plist_free(update_info_plist);
-    } else {
-      debug(1, "Could not build an updateInfo plist");
-    }
+  rtsp_conn_info *conn = principal_conn;
+  if (conn != NULL) {
+    char command_number_string[32];
+    snprintf(command_number_string, sizeof(command_number_string), "%u", 25); // set repeat mode
+    plist_t modernMediaCommand = plist_new_dict();
+    plist_dict_set_item(modernMediaCommand,"modernMediaRemoteCommand", plist_new_string(command_number_string));
+    plist_dict_set_item(modernMediaCommand,"kMRMediaRemoteCommandInfoRepeatMode", plist_new_uint(2));
+    char *random_UUID = generate_random_uuid();
+    completeModernMediaRemoteCommand(modernMediaCommand,random_UUID, conn->airplay_gid);
+    free(random_UUID);
+    result = ap2_event_port_post_command(conn, modernMediaCommand);
+    plist_free(modernMediaCommand);
+    if (result <= 0)
+      debug(1, "Connection %d: error %zd when sending mule command.", conn->connection_number, result);
   } else {
-    debug(1, "Could not build an updateInfo value plist");
+    debug(1, "No connection when sending mule command.");
   }
   return result;
+}
+
+ssize_t ap2_event_send_unit_volume_notification(rtsp_conn_info *conn, double volume) {
+  ssize_t result = -1;
+  // send a volume control notification request
+  if ((volume >= 0.0) && (volume <= 1.0)) {
+    structured_buffer *sbuf = sbuf_new(4096);
+    if (sbuf != NULL) {
+      pthread_cleanup_push(sbuf_cleanup, sbuf);
+      plist_t params_plist = plist_new_dict();
+      plist_dict_set_item(params_plist, "volume", plist_new_real(volume));
+
+      plist_t request_plist = plist_new_dict();
+      plist_dict_set_item(request_plist, "value", plist_new_string("dvlc"));
+      plist_dict_set_item(request_plist, "volume", plist_new_real(volume));
+      plist_dict_set_item(request_plist, "type", plist_new_string("sendMediaRemoteCommand"));
+      plist_dict_set_item(request_plist, "params", params_plist);
+
+      char *plistString = NULL;
+      uint32_t plistStringLength = 0;
+      plist_to_bin(request_plist, &plistString, &plistStringLength);
+      if (plistString != NULL) {
+        char *plist_as_string = plist_as_xml_text(request_plist);
+        if (plist_as_string != NULL) {
+          debug(4, "Plist is: \"%s\".", plist_as_string);
+          free(plist_as_string);
+        }
+        sbuf_printf(sbuf, "POST /command RTSP/1.0\r\nContent-Length: %u\r\n", plistStringLength);
+        sbuf_printf(sbuf, "Content-Type: application/x-apple-binary-plist\r\n\r\n");
+        sbuf_append(sbuf, plistString, plistStringLength);
+
+        free(plistString); // should be plist_to_bin_free, but it's not defined in older
+                           // libraries
+        char *b = 0;
+        size_t l = 0;
+        sbuf_buf_and_length(sbuf, &b, &l);
+        result = ap2_event_port_send_message(conn, b, l);
+        debug(3, "Connection %d: request to set volume to %f sent. Result is %zd.",
+              conn->connection_number, volume, result);
+        sbuf_clear(sbuf);
+      }
+      plist_free(request_plist);
+      pthread_cleanup_pop(1); // delete the structured buffer
+    }
+  } else {
+    debug(1, "Connection %d: volume notification request is %f, but must be between 0.0 and 1.0",
+          conn->connection_number, volume);
+  }
+  return result;
+}
+#endif
+
+void remote_set_airplay_volume(double volume) {
+  int available = 0;  
+#ifdef CONFIG_DACP_CLIENT
+  available = metadata_store.dacp_server_active;
+  if (available) {
+    debug(1, "remote_set_airplay_volume to %.3f -- DACP active.", volume);
+    char command[256] = "";
+    snprintf(command, sizeof(command), "setproperty?dmcp.device-volume=%.6f", volume);
+    send_simple_dacp_command(command);
+  }
+#endif
+#ifdef CONFIG_AIRPLAY_2
+  pthread_rwlock_rdlock(&principal_conn_lock); // don't let the principal_conn be changed
+  pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
+  if ((available == 0) && (principal_conn != NULL) && (principal_conn->airplay_type == ap_2)) {
+    debug(1, "remote_set_airplay_volume to %.3f -- AirPlay 2.", volume);
+    
+    double present_unit_volume = airplayVolumeToUnitVolume(config.airplay_volume);
+    double desired_unit_volume = airplayVolumeToUnitVolume(volume);
+
+    if (principal_conn != NULL) {           
+      // It seems that a large change of the notified volume, e.g. from 1.0 to 0.0, evokes
+      // a bug in Apple Music on macOS Tahoe, causing the local (mac) volume to jump.
+      // So here, we notify changes in 0.09 increments with a short delay between them.
+      // The last change can be up to 0.1.
+      while (fabs(desired_unit_volume - present_unit_volume) > 1E-3) {
+        if (fabs(desired_unit_volume - present_unit_volume) < 0.1) {
+          present_unit_volume = desired_unit_volume;
+        } else {
+          if (desired_unit_volume > present_unit_volume)
+            present_unit_volume += 0.09;
+          else
+            present_unit_volume -= 0.09;
+        }
+        ap2_event_send_unit_volume_notification(principal_conn, present_unit_volume);
+        debug(1, "remote_set_airplay_volume set unit volume to %.3f.", present_unit_volume);
+        usleep(10000);
+      }
+      player_volume(volume, principal_conn);
+    } else {
+      config.airplay_volume = volume; 
+    }
+  }
+  pthread_cleanup_pop(1); // release the principal_conn lock
+#endif   
 }
