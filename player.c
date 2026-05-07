@@ -652,28 +652,52 @@ int setup_software_resampler(rtsp_conn_info *conn, ssrc_t ssrc) {
 
     av_opt_set_sample_fmt(swr, "in_sample_fmt", input_format, 0);
 
-    // remember that if mixdown is enabled,
-    // set the resampler's channel layout either automatically or use the
-    // setting that has been given
+    // If mixdown is enabled, set the resampler's channel layout,
+    // either automatically based on the number of ooutput channels,
+    // or by using the setting that has been given.
+
+    // Upmixing will not be done if the setting is "auto".
+    
+    // Similarly, on the "auto" setting, downmixing will be done
+    // only if the number of output channels available
+    // is strictly less than the number of input channels.
+    
+    // If the number of output channels equals the number of input channels,
+    // no mixing is done on the "auto" setting.
+
+    // To do an upmix or a custom downmix, specify
+    // the target format, e.g. "7.1" in the mixdown setting.
+    
+    // NOTE: upmixing, by default, simply copies the input channels to their
+    // equivalents in the output channels. All other channels are
+    // left silent.
 
 #if LIBAVUTIL_VERSION_MAJOR >= 57
     {
       AVChannelLayout input_channel_layout;
       av_channel_layout_from_mask(&input_channel_layout, input_layout);
+      int input_channel_count = input_channel_layout.nb_channels;
       av_opt_set_chlayout(swr, "in_chlayout", &input_channel_layout, 0);
       av_channel_layout_uninit(&input_channel_layout);
 
       AVChannelLayout output_channel_layout;
       if (config.mixdown_enable != 0) {
         if (config.mixdown_channel_layout == 0) {
-          av_channel_layout_default(&output_channel_layout,
+          if (CHANNELS_FROM_ENCODED_FORMAT(output_configuration) < (unsigned) input_channel_count) {
+            av_channel_layout_default(&output_channel_layout,
                                     CHANNELS_FROM_ENCODED_FORMAT(output_configuration));
+          } else {
+            av_channel_layout_from_mask(&output_channel_layout, input_layout);
+          }
         } else {
           av_channel_layout_from_mask(&output_channel_layout, config.mixdown_channel_layout);
         }
       } else {
         av_channel_layout_from_mask(&output_channel_layout, output_layout);
       }
+      char layout_desc[2048];
+      av_channel_layout_describe(&output_channel_layout, layout_desc, sizeof(layout_desc));
+      debug(1,"output channel layout: \"%s\"", layout_desc);
       av_opt_set_chlayout(swr, "out_chlayout", &output_channel_layout, 0);
       av_channel_layout_uninit(&output_channel_layout);
     }
@@ -681,8 +705,10 @@ int setup_software_resampler(rtsp_conn_info *conn, ssrc_t ssrc) {
     av_opt_set_int(swr, "in_channel_layout", input_layout, 0);
     if (config.mixdown_enable != 0) {
       if (config.mixdown_channel_layout == 0) {
-        output_layout =
-            av_get_default_channel_layout(CHANNELS_FROM_ENCODED_FORMAT(output_configuration));
+        if (CHANNELS_FROM_ENCODED_FORMAT(output_configuration) < av_get_channel_layout_nb_channels(input_layout)) {
+          output_layout =
+              av_get_default_channel_layout(CHANNELS_FROM_ENCODED_FORMAT(output_configuration));
+        } // else leave output_layout as it was: the sames as the input_layout.
       } else {
         output_layout = config.mixdown_channel_layout;
       }
@@ -962,7 +988,7 @@ int setup_software_resampler(rtsp_conn_info *conn, ssrc_t ssrc) {
 
       if (output_configuration_changed != 0) {
         char channel_mapping_list[256] = "";
-        for (c = 0; c < 8; c++) {
+        for (c = 0; c < SPS_GREATEST_CHANNEL_COUNT; c++) {
           if ((output_channels[c].allocated != 0) &&
               (conn->output_channel_to_resampler_channel_map[c] != silent_channel_index)) {
             char channel_mapping[32] = "";

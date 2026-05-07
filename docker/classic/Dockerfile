@@ -1,8 +1,8 @@
 # Classic Shairport-Sync build. Note: the only decoder in FFmpeg is ALAC.
 
 ARG SHAIRPORT_SYNC_BRANCH=.
-ARG FFMPEG_BRANCH=release/7.1
-ARG ALPINE_VERSION=20250108
+ARG FFMPEG_BRANCH=release/8.1
+ARG ALPINE_VERSION=3.23.4
 
 ##### FFMPEGLITE #####
 FROM alpine:$ALPINE_VERSION AS ffmpeglite
@@ -29,7 +29,6 @@ RUN ./configure \
   --disable-network \
   --disable-iamf \
   --disable-pixelutils \
-  --disable-postproc \
   --enable-decoder=alac
 RUN make
 RUN make install
