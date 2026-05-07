@@ -652,20 +652,25 @@ int setup_software_resampler(rtsp_conn_info *conn, ssrc_t ssrc) {
 
     av_opt_set_sample_fmt(swr, "in_sample_fmt", input_format, 0);
 
-    // remember that if mixdown is enabled,
-    // set the resampler's channel layout either automatically or use the
-    // setting that has been given
+    // If mixdown is enabled, set the resampler's channel layout,
+    // either automatically based on the number of ooutput channels,
+    // or by using the setting that has been given.
 
-    // We impose the rule that, if the mixdown setting is "auto",
-    // we will not upmix if the number of output channels available
-    // is greater than the number of channels needed.
-
-    // To do an upmix, you will have to specify the upmix target, e.g. "7.1"
-    // in the mixdown setting.
+    // Upmixing will not be done if the setting is "auto".
     
-    // NOTE: upmixing at present, by default, simply copies the input channels to their
-    // equivalents in the output channel set. All the other channels are
-    // left alone.
+    // Similarly, on the "auto" setting, downmixing will be done
+    // only if the number of output channels available
+    // is strictly less than the number of input channels.
+    
+    // If the number of output channels equals the number of input channels,
+    // no mixing is done on the "auto" setting.
+
+    // To do an upmix or a custom downmix, specify
+    // the target format, e.g. "7.1" in the mixdown setting.
+    
+    // NOTE: upmixing, by default, simply copies the input channels to their
+    // equivalents in the output channels. All other channels are
+    // left silent.
 
 #if LIBAVUTIL_VERSION_MAJOR >= 57
     {
@@ -678,11 +683,11 @@ int setup_software_resampler(rtsp_conn_info *conn, ssrc_t ssrc) {
       AVChannelLayout output_channel_layout;
       if (config.mixdown_enable != 0) {
         if (config.mixdown_channel_layout == 0) {
-          if (CHANNELS_FROM_ENCODED_FORMAT(output_configuration) > (unsigned) input_channel_count) {
-            av_channel_layout_from_mask(&output_channel_layout, input_layout);
-          } else {
+          if (CHANNELS_FROM_ENCODED_FORMAT(output_configuration) < (unsigned) input_channel_count) {
             av_channel_layout_default(&output_channel_layout,
                                     CHANNELS_FROM_ENCODED_FORMAT(output_configuration));
+          } else {
+            av_channel_layout_from_mask(&output_channel_layout, input_layout);
           }
         } else {
           av_channel_layout_from_mask(&output_channel_layout, config.mixdown_channel_layout);
