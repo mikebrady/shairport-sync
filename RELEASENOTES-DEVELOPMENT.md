@@ -1,3 +1,12 @@
+Version 5.0.5-dev-7-g3a1bfd71
+==
+**Docker Updates**
+* Update Docker images to use Alpine 3.23.4 (up from build "20250108").
+* Update Docker images to use FFmpeg 8.1 (up from 7.1).
+
+**Other Updates**
+* Fix some benign compiler warnings coming from the updated compiler in Ubuntu 26.04.
+
 Version 5.0.5-dev-2-g2400aae4
 ==
 This is effectively 5.0.4-dev-9-g68b6d4df.
