@@ -1,7 +1,23 @@
+Version 5.0.5-dev-10-g4b020a6b
+==
+**Enhancements**
+* Experimentally allow up to 31 audio channels. This is up from a previous maximum of eight. The ALSA system allows up to 32 channels, one more than Shairport Sync can handle, so let's see...
+
+  Unfortunately, this can not be tested due to a lack of suitable output devices, so if anyone can test it out, it would be appreciated.
+
+  Thanks to [24fpsDaVinci](https://github.com/24fpsDaVinci) for the [issue](https://github.com/mikebrady/shairport-sync/issues/2199).
+
+**Upmixing**
+* "Upmixing" adds channels to an audio stream, e.g. you could upmix stereo (two channels) to 5.1 surround sound (six channels) by copying and blending the stereo channels to drive the extra surround channels. The FFmpeg resampler used by Shairport Sync does implement upmixing, but by default it just copies the source channels to their equivalent channels in the output, leaving the extra channels silent.
+  
+  So, while Shairport Sync does technically implement upmixing, it makes no audible difference. Maybe in the future, upmixing matrices will be added, but it is not a priority just now.
+
+  Thanks to [iliaspapan](https://github.com/iliaspapan) for [enquiring](https://github.com/mikebrady/shairport-sync/issues/2194) about this.
+
 Version 5.0.5-dev-7-g3a1bfd71
 ==
 **Docker Updates**
-* Update Docker images to use Alpine 3.23.4 (up from build "20250108").
+* Update Docker images to use Alpine 3.23.4 (up from build 20250108).
 * Update Docker images to use FFmpeg 8.1 (up from 7.1).
 
 **Other Updates**
