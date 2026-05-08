@@ -1692,10 +1692,10 @@ void handle_pair_pin_start(rtsp_conn_info *conn, rtsp_message *req, rtsp_message
       free(conn->ap2_client_name);
     conn->ap2_client_name = strdup(hdr);
   }
-  debug(1, "Connection %d from \"%s\": handle_pair_pin_start, Content-Length %d", conn->connection_number,
+  debug(4, "Connection %d from \"%s\": handle_pair_pin_start, Content-Length %d", conn->connection_number,
         conn->ap2_client_name,
         req->contentlength);
-  debug_log_rtsp_message_conn(conn, 1, "handle_pair_pin_start", req);
+  debug_log_rtsp_message_conn(conn, 4, "handle_pair_pin_start", req);
 
   uint8_t *body = NULL;
   size_t body_len = 0;
@@ -1704,7 +1704,7 @@ void handle_pair_pin_start(rtsp_conn_info *conn, rtsp_message *req, rtsp_message
   resp->contentlength = body_len;
   if (body != NULL)
     msg_add_header(resp, "Content-Type", "application/octet-stream");
-  debug_log_rtsp_message(1, "pair-pin-start response", resp);
+  debug_log_rtsp_message(4, "pair-pin-start response", resp);
 }
 
 void handle_pair_setup(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
