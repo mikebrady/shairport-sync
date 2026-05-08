@@ -1,3 +1,9 @@
+Version 5.0.5-dev-12-g9d102497
+==
+**Enhancements**
+* Setting a password now works with AirPlay 2 as well as Classic AirPlay. Use the `password` setting in the `general` sectioon of the configuration file or the `--password="<password>"` command line option to set a password.
+* Update information about the password and interpolation (aka "stuffing") command line settings. 
+
 Version 5.0.5-dev-10-g4b020a6b
 ==
 **Enhancements**
