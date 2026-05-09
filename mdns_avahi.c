@@ -90,8 +90,9 @@ static void resolve_callback(AvahiServiceResolver *r, AVAHI_GCC_UNUSED AvahiIfIn
                              AVAHI_GCC_UNUSED AvahiProtocol protocol, AvahiResolverEvent event,
                              const char *name, const char *type, const char *domain,
                              __attribute__((unused)) const char *host_name,
-#ifdef CONFIG_METADATA
-                             __attribute__((unused)) const AvahiAddress *address, uint16_t lport,
+#if defined(CONFIG_METADATA) || defined(CONFIG_DACP_CLIENT)
+                             __attribute__((unused)) const AvahiAddress *address,
+                             uint16_t lport,
 #else
                              __attribute__((unused)) const AvahiAddress *address,
                              __attribute__((unused)) uint16_t lport,
@@ -119,14 +120,14 @@ static void resolve_callback(AvahiServiceResolver *r, AVAHI_GCC_UNUSED AvahiIfIn
         while (*dacpid == '0')
           dacpid++; // skip any leading zeroes
         if (strcmp(dacpid, dbs->dacp_id) == 0) {
-          debug(3, "resolve_callback: client dacp_id \"%s\" dacp port: %u.", dbs->dacp_id, port);
+          debug(1, "resolve_callback: client dacp_id \"%s\" dacp port: %u.", dbs->dacp_id, lport);
 #ifdef CONFIG_DACP_CLIENT
-          dacp_monitor_port_update_callback(dacpid, port);
+          dacp_monitor_port_update_callback(dacpid, lport);
 #endif
 #ifdef CONFIG_METADATA
-          uint32_t nport = lport;
-          nport = htonl(nport);
-          send_ssnc_metadata('dapo', (const char *)&nport, sizeof(nport), 0);
+          char port_in_chars[16];
+          snprintf(port_in_chars, 7, "%u", lport);
+          send_ssnc_metadata('dapo', port_in_chars, strlen(port_in_chars), 0);
 #endif
         }
       } else {
@@ -166,19 +167,23 @@ static void browse_callback(AvahiServiceBrowser *b, AvahiIfIndex interface, Avah
     break;
   case AVAHI_BROWSER_REMOVE:
     debug(3, "(Browser) REMOVE: service '%s' of type '%s' in domain '%s'.", name, type, domain);
-#ifdef CONFIG_DACP_CLIENT
     dacp_browser_struct *dbs = (dacp_browser_struct *)userdata;
     const char *dacpid = strstr(name, "iTunes_Ctrl_");
     if (dacpid) {
       dacpid += strlen("iTunes_Ctrl_");
       while (*dacpid == '0')
         dacpid++; // skip any leading zeroes
-      if ((dbs->dacp_id) && (strcmp(dacpid, dbs->dacp_id) == 0))
+      if ((dbs->dacp_id) && (strcmp(dacpid, dbs->dacp_id) == 0)) {
+#ifdef CONFIG_DACP_CLIENT
         dacp_monitor_port_update_callback(dbs->dacp_id, 0); // say the port is withdrawn
+#endif
+#ifdef CONFIG_METADATA
+          send_ssnc_metadata('dapo', "0", strlen("0"), 0);
+#endif
+      }
     } else {
       debug(1, "Browse callback: Can't see a DACP string in a DACP Record!");
     }
-#endif
     break;
   case AVAHI_BROWSER_ALL_FOR_NOW:
   case AVAHI_BROWSER_CACHE_EXHAUSTED:

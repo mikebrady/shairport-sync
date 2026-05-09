@@ -697,7 +697,7 @@ int setup_software_resampler(rtsp_conn_info *conn, ssrc_t ssrc) {
       }
       char layout_desc[2048];
       av_channel_layout_describe(&output_channel_layout, layout_desc, sizeof(layout_desc));
-      debug(1,"output channel layout: \"%s\"", layout_desc);
+      // debug(1,"output channel layout: \"%s\"", layout_desc);
       av_opt_set_chlayout(swr, "out_chlayout", &output_channel_layout, 0);
       av_channel_layout_uninit(&output_channel_layout);
     }
