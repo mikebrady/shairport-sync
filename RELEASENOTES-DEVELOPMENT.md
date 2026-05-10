@@ -1,13 +1,15 @@
 Version 5.0.5-dev-15-g3cbc4b18
 ==
-**Bug Fixes – Classic AirPlay Remote Control**
-* Fixed a significant Classic AirPlay Remote Control bug: in Classic AirPlay mode, the DACP command port was being incorrectly reported to the Remote Control system, causing it not to function!
+**Bug Fixes – Classic AirPlay Remote Control (Updated)**
+* A significant Classic AirPlay Remote Control bug was found: in Classic AirPlay mode, the DACP command port was being incorrectly reported to the Remote Control system, causing it not to function!
 
-  This has been fixed, and limited remote control has been restored for Classic AirPlay. Check the D-Bus interface for the [`RemoteControl`](org.gnome.ShairportSync.xml#L44) suite -- most all of these now work. The [`AdvancedRemoteControl`](org.gnome.ShairportSync.xml#L72) suite does not work, and seems to be no longer supported by any Classic AirPlay clients.
+  This has been fixed, and remote control has been restored for Classic AirPlay. Please check the D-Bus interface for the [`RemoteControl`](org.gnome.ShairportSync.xml#L44) suite -- most all of these now work.
+The [`AdvancedRemoteControl`](org.gnome.ShairportSync.xml#L72) suite also works with the macOS Music App but only in Classic AirPlay.
+
 
   [MQTT remote control commands](mqtt.c#L68) and some [MPRIS commands](org.mpris.MediaPlayer2.xml#L16) should now also work, although the MPRIS interface is quite incomplete.
   
-* The `dapo` metadata token now correctly reports the DACP port as a character string, and reports a DACP port of "0" when the DACP port is or becomes invalid.
+* The `dapo` metadata token now correctly reports the DACP port as a character string, and reports a DACP port of `"0"` when the DACP port is or becomes invalid.
 
 Version 5.0.5-dev-12-g9d102497
 ==
