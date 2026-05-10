@@ -2,6 +2,8 @@
 
 Shairport Sync can have a D-Bus interface, which can be used to control aspects of its operation and get status information from it.
 
+For Classic AirPlay only, remote control commands, for example `play`, `pause` and volume control, can be sent to the player.
+
 To include the D-Bus interface at build time, add the `--with-dbus-interface` flag at the `./configure…` stage. When the D-Bus interface is included in Shairport Sync, its Version String will include the term `dbus`, for instance:
 ```
 $ shairport-sync -V
@@ -143,7 +145,7 @@ The examples below are based on Shairport Sync running as a `system` service and
 #### Remote Control
 Remote Control commands are sent as requests to the player (iOS, iTunes, macOS Music, etc.). Different versions of the players implement different subsets of the following commands.
 
-**Note:** Unfortunately, at this time -- early 2026 -- these requests are ignored, so remote control doesn't work.
+**Note:** Remote Control only works on Classic Airplay
 
 * Check if Remote Control is available:
 ```
@@ -162,7 +164,7 @@ Remote Control commands are sent as requests to the player (iOS, iTunes, macOS M
 #### Advanced Remote Control
 Some commands and properties are accessible only through the `AdvancedRemoteControl` interface.
 
-**Note:** Unfortunately, at this time -- early 2026 -- these requests are ignored, so advanced remote control doesn't work.
+**Note:** Advanced Remote Control only works on Classic Airplay and has only been observed to work with the macOS Music app.
 
 * Check if Advanced Remote Control is available:
 ```

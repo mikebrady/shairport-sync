@@ -22,12 +22,13 @@ Shairport Sync does not support AirPlay video or photo streaming.
 # Features
 * Outputs AirPlay audio to [ALSA](https://www.alsa-project.org/wiki/Main_Page), [sndio](http://www.sndio.org), [PipeWire](https://pipewire.org), [PulseAudio](https://www.freedesktop.org/wiki/Software/PulseAudio/), to a unix pipe or to `STDOUT`. It also has limited support for [libao](https://xiph.org/ao/).
 * Metadata — Shairport Sync can deliver metadata supplied by the source, such as Album Name, Artist Name, Cover Art, etc. through a pipe or UDP socket to a recipient application program — see https://github.com/mikebrady/shairport-sync-metadata-reader for a sample recipient. Sources that supply metadata include iTunes and the Music app in macOS and iOS.
-* An interface to [MQTT](https://en.wikipedia.org/wiki/MQTT), a popular protocol for Inter Process Communication, Machine-to-Machine, Internet of Things and Home Automation projects. The interface provides access to metadata and artwork, and has limited remote control.
+* An interface to [MQTT](https://en.wikipedia.org/wiki/MQTT), a popular protocol for Inter Process Communication, Machine-to-Machine, Internet of Things and Home Automation projects. The interface provides access to metadata and artwork, with remote control for Classic AirPlay clients.
 * Digital Signal Processing facilities – please see the [DSP Wiki Page Guide](https://github.com/mikebrady/shairport-sync/wiki/Digital-Signal-Processing-with-Shairport-Sync). (Thanks to [Yann Pomarède](https://github.com/yannpom) for the code and to [Paul Wieland](https://github.com/PaulWieland) for the guide.)
-* An [MPRIS](https://specifications.freedesktop.org/mpris-spec/2.2/)-like interface, partially complete and very functional, including access to metadata and artwork, and limited remote control.
-* A native D-Bus interface, including access to metadata and artwork, limited remote control and system settings.
+* An [MPRIS](https://specifications.freedesktop.org/mpris-spec/2.2/)-like interface, partially complete and very functional, including access to metadata and artwork, and partial remote control for Classic AirPlay clients.
+* A native D-Bus interface, including access to metadata, artwork and system settings. Remote control is also available for Classic AirPlay clients.
 * Better Volume Control — Shairport Sync offers finer control at very top and very bottom of the volume range. See http://tangentsoft.net/audio/atten.html for a good discussion of audio "attenuators", upon which volume control in Shairport Sync is modelled. See also the diagram of the volume transfer function in the documents folder. In addition, Shairport Sync can offer an extended volume control range on devices with a restricted range.
 * Flexible output rates, formats and channels with built-in transcoding.
+* Remote Control (Classic AirPLay only) – Remote control commands -- such as `play`, `pause`, and volume-setting commands -- can be sent to Classic AirPlay clients via the D-Bus, MPRIS and MQTT interfaces. Remote Control is unfortunately not available for AirPlay 2 clients, as the system used has not been discovered.
 
 Some features require configuration at build time – see [CONFIGURATION FLAGS.md](CONFIGURATION%20FLAGS.md).
 
