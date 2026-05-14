@@ -22,6 +22,7 @@ To build Shairport Sync for AirPlay 2, include the `--with-airplay-2` option in 
 | ----- |
 | `--with-alsa` |
 | `--with-sndio` |
+| `--with-coreaudio` / `--without-coreaudio` |
 | `--with-pipewire` |
 | `--with-pulseaudio` |
 | `--with-jack` |
@@ -35,6 +36,7 @@ Here are the audio backend configuration options:
 
 - `--with-alsa` Output to the Advanced Linux Sound Architecture ([ALSA](https://www.alsa-project.org/wiki/Main_Page)) system. This is recommended for highest quality.
 - `--with-sndio` Output to the FreeBSD-native [sndio](https://sndio.org) system.
+- `--with-coreaudio` / `--without-coreaudio` Output to macOS CoreAudio via the system default output device. When `--with-os=darwin` (including the default on macOS), CoreAudio is enabled unless you pass `--without-coreaudio`.
 - `--with-pipewire` Output to the [PipeWire](https://pipewire.org) sound server.
 - `--with-pulseaudio` Include the [PulseAudio](https://www.freedesktop.org/wiki/Software/PulseAudio) sound server.
 - `--with-jack` Output to the [Jack Audio](https://jackaudio.org) system.

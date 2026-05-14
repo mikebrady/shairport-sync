@@ -51,6 +51,9 @@ shairport-sync.xcodeproj
 # separate build directories
 build
 
+# Local NQPTP source tree (clone upstream separately)
+/nqptp/
+
 # vscode
 .vscode
 
