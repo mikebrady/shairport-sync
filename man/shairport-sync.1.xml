@@ -39,7 +39,6 @@
       <opt>[-a </opt><arg>service-name</arg><opt> | --name=</opt><arg>service-name</arg><opt>]</opt>
       <opt>[-B </opt><arg>command</arg><opt> | --onstart=</opt><arg>command</arg><opt>]</opt>
       <opt>[-c </opt><arg>configurationfile</arg><opt> | --configfile=</opt><arg>configurationfile</arg><opt>]</opt>
-      <opt>[--classic-airplay-only]</opt>
       <opt>[-d | --daemon]</opt>
       <opt>[--dbus-default-message-bus=</opt><arg>bus</arg><opt>]</opt>
       <opt>[-E </opt><arg>command</arg><opt> | --onstop=</opt><arg>command</arg><opt>]</opt>
@@ -54,6 +53,7 @@
       <opt>[-p </opt><arg>port</arg><opt> | --port=</opt><arg>port</arg><opt>]</opt>
       <opt>[--password=</opt><arg>secret</arg><opt>]</opt>
       <opt>[-r </opt><arg>threshold</arg><opt> | --resync=</opt><arg>threshold</arg><opt>]</opt>
+      <opt>[--service-type=</opt><arg>type</arg><opt>]</opt>
       <opt>[--statistics]</opt>
       <opt>[-S </opt><arg>mode</arg><opt> | --stuffing=</opt><arg>mode</arg><opt>]</opt>
       <opt>[-t </opt><arg>timeout</arg><opt> | --timeout=</opt><arg>timeout</arg><opt>]</opt>
