@@ -127,7 +127,7 @@ Require the password \fIsecret\f1 to be able to connect and stream to the servic
 \fB-r \f1\fIthreshold\f1\fB | --resync=\f1\fIthreshold\f1
 Resynchronise if timings differ by more than \fIthreshold\f1 frames. If the output timing differs from the source timing by more than the threshold, output will be muted and a full resynchronisation will occur. The default threshold is 2,205 frames, i.e. 50 milliseconds. Specify \fB0\f1 to disable resynchronisation. This setting is deprecated and will be removed in a future version of shairport-sync. 
 .TP
-\fB--service-type\f1
+\fB--service-type=\f1\fItype\f1
 On an AirPlay-2-capable Shairport Sync, if you need offer only the older "classic" AirPlay (sometimes called AirPlay 1) service, set \fB--service-type=classic\f1. A potential use of this would be for Apple Music on Windows, which is not compatible with the AirPlay 2 service offered by Shairport Sync, but which is compatible with the classic-only service. To offer AirPlay 2 service only, set \fB--service-type=airplay2\f1 (note that this requires NQPTP). Set \fB--service-type=auto\f1 to allow Shairport Sync to choose AirPlay 2 service if NQPTP is present or classic AirPlay service if not, with "(Classic)" appended to the default service name. 
 .TP
 \fB--statistics\f1

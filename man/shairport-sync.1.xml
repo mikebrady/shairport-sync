@@ -362,7 +362,7 @@
 	  </option>
 
 	  <option>
-		<p><opt>--service-type</opt></p>
+		<p><opt>--service-type=</opt><arg>type</arg></p>
 		<optdesc><p>
 		On an AirPlay-2-capable Shairport Sync, if you need offer only the older
 		"classic" AirPlay (sometimes called AirPlay 1) service, set
