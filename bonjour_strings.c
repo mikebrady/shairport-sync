@@ -76,72 +76,76 @@ void build_bonjour_strings(__attribute((unused)) rtsp_conn_info *conn) {
   // the secondary_txt_records are for the _airplay._tcp items.
 
 #ifdef CONFIG_AIRPLAY_2
-  txt_records[entry_number++] = "cn=0,1";
-  txt_records[entry_number++] = "da=true";
-  txt_records[entry_number++] = "et=0,1";
-  if (config.password != NULL)
-    txt_records[entry_number++] = "pw=true";
   uint64_t features_hi = config.airplay_features;
   features_hi = (features_hi >> 32) & 0xffffffff;
   uint64_t features_lo = config.airplay_features;
   features_lo = features_lo & 0xffffffff;
 
-  txt_records[entry_number++] =
-      bnprintf(ap1_featuresString, sizeof(ap1_featuresString), "ft=0x%" PRIX64 ",0x%" PRIX64 "",
-               features_lo, features_hi);
+  if (config.service_type == APST_airplay2) {
+    txt_records[entry_number++] = "cn=0,1";
+    txt_records[entry_number++] = "da=true";
+    txt_records[entry_number++] = "et=0,1";
+    if (config.password != NULL)
+      txt_records[entry_number++] = "pw=true";
 
-  txt_records[entry_number++] =
-      bnprintf(fwString, sizeof(fwString), "fv=%s", config.firmware_version);
-  txt_records[entry_number++] = bnprintf(ap1StatusFlagsString, sizeof(ap1StatusFlagsString),
-                                         "sf=0x%" PRIX32, config.airplay_statusflags);
-#ifdef CONFIG_METADATA
-  if (config.get_coverart == 0)
-    txt_records[entry_number++] = "md=0,2";
-  else
-    txt_records[entry_number++] = "md=0,1,2";
-#endif
-  txt_records[entry_number++] =
-      bnprintf(ap1ModelString, sizeof(ap1ModelString), "am=%s", config.model);
-  txt_records[entry_number++] = bnprintf(pkString, sizeof(pkString), "pk=%s", config.pk_string);
-  txt_records[entry_number++] = "tp=UDP";
-  txt_records[entry_number++] = "vn=65537";
-  txt_records[entry_number++] =
-      bnprintf(ap1SrcversString, sizeof(ap1SrcversString), "vs=%s", config.srcvers);
-  txt_records[entry_number++] =
-      bnprintf(ap1OsversString, sizeof(ap1OsversString), "ov=%s", config.osvers);
-  txt_records[entry_number++] = NULL;
+    txt_records[entry_number++] =
+        bnprintf(ap1_featuresString, sizeof(ap1_featuresString), "ft=0x%" PRIX64 ",0x%" PRIX64 "",
+                 features_lo, features_hi);
 
-#else
-  // here, just replicate what happens in mdns.h when using those #defines
-  txt_records[entry_number++] =
-      bnprintf(ap1StatusFlagsString, sizeof(ap1StatusFlagsString), "sf=0x4");
-  txt_records[entry_number++] =
-      bnprintf(fwString, sizeof(fwString), "fv=%s", config.firmware_version);
-  txt_records[entry_number++] =
-      bnprintf(ap1ModelString, sizeof(ap1ModelString), "am=%s", config.model);
-  txt_records[entry_number++] = bnprintf(ap1SrcversString, sizeof(ap1SrcversString), "vs=105.1");
-  txt_records[entry_number++] = "tp=TCP,UDP";
-  txt_records[entry_number++] = "vn=65537";
+    txt_records[entry_number++] =
+        bnprintf(fwString, sizeof(fwString), "fv=%s", config.firmware_version);
+    txt_records[entry_number++] = bnprintf(ap1StatusFlagsString, sizeof(ap1StatusFlagsString),
+                                           "sf=0x%" PRIX32, config.airplay_statusflags);
 #ifdef CONFIG_METADATA
-  if (config.get_coverart == 0)
-    txt_records[entry_number++] = "md=0,2";
-  else
-    txt_records[entry_number++] = "md=0,1,2";
+    if (config.get_coverart == 0)
+      txt_records[entry_number++] = "md=0,2";
+    else
+      txt_records[entry_number++] = "md=0,1,2";
 #endif
-  txt_records[entry_number++] = "ss=16";
-  txt_records[entry_number++] = "sr=44100";
-  txt_records[entry_number++] = "da=true";
-  txt_records[entry_number++] = "sv=false";
-  txt_records[entry_number++] = "et=0,1";
-  txt_records[entry_number++] = "ek=1";
-  txt_records[entry_number++] = "cn=0,1";
-  txt_records[entry_number++] = "ch=2";
-  txt_records[entry_number++] = "txtvers=1";
-  if (config.password == NULL)
-    txt_records[entry_number++] = "pw=false";
-  else
-    txt_records[entry_number++] = "pw=true";
-  txt_records[entry_number++] = NULL;
+    txt_records[entry_number++] =
+        bnprintf(ap1ModelString, sizeof(ap1ModelString), "am=%s", config.model);
+    txt_records[entry_number++] = bnprintf(pkString, sizeof(pkString), "pk=%s", config.pk_string);
+    txt_records[entry_number++] = "tp=UDP";
+    txt_records[entry_number++] = "vn=65537";
+    txt_records[entry_number++] =
+        bnprintf(ap1SrcversString, sizeof(ap1SrcversString), "vs=%s", config.srcvers);
+    txt_records[entry_number++] =
+        bnprintf(ap1OsversString, sizeof(ap1OsversString), "ov=%s", config.osvers);
+    txt_records[entry_number++] = NULL;
+  } else {
+#endif
+    // here, just replicate what happens in mdns.h when using those #defines
+    txt_records[entry_number++] =
+        bnprintf(ap1StatusFlagsString, sizeof(ap1StatusFlagsString), "sf=0x4");
+    txt_records[entry_number++] =
+        bnprintf(fwString, sizeof(fwString), "fv=%s", config.firmware_version);
+    txt_records[entry_number++] =
+        bnprintf(ap1ModelString, sizeof(ap1ModelString), "am=%s", config.model);
+    txt_records[entry_number++] = bnprintf(ap1SrcversString, sizeof(ap1SrcversString), "vs=105.1");
+    txt_records[entry_number++] = "tp=TCP,UDP";
+    txt_records[entry_number++] = "vn=65537";
+#ifdef CONFIG_METADATA
+    if (config.get_coverart == 0)
+      txt_records[entry_number++] = "md=0,2";
+    else
+      txt_records[entry_number++] = "md=0,1,2";
+#endif
+    txt_records[entry_number++] = "ss=16";
+    txt_records[entry_number++] = "sr=44100";
+    txt_records[entry_number++] = "da=true";
+    txt_records[entry_number++] = "sv=false";
+    txt_records[entry_number++] = "et=0,1";
+    txt_records[entry_number++] = "ek=1";
+    txt_records[entry_number++] = "cn=0,1";
+    txt_records[entry_number++] = "ch=2";
+    txt_records[entry_number++] = "txtvers=1";
+    if (config.password == NULL)
+      txt_records[entry_number++] = "pw=false";
+    else
+      txt_records[entry_number++] = "pw=true";
+    txt_records[entry_number++] = NULL;
+#ifdef CONFIG_AIRPLAY_2
+  }
 #endif
 
 #ifdef CONFIG_AIRPLAY_2

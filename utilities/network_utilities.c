@@ -1,6 +1,6 @@
 /*
  * Network Utilities. This file is part of Shairport Sync.
- * Copyright (c) Mike Brady 2014--2025
+ * Copyright (c) Mike Brady 2026
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -25,7 +25,9 @@
  */
 
 #include "network_utilities.h"
+#include "common.h"
 #include <errno.h>
+#include <pthread.h>
 #include <string.h>
 
 int eintr_checked_accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
@@ -42,4 +44,27 @@ int eintr_checked_accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen) 
 
   } while ((response == -1) && (errno == EINTR));
   return response;
+}
+
+pthread_mutex_t safe_socket_lock = PTHREAD_MUTEX_INITIALIZER;
+
+int _safe_socket_close(const char *filename, const int linenumber, int *sockfd) {
+  int result = 0;
+  int oldstate;
+  pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldstate);
+  debug_mutex_lock(&safe_socket_lock, 1000000, 1);
+  if (*sockfd == 0) {
+    _debug(filename, linenumber, 1, "_safe_socket_close: socket is zero!");
+  }
+  if ((*sockfd != -1) && (*sockfd != 0)) {
+    _debug(filename, linenumber, 4, "_safe_socket_close: closing socket %d.", *sockfd);
+    result = close(*sockfd);
+    if (result == 0)
+      *sockfd = -1;
+  } else {
+    _debug(filename, linenumber, 1, "_safe_socket_close: socket already closed!");
+  }
+  debug_mutex_unlock(&safe_socket_lock, 4);
+  pthread_setcancelstate(oldstate, NULL);
+  return result;
 }

@@ -23,7 +23,7 @@ jobs:
     outputs:
       nqptp_branch: ${{ env.NQPTP_BRANCH }}
       push_docker_image: ${{ env.PUSH_DOCKER_IMAGE }}
-      docker_platforms: linux/386,linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64
+      docker_platforms: linux/386,linux/amd64,linux/arm/v7,linux/arm64
     steps:
       - name: Push docker image if this is a tag.
         if: github.ref_type == 'tag'

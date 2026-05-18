@@ -29,6 +29,7 @@
 
 #include "buffered_read.h"
 #include "common.h"
+#include <pthread.h>
 #include <sys/types.h>
 
 ssize_t buffered_read(buffered_tcp_desc *descriptor, void *buf, size_t count,
@@ -110,8 +111,8 @@ void *buffered_tcp_reader(void *arg) {
   int finished = 0;
   int fd = accept(descriptor->sock_fd, (struct sockaddr *)&remote_addr, &addr_size);
   // debug(1, "buffered_tcp_reader: the client has opened a buffered audio link.");
-  intptr_t pfd = fd;
-  pthread_cleanup_push(socket_cleanup, (void *)pfd);
+  // intptr_t pfd = fd;
+  pthread_cleanup_push(socket_cleanup, (void *)&fd);
 
   do {
     int have_time_to_sleep = 0;

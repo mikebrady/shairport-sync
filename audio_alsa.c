@@ -40,6 +40,7 @@
 #include "activity_monitor.h"
 #include "audio.h"
 #include "common.h"
+#include "utilities/string_utilities.h"
 
 enum alsa_backend_mode {
   abm_disconnected,

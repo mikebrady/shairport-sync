@@ -1,3 +1,30 @@
+Version 5.1-dev
+==
+
+**Enhancements**
+1. Enable the AirPlay 2 build to operate an optional classic-AirPlay-only service or to gracefully degrade to classic AirPlay, as follows:
+  * Add a new command-line option `-—service-type=<type>` and an equivalent configuration entry `service_type = "<type>";` in the `general` section of the configuration file, where `<type>` can be `"auto"`, `"classic"` or `"airplay2"`:
+    1. `"auto"` (default) means that the service will be AirPlay 2 if NQPTP is running. If NQPTP is not running, classic AirPlay service will be provided instead and `(Classic)` will be appended to the default AirPlay service name visible to AirPlay clients like Apple Music, for example `RaspberryPi3B (Classic)`.
+    2. `"classic"` means the service will be classic AirPlay (aka AirPlay 1).
+    3. `"airplay2"` means the service will be the modern AirPlay 2. In this case, as distinct from `"auto"`, if NQPTP is not running, Shairport Sync will log an error and terminate.
+  * In the systemd service file, NQPTP is now a `Want` rather than a `Require`. If it's present, then it will be launched before Shairport Sync. If it's absent, Shairport Sync will launch anyway.
+2. Improve the delivery of input format changes and emit `sdsc` metadata tokens when changes occur.
+3. Emit new format information in the log if statistics is enabled.
+    
+**Docker Changes**
+* Support for linux/arm/v6 has been dropped, as Docker is no longer supported on that architecture.
+* NQPTP is not started in the AirPlay 2 Docker image if `--service-type=classic` or `--service-type=airplay1` is in the command line options at the end of the `docker run` command.
+         This is to ensure that ports 319 and 320 are left alone when the AirPlay 2 image is set to provide Classic service only.
+         Note that setting the configuration file `service_type` to `classic` will not prevent NQPTP from starting up -- you must use the command line option.
+* A new `dev` target has been added. It is a large image containing the custom-built FFmpeg library, NQPTP, Avahi and D-Bus along with the Shairport Sync source and
+         all necessary development tools. When started, Avahi, D-Bus and NQPTP are all installed and running. The `bash` shell has also been added and is entered.
+    
+**Stability Improvements**
+* Reorganise session preemption to fully terminate the existing session before starting a new one. This should address some reports that Shairport Sync occasionally crashes and restarts when a new play session interrupts an existing one.
+* Don't delay closing the event port to wait for it to be closed at the client end.
+* Add a `safe_socket_close()` function to ensure sockets are fully closed. Use `-1` to designate closed rather than `0`, to prevent attempts to reclose sockets, which was causing mayhem. Sincere thanks to [Will Laws]() for taking a [very careful look](https://github.com/mikebrady/shairport-sync/issues/2184#issuecomment-4412505064) at some of the problems this was causing, and to [microfix](https://github.com/microfx) for reporting the [issue](https://github.com/mikebrady/shairport-sync/issues/2184).
+* Re-order `FFmpeg` decommissioning during teardown.
+
 Version 5.0.5-dev-15-g3cbc4b18
 ==
 **Bug Fixes – Classic AirPlay Remote Control (Updated)**

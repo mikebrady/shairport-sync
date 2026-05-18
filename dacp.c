@@ -45,6 +45,7 @@
 
 #include "metadata/hub.h"
 #include "tinyhttp/http.h"
+#include "utilities/network_utilities.h"
 
 typedef struct {
   int players_connection_thread_index; // the connection thread index when a player thread is
@@ -149,12 +150,6 @@ void mutex_lock_cleanup(void *arg) {
     debug(1, "Error releasing mutex.");
 }
 
-void connect_cleanup(void *arg) {
-  int *fd = (int *)arg;
-  // debug(2, "dacp_send_command: close socket %d.",*fd);
-  close(*fd);
-}
-
 void http_cleanup(void *arg) {
   // debug(1, "http cleanup called.");
   struct http_roundtripper *rt = (struct http_roundtripper *)arg;
@@ -233,7 +228,7 @@ int dacp_send_command(const char *command, char **body, ssize_t *bodysize) {
           // \"%s\".",errno,strerror(errno));
           response.code = 497; // Can't establish a socket to the DACP server
         } else {
-          pthread_cleanup_push(connect_cleanup, (void *)&sockfd);
+          pthread_cleanup_push(socket_cleanup, (void *)&sockfd);
           // debug(2, "dacp_send_command: open socket %d.",sockfd);
 
           // This is for limiting the time to be spent waiting for a response.
@@ -349,9 +344,8 @@ int dacp_send_command(const char *command, char **body, ssize_t *bodysize) {
                   0); // this should *not* free the malloced buffer -- just pop the malloc cleanup
             }
           }
-          pthread_cleanup_pop(1); // this should close the socket
-                                  // close(sockfd);
-                                  // debug(1,"DACP socket closed.");
+          pthread_cleanup_pop(1); // this will close the socket
+          // debug(1,"DACP socket closed.");
         }
         pthread_cleanup_pop(1); // this should unlock the dacp_conversation_lock);
         // pthread_mutex_unlock(&dacp_conversation_lock);

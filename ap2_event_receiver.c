@@ -143,8 +143,7 @@ void ap2_event_receiver_cleanup_handler(void *arg) {
 #endif
   debug_mutex_lock(&conn->event_sender_mutex, 1000000, 4);
   pthread_cleanup_push(mutex_unlock, &conn->event_sender_mutex);
-  close(conn->event_channel_fd);
-  conn->event_channel_fd = 0;
+  safe_socket_close(&conn->event_channel_fd);
   pthread_cleanup_pop(1); // unlock the mutex
 
   if (conn->airplay_gid != NULL) {

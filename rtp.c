@@ -29,6 +29,7 @@
 #include "common.h"
 #include "player.h"
 #include "rtsp.h"
+#include "utilities/network_utilities.h"
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -310,11 +311,6 @@ void *rtp_audio_receiver(void *arg) {
       debug(1, "Error %d receiving an audio packet: \"%s\".", errno, em);
     }
   }
-
-  /*
-  debug(3, "Audio receiver -- Server RTP thread interrupted. terminating.");
-  close(conn->audio_socket);
-  */
 
   debug(1, "Audio receiver thread \"normal\" exit -- this can't happen. Hah!");
   pthread_cleanup_pop(0); // don't execute anything here.
@@ -1554,10 +1550,9 @@ int local_ptp_time_to_frame(uint64_t time, uint32_t *frame, rtsp_conn_info *conn
 void rtp_ap2_control_handler_cleanup_handler(void *arg) {
   rtsp_conn_info *conn = (rtsp_conn_info *)arg;
   debug(2, "Connection %d: AP2 Control Receiver Cleanup.", conn->connection_number);
-  close(conn->ap2_control_socket);
+  safe_socket_close(&conn->ap2_control_socket);
   debug(2, "Connection %d: UDP control port %u closed.", conn->connection_number,
         conn->local_ap2_control_port);
-  conn->ap2_control_socket = 0;
   conn->ap2_remote_control_socket_addr_length =
       0; // indicates to the control receiver thread that the socket address need to be
          // recreated (needed for resend requests in the realtime mode)
@@ -1810,10 +1805,9 @@ void *rtp_ap2_control_receiver(void *arg) {
 void rtp_realtime_audio_cleanup_handler(__attribute__((unused)) void *arg) {
   debug(2, "Realtime Audio Receiver Cleanup Start.");
   rtsp_conn_info *conn = (rtsp_conn_info *)arg;
-  close(conn->realtime_audio_socket);
   debug(2, "Connection %d: closing realtime audio port %u", conn->connection_number,
         conn->local_realtime_audio_port);
-  conn->realtime_audio_socket = 0;
+  safe_socket_close(&conn->realtime_audio_socket);
   debug(2, "Realtime Audio Receiver Cleanup Done.");
 }
 

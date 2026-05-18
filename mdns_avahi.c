@@ -119,7 +119,7 @@ static void resolve_callback(AvahiServiceResolver *r, AVAHI_GCC_UNUSED AvahiIfIn
         while (*dacpid == '0')
           dacpid++; // skip any leading zeroes
         if (strcmp(dacpid, dbs->dacp_id) == 0) {
-          debug(1, "resolve_callback: client dacp_id \"%s\" dacp port: %u.", dbs->dacp_id, lport);
+          debug(4, "resolve_callback: client dacp_id \"%s\" dacp port: %u.", dbs->dacp_id, lport);
 #ifdef CONFIG_DACP_CLIENT
           dacp_monitor_port_update_callback(dacpid, lport);
 #endif

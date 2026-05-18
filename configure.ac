@@ -1,7 +1,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.50])
-AC_INIT([shairport-sync], [5.0.5-dev], [4265913+mikebrady@users.noreply.github.com])
+AC_INIT([shairport-sync], [5.1-dev], [4265913+mikebrady@users.noreply.github.com])
 : ${CFLAGS="-O3"}
 : ${CXXFLAGS="-O3"}
 AM_INIT_AUTOMAKE([subdir-objects])
@@ -469,7 +469,7 @@ if test "x$with_airplay_2" = "xyes" ; then
   ])
   AC_CHECK_LIB([uuid],[uuid_generate], [], [AC_MSG_ERROR([AirPlay 2 support requires the uuid library -- uuid-dev suggested])])
   systemd_after_args="${systemd_after_args}${systemd_after_args:+ }nqptp.service"
-  systemd_requires_args="${systemd_requires_args}${systemd_requires_args:+ }nqptp.service"
+  systemd_wants_args="${systemd_wants_args}${systemd_wants_args:+ }nqptp.service"
 fi
 AM_CONDITIONAL([USE_AIRPLAY_2], [test "x$with_airplay_2" = "xyes"])
 
@@ -586,8 +586,13 @@ if test "x${systemd_requires_args}" != x ; then
   systemd_requires_args="Requires=${systemd_requires_args}"
 fi
 
+if test "x${systemd_wants_args}" != x ; then
+  systemd_wants_args="Wants=${systemd_wants_args}"
+fi
+
 AC_SUBST([SYSTEMD_AFTER_ARGS], [${systemd_after_args}])
 AC_SUBST([SYSTEMD_REQUIRES_ARGS], [${systemd_requires_args}])
+AC_SUBST([SYSTEMD_WANTS_ARGS], [${systemd_wants_args}])
 
 # The man directory will not be recursively made unless you set the SUBDIR in Makefile.am.
 # But leave this as is to enable a distclean to be done.

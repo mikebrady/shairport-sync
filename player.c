@@ -705,8 +705,8 @@ int setup_software_resampler(rtsp_conn_info *conn, ssrc_t ssrc) {
     av_opt_set_int(swr, "in_channel_layout", input_layout, 0);
     if (config.mixdown_enable != 0) {
       if (config.mixdown_channel_layout == 0) {
-        if (CHANNELS_FROM_ENCODED_FORMAT(output_configuration) <
-            av_get_channel_layout_nb_channels(input_layout)) {
+        if ((signed)CHANNELS_FROM_ENCODED_FORMAT(output_configuration) <
+            (av_get_channel_layout_nb_channels(input_layout)) {
           output_layout =
               av_get_default_channel_layout(CHANNELS_FROM_ENCODED_FORMAT(output_configuration));
         } // else leave output_layout as it was: the sames as the input_layout.
@@ -1036,17 +1036,26 @@ int setup_software_resampler(rtsp_conn_info *conn, ssrc_t ssrc) {
   return response; // 0 if everything is okay
 }
 void prepare_decoding_chain(rtsp_conn_info *conn, ssrc_t ssrc) {
+  if ((ssrc != SSRC_NONE) && (ssrc != conn->incoming_ssrc) && (ssrc_is_recognised(ssrc) != 0)) {
+    // conn->incoming_ssrc will be SSRC_NONE only before the first valid encoding is found
+    if ((config.statistics_requested) && (conn->incoming_ssrc != SSRC_NONE))
+      inform("Connection %d: Incoming Audio Encoding is switching to: \"%s\".",
+             conn->connection_number, get_ssrc_name(ssrc));
+    // conn->incoming_ssrc = payload_ssrc;
+#ifdef CONFIG_METADATA
+    send_ssnc_metadata('sdsc', get_ssrc_name(ssrc), strlen(get_ssrc_name(ssrc)), 1);
+#endif
+  }
+
   if ((ssrc_is_recognised(ssrc)) && (ssrc != conn->incoming_ssrc)) {
 
-    if ((config.statistics_requested != 0) && (ssrc != SSRC_NONE) &&
-        (conn->incoming_ssrc != SSRC_NONE)) {
-      debug(2, "Connection %d: incoming audio switching to \"%s\".", conn->connection_number,
-            get_ssrc_name(ssrc));
-#ifdef CONFIG_METADATA
-      send_ssnc_metadata('sdsc', get_ssrc_name(ssrc), strlen(get_ssrc_name(ssrc)), 1);
-#endif
-    }
-
+    /*
+        if ((config.statistics_requested != 0) && (ssrc != SSRC_NONE) &&
+            (conn->incoming_ssrc != SSRC_NONE)) {
+          debug(2, "Connection %d: incoming audio switching to \"%s\".", conn->connection_number,
+                get_ssrc_name(ssrc));
+        }
+    */
     // the ssrc of the incoming packet is different to the ssrc of the decoding chain
     // so the decoding chain must be rebuilt
 
@@ -1587,7 +1596,6 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
         } else if (config.decoder_in_use == 1 << decoder_ffmpeg_alac) {
 #ifdef CONFIG_FFMPEG
           prepare_decoding_chain(conn, ALAC_44100_S16_2);
-          // if (len > 8) {
           abuf->avframe = block_to_avframe(conn, data_to_use, len);
           abuf->ssrc = ALAC_44100_S16_2;
           if (abuf->avframe) {
@@ -1601,15 +1609,13 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
             av_frame_free(&abuf->avframe);
             abuf->avframe = NULL;
           }
-          // } else {
           if (len <= 8) {
-            debug(1,
-                  "Using the FFMPEG ALAC_44100_S16_2 decoder, a short audio packet %u, rtptime %u, "
-                  "of length %zu has been decoded but not discarded. Contents follow:",
-                  seqno, actual_timestamp, len);
-            debug_print_buffer(1, data, len);
-            // abuf->length = conn->frames_per_packet;
-            // abuf->avframe = NULL;
+            debug(2,
+                  "Connection %d, using FFMPEG on an ALAC_44100_S16_2 stream, a short audio packet "
+                  "%u, rtptime %u, of length %zu has been decoded but not discarded. Contents "
+                  "follow:",
+                  conn->connection_number, seqno, actual_timestamp, len);
+            debug_print_buffer(2, data, len);
           }
 #else
           debug(1, "FFMPEG support has not been built into this version Shairport Sync!");
@@ -1641,7 +1647,6 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
 
         prepare_decoding_chain(conn, ssrc); // dynamically set the decoding environment
 
-        // if (len > 8) {
         abuf->avframe = block_to_avframe(conn, data, len);
         abuf->ssrc = ssrc; // tag the avframe with its specific SSRC
         if (abuf->avframe) {
@@ -1654,15 +1659,12 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
           av_frame_free(&abuf->avframe);
           abuf->avframe = NULL;
         }
-        //} else {
         if (len <= 8) {
-          debug(1,
-                "Using an FFMPEG decoder, a short audio packet %u, rtptime %u, of length %zu has "
-                "been decoded but not discarded. Contents follow:",
-                seqno, actual_timestamp, len);
-          debug_print_buffer(1, data, len);
-          // abuf->length = 0;
-          // abuf->avframe = NULL;
+          debug(2,
+                "Connection %d: using FFMPEG on a %s stream, a short audio packet %u, rtptime %u, "
+                "of length %zu has been decoded but not discarded. Contents follow:",
+                conn->connection_number, get_ssrc_name(ssrc), seqno, actual_timestamp, len);
+          debug_print_buffer(2, data, len);
         }
         abuf->ready = 1;
         abuf->status = 0; // signifying that it was received
@@ -2798,7 +2800,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
           debug(2, "setting up software resampler for %s for the first time.",
                 get_ssrc_name(curframe->ssrc));
         } else {
-          debug(1, "Connection %d: queued audio buffers switching to \"%s\".",
+          debug(2, "Connection %d: queued audio buffers switching to \"%s\".",
                 conn->connection_number, get_ssrc_name(curframe->ssrc));
           clear_software_resampler(conn);
           // ask the backend if it can give us its best choice for an ffmpeg configuration:
@@ -3323,17 +3325,10 @@ void player_thread_cleanup_handler(void *arg) {
   rtsp_conn_info *conn = (rtsp_conn_info *)arg;
   // debug(1, "Connection %d: player_thread_cleanup_handler start.", conn->connection_number);
 
-#ifdef CONFIG_FFMPEG
-  // debug(1, "FFmpeg clearup");
-  clear_software_resampler(conn);
-  clear_decoding_chain(conn);
-  // debug(1, "FFmpeg clearup done");
-#endif
-
   if (config.output->stop) {
 #ifdef CONFIG_FFMPEG
-    if (avflush(conn) > 1)
-      debug(3, "ffmpeg flush at stop!");
+    if ((config.decoder_in_use == 1 << decoder_ffmpeg_alac) && (avflush(conn) > 1))
+      debug(1, "ffmpeg flush at stop!");
 #endif
     debug(2, "Connection %d: player: stop the output backend.", conn->connection_number);
     config.output->stop();
@@ -3425,6 +3420,15 @@ void player_thread_cleanup_handler(void *arg) {
 #ifdef CONFIG_AIRPLAY_2
   }
   ptp_send_control_message_string("E");
+#endif
+
+#ifdef CONFIG_FFMPEG
+  if (config.decoder_in_use == 1 << decoder_ffmpeg_alac) {
+    // debug(1, "FFmpeg clearup");
+    clear_software_resampler(conn);
+    clear_decoding_chain(conn);
+    // debug(1, "FFmpeg clearup done");
+  }
 #endif
 
   if (conn->outbuf) {
@@ -3521,11 +3525,17 @@ void *player_thread_func(void *arg) {
       init_alac_decoder((int32_t *)&conn->stream.fmtp,
                         conn); // this sets up incoming rate, bit depth, channels.
                                // No pthread cancellation point in here
+#ifdef CONFIG_METADATA
+      send_ssnc_metadata('sdsc', "ALAC/44100/S16_LE/2", strlen("ALAC/44100/S16_LE/2"), 1);
+#endif
     }
 #endif
 #ifdef CONFIG_APPLE_ALAC
     if (config.decoder_in_use == 1 << decoder_apple_alac) {
       apple_alac_init(conn->stream.fmtp); // no pthread cancellation point in here
+#ifdef CONFIG_METADATA
+      send_ssnc_metadata('sdsc', "ALAC/44100/S16_LE/2", strlen("ALAC/44100/S16_LE/2"), 1);
+#endif
     }
 #endif
   }
@@ -4154,7 +4164,7 @@ void *player_thread_func(void *arg) {
                   send_ssnc_stream_description("Classic", get_ssrc_name(conn->incoming_ssrc));
 #endif
                   if (config.statistics_requested)
-                    inform("Connection %d: Classic AirPlay (\"AirPlay 1\") Compatible playback. "
+                    inform("Connection %d: Classic AirPlay (\"AirPlay 1\") playback. "
                            "Input format: %s. Output format: %s.",
                            conn->connection_number, get_ssrc_name(conn->incoming_ssrc),
                            short_description);

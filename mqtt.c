@@ -8,12 +8,14 @@
 #include "common.h"
 #include "player.h"
 #include "rtsp.h"
+#include "utilities/string_utilities.h"
 
 #include "rtp.h"
 
 #ifdef CONFIG_DACP_CLIENT
 #include "dacp.h"
 #endif
+
 #include "metadata/core.h"
 #include "metadata/hub.h"
 #include "metadata/pc_queue.h"
@@ -79,7 +81,7 @@ void on_message(__attribute__((unused)) struct mosquitto *mosq,
       debug(2, "[MQTT]: Received Recognized Command: %s\n", commands[it]);
       if (strcmp(commands[it], "disconnect") == 0) {
         debug(2, "[MQTT]: Disconnect Command: %s\n", commands[it]);
-        release_play_lock(NULL); // stop any current session and don't replace it
+        stop_play(); // stop any current session and don't replace it
       } else {
         debug(2, "[MQTT]: DACP Command: %s\n", commands[it]);
 #ifdef CONFIG_DACP_CLIENT

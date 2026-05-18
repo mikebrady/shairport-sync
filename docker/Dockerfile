@@ -106,6 +106,33 @@ RUN DESTDIR=install make install
 WORKDIR /
 ##### SPS END #####
 
+# Shairport Sync Development Environment
+# This (large) image contains the custom-built FFmpeg library and NQPTP, Avahi, D-Bus, etc., Shairport Sync source and all tools.
+# When started, D-Bus, Avahi and NQPTP are set to run in the background.
+# To build it, here is a sample local build instruction:
+# $ docker build --build-arg SHAIRPORT_SYNC_BRANCH=development --build-arg NQPTP_BRANCH=main --target dev -t shairport-sync-dev -f docker/Dockerfile .
+# Sample local use (remember to save your changes):
+# $ docker run -it \
+#   --cap-add=SYS_NICE --net host --device /dev/snd \
+#   -v /etc/shairport-sync.conf:/etc/shairport-sync.conf \
+#   shairport-sync-dev
+
+##### DEV #####
+FROM shairport-sync AS dev
+RUN apk add bash
+
+RUN addgroup shairport-sync && \
+        adduser -D shairport-sync -G shairport-sync && \
+        addgroup -g 29 docker_audio && \
+        addgroup shairport-sync docker_audio && \
+        addgroup shairport-sync audio && \
+        mkdir -p /run/dbus
+
+COPY --from=nqptp /nqptp/nqptp /usr/local/bin/nqptp
+COPY --chmod=755 ./docker/devrun.sh ./devrun.sh
+ENTRYPOINT ["./devrun.sh"]
+##### DEV END #####
+
 ##### STATIC FILES #####
 FROM scratch AS files
 

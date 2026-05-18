@@ -1,9 +1,6 @@
 /*
  * Generate a device-related UUID. This file is part of Shairport Sync
  * Copyright (c) Mike Brady 2026
-
- * Modifications, including those associated with audio synchronization, multithreading and
- * metadata handling copyright (c) Mike Brady 2014--2025
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person

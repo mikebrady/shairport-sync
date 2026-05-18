@@ -30,6 +30,7 @@
 #include "rtp.h"
 #include "utilities/buffered_read.h"
 #include "utilities/mod23.h"
+#include "utilities/network_utilities.h"
 #include <sodium.h>
 #include <stdint.h>
 
@@ -91,10 +92,9 @@ void addADTStoPacket(uint8_t *packet, int packetLen, int rate, int channel_confi
 void rtp_buffered_audio_cleanup_handler(__attribute__((unused)) void *arg) {
   debug(2, "Buffered Audio Receiver Cleanup Start.");
   rtsp_conn_info *conn = (rtsp_conn_info *)arg;
-  close(conn->buffered_audio_socket);
+  safe_socket_close(&conn->buffered_audio_socket);
   debug(3, "Connection %d: closing TCP Buffered Audio port: %u.", conn->connection_number,
         conn->local_buffered_audio_port);
-  conn->buffered_audio_socket = 0;
   debug(2, "Connection %d: rtp_buffered_audio_processor exit.", conn->connection_number);
 }
 
