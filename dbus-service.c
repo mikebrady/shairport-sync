@@ -418,7 +418,7 @@ static gboolean on_handle_play_pause(ShairportSyncRemoteControl *skeleton,
 static gboolean on_handle_play(ShairportSyncRemoteControl *skeleton,
                                GDBusMethodInvocation *invocation,
                                __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT                               
+#ifdef CONFIG_DACP_CLIENT
   send_simple_dacp_command("play");
 #endif
   shairport_sync_remote_control_complete_play(skeleton, invocation);
@@ -480,7 +480,7 @@ static gboolean on_handle_set_airplay_volume(ShairportSyncRemoteControl *skeleto
                                              const gdouble volume,
                                              __attribute__((unused)) gpointer user_data) {
 
-  debug(1, "Set airplay volume to %.3f.", volume);
+  debug(1, "D-Bus set airplay volume to %.3f.", volume);
   remote_set_airplay_volume(volume);
   shairport_sync_remote_control_complete_set_airplay_volume(skeleton, invocation);
   return TRUE;
@@ -593,9 +593,9 @@ gboolean notify_convolution_enabled_callback(__attribute__((unused)) ShairportSy
 #endif
 
 #ifdef CONFIG_CONVOLUTION
-gboolean notify_convolution_maximum_length_in_seconds_callback(ShairportSync *skeleton,
-                                                               __attribute__((unused))
-                                                               gpointer user_data) {
+gboolean
+notify_convolution_maximum_length_in_seconds_callback(ShairportSync *skeleton,
+                                                      __attribute__((unused)) gpointer user_data) {
 
   gdouble th = shairport_sync_get_convolution_maximum_length_in_seconds(skeleton);
   if ((th >= 0.0) && (th <= 15.0)) {
@@ -609,10 +609,8 @@ gboolean notify_convolution_maximum_length_in_seconds_callback(ShairportSync *sk
   return TRUE;
 }
 #else
-gboolean notify_convolution_maximum_length_in_seconds_callback(__attribute__((unused))
-                                                               ShairportSync *skeleton,
-                                                               __attribute__((unused))
-                                                               gpointer user_data) {
+gboolean notify_convolution_maximum_length_in_seconds_callback(
+    __attribute__((unused)) ShairportSync *skeleton, __attribute__((unused)) gpointer user_data) {
   warn(">> Convolution support is not built in to this build of Shairport Sync.");
   return TRUE;
 }
@@ -640,16 +638,16 @@ gboolean notify_convolution_gain_callback(__attribute__((unused)) ShairportSync 
 }
 #endif
 #ifdef CONFIG_CONVOLUTION
-gboolean notify_convolution_impulse_response_files_callback(ShairportSync *skeleton,
-                                                            __attribute__((unused))
-                                                            gpointer user_data) {
+gboolean
+notify_convolution_impulse_response_files_callback(ShairportSync *skeleton,
+                                                   __attribute__((unused)) gpointer user_data) {
   char *th = (char *)shairport_sync_get_convolution_impulse_response_files(skeleton);
   if (th != NULL) {
     debug(1, ">> freeing current configuration impulse response filter files.");
     free_ir_filenames(config.convolution_ir_files, config.convolution_ir_file_count);
     config.convolution_ir_files = NULL;
     config.convolution_ir_file_count = 0;
-  
+
     config.convolution_ir_files = parse_ir_filenames(th, &config.convolution_ir_file_count);
     sanity_check_ir_files(1, config.convolution_ir_files, config.convolution_ir_file_count);
     debug(1, ">> setting %d configuration impulse response filter%s",
@@ -659,10 +657,9 @@ gboolean notify_convolution_impulse_response_files_callback(ShairportSync *skele
   return TRUE;
 }
 #else
-gboolean notify_convolution_impulse_response_files_callback(__attribute__((unused))
-                                                            ShairportSync *skeleton,
-                                                            __attribute__((unused))
-                                                            gpointer user_data) {
+gboolean
+notify_convolution_impulse_response_files_callback(__attribute__((unused)) ShairportSync *skeleton,
+                                                   __attribute__((unused)) gpointer user_data) {
   __attribute__((unused)) char *th =
       (char *)shairport_sync_get_convolution_impulse_response_files(skeleton);
   return TRUE;
@@ -713,7 +710,7 @@ gboolean notify_volume_callback(ShairportSync *skeleton,
   gdouble iv = shairport_sync_get_volume(skeleton);
   if (((iv >= -30.0) && (iv <= 0.0)) || (iv == -144.0)) {
     debug(2, ">> set volume to %7.4f.", iv);
-    config.airplay_volume = iv;  
+    config.airplay_volume = iv;
   } else {
     debug(1, ">> invalid volume: %f. Ignored.", iv);
     shairport_sync_set_volume(skeleton, config.airplay_volume);
@@ -757,9 +754,10 @@ gboolean notify_alacdecoder_callback(ShairportSync *skeleton,
                                      __attribute__((unused)) gpointer user_data) {
   char *th = (char *)shairport_sync_get_alacdecoder(skeleton);
 
-#ifdef CONFIG_AIRPLAY_2 
+#ifdef CONFIG_AIRPLAY_2
   if (strcasecmp(th, "ffmpeg") != 0) {
-    warn(" This request, to set the decoder to \"%s\", is ignored. For AirPlay 2, the FFmpeg decoder is always used.",
+    warn(" This request, to set the decoder to \"%s\", is ignored. For AirPlay 2, the FFmpeg "
+         "decoder is always used.",
          th);
   }
 #else
@@ -876,7 +874,8 @@ gboolean notify_shuffle_callback(ShairportSyncAdvancedRemoteControl *skeleton,
   return TRUE;
 }
 #else
-gboolean notify_shuffle_callback(__attribute__((unused)) ShairportSyncAdvancedRemoteControl *skeleton,
+gboolean notify_shuffle_callback(__attribute__((unused))
+                                 ShairportSyncAdvancedRemoteControl *skeleton,
                                  __attribute__((unused)) gpointer user_data) {
   return TRUE;
 }
@@ -921,7 +920,8 @@ gboolean notify_loop_status_callback(ShairportSyncAdvancedRemoteControl *skeleto
   return TRUE;
 }
 #else
-gboolean notify_loop_status_callback(__attribute__((unused)) ShairportSyncAdvancedRemoteControl *skeleton,
+gboolean notify_loop_status_callback(__attribute__((unused))
+                                     ShairportSyncAdvancedRemoteControl *skeleton,
                                      __attribute__((unused)) gpointer user_data) {
   return TRUE;
 }
@@ -973,11 +973,9 @@ static gboolean on_handle_drop_session(ShairportSync *skeleton, GDBusMethodInvoc
   return TRUE;
 }
 
-static gboolean on_handle_set_frame_position_update_interval(ShairportSync *skeleton,
-                                                             GDBusMethodInvocation *invocation,
-                                                             const gdouble seconds,
-                                                             __attribute__((unused))
-                                                             gpointer user_data) {
+static gboolean on_handle_set_frame_position_update_interval(
+    ShairportSync *skeleton, GDBusMethodInvocation *invocation, const gdouble seconds,
+    __attribute__((unused)) gpointer user_data) {
   debug(1, ">> set frame position update interval to %.6f.", seconds);
   config.metadata_progress_interval = seconds;
   shairport_sync_complete_set_frame_position_update_interval(skeleton, invocation);
@@ -1059,10 +1057,10 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
 
   g_signal_connect(shairportSyncDiagnosticsSkeleton, "notify::file-and-line",
                    G_CALLBACK(notify_file_and_line_callback), NULL);
-  
+
   g_signal_connect(shairportSyncRemoteControlSkeleton, "handle-fast-forward",
                    G_CALLBACK(on_handle_fast_forward), NULL);
-          
+
   g_signal_connect(shairportSyncRemoteControlSkeleton, "handle-rewind",
                    G_CALLBACK(on_handle_rewind), NULL);
   g_signal_connect(shairportSyncRemoteControlSkeleton, "handle-toggle-mute",

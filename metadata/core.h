@@ -1,8 +1,8 @@
 #pragma once
 
+#include "../rtsp.h"
 #include "common.h"
 #include "config.h"
-#include "../rtsp.h"
 #include "pc_queue.h"
 #include <pthread.h>
 
@@ -20,7 +20,6 @@ void metadata_pack_cleanup_function(void *arg);
 
 void metadata_init(void);
 void metadata_stop(void);
-
 
 int send_metadata_to_queue(pc_queue *queue, const uint32_t type, const uint32_t code,
                            const char *data, const uint32_t length, rtsp_message *carrier,

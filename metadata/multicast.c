@@ -1,16 +1,15 @@
-  #include "multicast.h"
-  #include "core.h"
-  #include "pc_queue.h"
-  
-  #include <stdlib.h>
-  #include <string.h>
-  
-  
+#include "multicast.h"
+#include "core.h"
+#include "pc_queue.h"
+
+#include <stdlib.h>
+#include <string.h>
+
 //		A special sub-protocol is used for sending large data items over UDP
 //    If the payload exceeded 4 MB, it is chunked using the following format:
 //    "ssnc", "chnk", packet_ix, packet_counts, packet_tag, packet_type, chunked_data.
 //    Notice that the number of items is different to the standard
-  
+
 #define METADATA_SNDBUF (4 * 1024 * 1024)
 static int metadata_sock = -1;
 static struct sockaddr_in metadata_sockaddr;
@@ -20,10 +19,10 @@ pc_queue metadata_multicast_queue;
 metadata_package metadata_multicast_queue_items[metadata_multicast_queue_size];
 pthread_t metadata_multicast_thread;
 
-int send_metadata_to_multicast_queue(const uint32_t type, const uint32_t code,
-                           const char *data, const uint32_t length, rtsp_message *carrier,
-                           int block) {
-    return send_metadata_to_queue(&metadata_multicast_queue, type, code, data, length, carrier, block);
+int send_metadata_to_multicast_queue(const uint32_t type, const uint32_t code, const char *data,
+                                     const uint32_t length, rtsp_message *carrier, int block) {
+  return send_metadata_to_queue(&metadata_multicast_queue, type, code, data, length, carrier,
+                                block);
 }
 
 void metadata_create_multicast_socket(void) {
@@ -162,12 +161,12 @@ void *metadata_multicast_thread_function(__attribute__((unused)) void *ignore) {
 }
 
 void metadata_multicast_queue_init() {
-    // create a pc_queue for the metadata_multicast_queue
-    pc_queue_init(&metadata_multicast_queue, (char *)&metadata_multicast_queue_items,
-                  sizeof(metadata_package), metadata_multicast_queue_size, "multicast");
-    if (named_pthread_create(&metadata_multicast_thread, NULL, metadata_multicast_thread_function,
-                             NULL, "metadata mcst") != 0)
-      debug(1, "Failed to create metadata multicast thread!");
+  // create a pc_queue for the metadata_multicast_queue
+  pc_queue_init(&metadata_multicast_queue, (char *)&metadata_multicast_queue_items,
+                sizeof(metadata_package), metadata_multicast_queue_size, "multicast");
+  if (named_pthread_create(&metadata_multicast_thread, NULL, metadata_multicast_thread_function,
+                           NULL, "metadata mcst") != 0)
+    debug(1, "Failed to create metadata multicast thread!");
 }
 
 void metadata_multicast_queue_stop() {

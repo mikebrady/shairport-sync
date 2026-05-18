@@ -26,10 +26,10 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
- 
+
 #include <stdlib.h>
 #include <uuid/uuid.h>
- 
+
 #include "generate_random_uuid.h"
 
 // user is responsible for deallocating returned string

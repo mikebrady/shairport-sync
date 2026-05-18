@@ -26,9 +26,9 @@
  */
 
 #include "remote.h"
-#include "rtsp.h"
-#include "player.h"
 #include "metadata/hub.h"
+#include "player.h"
+#include "rtsp.h"
 
 #ifdef CONFIG_DACP_CLIENT
 #include "dacp.h"
@@ -36,15 +36,15 @@
 
 #ifdef CONFIG_AIRPLAY_2
 #include "ap2_event_receiver.h"
+#include "utilities/generate_random_uuid.h"
 #include "utilities/rtsp_message_utilities.h"
 #include "utilities/structured_buffer.h"
-#include "utilities/generate_random_uuid.h"
 
 double airplayVolumeToUnitVolume(double airplayVolume) {
   double response = 0.0;
   if ((airplayVolume >= -30.0) && (airplayVolume <= 0.0)) {
-    response = airplayVolume/30.0 + 1.0;
-  }     
+    response = airplayVolume / 30.0 + 1.0;
+  }
   return response;
 }
 
@@ -163,7 +163,8 @@ plist_t prepareNSKeyedArchiver(const char *uid) {
 // this creates a plist will all the components of a modernMediaRemoteCommand,
 // but not the "modernMediaRemoteCommand""-keyed item itself,
 // nor the "value""-keyed item
-void completeModernMediaRemoteCommand(plist_t command_plist, const char *command_UUID, const char *deviceUUID) {
+void completeModernMediaRemoteCommand(plist_t command_plist, const char *command_UUID,
+                                      const char *deviceUUID) {
   plist_dict_set_item(command_plist, "type", plist_new_string("sendMediaRemoteCommand"));
 
   plist_t params_plist = plist_new_dict();
@@ -197,15 +198,18 @@ void completeModernMediaRemoteCommand(plist_t command_plist, const char *command
   plist_dict_set_item(command_plist, "params", params_plist);
 }
 
-ssize_t ap2_event_send_modern_media_remote_command(rtsp_conn_info *conn, unsigned int command_number) {
+ssize_t ap2_event_send_modern_media_remote_command(rtsp_conn_info *conn,
+                                                   unsigned int command_number) {
   ssize_t result = -1;
   char command_number_string[32];
   snprintf(command_number_string, sizeof(command_number_string), "%u", command_number);
   plist_t modernMediaCommand = plist_new_dict();
-  plist_dict_set_item(modernMediaCommand,"modernMediaRemoteCommand", plist_new_string(command_number_string));
-  // plist_dict_set_item(modernMediaCommand,"value", plist_new_string(command_values[command_number]));
+  plist_dict_set_item(modernMediaCommand, "modernMediaRemoteCommand",
+                      plist_new_string(command_number_string));
+  // plist_dict_set_item(modernMediaCommand,"value",
+  // plist_new_string(command_values[command_number]));
   char *random_UUID = generate_random_uuid();
-  completeModernMediaRemoteCommand(modernMediaCommand,random_UUID, conn->airplay_gid);
+  completeModernMediaRemoteCommand(modernMediaCommand, random_UUID, conn->airplay_gid);
   free(random_UUID);
   result = ap2_event_port_post_command(conn, modernMediaCommand);
   plist_free(modernMediaCommand);
@@ -219,15 +223,18 @@ ssize_t ap2_event_send_dev_mule() {
     char command_number_string[32];
     snprintf(command_number_string, sizeof(command_number_string), "%u", 25); // set repeat mode
     plist_t modernMediaCommand = plist_new_dict();
-    plist_dict_set_item(modernMediaCommand,"modernMediaRemoteCommand", plist_new_string(command_number_string));
-    plist_dict_set_item(modernMediaCommand,"kMRMediaRemoteCommandInfoRepeatMode", plist_new_uint(2));
+    plist_dict_set_item(modernMediaCommand, "modernMediaRemoteCommand",
+                        plist_new_string(command_number_string));
+    plist_dict_set_item(modernMediaCommand, "kMRMediaRemoteCommandInfoRepeatMode",
+                        plist_new_uint(2));
     char *random_UUID = generate_random_uuid();
-    completeModernMediaRemoteCommand(modernMediaCommand,random_UUID, conn->airplay_gid);
+    completeModernMediaRemoteCommand(modernMediaCommand, random_UUID, conn->airplay_gid);
     free(random_UUID);
     result = ap2_event_port_post_command(conn, modernMediaCommand);
     plist_free(modernMediaCommand);
     if (result <= 0)
-      debug(1, "Connection %d: error %zd when sending mule command.", conn->connection_number, result);
+      debug(1, "Connection %d: error %zd when sending mule command.", conn->connection_number,
+            result);
   } else {
     debug(1, "No connection when sending mule command.");
   }
@@ -285,7 +292,7 @@ ssize_t ap2_event_send_unit_volume_notification(rtsp_conn_info *conn, double vol
 #endif
 
 void remote_set_airplay_volume(double volume) {
-  int available = 0;  
+  int available = 0;
 #ifdef CONFIG_DACP_CLIENT
   available = metadata_store.dacp_server_active;
   if (available) {
@@ -300,11 +307,11 @@ void remote_set_airplay_volume(double volume) {
   pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
   if ((available == 0) && (principal_conn != NULL) && (principal_conn->airplay_type == ap_2)) {
     debug(1, "remote_set_airplay_volume to %.3f -- AirPlay 2.", volume);
-    
+
     double present_unit_volume = airplayVolumeToUnitVolume(config.airplay_volume);
     double desired_unit_volume = airplayVolumeToUnitVolume(volume);
 
-    if (principal_conn != NULL) {           
+    if (principal_conn != NULL) {
       // It seems that a large change of the notified volume, e.g. from 1.0 to 0.0, evokes
       // a bug in Apple Music on macOS Tahoe, causing the local (mac) volume to jump.
       // So here, we notify changes in 0.09 increments with a short delay between them.
@@ -324,9 +331,25 @@ void remote_set_airplay_volume(double volume) {
       }
       player_volume(volume, principal_conn);
     } else {
-      config.airplay_volume = volume; 
+      config.airplay_volume = volume;
     }
   }
   pthread_cleanup_pop(1); // release the principal_conn lock
-#endif   
+#endif
+}
+
+int remote_set_airplay_volume_available() {
+  int available = 0;
+#ifdef CONFIG_DACP_CLIENT
+  available = metadata_store.dacp_server_active;
+#endif
+#ifdef CONFIG_AIRPLAY_2
+  pthread_rwlock_rdlock(&principal_conn_lock); // don't let the principal_conn be changed
+  pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
+  if ((available == 0) && (principal_conn != NULL) && (principal_conn->airplay_type == ap_2)) {
+    available = 1;
+  }
+  pthread_cleanup_pop(1); // release the principal_conn lock
+#endif
+  return available;
 }

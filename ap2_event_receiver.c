@@ -28,9 +28,9 @@
 #include "ap2_event_message_handler.h"
 #include "common.h"
 #include "player.h"
+#include "utilities/network_utilities.h"
 #include "utilities/rtsp_message_utilities.h"
 #include "utilities/structured_buffer.h"
-#include "utilities/network_utilities.h"
 
 #ifdef CONFIG_METADATA
 #include "metadata/core.h"
@@ -75,13 +75,13 @@ ssize_t ap2_event_port_send_message(rtsp_conn_info *conn, char *data, size_t dat
 
 ssize_t ap2_event_port_post_command(rtsp_conn_info *conn, plist_t command) {
   ssize_t result = 0;
-  decodeAndLogPlist(command);  
+  decodeAndLogPlist(command);
   structured_buffer *sbuf = sbuf_new(4096);
   if (sbuf != NULL) {
     pthread_cleanup_push(sbuf_cleanup, sbuf);
     char *plistString = NULL;
     uint32_t plistStringLength = 0;
-    
+
     plist_to_bin(command, &plistString, &plistStringLength);
     if (plistString != NULL) {
       sbuf_printf(sbuf, "POST /command RTSP/1.0\r\nContent-Length: %u\r\n", plistStringLength);
@@ -99,7 +99,7 @@ ssize_t ap2_event_port_post_command(rtsp_conn_info *conn, plist_t command) {
     }
     pthread_cleanup_pop(1); // delete the structured buffer
   }
-  return result;  
+  return result;
 }
 
 ssize_t ap2_event_send_update_info(rtsp_conn_info *conn) {
@@ -116,14 +116,14 @@ ssize_t ap2_event_send_update_info(rtsp_conn_info *conn) {
     if (update_info_plist != NULL) {
       plist_dict_set_item(update_info_plist, "type", plist_new_string("updateInfo"));
       plist_dict_set_item(update_info_plist, "value", value_plist);
-      
+
       char *plist_as_string = plist_as_xml_text(update_info_plist);
       if (plist_as_string != NULL) {
         debug(3, "update_info_plist is:\n--\n\"%s\"\n--\n", plist_as_string);
         free(plist_as_string);
       }
-      
-      result = ap2_event_port_post_command(conn, update_info_plist);           
+
+      result = ap2_event_port_post_command(conn, update_info_plist);
       plist_free(update_info_plist);
     } else {
       debug(1, "Could not build an updateInfo plist");
@@ -168,7 +168,8 @@ void *ap2_event_receiver(void *arg) {
 
   debug_mutex_lock(&conn->event_sender_mutex, 1000000, 4);
   pthread_cleanup_push(mutex_unlock, &conn->event_sender_mutex);
-  conn->event_channel_fd = eintr_checked_accept(conn->event_socket, (struct sockaddr *)&remote_addr, &addr_size);
+  conn->event_channel_fd =
+      eintr_checked_accept(conn->event_socket, (struct sockaddr *)&remote_addr, &addr_size);
   pthread_cleanup_pop(1); // unlock the mutex
   if (conn->event_channel_fd > 0) {
     debug(2,
@@ -176,14 +177,13 @@ void *ap2_event_receiver(void *arg) {
           "socket %d.",
           conn->connection_number, conn->event_socket, conn->event_channel_fd);
     pthread_cleanup_push(ap2_event_receiver_cleanup_handler, arg);
-        
+
     ap2_event_send_update_info(conn);
-      
-  
+
     while (1) {
       usleep(1000000);
     };
-  
+
     debug(3, "Connection %d: AP2 Event Receiver RTP thread starting \"normal\" exit.",
           conn->connection_number);
     pthread_cleanup_pop(1); // do the cleanup

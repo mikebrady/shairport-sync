@@ -140,8 +140,11 @@ void ConvolverThreadPool::clearState(size_t convolverId) {
   if (convolverId < _convolvers.size()) {
     waitForAll();
   } else {
-    debug(1, "assert(convolverId < _convolvers.size()) failed, with convolverId: %u and _convolvers.size(): %u.", convolverId, _convolvers.size());
-  } 
+    debug(1,
+          "assert(convolverId < _convolvers.size()) failed, with convolverId: %u and "
+          "_convolvers.size(): %u.",
+          convolverId, _convolvers.size());
+  }
 }
 
 /* this is the old version

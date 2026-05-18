@@ -88,7 +88,7 @@ void *response_realloc(__attribute__((unused)) void *opaque, void *ptr, int size
       t = realloc(ptr, size);
     }
     if (t == NULL)
-      debug(1, "response_realloc of size %d to ptr %" PRIxPTR " failed!", size, (uintptr_t) ptr);
+      debug(1, "response_realloc of size %d to ptr %" PRIxPTR " failed!", size, (uintptr_t)ptr);
   }
   return t;
 }
@@ -117,8 +117,7 @@ void response_body(void *opaque, const char *data, int size) {
 static void
 response_header(__attribute__((unused)) void *opaque, __attribute__((unused)) const char *ckey,
                 __attribute__((unused)) int nkey, __attribute__((unused)) const char *cvalue,
-                __attribute__((unused)) int nvalue) { /* example doesn't care about headers */
-}
+                __attribute__((unused)) int nvalue) { /* example doesn't care about headers */ }
 
 static void response_code(void *opaque, int code) {
   struct HttpResponse *response = (struct HttpResponse *)opaque;
@@ -576,6 +575,8 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
 
     result = dacp_get_volume(&the_volume); // just want the http code
     pthread_cleanup_pop(1);
+
+    // debug(1, "DACP Scan Result is %d.", result);
 
     if (result == 490) { // 490 means no port was specified
       if (strlen(dacp_server.dacp_id) != 0) {
@@ -1302,8 +1303,8 @@ int dacp_set_volume(int32_t vo) {
         int32_t active_speakers = 0;
         for (i = 0; i < speaker_count; i++) {
           if (speaker_info[i].speaker_number == machine_number) {
-            debug(2, "Our speaker number found: %" PRId64 " with relative volume %" PRId32 ".", machine_number,
-                  speaker_info[i].volume);
+            debug(2, "Our speaker number found: %" PRId64 " with relative volume %" PRId32 ".",
+                  machine_number, speaker_info[i].volume);
           }
           if (speaker_info[i].active == 1) {
             active_speakers++;

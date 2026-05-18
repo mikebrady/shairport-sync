@@ -58,12 +58,17 @@ EXTERNC void set_show_file_and_line(int setting);
 #endif
 
 // Function declarations with printf-style format checking
-EXTERNC void _die(const char *filename, const int linenumber, const char *format, ...) PRINTF_LIKE(3,4);
-EXTERNC void _warn(const char *filename, const int linenumber, const char *format, ...) PRINTF_LIKE(3,4);
-EXTERNC void _inform(const char *filename, const int linenumber, const char *format, ...) PRINTF_LIKE(3,4);
-EXTERNC void _debug(const char *filename, const int linenumber, int level, const char *format, ...) PRINTF_LIKE(4,5);
-EXTERNC void _debug_print_buffer(const char *thefilename, const int linenumber, int level, void *buf,
-                                size_t buf_len); // not printf-style, no change needed
+EXTERNC void _die(const char *filename, const int linenumber, const char *format, ...)
+    PRINTF_LIKE(3, 4);
+EXTERNC void _warn(const char *filename, const int linenumber, const char *format, ...)
+    PRINTF_LIKE(3, 4);
+EXTERNC void _inform(const char *filename, const int linenumber, const char *format, ...)
+    PRINTF_LIKE(3, 4);
+EXTERNC void _debug(const char *filename, const int linenumber, int level, const char *format, ...)
+    PRINTF_LIKE(4, 5);
+EXTERNC void _debug_print_buffer(const char *thefilename, const int linenumber, int level,
+                                 void *buf,
+                                 size_t buf_len); // not printf-style, no change needed
 #define die(...) _die(__FILE__, __LINE__, __VA_ARGS__)
 #define debug(...) _debug(__FILE__, __LINE__, __VA_ARGS__)
 #define warn(...) _warn(__FILE__, __LINE__, __VA_ARGS__)

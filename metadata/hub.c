@@ -43,10 +43,10 @@
 #include "config.h"
 
 #include "common.h"
+#include "core.h"
 #include "dacp.h"
 #include "hub.h"
 #include "pc_queue.h"
-#include "core.h"
 
 #ifdef CONFIG_MBEDTLS
 #include <mbedtls/md5.h>
@@ -532,6 +532,11 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
   } else if (type == 'ssnc') {
     switch (code) {
     // ignore the following
+    case 'dapo':
+      char *dacp_port_string = strndup(data, length);
+      debug(1, "DACP port is \"%s\"", dacp_port_string);
+      free(dacp_port_string);
+      break;
     case 'pcst':
     case 'pcen':
       break;
@@ -759,15 +764,14 @@ void metadata_hub_queue_init() {
 }
 
 void metadata_hub_queue_stop() {
-    // debug(2, "metadata stop hub thread.");
-    pthread_cancel(metadata_hub_thread);
-    pthread_join(metadata_hub_thread, NULL);
-    pc_queue_delete(&metadata_hub_queue);
-    // debug(2, "metadata stop hub done.");
+  // debug(2, "metadata stop hub thread.");
+  pthread_cancel(metadata_hub_thread);
+  pthread_join(metadata_hub_thread, NULL);
+  pc_queue_delete(&metadata_hub_queue);
+  // debug(2, "metadata stop hub done.");
 }
 
-int send_metadata_to_hub_queue(const uint32_t type, const uint32_t code,
-                           const char *data, const uint32_t length, rtsp_message *carrier,
-                           int block) {
-    return send_metadata_to_queue(&metadata_hub_queue, type, code, data, length, carrier, block);
+int send_metadata_to_hub_queue(const uint32_t type, const uint32_t code, const char *data,
+                               const uint32_t length, rtsp_message *carrier, int block) {
+  return send_metadata_to_queue(&metadata_hub_queue, type, code, data, length, carrier, block);
 }

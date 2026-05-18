@@ -273,7 +273,8 @@ typedef struct {
                              // otherwise
   int software_mute_enabled; // if we don't have a real mute that we can use
   int fd;
-  int authorized;   // set if a password is required and has been supplied or not required. Also always set in AirPlay 2 mode.
+  int authorized;   // set if a password is required and has been supplied or not required. Also
+                    // always set in AirPlay 2 mode.
   char *auth_nonce; // the session nonce, if needed
   stream_cfg stream;
   SOCKADDR remote, local;

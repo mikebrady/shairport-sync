@@ -76,8 +76,8 @@
 #include "rtsp.h"
 
 #ifdef CONFIG_METADATA
-#include "metadata/pc_queue.h"
 #include "metadata/core.h"
+#include "metadata/pc_queue.h"
 #endif
 
 #ifdef CONFIG_METADATA_HUB
@@ -91,12 +91,12 @@
 #endif
 
 #ifdef CONFIG_AIRPLAY_2
-#include <plist/plist.h>
 #include "ap2_buffered_audio_processor.h"
 #include "ap2_event_receiver.h"
 #include "pair_ap/pair.h"
 #include "plists/get_info_response.h"
 #include "ptp-utilities.h"
+#include <plist/plist.h>
 
 #ifdef HAVE_LIBPLIST_GE_2_3_0
 #define plist_from_memory(plist_data, length, plist)                                               \
@@ -238,7 +238,12 @@ play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) 
       rtsp_conn_info *previous_principal_conn = principal_conn;
       principal_conn = conn;                           // make the conn the new principal_conn
       pthread_cancel(previous_principal_conn->thread); // cancel the previous one...
-      usleep(1000000);
+
+      debug(1, "Connection %d: waiting for it to stop...",
+            previous_principal_conn->connection_number);
+      pthread_join(previous_principal_conn->thread, NULL);
+      debug(1, "Connection %d: fully stopped.", previous_principal_conn->connection_number);
+
       if (principal_conn == NULL) {
 #ifdef CONFIG_AIRPLAY_2
         config.airplay_statusflags &= (0xffffffff - (1 << 11)); // DeviceSupportsRelay
@@ -265,7 +270,7 @@ play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) 
 
   } else {
     debug(1, "Connection %d: %s get_play_lock must have a non-NULL conn.", conn->connection_number,
-            get_category_string(conn->airplay_stream_category));
+          get_category_string(conn->airplay_stream_category));
   }
   return response;
 }
@@ -952,19 +957,17 @@ void generateTxtDataValueInfo(rtsp_conn_info *conn, void **response, size_t *res
           &qualifier_response_data, &qualifier_response_data_length) == 0)
     debug(1, "Problem");
 
-/*
-  uint64_t features_hi = 0x0001C340445D0A00L;
-  features_hi = (features_hi >> 32) & 0xffffffff;
-  uint64_t features_lo = 0x0001C340445D0A00L;
-  features_lo = features_lo & 0xffffffff;
-*/
-
+  /*
+    uint64_t features_hi = 0x0001C340445D0A00L;
+    features_hi = (features_hi >> 32) & 0xffffffff;
+    uint64_t features_lo = 0x0001C340445D0A00L;
+    features_lo = features_lo & 0xffffffff;
+  */
 
   uint64_t features_hi = config.airplay_features;
   features_hi = (features_hi >> 32) & 0xffffffff;
   uint64_t features_lo = config.airplay_features;
   features_lo = features_lo & 0xffffffff;
-
 
   if (add_pstring_to_malloc(bnprintf(localString, sizeof(localString),
                                      "features=0x%" PRIX64 ",0x%" PRIX64 "", features_lo,
@@ -1292,7 +1295,8 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
       conn->ap2_immediate_flush_until_sequence_number = flushUntilSeq & 0x7fffff;
       conn->ap2_immediate_flush_until_rtp_timestamp = flushUntilTS;
       debug(2,
-            "Connection %d: immediate flush request created: flushUntilTS: %" PRIu64 ", flushUntilSeq: %" PRIu64 ".",
+            "Connection %d: immediate flush request created: flushUntilTS: %" PRIu64
+            ", flushUntilSeq: %" PRIu64 ".",
             conn->connection_number, flushUntilTS, flushUntilSeq & 0x7fffff);
       conn->ap2_play_enabled = 0; // stop trying to play audio
       ptp_send_control_message_string(
@@ -1316,7 +1320,8 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
         conn->ap2_deferred_flush_requests[i].flushUntilSeq = flushUntilSeq & 0x7fffff;
         conn->ap2_deferred_flush_requests[i].flushUntilTS = flushUntilTS;
         debug(2,
-              "Connection %d: deferred flush request created: flushFromSeq: %" PRIu64 ", flushUntilSeq: %" PRIu64 ".",
+              "Connection %d: deferred flush request created: flushFromSeq: %" PRIu64
+              ", flushUntilSeq: %" PRIu64 ".",
               conn->connection_number, flushFromSeq, flushUntilSeq);
       } else {
         debug(1, "Connection %d: no more room for deferred flush request records",
@@ -1473,7 +1478,7 @@ struct pairings {
   uint8_t public_key[32];
 
   struct pairings *next;
-} * pairings;
+} *pairings;
 
 static struct pairings *pairing_find(const char *device_id) {
   for (struct pairings *pairing = pairings; pairing; pairing = pairing->next) {
@@ -1546,14 +1551,15 @@ static void pairing_list_cb(pair_cb enum_cb, void *enum_cb_arg,
 
 void handle_pair_add(rtsp_conn_info *conn __attribute__((unused)), rtsp_message *req,
                      rtsp_message *resp) {
-                     
+
   char *hdr = msg_get_header(req, "X-Apple-Client-Name");
   if (hdr) {
     if (conn->ap2_client_name)
       free(conn->ap2_client_name);
     conn->ap2_client_name = strdup(hdr);
-  }                                                
-  debug(4, "Connection %d from \"%s\": handle_pair_add", conn->connection_number, conn->ap2_client_name);
+  }
+  debug(4, "Connection %d from \"%s\": handle_pair_add", conn->connection_number,
+        conn->ap2_client_name);
   debug_log_rtsp_message_conn(conn, 4, "pair-add request", req);
   uint8_t *body = NULL;
   size_t body_len = 0;
@@ -1577,8 +1583,9 @@ void handle_pair_list(rtsp_conn_info *conn __attribute__((unused)), rtsp_message
     if (conn->ap2_client_name)
       free(conn->ap2_client_name);
     conn->ap2_client_name = strdup(hdr);
-  }                                                
-  debug(4, "Connection %d from \"%s\": handle_pair_list", conn->connection_number, conn->ap2_client_name);
+  }
+  debug(4, "Connection %d from \"%s\": handle_pair_list", conn->connection_number,
+        conn->ap2_client_name);
   debug_log_rtsp_message_conn(conn, 4, "pair-list request", req);
   uint8_t *body = NULL;
   size_t body_len = 0;
@@ -1597,14 +1604,15 @@ void handle_pair_list(rtsp_conn_info *conn __attribute__((unused)), rtsp_message
 
 void handle_pair_remove(rtsp_conn_info *conn __attribute__((unused)), rtsp_message *req,
                         rtsp_message *resp) {
-                        
+
   char *hdr = msg_get_header(req, "X-Apple-Client-Name");
   if (hdr) {
     if (conn->ap2_client_name)
       free(conn->ap2_client_name);
     conn->ap2_client_name = strdup(hdr);
-  }                                                
-  debug(4, "Connection %d from \"%s\": handle_pair_remove", conn->connection_number, conn->ap2_client_name);
+  }
+  debug(4, "Connection %d from \"%s\": handle_pair_remove", conn->connection_number,
+        conn->ap2_client_name);
   debug_log_rtsp_message_conn(conn, 4, "pair-remove request", req);
   uint8_t *body = NULL;
   size_t body_len = 0;
@@ -1627,15 +1635,16 @@ void handle_pair_verify(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *r
     if (conn->ap2_client_name)
       free(conn->ap2_client_name);
     conn->ap2_client_name = strdup(hdr);
-  } 
+  }
   // try to pick up the stages
   uint8_t *b = (uint8_t *)req->content;
   char mstage = '-';
   if ((req->contentlength >= 3) && (b[0] == 6) && (b[1] == 1) && (b[1] <= 9)) {
     mstage = '0' + b[2];
   }
-                                                 
-  debug(4, "Connection %d from \"%s\": handle_pair_verify, stage M%c, Content-Length %d", conn->connection_number, conn->ap2_client_name, mstage, req->contentlength);
+
+  debug(4, "Connection %d from \"%s\": handle_pair_verify, stage M%c, Content-Length %d",
+        conn->connection_number, conn->ap2_client_name, mstage, req->contentlength);
   debug_log_rtsp_message_conn(conn, 4, "pair-verify request", req);
   int ret;
   uint8_t *body = NULL;
@@ -1694,9 +1703,8 @@ void handle_pair_pin_start(rtsp_conn_info *conn, rtsp_message *req, rtsp_message
       free(conn->ap2_client_name);
     conn->ap2_client_name = strdup(hdr);
   }
-  debug(4, "Connection %d from \"%s\": handle_pair_pin_start, Content-Length %d", conn->connection_number,
-        conn->ap2_client_name,
-        req->contentlength);
+  debug(4, "Connection %d from \"%s\": handle_pair_pin_start, Content-Length %d",
+        conn->connection_number, conn->ap2_client_name, req->contentlength);
   debug_log_rtsp_message_conn(conn, 4, "handle_pair_pin_start", req);
 
   uint8_t *body = NULL;
@@ -1717,9 +1725,8 @@ void handle_pair_setup(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *re
       free(conn->ap2_client_name);
     conn->ap2_client_name = strdup(hdr);
   }
-  debug(4, "Connection %d from \"%s\": handle_pair_setup, Content-Length %d", conn->connection_number,
-        conn->ap2_client_name,
-        req->contentlength);
+  debug(4, "Connection %d from \"%s\": handle_pair_setup, Content-Length %d",
+        conn->connection_number, conn->ap2_client_name, req->contentlength);
   debug_log_rtsp_message_conn(conn, 4, "pair-setup request", req);
 
   int ret;
@@ -1727,8 +1734,8 @@ void handle_pair_setup(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *re
   size_t body_len = 0;
 
   if (!conn->ap2_pairing_context.setup_ctx) {
-    conn->ap2_pairing_context.setup_ctx = pair_setup_new(PAIR_SERVER_HOMEKIT, config.password,
-                                                         NULL, NULL, config.airplay_pi);
+    conn->ap2_pairing_context.setup_ctx =
+        pair_setup_new(PAIR_SERVER_HOMEKIT, config.password, NULL, NULL, config.airplay_pi);
     if (!conn->ap2_pairing_context.setup_ctx) {
       debug(1, "Error creating setup context");
       resp->respcode = 500; // Internal Server Error
@@ -1750,16 +1757,18 @@ void handle_pair_setup(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *re
     // don't activate yet, the response to this request is still plaintext
     conn->ap2_pairing_context.control_cipher_bundle.cipher_ctx =
         pair_cipher_new(PAIR_SERVER_HOMEKIT, 3, conn->pair_setup_result->shared_secret,
-                        conn->pair_setup_result->shared_secret_len, ""); // last argument is the (possible) dynamic salt suffix
+                        conn->pair_setup_result->shared_secret_len,
+                        ""); // last argument is the (possible) dynamic salt suffix
     if (!conn->ap2_pairing_context.control_cipher_bundle.cipher_ctx) {
       debug(1, "Error setting up rtsp control channel ciphering");
       goto out;
     }
     conn->ap2_pairing_context.control_cipher_bundle.description = strdup("Control Stream");
-    
+
     conn->ap2_pairing_context.event_cipher_bundle.cipher_ctx =
         pair_cipher_new(PAIR_SERVER_HOMEKIT, 4, conn->pair_setup_result->shared_secret,
-                        conn->pair_setup_result->shared_secret_len, ""); // last argument is the (possible) dynamic salt suffix
+                        conn->pair_setup_result->shared_secret_len,
+                        ""); // last argument is the (possible) dynamic salt suffix
     if (!conn->ap2_pairing_context.event_cipher_bundle.cipher_ctx) {
       debug(1, "Error setting up rtsp event channel ciphering");
       goto out;
@@ -1787,7 +1796,6 @@ void handle_fp_setup(__attribute__((unused)) rtsp_conn_info *conn, rtsp_message 
   debug(4, "Connection %d from \"%s\": handle_fp_setup,", conn->connection_number,
         conn->ap2_client_name);
   debug_log_rtsp_message_conn(conn, 4, "fp-setup request", req);
-
 
   /* Fairplay magic */
   static uint8_t server_fp_reply1[] =
@@ -1907,9 +1915,9 @@ void handle_configure(rtsp_conn_info *conn __attribute__((unused)),
                       rtsp_message *req __attribute__((unused)), rtsp_message *resp) {
 
   debug_log_rtsp_message_conn(conn, 4, "POST /configure req:", req);
-  
+
   int existingEnable_HK_Access_Control = config.enable_HK_Access_Control;
-  
+
   plist_t response_plist = plist_new_dict();
 
   // look for a configuration dictionary
@@ -1919,40 +1927,41 @@ void handle_configure(rtsp_conn_info *conn __attribute__((unused)),
     plist_t configurationDict = plist_dict_get_item(messagePlist, "ConfigurationDictionary");
     if (configurationDict != NULL) {
       uint8_t enable_HK_Access_Control = 0;
-      plist_t enableItem = plist_dict_get_item(configurationDict,"Enable_HK_Access_Control");
+      plist_t enableItem = plist_dict_get_item(configurationDict, "Enable_HK_Access_Control");
       if (enableItem != NULL) {
         plist_get_bool_val(enableItem, &enable_HK_Access_Control);
-        
+
         if (enable_HK_Access_Control != 0) {
           config.enable_HK_Access_Control = 1;
           plist_dict_set_item(response_plist, "Identifier", plist_new_string(config.airplay_pi));
           plist_dict_set_item(response_plist, "Enable_HK_Access_Control", plist_new_bool(1));
-          plist_dict_set_item(response_plist, "PublicKey",
-                            plist_new_data((const char *)config.airplay_pk, sizeof(config.airplay_pk)));
+          plist_dict_set_item(
+              response_plist, "PublicKey",
+              plist_new_data((const char *)config.airplay_pk, sizeof(config.airplay_pk)));
           plist_dict_set_item(response_plist, "Device_Name", plist_new_string(config.service_name));
-          plist_dict_set_item(response_plist, "Access_Control_Level", plist_new_uint(0));        
+          plist_dict_set_item(response_plist, "Access_Control_Level", plist_new_uint(0));
         } else {
-           config.enable_HK_Access_Control = 0;
+          config.enable_HK_Access_Control = 0;
           // leave the response dict empty
         }
       } else {
         debug(4, "no Enable_HK_Access_Control item in POST /configure ConfigurationDictionary");
       }
-      debug(4, "enable_HK_Access_Control is %u.", enable_HK_Access_Control);    
+      debug(4, "enable_HK_Access_Control is %u.", enable_HK_Access_Control);
     } else {
-       debug(4, "no ConfigurationDictionary in POST /configure plist");
+      debug(4, "no ConfigurationDictionary in POST /configure plist");
     }
     plist_free(messagePlist);
   } else {
     debug(4, "no plist in POST /configure request");
   }
-  
+
   if (config.enable_HK_Access_Control != 0) {
     config.airplay_statusflags |= (1 << 10); // DeviceWasSetupForHKAccessControl
   } else {
     config.airplay_statusflags &= (0xffffffff - (1 << 10));
   }
-  
+
   if (config.enable_HK_Access_Control != existingEnable_HK_Access_Control) {
     build_bonjour_strings(principal_conn);
     mdns_update(NULL, secondary_txt_records);
@@ -2024,9 +2033,10 @@ void handle_command(rtsp_conn_info *conn, rtsp_message *req,
     // to incur the memory and processing cost. So we'll just send it to the
     // metadata handling code and it can be dealt with there.
 #ifdef CONFIG_METADATA
-    send_metadata('ssnc', 'copl', req->content, req->contentlength, req, 1); // COmmand PList (and release 'req' afterwards)
+    send_metadata('ssnc', 'copl', req->content, req->contentlength, req,
+                  1); // COmmand PList (and release 'req' afterwards)
 #endif
-    /*                     
+    /*
     plist_t command_dict = NULL;
     plist_from_memory(req->content, req->contentlength, &command_dict);
     if (command_dict != NULL) {
@@ -2062,10 +2072,8 @@ void handle_command(rtsp_conn_info *conn, rtsp_message *req,
                     if (subsidiary_plist) {
                       char *printable_plist = plist_as_xml_text(subsidiary_plist);
                       if (printable_plist) {
-                        debug(4, "Connection %d:\n==\n%s\n==", conn->connection_number, printable_plist);
-                        free(printable_plist);
-                      } else {
-                        debug(1, "Can't print the plist!");
+                        debug(4, "Connection %d:\n==\n%s\n==", conn->connection_number,
+    printable_plist); free(printable_plist); } else { debug(1, "Can't print the plist!");
                       }
                       plist_free(subsidiary_plist);
                     } else {
@@ -2234,10 +2242,9 @@ void handle_teardown_2(rtsp_conn_info *conn, __attribute__((unused)) rtsp_messag
                        rtsp_message *resp) {
 
   debug(2, "Connection %d from \"%s\": TEARDOWN 2 %s.", conn->connection_number,
-        conn->ap2_client_name,
-        get_category_string(conn->airplay_stream_category));
+        conn->ap2_client_name, get_category_string(conn->airplay_stream_category));
   debug_log_rtsp_message(2, "TEARDOWN 2: ", req);
-  
+
   if (conn->player_thread) {
     debug(2, "TEARDOWN 2 is stopping a player thread before exiting...");
     player_stop(conn);                    // this nulls the player_thread and cancels the threads...
@@ -2308,7 +2315,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
   int err;
 
   plist_t messagePlist = plist_from_rtsp_content(req);
-  
+
   if (messagePlist != NULL) {
     // if (conn->sessionPlist)
     //   plist_free(conn->sessionPlist);
@@ -2390,11 +2397,13 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
                   conn->connection_number);
           }
         }
-        
-        debug(2, "Connection %d from \"%s\": Initial (i.e. no streams array) SETUP (AirPlay 2) on %s", conn->connection_number,
-        conn->ap2_client_name,
-        get_category_string(conn->airplay_stream_category));
-        debug_log_rtsp_message_conn(conn, 2, "Initial (i.e. no streams array) SETUP (AirPlay 2) incoming message", req);
+
+        debug(2,
+              "Connection %d from \"%s\": Initial (i.e. no streams array) SETUP (AirPlay 2) on %s",
+              conn->connection_number, conn->ap2_client_name,
+              get_category_string(conn->airplay_stream_category));
+        debug_log_rtsp_message_conn(
+            conn, 2, "Initial (i.e. no streams array) SETUP (AirPlay 2) incoming message", req);
 
         // here, we know it's an initial setup and we know the kind of setup being requested
         // if it's a full service PTP stream, we get groupUUID, groupContainsGroupLeader and
@@ -2557,7 +2566,6 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
               debug(2, "Connection %d: TCP PTP event port opened: %u.", conn->connection_number,
                     conn->local_event_port);
 
-
               if (conn->rtp_event_thread != NULL)
                 debug(1, "previous rtp_event_thread allocation not freed, it seems.");
               conn->ap2_event_receiver_exited = 0;
@@ -2660,11 +2668,13 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
       warn("Unrecognised SETUP incoming message -- ignored.");
     }
   } else {
-  
-    debug(2, "Connection %d from \"%s\": Subsequent (i.e. with streams array) SETUP (AirPlay 2) on %s", conn->connection_number,
-    conn->ap2_client_name,
-    get_category_string(conn->airplay_stream_category));
-    debug_log_rtsp_message_conn(conn, 2, "Subsequent (i.e. with streams array) SETUP (AirPlay 2) incoming message", req);
+
+    debug(2,
+          "Connection %d from \"%s\": Subsequent (i.e. with streams array) SETUP (AirPlay 2) on %s",
+          conn->connection_number, conn->ap2_client_name,
+          get_category_string(conn->airplay_stream_category));
+    debug_log_rtsp_message_conn(
+        conn, 2, "Subsequent (i.e. with streams array) SETUP (AirPlay 2) incoming message", req);
 
     if (conn->airplay_stream_category == ptp_stream) {
 
@@ -2790,7 +2800,8 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
           conn->input_rate = item_value;
           debug(4, "Set conn->input_rate: %u.", conn->input_rate);
         } else {
-          debug(1, "Connection %d. No sample rate (sr) property found in setup.", conn->connection_number);
+          debug(1, "Connection %d. No sample rate (sr) property found in setup.",
+                conn->connection_number);
         }
 
         item = plist_dict_get_item(stream0, "spf"); // samples per frame
@@ -2799,7 +2810,8 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
           conn->frames_per_packet = item_value;
           debug(4, "Set conn->frames_per_packet: %u.", conn->frames_per_packet);
         } else {
-          debug(1, "Connection %d. No samples per frame (spf) property found in setup.", conn->connection_number);
+          debug(1, "Connection %d. No samples per frame (spf) property found in setup.",
+                conn->connection_number);
         }
 
         // bind a new UDP port and get a socket
@@ -2913,7 +2925,8 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
             snprintf(salt_suffix, sizeof(salt_suffix), "%" PRIu64 "", seed);
             conn->ap2_pairing_context.data_cipher_bundle.cipher_ctx =
                 pair_cipher_new(PAIR_SERVER_HOMEKIT, 5, conn->pair_setup_result->shared_secret,
-                                conn->pair_setup_result->shared_secret_len, salt_suffix); // last argument is the (possible) dynamic salt suffix
+                                conn->pair_setup_result->shared_secret_len,
+                                salt_suffix); // last argument is the (possible) dynamic salt suffix
             if (conn->ap2_pairing_context.data_cipher_bundle.cipher_ctx != NULL) {
               conn->ap2_pairing_context.data_cipher_bundle.description = strdup("DataStream");
               // get a port to use as an data port
@@ -3138,34 +3151,34 @@ void handle_set_parameter_parameter(rtsp_conn_info *conn, rtsp_message *req,
       debug(3, "Connection %d: request to set AirPlay Volume to: %f.", conn->connection_number,
             volume);
       // if we are playing, go ahead and change the volume
-// #ifdef CONFIG_DBUS_INTERFACE
-//       if (dbus_service_is_running()) {
-//         shairport_sync_set_volume(shairportSyncSkeleton, volume);
-//       } else {
-// #endif
-        pthread_rwlock_rdlock(&principal_conn_lock); // don't let the principal_conn be changed
-        pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
-        if (principal_conn == conn) {
-          debug(3, "Connection %d: set player volume to %.3f.", conn->connection_number, volume);
-          player_volume(volume, conn);
-          debug(3, "Connection %d: set player volume to %.3f success.", conn->connection_number,
-                volume);
-        } else {
-          if (principal_conn != NULL)
-            debug(1, "Connection %d: fail to set player volume to %.3f. Principal conn is %d.",
-                  conn->connection_number, volume, principal_conn->connection_number);
-          else
-            debug(1, "Connection %d: fail to set player volume to %.3f. Principal conn is NULL.",
-                  conn->connection_number, volume);
-        }
-        if (conn != NULL) {
-          conn->own_airplay_volume = volume;
-          conn->own_airplay_volume_set = 1;
-        }
-        pthread_cleanup_pop(1); // release the principal_conn lock
-// #ifdef CONFIG_DBUS_INTERFACE
-//       }
-// #endif
+      // #ifdef CONFIG_DBUS_INTERFACE
+      //       if (dbus_service_is_running()) {
+      //         shairport_sync_set_volume(shairportSyncSkeleton, volume);
+      //       } else {
+      // #endif
+      pthread_rwlock_rdlock(&principal_conn_lock); // don't let the principal_conn be changed
+      pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
+      if (principal_conn == conn) {
+        debug(3, "Connection %d: set player volume to %.3f.", conn->connection_number, volume);
+        player_volume(volume, conn);
+        debug(3, "Connection %d: set player volume to %.3f success.", conn->connection_number,
+              volume);
+      } else {
+        if (principal_conn != NULL)
+          debug(1, "Connection %d: fail to set player volume to %.3f. Principal conn is %d.",
+                conn->connection_number, volume, principal_conn->connection_number);
+        else
+          debug(1, "Connection %d: fail to set player volume to %.3f. Principal conn is NULL.",
+                conn->connection_number, volume);
+      }
+      if (conn != NULL) {
+        conn->own_airplay_volume = volume;
+        conn->own_airplay_volume_set = 1;
+      }
+      pthread_cleanup_pop(1); // release the principal_conn lock
+                              // #ifdef CONFIG_DBUS_INTERFACE
+                              //       }
+                              // #endif
     } else if (strncmp(cp, "progress: ", strlen("progress: ")) ==
                0) { // this can be sent even when metadata is not solicited
 
@@ -4037,10 +4050,11 @@ void rtsp_conversation_thread_cleanup_function(void *arg) {
       debug(1, "Connection %d: error %d destroying event_sender_mutex.", conn->connection_number,
             rc);
 #endif
-    debug(3, "Connection %d: Closed.", conn->connection_number);
+    debug(1, "Connection %d: Closing.", conn->connection_number);
     conn->running = 0; // for the garbage collector
     release_play_lock(conn);
     pthread_setcancelstate(oldState, NULL);
+    debug(1, "Connection %d: Closed.", conn->connection_number);
   }
 }
 
@@ -4073,11 +4087,11 @@ static void *rtsp_conversation_thread_func(void *pconn) {
     die("Connection %d: error %d initialising player_create_delete_mutex.", conn->connection_number,
         rc);
 
-  #ifdef CONFIG_AIRPLAY_2
-    rc = pthread_mutex_init(&conn->event_sender_mutex, NULL);
+#ifdef CONFIG_AIRPLAY_2
+  rc = pthread_mutex_init(&conn->event_sender_mutex, NULL);
   if (rc)
     die("Connection %d: error %d initialising event_sender_mutex.", conn->connection_number, rc);
-  #endif  
+#endif
 
   // nothing before this is cancellable
   pthread_cleanup_push(rtsp_conversation_thread_cleanup_function, (void *)conn);
@@ -4129,7 +4143,7 @@ static void *rtsp_conversation_thread_func(void *pconn) {
       hdr = msg_get_header(req, "CSeq");
       if (hdr)
         msg_add_header(resp, "CSeq", hdr);
-        //      msg_add_header(resp, "Audio-Jack-Status", "connected; type=analog");
+      //      msg_add_header(resp, "Audio-Jack-Status", "connected; type=analog");
 #ifdef CONFIG_AIRPLAY_2
       char server_string[128];
       snprintf(server_string, sizeof(server_string), "AirTunes/%s", config.srcvers);
@@ -4138,18 +4152,17 @@ static void *rtsp_conversation_thread_func(void *pconn) {
       msg_add_header(resp, "Server", "AirTunes/105.1");
 #endif
 
+      // we are only concerned with classic_airplay_authorized if we are running in classic AirPlay
+      // mode either because the build is for classic AirPlay only or, if the build is for AirPlay
+      // 2, we happen to be running in classic AirPlay compatibility mode
 
-
-// we are only concerned with classic_airplay_authorized if we are running in classic AirPlay mode
-// either because the build is for classic AirPlay only or, if the build is for AirPlay 2,
-// we happen to be running in classic AirPlay compatibility mode
-
-      if ((conn->authorized == 1) || 
+      if ((conn->authorized == 1) ||
 #ifdef CONFIG_AIRPLAY_2
-        (conn->airplay_type != ap_1) ||
-#endif      
-        (rtsp_classic_airplay_auth(&conn->auth_nonce, req, resp) == 0)) {
-        conn->authorized = 1; // it must have been classic airplay and authorized or didn't need a password, or not classic AirPlay at all
+          (conn->airplay_type != ap_1) ||
+#endif
+          (rtsp_classic_airplay_auth(&conn->auth_nonce, req, resp) == 0)) {
+        conn->authorized = 1; // it must have been classic airplay and authorized or didn't need a
+                              // password, or not classic AirPlay at all
         struct method_handler *mh;
         int method_selected = 0;
         for (mh = method_handlers; mh->method; mh++) {
@@ -4209,8 +4222,10 @@ static void *rtsp_conversation_thread_func(void *pconn) {
         so_linger.l_linger = 0;
         err = setsockopt(conn->fd, SOL_SOCKET, SO_LINGER, &so_linger, sizeof so_linger);
         if (err)
-          debug(1, "Connection %d: Could not set the RTSP socket to abort due to a write error on closing.",
-              conn->connection_number);
+          debug(1,
+                "Connection %d: Could not set the RTSP socket to abort due to a write error on "
+                "closing.",
+                conn->connection_number);
         conn->stop = 1;
         // if (debuglev >= 1)
         //  debuglev = 3; // see what happens next
@@ -4238,7 +4253,8 @@ static void *rtsp_conversation_thread_func(void *pconn) {
           debug(1, "rtsp_read_request_response_bad_packet write response error %d: \"%s\".", errno,
                 (char *)errorstring);
         } else if (lreply != (ssize_t)strlen(response_text)) {
-          debug(1, "rtsp_read_request_response_bad_packet write %zd bytes requested but %d written.",
+          debug(1,
+                "rtsp_read_request_response_bad_packet write %zd bytes requested but %d written.",
                 strlen(response_text), reply);
         }
       }

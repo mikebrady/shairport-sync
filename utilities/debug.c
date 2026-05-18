@@ -228,7 +228,6 @@ void _inform(const char *filename, const int linenumber, const char *format, ...
   pthread_setcancelstate(oldState, NULL);
 }
 
-
 void _debug_print_buffer(const char *thefilename, const int linenumber, int level, void *ibuf,
                          size_t buf_len) {
 
@@ -238,77 +237,76 @@ void _debug_print_buffer(const char *thefilename, const int linenumber, int leve
   char *vbuf = (char *)ibuf; // this to stop the compiler complaining about indexing through a void
   unsigned int i;
   unsigned int hexdump_cols = 16;
-  
+
   // 0x123456: <hexdump_cols * 3> <hexdump_cols>\n
-  const size_t buffer_size = 2 + 6 + 2 + hexdump_cols * 3 + hexdump_cols + 1; 
+  const size_t buffer_size = 2 + 6 + 2 + hexdump_cols * 3 + hexdump_cols + 1;
   char *buf = malloc(buffer_size);
   if (buf) {
-    //char *bufp = buf;
-    // *buf = '\0';
+    // char *bufp = buf;
+    //  *buf = '\0';
 
-  // if (msg)
-  //   printf("%s", msg);
-  
-  #define ADDR_PREFIX_LEN 10  // "0x000000: "
+    // if (msg)
+    //   printf("%s", msg);
 
-  // each complete row
-  for (i = 0; i < (buf_len / hexdump_cols); i++) {
-    char *bufp = buf;
-    *buf = '\0';
-    snprintf(bufp, ADDR_PREFIX_LEN + 1,"0x%06x  ", (i * hexdump_cols) & 0xFFFFFF);
-    bufp += ADDR_PREFIX_LEN;
-    
-    unsigned int j;
-    for (j = 0; j < hexdump_cols; j++) {
-      snprintf(bufp, strlen("12 ") + 1, "%02x ", 0xFF & vbuf[i * hexdump_cols + j]);
-      bufp += strlen("12 ");
-    }
-    
-    for (j = 0; j < hexdump_cols; j++) {
-      if (isprint(vbuf[i * hexdump_cols + j])) {
+#define ADDR_PREFIX_LEN 10 // "0x000000: "
+
+    // each complete row
+    for (i = 0; i < (buf_len / hexdump_cols); i++) {
+      char *bufp = buf;
+      *buf = '\0';
+      snprintf(bufp, ADDR_PREFIX_LEN + 1, "0x%06x  ", (i * hexdump_cols) & 0xFFFFFF);
+      bufp += ADDR_PREFIX_LEN;
+
+      unsigned int j;
+      for (j = 0; j < hexdump_cols; j++) {
+        snprintf(bufp, strlen("12 ") + 1, "%02x ", 0xFF & vbuf[i * hexdump_cols + j]);
+        bufp += strlen("12 ");
+      }
+
+      for (j = 0; j < hexdump_cols; j++) {
+        if (isprint(vbuf[i * hexdump_cols + j])) {
           *bufp = 0xFF & vbuf[i * hexdump_cols + j];
-      } else {
+        } else {
           *bufp = '.';
+        }
+        bufp++;
       }
-      bufp++;
-    }
-    *bufp = '\0';
+      *bufp = '\0';
       _debug(thefilename, linenumber, level, "%s", buf);
-  }
-
-  size_t remaining = buf_len % hexdump_cols;
-  if (remaining != 0) {
-    size_t starting_offset = buf_len - remaining;
-    char *bufp = buf;
-    *buf = '\0';
-    snprintf(bufp, ADDR_PREFIX_LEN + 1,"0x%06zx  ", starting_offset & 0xFFFFFF);
-    bufp += ADDR_PREFIX_LEN;
-
-    unsigned int j;
-    for (j = 0; j < hexdump_cols; j++) {
-      if (j < remaining) {
-        snprintf(bufp, strlen("12 ") + 1, "%02x ", 0xFF & vbuf[starting_offset + j]);
-      } else {
-        snprintf(bufp, strlen("   ") + 1, "   "); // fille with blanks
-      }
-      bufp += strlen("12 ");
     }
-    
-    for (j = 0; j < remaining; j++) {
-      if (isprint(vbuf[i * hexdump_cols + j])) {
+
+    size_t remaining = buf_len % hexdump_cols;
+    if (remaining != 0) {
+      size_t starting_offset = buf_len - remaining;
+      char *bufp = buf;
+      *buf = '\0';
+      snprintf(bufp, ADDR_PREFIX_LEN + 1, "0x%06zx  ", starting_offset & 0xFFFFFF);
+      bufp += ADDR_PREFIX_LEN;
+
+      unsigned int j;
+      for (j = 0; j < hexdump_cols; j++) {
+        if (j < remaining) {
+          snprintf(bufp, strlen("12 ") + 1, "%02x ", 0xFF & vbuf[starting_offset + j]);
+        } else {
+          snprintf(bufp, strlen("   ") + 1, "   "); // fille with blanks
+        }
+        bufp += strlen("12 ");
+      }
+
+      for (j = 0; j < remaining; j++) {
+        if (isprint(vbuf[i * hexdump_cols + j])) {
           *bufp = 0xFF & vbuf[starting_offset + j];
-      } else {
+        } else {
           *bufp = '.';
+        }
+        bufp++;
       }
-      bufp++;
-    }
-    *bufp = '\0';
+      *bufp = '\0';
       _debug(thefilename, linenumber, level, "%s", buf);
-  }
-  free(buf);
+    }
+    free(buf);
   }
 }
-
 
 /*
 void _debug_print_buffer(const char *thefilename, const int linenumber, int level, void *vbuf,

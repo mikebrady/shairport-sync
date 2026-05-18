@@ -26,9 +26,9 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
- 
- #include <stdint.h>
- #include "mod23.h"
+
+#include "mod23.h"
+#include <stdint.h>
 
 #define MOD_23BIT 0x7FFFFF // 2^23 - 1
 

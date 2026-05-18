@@ -981,7 +981,8 @@ void *rtp_timing_receiver(void *arg) {
                   return_time);
           }
         } else {
-          debug(1, "Timing port -- Unknown RTP packet of type 0x%02X length %zd.", packet[1], nread);
+          debug(1, "Timing port -- Unknown RTP packet of type 0x%02X length %zd.", packet[1],
+                nread);
         }
       } else {
         debug(3, "Timing Receiver Thread -- dropping incoming packet to simulate a bad network.");
@@ -1387,9 +1388,11 @@ int get_ptp_anchor_local_time_info(rtsp_conn_info *conn, uint32_t *anchorRTP,
         if ((previous_offset != 0) && (previous_clock_id == actual_clock_id) &&
             ((jitter > 3000000) || (jitter < -3000000)))
           debug(1,
-                "Clock jitter: %.3f mS. Time since sample: %.3f mS. Time since start of mastership: %.3f "
+                "Clock jitter: %.3f mS. Time since sample: %.3f mS. Time since start of "
+                "mastership: %.3f "
                 "seconds.",
-                jitter * 0.000001, time_since_sample * 0.000001, time_since_start_of_mastership * 0.000000001);
+                jitter * 0.000001, time_since_sample * 0.000001,
+                time_since_start_of_mastership * 0.000000001);
 
         previous_offset = actual_offset;
         previous_clock_id = actual_clock_id;
@@ -1514,7 +1517,8 @@ int frame_to_ptp_local_time(uint32_t timestamp, uint64_t *time, rtsp_conn_info *
     int64_t time_difference = frame_difference;
     time_difference = time_difference * 1000000000;
     if (conn->input_rate == 0) {
-      debug(1,"Connection %d: in a call to frame_to_ptp_local_time, conn->input_rate is zero!", conn->connection_number);
+      debug(1, "Connection %d: in a call to frame_to_ptp_local_time, conn->input_rate is zero!",
+            conn->connection_number);
       time_difference = 0;
     } else {
       time_difference = time_difference / conn->input_rate;
@@ -1807,7 +1811,8 @@ void rtp_realtime_audio_cleanup_handler(__attribute__((unused)) void *arg) {
   debug(2, "Realtime Audio Receiver Cleanup Start.");
   rtsp_conn_info *conn = (rtsp_conn_info *)arg;
   close(conn->realtime_audio_socket);
-  debug(2, "Connection %d: closing realtime audio port %u", conn->connection_number, conn->local_realtime_audio_port);
+  debug(2, "Connection %d: closing realtime audio port %u", conn->connection_number,
+        conn->local_realtime_audio_port);
   conn->realtime_audio_socket = 0;
   debug(2, "Realtime Audio Receiver Cleanup Done.");
 }

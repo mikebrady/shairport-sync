@@ -48,7 +48,6 @@ play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption);
 // this will release the play lock only if the conn has it or if the conn is NULL
 void release_play_lock(rtsp_conn_info *conn);
 
-
 #ifdef CONFIG_AIRPLAY_2
 ssize_t read_encrypted(int fd, pair_cipher_bundle *ctx, void *buf, size_t count);
 ssize_t write_encrypted(int fd, pair_cipher_bundle *ctx, const void *buf, size_t count);

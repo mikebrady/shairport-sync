@@ -15,7 +15,6 @@ void _cb_log(struct mosquitto *mosq, void *userdata, int level, const char *str)
 
 void metadata_mqtt_queue_init();
 void metadata_mqtt_queue_stop();
-int send_metadata_to_mqtt_queue(const uint32_t type, const uint32_t code,
-                           const char *data, const uint32_t length, rtsp_message *carrier,
-                           int block);
+int send_metadata_to_mqtt_queue(const uint32_t type, const uint32_t code, const char *data,
+                                const uint32_t length, rtsp_message *carrier, int block);
 #endif /* #ifndef MQTT_H */

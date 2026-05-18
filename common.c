@@ -51,8 +51,8 @@
 #include <time.h>
 #include <unistd.h>
 
-#include <net/if.h>
 #include <ifaddrs.h>
+#include <net/if.h>
 
 #ifdef COMPILE_FOR_LINUX
 #include <netpacket/packet.h>
@@ -950,7 +950,8 @@ uint8_t *rsa_apply(uint8_t *input, int inlen, int *outlen, int mode) {
     mbedtls_rsa_set_padding(trsa, MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
     outbuf = malloc(trsa->MBEDTLS_PRIVATE_V3_ONLY(len));
 #if MBEDTLS_VERSION_MAJOR == 3
-    rc = mbedtls_pk_sign(&pkctx, MBEDTLS_MD_NONE, input, inlen, outbuf, mbedtls_pk_get_len(&pkctx), &olen, mbedtls_ctr_drbg_random, &ctr_drbg);
+    rc = mbedtls_pk_sign(&pkctx, MBEDTLS_MD_NONE, input, inlen, outbuf, mbedtls_pk_get_len(&pkctx),
+                         &olen, mbedtls_ctr_drbg_random, &ctr_drbg);
     *outlen = olen;
 #else
     rc = mbedtls_rsa_pkcs1_encrypt(trsa, mbedtls_ctr_drbg_random, &ctr_drbg, MBEDTLS_RSA_PRIVATE,
@@ -1066,7 +1067,7 @@ int config_set_lookup_bool(config_t *cfg, const char *where, int *dst) {
   const char *str = NULL;
   int response = CONFIG_FALSE;
   config_setting_t *s = config_lookup(cfg, where);
-  if (s != NULL) { 
+  if (s != NULL) {
     if (config_setting_type(s) == CONFIG_TYPE_STRING) {
       str = config_setting_get_string(s);
       if (strcasecmp(str, "no") == 0) {
@@ -1076,11 +1077,14 @@ int config_set_lookup_bool(config_t *cfg, const char *where, int *dst) {
         (*dst) = 1;
         response = CONFIG_TRUE;
       } else {
-        die("invalid boolean parameter \"%s\" option choice \"%s\". It should be \"yes\" or \"no\"", where, str);
+        die("invalid boolean parameter \"%s\" option choice \"%s\". It should be \"yes\" or \"no\"",
+            where, str);
         return 0;
       }
     } else {
-        warn("the \"%s\" parameter is not a string with a value of \"yes\" or \"no\", as required, and has been ignored.", where);
+      warn("the \"%s\" parameter is not a string with a value of \"yes\" or \"no\", as required, "
+           "and has been ignored.",
+           where);
     }
   }
   return response;
@@ -1826,7 +1830,8 @@ void sps_nanosleep(const time_t sec, const long nanosec) {
     rem = req;
   } while ((result == -1) && (errno == EINTR));
   if (result == -1)
-    debug(1, "Error in sps_nanosleep of %" PRIdMAX " sec and %ld nanoseconds: %d.", (intmax_t)sec, nanosec, errno);
+    debug(1, "Error in sps_nanosleep of %" PRIdMAX " sec and %ld nanoseconds: %d.", (intmax_t)sec,
+          nanosec, errno);
 }
 
 // Mac OS X doesn't have pthread_mutex_timedlock
@@ -1914,7 +1919,7 @@ int _debug_mutex_unlock(pthread_mutex_t *mutex, const char *mutexname, const cha
     if (strerror_r(r, errstr, sizeof(errstr)) == 0) {
       debug(1, "error %d: \"%s\" unlocking mutex \"%s\" at \"%s\".", r, errstr, mutexname, dstring);
     } else {
-      debug(1, "error %d: unlocking mutex \"%s\" at \"%s\".", r,  mutexname, dstring);    
+      debug(1, "error %d: unlocking mutex \"%s\" at \"%s\".", r, mutexname, dstring);
     }
   }
   pthread_setcancelstate(oldState, NULL);
@@ -2349,12 +2354,8 @@ int get_device_id(uint8_t *id, int int_length) {
 #ifdef AF_PACKET
         if ((ifa->ifa_addr) && (ifa->ifa_addr->sa_family == AF_PACKET)) {
           struct sockaddr_ll *s = (struct sockaddr_ll *)ifa->ifa_addr;
-          if (
-              ((ifa->ifa_flags & IFF_UP) != 0) && 
-              ((ifa->ifa_flags & IFF_RUNNING) != 0) && 
-              ((ifa->ifa_flags & IFF_LOOPBACK) == 0) && 
-              (ifa->ifa_addr != 0)
-            ) {
+          if (((ifa->ifa_flags & IFF_UP) != 0) && ((ifa->ifa_flags & IFF_RUNNING) != 0) &&
+              ((ifa->ifa_flags & IFF_LOOPBACK) == 0) && (ifa->ifa_addr != 0)) {
             found = 1;
             response = 0;
             for (i = 0; ((i < s->sll_halen) && (i < int_length)); i++) {

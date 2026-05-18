@@ -1,9 +1,9 @@
+#include "rtsp_message_utilities.h"
+#include "../common.h"
+#include "../rtsp.h"
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
-#include "rtsp_message_utilities.h"
-#include "../rtsp.h"
-#include "../common.h"
 
 #ifdef CONFIG_AIRPLAY_2
 #include <plist/plist.h>
@@ -80,15 +80,16 @@ char *msg_get_header(rtsp_message *msg, char *name) {
   return NULL;
 }
 
-void _debug_print_msg_headers(rtsp_conn_info *conn, const char *filename, const int linenumber, int level,
-                              rtsp_message *msg) {
+void _debug_print_msg_headers(rtsp_conn_info *conn, const char *filename, const int linenumber,
+                              int level, rtsp_message *msg) {
   unsigned int i;
   if (conn != NULL) {
     if (msg->respcode != 0)
-      _debug(filename, linenumber, level, "Connection: %d,  Response Code: %d.", conn->connection_number, msg->respcode);
+      _debug(filename, linenumber, level, "Connection: %d,  Response Code: %d.",
+             conn->connection_number, msg->respcode);
     for (i = 0; i < msg->nheaders; i++) {
-      _debug(filename, linenumber, level, "Connection: %d,  Type: \"%s\", content: \"%s\"", conn->connection_number, msg->name[i],
-             msg->value[i]);
+      _debug(filename, linenumber, level, "Connection: %d,  Type: \"%s\", content: \"%s\"",
+             conn->connection_number, msg->name[i], msg->value[i]);
     }
   } else {
     if (msg->respcode != 0)
@@ -243,8 +244,8 @@ char *rtsp_plist_content(rtsp_message *message) {
 
 #endif
 
-void _debug_log_rtsp_message(rtsp_conn_info *conn, const char *filename, const int linenumber, int level, char *prompt,
-                             rtsp_message *message) {
+void _debug_log_rtsp_message(rtsp_conn_info *conn, const char *filename, const int linenumber,
+                             int level, char *prompt, rtsp_message *message) {
   if (level > debug_level())
     return;
   if ((prompt) && (*prompt != '\0')) // okay to pass NULL or an empty list...
@@ -253,13 +254,13 @@ void _debug_log_rtsp_message(rtsp_conn_info *conn, const char *filename, const i
 #ifdef CONFIG_AIRPLAY_2
   char *plist_content = rtsp_plist_content(message);
   if (plist_content) {
-    _debug(filename, linenumber, level, "  Content length: %u. Content Plist (as XML):\n--\n%s--", message->contentlength, plist_content);
+    _debug(filename, linenumber, level, "  Content length: %u. Content Plist (as XML):\n--\n%s--",
+           message->contentlength, plist_content);
     free(plist_content);
   } else
 #endif
   {
-    _debug(filename, linenumber, level, "  Content length: %u.",
-           message->contentlength);
+    _debug(filename, linenumber, level, "  Content length: %u.", message->contentlength);
     if (message->contentlength > 0) {
       _debug_print_buffer(filename, linenumber, level, message->content, message->contentlength);
     }
@@ -267,7 +268,7 @@ void _debug_log_rtsp_message(rtsp_conn_info *conn, const char *filename, const i
 }
 
 #ifdef CONFIG_AIRPLAY_2
-void decodeAndLogPlist(plist_t plist_to_log) { 
+void decodeAndLogPlist(plist_t plist_to_log) {
   if (plist_to_log != NULL) {
     char *plist_as_string = plist_as_xml_text(plist_to_log);
     if (plist_as_string != NULL) {

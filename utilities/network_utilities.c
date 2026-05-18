@@ -24,24 +24,22 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "network_utilities.h"
 #include <errno.h>
 #include <string.h>
-#include "network_utilities.h"
 
-int eintr_checked_accept(int sockfd, struct sockaddr *addr,
-                  socklen_t *addrlen) {
+int eintr_checked_accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
   int response;
   do {
-    response =  accept(sockfd, addr, addrlen);
-    
+    response = accept(sockfd, addr, addrlen);
+
     if (response == -1) {
       char errorstring[1024];
       strerror_r(errno, (char *)errorstring, sizeof(errorstring));
-      debug(1,
-        "error %d accept()ing a socket %d: \"%s\". (Note: error %d will be ignored.)",
-        errno, sockfd, errorstring, EINTR);
+      debug(1, "error %d accept()ing a socket %d: \"%s\". (Note: error %d will be ignored.)", errno,
+            sockfd, errorstring, EINTR);
     }
-    
-  } while((response == -1) && (errno == EINTR));
+
+  } while ((response == -1) && (errno == EINTR));
   return response;
 }

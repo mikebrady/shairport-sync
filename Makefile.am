@@ -156,12 +156,12 @@ shairport_sync_SOURCES += mqtt.c
 endif
 
 
-# if USE_DACP_CLIENT
-# shairport_sync_SOURCES += dacp.c
-# shairport_sync_LDADD += lib_tinyhttp.a
-# noinst_LIBRARIES += lib_tinyhttp.a
-# lib_tinyhttp_a_SOURCES =  tinyhttp/chunk.c tinyhttp/header.c tinyhttp/http.c
-# endif
+if USE_DACP_CLIENT
+shairport_sync_SOURCES += dacp.c
+shairport_sync_LDADD += lib_tinyhttp.a
+noinst_LIBRARIES += lib_tinyhttp.a
+lib_tinyhttp_a_SOURCES =  tinyhttp/chunk.c tinyhttp/header.c tinyhttp/http.c
+endif
 
 if USE_AIRPLAY_2
 shairport_sync_SOURCES += ap2_buffered_audio_processor.c ap2_event_receiver.c \

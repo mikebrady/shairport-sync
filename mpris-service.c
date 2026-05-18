@@ -41,6 +41,7 @@
 
 #include "metadata/hub.h"
 #include "mpris-service.h"
+#include "remote/remote.h"
 
 static guint ownerID = 0;
 static GBusType mpris_bus_type = G_BUS_TYPE_SYSTEM; // default is the dbus system message bus
@@ -298,13 +299,8 @@ static gboolean on_handle_play(MediaPlayer2Player *skeleton, GDBusMethodInvocati
 static gboolean on_handle_set_volume(MediaPlayer2Player *skeleton,
                                      GDBusMethodInvocation *invocation, const gdouble volume,
                                      __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  double ap_volume = mpris_volume_to_airplay_volume(volume);
-  debug(2, "Set mpris volume to %.6f, i.e. airplay volume to %.6f.", volume, ap_volume);
-  char command[256] = "";
-  snprintf(command, sizeof(command), "setproperty?dmcp.device-volume=%.6f", ap_volume);
-  send_simple_dacp_command(command);
-#endif
+  debug(1, "D-Bus set airplay volume to %.3f.", volume);
+  remote_set_airplay_volume(volume);
   media_player2_player_complete_play(skeleton, invocation);
   return TRUE;
 }

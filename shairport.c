@@ -50,12 +50,12 @@
 
 #ifdef CONFIG_AIRPLAY_2
 #include "ptp-utilities.h"
+#include "utilities/generate_device_uuid.h"
+#include "utilities/generate_random_uuid.h"
 #include <gcrypt.h>
 #include <libavcodec/avcodec.h>
 #include <sodium.h>
 #include <uuid/uuid.h>
-#include "utilities/generate_random_uuid.h"
-#include "utilities/generate_device_uuid.h"
 
 #endif
 
@@ -265,7 +265,7 @@ void *soxr_time_check(__attribute__((unused)) void *arg) {
                  outbuffer, buffer_length - 1, &odone, // Output.
                  &io_spec,                             // Input, output and transfer spec.
                  NULL, NULL);                          // Default configuration.
-    
+
     pthread_setcancelstate(oldState, NULL);
   }
 
@@ -394,40 +394,39 @@ int parse_options(int argc, char **argv) {
   int tolerance_in_frames = 0;
   poptContext optCon; /* context for parsing command-line options */
   struct poptOption optionsTable[] = {
-    {"verbose", 'v', POPT_ARG_NONE, NULL, 'v', NULL, NULL},
-    {"kill", 'k', POPT_ARG_NONE, &killOption, 0, NULL, NULL},
-    {"daemon", 'd', POPT_ARG_NONE, &daemonisewith, 0, NULL, NULL},
-    {"justDaemoniseNoPIDFile", 'j', POPT_ARG_NONE, &daemonisewithout, 0, NULL, NULL},
-    {"configfile", 'c', POPT_ARG_STRING, &config.configfile, 0, NULL, NULL},
-    {"statistics", 0, POPT_ARG_NONE, &config.statistics_requested, 0, NULL, NULL},
-    {"logOutputLevel", 0, POPT_ARG_NONE, &config.logOutputLevel, 0, NULL, NULL},
-    {"version", 'V', POPT_ARG_NONE, NULL, 0, NULL, NULL},
-    {"displayConfig", 'X', POPT_ARG_NONE, &display_config_selected, 0, NULL, NULL},
-    {"port", 'p', POPT_ARG_INT, &config.port, 0, NULL, NULL},
-    {"name", 'a', POPT_ARG_STRING, &raw_service_name, 0, NULL, NULL},
-    {"output", 'o', POPT_ARG_STRING, &config.output_name, 0, NULL, NULL},
-    {"on-start", 'B', POPT_ARG_STRING, &config.cmd_start, 0, NULL, NULL},
-    {"on-stop", 'E', POPT_ARG_STRING, &config.cmd_stop, 0, NULL, NULL},
-    {"wait-cmd", 'w', POPT_ARG_NONE, &config.cmd_blocking, 0, NULL, NULL},
-    {"mdns", 'm', POPT_ARG_STRING, &config.mdns_name, 0, NULL, NULL},
-    {"latency", 'L', POPT_ARG_INT, &config.userSuppliedLatency, 0, NULL, NULL},
-    {"stuffing", 'S', POPT_ARG_STRING, &stuffing, 'S', NULL, NULL},
-    {"resync", 'r', POPT_ARG_INT, &resync_threshold_in_frames, 'r', NULL, NULL},
-    {"timeout", 't', POPT_ARG_INT, &config.timeout, 't', NULL, NULL},
-    {"password", 0, POPT_ARG_STRING, &config.password, 0, NULL, NULL},
+      {"verbose", 'v', POPT_ARG_NONE, NULL, 'v', NULL, NULL},
+      {"kill", 'k', POPT_ARG_NONE, &killOption, 0, NULL, NULL},
+      {"daemon", 'd', POPT_ARG_NONE, &daemonisewith, 0, NULL, NULL},
+      {"justDaemoniseNoPIDFile", 'j', POPT_ARG_NONE, &daemonisewithout, 0, NULL, NULL},
+      {"configfile", 'c', POPT_ARG_STRING, &config.configfile, 0, NULL, NULL},
+      {"statistics", 0, POPT_ARG_NONE, &config.statistics_requested, 0, NULL, NULL},
+      {"logOutputLevel", 0, POPT_ARG_NONE, &config.logOutputLevel, 0, NULL, NULL},
+      {"version", 'V', POPT_ARG_NONE, NULL, 0, NULL, NULL},
+      {"displayConfig", 'X', POPT_ARG_NONE, &display_config_selected, 0, NULL, NULL},
+      {"port", 'p', POPT_ARG_INT, &config.port, 0, NULL, NULL},
+      {"name", 'a', POPT_ARG_STRING, &raw_service_name, 0, NULL, NULL},
+      {"output", 'o', POPT_ARG_STRING, &config.output_name, 0, NULL, NULL},
+      {"on-start", 'B', POPT_ARG_STRING, &config.cmd_start, 0, NULL, NULL},
+      {"on-stop", 'E', POPT_ARG_STRING, &config.cmd_stop, 0, NULL, NULL},
+      {"wait-cmd", 'w', POPT_ARG_NONE, &config.cmd_blocking, 0, NULL, NULL},
+      {"mdns", 'm', POPT_ARG_STRING, &config.mdns_name, 0, NULL, NULL},
+      {"latency", 'L', POPT_ARG_INT, &config.userSuppliedLatency, 0, NULL, NULL},
+      {"stuffing", 'S', POPT_ARG_STRING, &stuffing, 'S', NULL, NULL},
+      {"resync", 'r', POPT_ARG_INT, &resync_threshold_in_frames, 'r', NULL, NULL},
+      {"timeout", 't', POPT_ARG_INT, &config.timeout, 't', NULL, NULL},
+      {"password", 0, POPT_ARG_STRING, &config.password, 0, NULL, NULL},
 #if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
-    {"dbus-default-message-bus", 0, POPT_ARG_STRING, &dbus_default_message_bus, 0, NULL, NULL},
+      {"dbus-default-message-bus", 0, POPT_ARG_STRING, &dbus_default_message_bus, 0, NULL, NULL},
 #endif
-    {"tolerance", 'z', POPT_ARG_INT, &tolerance_in_frames, 'z', NULL, NULL},
-    {"use-stderr", 'u', POPT_ARG_NONE, NULL, 'u', NULL, NULL},
-    {"log-to-syslog", 0, POPT_ARG_NONE, &log_to_syslog_selected, 0, NULL, NULL},
+      {"tolerance", 'z', POPT_ARG_INT, &tolerance_in_frames, 'z', NULL, NULL},
+      {"use-stderr", 'u', POPT_ARG_NONE, NULL, 'u', NULL, NULL},
+      {"log-to-syslog", 0, POPT_ARG_NONE, &log_to_syslog_selected, 0, NULL, NULL},
 #ifdef CONFIG_METADATA
-    {"metadata-enable", 'M', POPT_ARG_NONE, &config.metadata_enabled, 'M', NULL, NULL},
-    {"metadata-pipename", 0, POPT_ARG_STRING, &config.metadata_pipename, 0, NULL, NULL},
-    {"get-coverart", 'g', POPT_ARG_NONE, &config.get_coverart, 'g', NULL, NULL},
+      {"metadata-enable", 'M', POPT_ARG_NONE, &config.metadata_enabled, 'M', NULL, NULL},
+      {"metadata-pipename", 0, POPT_ARG_STRING, &config.metadata_pipename, 0, NULL, NULL},
+      {"get-coverart", 'g', POPT_ARG_NONE, &config.get_coverart, 'g', NULL, NULL},
 #endif
-    POPT_AUTOHELP{NULL, 0, 0, NULL, 0, NULL, NULL}
-  };
+      POPT_AUTOHELP{NULL, 0, 0, NULL, 0, NULL, NULL}};
 
   // we have to parse the command line arguments to look for a config file
   int optind;
@@ -552,12 +551,12 @@ int parse_options(int argc, char **argv) {
   // for unexpected circumstances
 
   config.model = strdup("ShairportSync");
-  //config.model = strdup("AirPort10,115");
-  // config.model = strdup("AudioAccessory5,1");
+  // config.model = strdup("AirPort10,115");
+  //  config.model = strdup("AudioAccessory5,1");
 
   // config.srcvers = strdup(PACKAGE_VERSION);
   config.srcvers = strdup("760.13.1");
-  
+
   // config.srcvers = strdup("940.23.1");
 
   // config.srcvers = strdup("366.0");
@@ -614,8 +613,8 @@ int parse_options(int argc, char **argv) {
   // use the MAC address placed in config.hw_addr to generate the default airplay_device_id
   uint64_t temporary_airplay_id = nctoh64(config.hw_addr);
   temporary_airplay_id =
-    temporary_airplay_id >> 16; // we only use the first 6 bytes but have imported 8.
-  
+      temporary_airplay_id >> 16; // we only use the first 6 bytes but have imported 8.
+
   config_init(&config_file_stuff);
 
   config_file_real_path = realpath(config.configfile, NULL);
@@ -682,8 +681,7 @@ int parse_options(int argc, char **argv) {
        * starting at the port base. Only three ports are needed. */
       if (config_lookup_int(config.cfg, "general.udp_port_range", &value)) {
         if ((value < 3) || (value > 65535))
-          die("Invalid port range  \"%d\". It should be between 3 and 65535, default is 10",
-              value);
+          die("Invalid port range  \"%d\". It should be between 3 and 65535, default is 10", value);
         else
           config.udp_port_range = value;
       }
@@ -1432,7 +1430,6 @@ int parse_options(int argc, char **argv) {
 
 #endif
 #endif
-
   }
 
   // now, do the command line options again, but this time do them fully -- it's a unix convention
@@ -1582,7 +1579,7 @@ int parse_options(int argc, char **argv) {
   // Produces a UUID string at uuid consisting of lower-case letters
   uuid_unparse_lower(result, psi_uuid);
   config.airplay_psi = psi_uuid;
-  
+
   debug(3, "size of pk is %zu.", sizeof(config.airplay_pk));
   pair_public_key_get(PAIR_SERVER_HOMEKIT, config.airplay_pk, config.airplay_device_id);
   char buf[128];
@@ -1592,7 +1589,7 @@ int parse_options(int argc, char **argv) {
     ptr += sprintf(ptr, "%02x", config.airplay_pk[pk_index]);
   *ptr = '\0';
   config.pk_string = strdup(buf);
-  
+
   // the features code is a 64-bit number, but in the mDNS advertisement, the least significant 32
   // bit are given first for example, if the features number is 0x1C340405F4A00, it will be given as
   // features=0x405F4A00,0x1C340 in the mDNS string, and in a signed decimal number in the plist:
@@ -1600,16 +1597,18 @@ int parse_options(int argc, char **argv) {
   // mDNS string.
 
   config.airplay_features =
-  //     0x00018340405C4A00; // no AP2 metadata (b50), no AP1 text (b17), no AP1 progress (b16), no AP1 artwork (b15) bit 46 off
-       0x0001C340405C4A00; // no AP2 metadata (b50), no AP1 text (b17), no AP1 progress (b16), no AP1 artwork (b15)
+      //     0x00018340405C4A00; // no AP2 metadata (b50), no AP1 text (b17), no AP1 progress (b16),
+      //     no AP1 artwork (b15) bit 46 off
+      0x0001C340405C4A00; // no AP2 metadata (b50), no AP1 text (b17), no AP1 progress (b16), no AP1
+                          // artwork (b15)
   //     0x0001C340445D0A00;
   // config.airplay_features |= (1 << 26); // 0x0x4000000
 
-  // features=0x0001C340445D0A00 -- AirPort Express 
+  // features=0x0001C340445D0A00 -- AirPort Express
 
 #ifdef CONFIG_METADATA
   // If we are asking for metadata, turn on the relevant bits
-  
+
   // If bit 50 is set, metadata is sent via plists in POST /command payloads.
   // The data consists of textual information about what is playing and cover art
   // It does not seem possible to turn off the cover art.
@@ -1617,13 +1616,15 @@ int parse_options(int argc, char **argv) {
   // While bit 50 is set, no data comes through the "classic" way. That is
   // no progress, text or picture data comes through in the way that
   // it comes through in Classic AirPlay (aka AirPlay 1).
-  
+
   // Although it is less flexible about what metadata is sent, bit 50 being set
   // provides much more information, so should be the default for AirPlay 2
-  
+
   if (config.metadata_enabled != 0) {
-    config.airplay_features |= (uint64_t)1 << 50; // metadata in a binary plist, including more state information    
-    // config.airplay_features |= ((uint64_t)1 << 15) | ((uint64_t)1 << 16) | ((uint64_t)1 << 17); // older metadata flags artwork, progress and text respectively
+    config.airplay_features |=
+        (uint64_t)1 << 50; // metadata in a binary plist, including more state information
+    // config.airplay_features |= ((uint64_t)1 << 15) | ((uint64_t)1 << 16) | ((uint64_t)1 << 17);
+    // // older metadata flags artwork, progress and text respectively
   }
 #endif
 
@@ -1644,11 +1645,11 @@ int parse_options(int argc, char **argv) {
   if (padding)
     *padding = 0;
   debug(2, "airplay_fex is \"%s\"", config.airplay_fex);
-  
+
   // now the status flags
   // Advertised with mDNS and returned with GET /info, see
   // https://openairplay.github.io/airplay-spec/status_flags.html
-  
+
   config.airplay_statusflags = 0;
   config.airplay_statusflags |= 1 << 2; // Audio cable is attached
   if (config.password != NULL) {
@@ -1973,7 +1974,7 @@ void exit_function() {
     if (config.appName)
       free(config.appName);
 
-      // probably should be freeing malloc'ed memory here, including strdup-created strings...
+    // probably should be freeing malloc'ed memory here, including strdup-created strings...
 
 #ifdef CONFIG_LIBDAEMON
     if (this_is_the_daemon_process) { // this is the daemon that is exiting
@@ -2018,12 +2019,12 @@ void termHandler(__attribute__((unused)) int k) {
 
 void _display_config(const char *filename, const int linenumber, __attribute__((unused)) int argc,
                      __attribute__((unused)) char **argv) {
-                     
+
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-zero-length"
-#endif                     
-                     
+#endif
+
   _inform(filename, linenumber, ">> Display Config Start.");
 
   // see the man entry on popen
@@ -2202,11 +2203,11 @@ void _display_config(const char *filename, const int linenumber, __attribute__((
     }
   }
   _inform(filename, linenumber, "");
-  _inform(filename, linenumber, ">> Display Config End."); 
-  
-  #if defined(__GNUC__) || defined(__clang__)
-  #pragma GCC diagnostic pop
-  #endif
+  _inform(filename, linenumber, ">> Display Config End.");
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 }
 
 #define display_config(argc, argv) _display_config(__FILE__, __LINE__, argc, argv)
@@ -2951,9 +2952,9 @@ int main(int argc, char **argv) {
               config.output_channel_map[i] = strdup(channel_id);
               debug(2, "output channel %d is \"%s\".", i, config.output_channel_map[i]);
             } else {
-            
-              
-              warn("during channel mapping, \"%s\" was not recognised as a channel name -- as a result, output channel %d will be silent.",
+
+              warn("during channel mapping, \"%s\" was not recognised as a channel name -- as a "
+                   "result, output channel %d will be silent.",
                    channel_id, i);
               config.output_channel_map[i] = strdup("--");
             }
@@ -3157,12 +3158,11 @@ int main(int argc, char **argv) {
     if (soxr_time_check_thread != NULL) {
       named_pthread_create(soxr_time_check_thread, NULL, &soxr_time_check, NULL, "soxr_checker");
     } else {
-      debug(1,"couldn't get memory to start the soxr_checker");
+      debug(1, "couldn't get memory to start the soxr_checker");
     }
     pthread_setcancelstate(oldState, NULL); // make this un-cancellable
-
   }
-  
+
 #endif
 
 #ifdef CONFIG_FFMPEG

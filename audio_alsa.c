@@ -951,8 +951,8 @@ static int actual_open_alsa_device() {
 
       if ((snd_pcm_hw_params_get_rate_numden(alsa_params, &uval, &uval2) == 0) && (uval2 != 0))
         // watch for a divide by zero too!
-        debug(log_level, "  precise (rational) rate = %.3f frames per second (i.e. %u/%u).", (1.0 * uval) / uval2, uval,
-              uval2);
+        debug(log_level, "  precise (rational) rate = %.3f frames per second (i.e. %u/%u).",
+              (1.0 * uval) / uval2, uval, uval2);
       else
         debug(log_level, "  precise (rational) rate information unavailable.");
 
@@ -1260,7 +1260,8 @@ static int init(int argc, char **argv) {
       else {
         warn("Invalid disable_synchronization option choice \"%s\". It should "
              "be \"yes\" or "
-             "\"no\". It is set to \"no\".", str);
+             "\"no\". It is set to \"no\".",
+             str);
         config.no_sync = 0;
       }
     }
@@ -1276,7 +1277,8 @@ static int init(int argc, char **argv) {
       else {
         warn("Invalid mute_using_playback_switch option choice \"%s\". It "
              "should be \"yes\" or "
-             "\"no\". It is set to \"no\".", str);
+             "\"no\". It is set to \"no\".",
+             str);
         config.alsa_use_hardware_mute = 0;
       }
     }
@@ -1290,7 +1292,8 @@ static int init(int argc, char **argv) {
       else {
         warn("Invalid use_hardware_mute_if_available option choice \"%s\". It "
              "should be \"yes\" or "
-             "\"no\". It is set to \"no\".", str);
+             "\"no\". It is set to \"no\".",
+             str);
         config.alsa_use_hardware_mute = 0;
       }
     }
@@ -1304,7 +1307,8 @@ static int init(int argc, char **argv) {
       else {
         warn("Invalid use_mmap_if_available option choice \"%s\". It should be "
              "\"yes\" or \"no\". "
-             "It remains set to \"yes\".", str);
+             "It remains set to \"yes\".",
+             str);
         config.no_mmap = 0;
       }
     }
@@ -1424,7 +1428,8 @@ static int init(int argc, char **argv) {
       else {
         warn("Invalid use_precision_timing option choice \"%s\". It should be "
              "\"yes\", \"auto\" or \"no\". "
-             "It remains set to \"%s\".", str,
+             "It remains set to \"%s\".",
+             str,
              config.use_precision_timing == YNA_NO     ? "no"
              : config.use_precision_timing == YNA_AUTO ? "auto"
                                                        : "yes");

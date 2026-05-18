@@ -91,8 +91,7 @@ static void resolve_callback(AvahiServiceResolver *r, AVAHI_GCC_UNUSED AvahiIfIn
                              const char *name, const char *type, const char *domain,
                              __attribute__((unused)) const char *host_name,
 #if defined(CONFIG_METADATA) || defined(CONFIG_DACP_CLIENT)
-                             __attribute__((unused)) const AvahiAddress *address,
-                             uint16_t lport,
+                             __attribute__((unused)) const AvahiAddress *address, uint16_t lport,
 #else
                              __attribute__((unused)) const AvahiAddress *address,
                              __attribute__((unused)) uint16_t lport,
@@ -178,7 +177,7 @@ static void browse_callback(AvahiServiceBrowser *b, AvahiIfIndex interface, Avah
         dacp_monitor_port_update_callback(dbs->dacp_id, 0); // say the port is withdrawn
 #endif
 #ifdef CONFIG_METADATA
-          send_ssnc_metadata('dapo', "0", strlen("0"), 0);
+        send_ssnc_metadata('dapo', "0", strlen("0"), 0);
 #endif
       }
     } else {
