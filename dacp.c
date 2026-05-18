@@ -45,6 +45,7 @@
 
 #include "metadata/hub.h"
 #include "tinyhttp/http.h"
+#include "utilities/network_utilities.h"
 
 typedef struct {
   int players_connection_thread_index; // the connection thread index when a player thread is
@@ -88,7 +89,7 @@ void *response_realloc(__attribute__((unused)) void *opaque, void *ptr, int size
       t = realloc(ptr, size);
     }
     if (t == NULL)
-      debug(1, "response_realloc of size %d to ptr %" PRIxPTR " failed!", size, (uintptr_t) ptr);
+      debug(1, "response_realloc of size %d to ptr %" PRIxPTR " failed!", size, (uintptr_t)ptr);
   }
   return t;
 }
@@ -117,8 +118,7 @@ void response_body(void *opaque, const char *data, int size) {
 static void
 response_header(__attribute__((unused)) void *opaque, __attribute__((unused)) const char *ckey,
                 __attribute__((unused)) int nkey, __attribute__((unused)) const char *cvalue,
-                __attribute__((unused)) int nvalue) { /* example doesn't care about headers */
-}
+                __attribute__((unused)) int nvalue) { /* example doesn't care about headers */ }
 
 static void response_code(void *opaque, int code) {
   struct HttpResponse *response = (struct HttpResponse *)opaque;
@@ -148,12 +148,6 @@ void mutex_lock_cleanup(void *arg) {
   pthread_mutex_t *m = (pthread_mutex_t *)arg;
   if (pthread_mutex_unlock(m))
     debug(1, "Error releasing mutex.");
-}
-
-void connect_cleanup(void *arg) {
-  int *fd = (int *)arg;
-  // debug(2, "dacp_send_command: close socket %d.",*fd);
-  close(*fd);
 }
 
 void http_cleanup(void *arg) {
@@ -234,7 +228,7 @@ int dacp_send_command(const char *command, char **body, ssize_t *bodysize) {
           // \"%s\".",errno,strerror(errno));
           response.code = 497; // Can't establish a socket to the DACP server
         } else {
-          pthread_cleanup_push(connect_cleanup, (void *)&sockfd);
+          pthread_cleanup_push(socket_cleanup, (void *)&sockfd);
           // debug(2, "dacp_send_command: open socket %d.",sockfd);
 
           // This is for limiting the time to be spent waiting for a response.
@@ -350,9 +344,8 @@ int dacp_send_command(const char *command, char **body, ssize_t *bodysize) {
                   0); // this should *not* free the malloced buffer -- just pop the malloc cleanup
             }
           }
-          pthread_cleanup_pop(1); // this should close the socket
-                                  // close(sockfd);
-                                  // debug(1,"DACP socket closed.");
+          pthread_cleanup_pop(1); // this will close the socket
+          // debug(1,"DACP socket closed.");
         }
         pthread_cleanup_pop(1); // this should unlock the dacp_conversation_lock);
         // pthread_mutex_unlock(&dacp_conversation_lock);
@@ -1302,8 +1295,8 @@ int dacp_set_volume(int32_t vo) {
         int32_t active_speakers = 0;
         for (i = 0; i < speaker_count; i++) {
           if (speaker_info[i].speaker_number == machine_number) {
-            debug(2, "Our speaker number found: %" PRId64 " with relative volume %" PRId32 ".", machine_number,
-                  speaker_info[i].volume);
+            debug(2, "Our speaker number found: %" PRId64 " with relative volume %" PRId32 ".",
+                  machine_number, speaker_info[i].volume);
           }
           if (speaker_info[i].active == 1) {
             active_speakers++;

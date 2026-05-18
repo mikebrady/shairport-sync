@@ -1,9 +1,35 @@
+/*
+ * RTSP Message Utilities. This file is part of Shairport Sync.
+ * Copyright (c) Mike Brady 2026
+ * All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or
+ * sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+#include "rtsp_message_utilities.h"
+#include "../common.h"
+#include "../rtsp.h"
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
-#include "rtsp_message_utilities.h"
-#include "../rtsp.h"
-#include "../common.h"
 
 #ifdef CONFIG_AIRPLAY_2
 #include <plist/plist.h>
@@ -80,15 +106,16 @@ char *msg_get_header(rtsp_message *msg, char *name) {
   return NULL;
 }
 
-void _debug_print_msg_headers(rtsp_conn_info *conn, const char *filename, const int linenumber, int level,
-                              rtsp_message *msg) {
+void _debug_print_msg_headers(rtsp_conn_info *conn, const char *filename, const int linenumber,
+                              int level, rtsp_message *msg) {
   unsigned int i;
   if (conn != NULL) {
     if (msg->respcode != 0)
-      _debug(filename, linenumber, level, "Connection: %d,  Response Code: %d.", conn->connection_number, msg->respcode);
+      _debug(filename, linenumber, level, "Connection: %d,  Response Code: %d.",
+             conn->connection_number, msg->respcode);
     for (i = 0; i < msg->nheaders; i++) {
-      _debug(filename, linenumber, level, "Connection: %d,  Type: \"%s\", content: \"%s\"", conn->connection_number, msg->name[i],
-             msg->value[i]);
+      _debug(filename, linenumber, level, "Connection: %d,  Type: \"%s\", content: \"%s\"",
+             conn->connection_number, msg->name[i], msg->value[i]);
     }
   } else {
     if (msg->respcode != 0)
@@ -243,8 +270,8 @@ char *rtsp_plist_content(rtsp_message *message) {
 
 #endif
 
-void _debug_log_rtsp_message(rtsp_conn_info *conn, const char *filename, const int linenumber, int level, char *prompt,
-                             rtsp_message *message) {
+void _debug_log_rtsp_message(rtsp_conn_info *conn, const char *filename, const int linenumber,
+                             int level, char *prompt, rtsp_message *message) {
   if (level > debug_level())
     return;
   if ((prompt) && (*prompt != '\0')) // okay to pass NULL or an empty list...
@@ -253,13 +280,13 @@ void _debug_log_rtsp_message(rtsp_conn_info *conn, const char *filename, const i
 #ifdef CONFIG_AIRPLAY_2
   char *plist_content = rtsp_plist_content(message);
   if (plist_content) {
-    _debug(filename, linenumber, level, "  Content length: %u. Content Plist (as XML):\n--\n%s--", message->contentlength, plist_content);
+    _debug(filename, linenumber, level, "  Content length: %u. Content Plist (as XML):\n--\n%s--",
+           message->contentlength, plist_content);
     free(plist_content);
   } else
 #endif
   {
-    _debug(filename, linenumber, level, "  Content length: %u.",
-           message->contentlength);
+    _debug(filename, linenumber, level, "  Content length: %u.", message->contentlength);
     if (message->contentlength > 0) {
       _debug_print_buffer(filename, linenumber, level, message->content, message->contentlength);
     }

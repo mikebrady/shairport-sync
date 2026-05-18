@@ -14,6 +14,14 @@ extern "C" {
 #include "definitions.h"
 #include "mdns.h"
 
+// service type to be offered
+typedef enum {
+  APST_auto = 0,
+  APST_classic,        // must be classic / airplay 1
+  APST_forced_classic, // must be classic / airplay 1 because no nqptp
+  APST_airplay2,       // must be airplay 2; error if no NQPTP
+} APST_t;              // AirPlay Service Type
+
 // struct sockaddr_in6 is bigger than struct sockaddr. derp
 #ifdef AF_INET6
 #define SOCKADDR struct sockaddr_storage
@@ -24,8 +32,10 @@ extern "C" {
 #endif
 
 #if defined(CONFIG_CONVOLUTION)
+// impulse response filter file status
 typedef enum { ev_unchecked, ev_okay, ev_invalid } ir_file_evaluation;
 
+// impulse response filter file record
 typedef struct {
   unsigned int samplerate; // initialized to 0, will be filter frame rate
   unsigned int channels;
@@ -147,12 +157,13 @@ typedef enum {
 #define SPS_FORMAT_SET (((1 << (SPS_FORMAT_HIGHEST_NATIVE + 1)) - 1) - (1 << SPS_FORMAT_UNKNOWN))
 #define SPS_RATE_SET (((1 << (SPS_RATE_HIGHEST + 1)) - 1) - (1 << SPS_RATE_UNKNOWN))
 
-// in SPS_CHANNEL_SET, bit 0 set means a channel set of no channels, bit 1 set means a channel set of 1 channel
-// and so on to bit 31 meaning a channel set of 31 channels. We want to consider all possible channel sets
-// apart from channel set 0.
+// in SPS_CHANNEL_SET, bit 0 set means a channel set of no channels, bit 1 set means a channel set
+// of 1 channel and so on to bit 31 meaning a channel set of 31 channels. We want to consider all
+// possible channel sets apart from channel set 0.
 #define SPS_GREATEST_CHANNEL_COUNT 31 // should be 32 to be fully in line with ALSA limits
-#define SPS_CHANNEL_SET 0xFFFFFFFE // channel sets 31 to 1, but no channel set 0
-// #define SPS_CHANNEL_SET (((1 << (SPS_GREATEST_CHANNEL_COUNT + 1)) - 1) - (1 << 0)) // channels 1 to 31, not 0-based!
+#define SPS_CHANNEL_SET 0xFFFFFFFE    // channel sets 31 to 1, but no channel set 0
+// #define SPS_CHANNEL_SET (((1 << (SPS_GREATEST_CHANNEL_COUNT + 1)) - 1) - (1 << 0)) // channels 1
+// to 31, not 0-based!
 
 #ifndef CONFIG_AIRPLAY_2
 #define SPS_FORMAT_NON_FFMPEG_SET SPS_FORMAT_SET
@@ -408,8 +419,11 @@ typedef struct {
   uint8_t airplay_pk[32];  // public key
   char *pk_string;
   char *nqptp_shared_memory_interface_name; // client name for nqptp service
-  int enable_HK_Access_Control; // true if the device is part of an Apple Home
+  int enable_HK_Access_Control;             // true if the device is part of an Apple Home
 #endif
+
+  APST_t service_type; // APST_auto, APST_classic, APST_forced_classic, APST_airplay2
+
   int unfixable_error_reported; // only report once.
 
   uint64_t eight_channel_layout; // non-zero means enabled and is a channel layout
@@ -459,11 +473,6 @@ void set_requested_connection_state_to_output(int v);
 
 int try_to_open_pipe_for_writing(
     const char *pathname); // open it without blocking if it's not hooked up
-
-/* from
- * http://coding.debuntu.org/c-implementing-str_replace-replace-all-occurrences-substring#comment-722
- */
-char *str_replace(const char *string, const char *substr, const char *replacement);
 
 // based on http://burtleburtle.net/bob/rand/smallprng.html
 
@@ -561,6 +570,9 @@ int check_int_or_list_setting(config_setting_t *setting, const int item);
 unsigned int config_get_string_settings_as_string_array(config_setting_t *setting,
                                                         const char ***result);
 unsigned int config_get_int_settings_as_int_array(config_setting_t *setting, int **result);
+
+APST_t string_to_service_type(const char *parameter, const char *setting_name);
+void service_type_to_string(APST_t service_type, char *string_space);
 
 void command_start(void);
 void command_stop(void);

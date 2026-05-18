@@ -26,10 +26,11 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
- 
- #include <sys/types.h>
- #include "buffered_read.h"
- #include "common.h"
+
+#include "buffered_read.h"
+#include "common.h"
+#include <pthread.h>
+#include <sys/types.h>
 
 ssize_t buffered_read(buffered_tcp_desc *descriptor, void *buf, size_t count,
                       size_t *bytes_remaining) {
@@ -110,8 +111,8 @@ void *buffered_tcp_reader(void *arg) {
   int finished = 0;
   int fd = accept(descriptor->sock_fd, (struct sockaddr *)&remote_addr, &addr_size);
   // debug(1, "buffered_tcp_reader: the client has opened a buffered audio link.");
-  intptr_t pfd = fd;
-  pthread_cleanup_push(socket_cleanup, (void *)pfd);
+  // intptr_t pfd = fd;
+  pthread_cleanup_push(socket_cleanup, (void *)&fd);
 
   do {
     int have_time_to_sleep = 0;
@@ -188,7 +189,7 @@ void *buffered_tcp_reader(void *arg) {
 // this will read a block of the size specified to the buffer
 // and will return either with the block or on error
 ssize_t read_sized_block(buffered_tcp_desc *descriptor, void *buf, size_t count,
-                          size_t *bytes_remaining) {
+                         size_t *bytes_remaining) {
   ssize_t response, nread;
   size_t inbuf = 0; // bytes already in the buffer
   int keep_trying = 1;

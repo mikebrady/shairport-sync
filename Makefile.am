@@ -5,11 +5,11 @@ homedir = @HOME@
 
 # Note that xmlmantohtml isn't producing correct HTML.
 # Uncomment the if/else and SUBDIR lines in this stanza to make xmltoman build shairport-sync.1
-# if USE_XMLTOMAN
-#   SUBDIRS = man
-# else
+if USE_XMLTOMAN
+  SUBDIRS = man
+else
   man_MANS = $(top_srcdir)/man/shairport-sync.1
-# endif
+endif
 
 lib_pair_ap_a_CFLAGS = -Wall -g -DCONFIG_GCRYPT -pthread --include=utilities/debug.h
 lib_tinyhttp_a_CFLAGS = -pthread
@@ -27,7 +27,11 @@ noinst_LIBRARIES =
 
 # See below for the flags for the test client program
 
-shairport_sync_SOURCES = shairport.c bonjour_strings.c rtsp.c mdns.c common.c rtp.c player.c audio.c loudness.c activity_monitor.c utilities/debug.c utilities/network_utilities.c utilities/rtsp_message_utilities.c
+shairport_sync_SOURCES = shairport.c bonjour_strings.c mdns.c common.c rtp.c \
+  player.c audio.c loudness.c activity_monitor.c \
+  rtsp.c \
+  utilities/debug.c utilities/network_utilities.c utilities/rtsp_message_utilities.c \
+  utilities/string_utilities.c
 
 if BUILD_FOR_DARWIN
   AM_CXXFLAGS = -I/usr/local/include -Wno-multichar -Wall -Wextra -Wno-deprecated-declarations -pthread -DSYSCONFDIR=\"$(sysconfdir)\"

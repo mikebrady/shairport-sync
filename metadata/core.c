@@ -25,15 +25,14 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-
 #include "core.h"
 #include "pc_queue.h"
 
-#include <stdlib.h>
-#include <inttypes.h>
-#include <sys/stat.h>
-#include <string.h>
 #include <errno.h>
+#include <inttypes.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
 
 #ifdef CONFIG_METADATA_PIPE
 #include "pipe.h"
@@ -50,7 +49,6 @@
 #ifdef CONFIG_MQTT
 #include "mqtt.h"
 #endif
-
 
 // Metadata is not used by shairport-sync.
 // Instead we send all metadata to a fifo pipe, so that other apps can listen to
@@ -167,14 +165,14 @@ void metadata_init(void) {
 
 #ifdef CONFIG_METADATA_PIPE
   metadata_pipe_queue_init();
-#endif  
+#endif
 
 #ifdef CONFIG_METADATA_MULTICAST
-    metadata_multicast_queue_init();
+  metadata_multicast_queue_init();
 #endif
 
 #ifdef CONFIG_METADATA_HUB
-    metadata_hub_queue_init();
+  metadata_hub_queue_init();
 #endif
 
 #ifdef CONFIG_MQTT
@@ -195,14 +193,13 @@ void metadata_stop(void) {
     metadata_hub_queue_stop();
 #endif
 
-#ifdef CONFIG_METADATA_MULTICAST      
+#ifdef CONFIG_METADATA_MULTICAST
     metadata_multicast_queue_stop();
 #endif
 
-#ifdef CONFIG_METADATA_PIPE     
+#ifdef CONFIG_METADATA_PIPE
     metadata_pipe_queue_stop();
 #endif
-
   }
 }
 
@@ -259,17 +256,18 @@ int send_metadata_to_queue(pc_queue *queue, const uint32_t type, const uint32_t 
     if (pack.carrier) {
       if (rc == EWOULDBLOCK)
         debug(2,
-              "metadata queue \"%s\" full, dropping message item: type %x, code %x, data %" PRIxPTR ", "
+              "metadata queue \"%s\" full, dropping message item: type %x, code %x, data %" PRIxPTR
+              ", "
               "length %u, message %d.",
               queue->name, pack.type, pack.code, (uintptr_t)pack.data, pack.length,
               pack.carrier->index_number);
       msg_free(&pack.carrier);
     } else {
       if (rc == EWOULDBLOCK)
-        debug(
-            2,
-            "metadata queue \"%s\" full, dropping data item: type %x, code %x, data %" PRIxPTR ", length %u.",
-            queue->name, pack.type, pack.code, (uintptr_t)pack.data, pack.length);
+        debug(2,
+              "metadata queue \"%s\" full, dropping data item: type %x, code %x, data %" PRIxPTR
+              ", length %u.",
+              queue->name, pack.type, pack.code, (uintptr_t)pack.data, pack.length);
       if (pack.data)
         free(pack.data);
     }
@@ -287,8 +285,7 @@ int send_metadata(const uint32_t type, const uint32_t code, const char *data, co
 #endif
 
 #ifdef CONFIG_METADATA_MULTICAST
-    rc =
-        send_metadata_to_multicast_queue(type, code, data, length, carrier, block);
+    rc = send_metadata_to_multicast_queue(type, code, data, length, carrier, block);
 #endif
 
 #ifdef CONFIG_METADATA_HUB
@@ -298,7 +295,6 @@ int send_metadata(const uint32_t type, const uint32_t code, const char *data, co
 #ifdef CONFIG_MQTT
     rc = send_metadata_to_mqtt_queue(type, code, data, length, carrier, block);
 #endif
-
   }
   return rc;
 }
@@ -307,4 +303,3 @@ int send_ssnc_metadata(const uint32_t code, const char *data, const uint32_t len
                        const int block) {
   return send_metadata('ssnc', code, data, length, NULL, block);
 }
-

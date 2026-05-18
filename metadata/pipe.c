@@ -1,14 +1,14 @@
-  #include "pipe.h"
-  #include "core.h"
-  #include "pc_queue.h"
-  
-  #include <stdlib.h>
-  #include <sys/stat.h>
-  #include <string.h>
-  #include <errno.h>
+#include "pipe.h"
+#include "core.h"
+#include "pc_queue.h"
+
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
 
 static int fd = -1; // the pipe file descriptor
-  
+
 pc_queue metadata_queue;
 #define metadata_queue_size 500
 metadata_package metadata_queue_items[metadata_queue_size];
@@ -152,8 +152,8 @@ void metadata_pipe_queue_init() {
   if ((fd == -1) && (errno != ENXIO)) {
     char errorstring[1024];
     strerror_r(errno, (char *)errorstring, sizeof(errorstring));
-    debug(1, "metadata_init -- error %d (\"%s\") opening pipe: \"%s\".", errno,
-          (char *)errorstring, path);
+    debug(1, "metadata_init -- error %d (\"%s\") opening pipe: \"%s\".", errno, (char *)errorstring,
+          path);
     warn("can not open metadata pipe -- error %d (\"%s\") opening pipe: \"%s\".", errno,
          (char *)errorstring, path);
   }
@@ -179,8 +179,7 @@ void metadata_pipe_queue_stop() {
   }
 }
 
-int send_metadata_to_pipe_queue(const uint32_t type, const uint32_t code,
-                           const char *data, const uint32_t length, rtsp_message *carrier,
-                           int block) {
-    return send_metadata_to_queue(&metadata_queue, type, code, data, length, carrier, block);
+int send_metadata_to_pipe_queue(const uint32_t type, const uint32_t code, const char *data,
+                                const uint32_t length, rtsp_message *carrier, int block) {
+  return send_metadata_to_queue(&metadata_queue, type, code, data, length, carrier, block);
 }

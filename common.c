@@ -27,6 +27,7 @@
  */
 
 #include "common.h"
+#include "utilities/network_utilities.h"
 
 #ifdef CONFIG_USE_GIT_VERSION_STRING
 #include "gitversion.h"
@@ -51,8 +52,8 @@
 #include <time.h>
 #include <unistd.h>
 
-#include <net/if.h>
 #include <ifaddrs.h>
+#include <net/if.h>
 
 #ifdef COMPILE_FOR_LINUX
 #include <netpacket/packet.h>
@@ -411,7 +412,7 @@ int bind_socket_and_port(int type, int ip_family, const char *self_ip_address, u
 #endif
     if (ret < 0) {
       ret = errno;
-      close(local_socket);
+      safe_socket_close(&local_socket);
       char errorstring[1024];
       getErrorText((char *)errorstring, sizeof(errorstring));
       warn("error %d: \"%s\". Could not bind a port!", errno, errorstring);
@@ -422,7 +423,7 @@ int bind_socket_and_port(int type, int ip_family, const char *self_ip_address, u
       ret = getsockname(local_socket, (struct sockaddr *)&local, &local_len);
       if (ret < 0) {
         ret = errno;
-        close(local_socket);
+        safe_socket_close(&local_socket);
         char errorstring[1024];
         getErrorText((char *)errorstring, sizeof(errorstring));
         warn("error %d: \"%s\". Could not retrieve socket's port!", errno, errorstring);
@@ -494,7 +495,7 @@ uint16_t bind_UDP_port(int ip_family, const char *self_ip_address, uint32_t scop
   // debug(1,"UDP port chosen: %d.",desired_port);
 
   if (ret < 0) {
-    close(local_socket);
+    safe_socket_close(&local_socket);
     char errorstring[1024];
     getErrorText((char *)errorstring, sizeof(errorstring));
     die("error %d: \"%s\". Could not bind a UDP port! Check the udp_port_range is large enough -- "
@@ -950,7 +951,8 @@ uint8_t *rsa_apply(uint8_t *input, int inlen, int *outlen, int mode) {
     mbedtls_rsa_set_padding(trsa, MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
     outbuf = malloc(trsa->MBEDTLS_PRIVATE_V3_ONLY(len));
 #if MBEDTLS_VERSION_MAJOR == 3
-    rc = mbedtls_pk_sign(&pkctx, MBEDTLS_MD_NONE, input, inlen, outbuf, mbedtls_pk_get_len(&pkctx), &olen, mbedtls_ctr_drbg_random, &ctr_drbg);
+    rc = mbedtls_pk_sign(&pkctx, MBEDTLS_MD_NONE, input, inlen, outbuf, mbedtls_pk_get_len(&pkctx),
+                         &olen, mbedtls_ctr_drbg_random, &ctr_drbg);
     *outlen = olen;
 #else
     rc = mbedtls_rsa_pkcs1_encrypt(trsa, mbedtls_ctr_drbg_random, &ctr_drbg, MBEDTLS_RSA_PRIVATE,
@@ -1066,7 +1068,7 @@ int config_set_lookup_bool(config_t *cfg, const char *where, int *dst) {
   const char *str = NULL;
   int response = CONFIG_FALSE;
   config_setting_t *s = config_lookup(cfg, where);
-  if (s != NULL) { 
+  if (s != NULL) {
     if (config_setting_type(s) == CONFIG_TYPE_STRING) {
       str = config_setting_get_string(s);
       if (strcasecmp(str, "no") == 0) {
@@ -1076,11 +1078,14 @@ int config_set_lookup_bool(config_t *cfg, const char *where, int *dst) {
         (*dst) = 1;
         response = CONFIG_TRUE;
       } else {
-        die("invalid boolean parameter \"%s\" option choice \"%s\". It should be \"yes\" or \"no\"", where, str);
+        die("invalid boolean parameter \"%s\" option choice \"%s\". It should be \"yes\" or \"no\"",
+            where, str);
         return 0;
       }
     } else {
-        warn("the \"%s\" parameter is not a string with a value of \"yes\" or \"no\", as required, and has been ignored.", where);
+      warn("the \"%s\" parameter is not a string with a value of \"yes\" or \"no\", as required, "
+           "and has been ignored.",
+           where);
     }
   }
   return response;
@@ -1245,6 +1250,59 @@ int check_int_or_list_setting(config_setting_t *setting, const int item) {
   return result;
 }
 
+void service_type_to_string(APST_t service_type, char *string_space) {
+  if (string_space != NULL) {
+    string_space[0] = '\0';
+    switch (service_type) {
+    case APST_auto:
+      strcpy(string_space, "auto");
+      break;
+    case APST_classic:
+      strcpy(string_space, "classic");
+      break;
+    case APST_forced_classic:
+      strcpy(string_space, "forced_classic");
+      break;
+    case APST_airplay2:
+      strcpy(string_space, "airplay2");
+      break;
+    }
+  }
+}
+
+APST_t string_to_service_type(const char *parameter, const char *setting_name) {
+  APST_t response = APST_auto;
+  if (parameter != NULL) {
+    if (strcasecmp(parameter, "auto") == 0) {
+      response = APST_auto;
+    } else if (strcasecmp(parameter, "classic") == 0) {
+      response = APST_classic;
+    } else if (strcasecmp(parameter, "airplay1") == 0) {
+      response = APST_classic;
+    } else if (strcasecmp(parameter, "airplay2") == 0) {
+      response = APST_airplay2;
+    } else {
+      warn("The %s \"%s\" was ignored. It must be \"auto\", \"classic\" or \"airplay2\". (You can "
+           "use \"airplay1\" instead of \"classic\".)",
+           setting_name, parameter);
+    }
+#ifndef CONFIG_AIRPLAY_2
+    if (response == APST_airplay2) {
+      warn("This version of Shairport Sync supports does not support AirPlay 2. The %s \"%s\" "
+           "setting has been ignored.",
+           setting_name, parameter);
+      response = APST_auto; // reset to default
+    }
+#endif
+  }
+  /*
+  char service_type_string[32];
+  service_type_to_string(response, service_type_string);
+  debug(1, "config.service_type read from %s is: \"%s\".", setting_name, service_type_string);
+  */
+  return response;
+}
+
 void command_set_volume(double volume) {
   // this has a cancellation point if waiting is enabled
   if (config.cmd_set_volume) {
@@ -1310,11 +1368,11 @@ void command_start(void) {
       char **argV;
 
       if (config.cmd_start_returns_output) {
-        close(pipes[0]);
+        safe_socket_close(&pipes[0]);
         if (dup2(pipes[1], 1) < 0) {
           warn("Unable to reopen pipe as stdout for popen of start command");
           debug(1, "dup2 finished with error %d", errno);
-          close(pipes[1]);
+          safe_socket_close(&pipes[1]);
           return;
         }
       }
@@ -1344,9 +1402,9 @@ void command_start(void) {
         if (config.cmd_start_returns_output) {
           static char buffer[256];
           int len;
-          close(pipes[1]);
+          safe_socket_close(&pipes[1]);
           len = read(pipes[0], buffer, 255);
-          close(pipes[0]);
+          safe_socket_close(&pipes[0]);
           buffer[len] = '\0';
           if (buffer[len - 1] == '\n')
             buffer[len - 1] = '\0'; // strip trailing newlines
@@ -1705,45 +1763,6 @@ int try_to_open_pipe_for_writing(const char *pathname) {
   return fdis;
 }
 
-/* from
- * http://coding.debuntu.org/c-implementing-str_replace-replace-all-occurrences-substring#comment-722
- */
-
-char *str_replace(const char *string, const char *substr, const char *replacement) {
-  char *tok = NULL;
-  char *newstr = NULL;
-  char *oldstr = NULL;
-  char *head = NULL;
-
-  /* if either substr or replacement is NULL, duplicate string a let caller handle it */
-  if (substr == NULL || replacement == NULL)
-    return strdup(string);
-  newstr = strdup(string);
-  head = newstr;
-  if (head) {
-    while ((tok = strstr(head, substr))) {
-      oldstr = newstr;
-      newstr = malloc(strlen(oldstr) - strlen(substr) + strlen(replacement) + 1);
-      /*failed to alloc mem, free old string and return NULL */
-      if (newstr == NULL) {
-        free(oldstr);
-        return NULL;
-      }
-      memcpy(newstr, oldstr, tok - oldstr);
-      memcpy(newstr + (tok - oldstr), replacement, strlen(replacement));
-      memcpy(newstr + (tok - oldstr) + strlen(replacement), tok + strlen(substr),
-             strlen(oldstr) - strlen(substr) - (tok - oldstr));
-      memset(newstr + strlen(oldstr) - strlen(substr) + strlen(replacement), 0, 1);
-      /* move back head right after the last replacement */
-      head = newstr + (tok - oldstr) + strlen(replacement);
-      free(oldstr);
-    }
-  } else {
-    die("failed to allocate memory in str_replace.");
-  }
-  return newstr;
-}
-
 /* from http://burtleburtle.net/bob/rand/smallprng.html */
 
 // this is not thread-safe, so we need a mutex on it to use it properly.
@@ -1826,7 +1845,8 @@ void sps_nanosleep(const time_t sec, const long nanosec) {
     rem = req;
   } while ((result == -1) && (errno == EINTR));
   if (result == -1)
-    debug(1, "Error in sps_nanosleep of %" PRIdMAX " sec and %ld nanoseconds: %d.", (intmax_t)sec, nanosec, errno);
+    debug(1, "Error in sps_nanosleep of %" PRIdMAX " sec and %ld nanoseconds: %d.", (intmax_t)sec,
+          nanosec, errno);
 }
 
 // Mac OS X doesn't have pthread_mutex_timedlock
@@ -1914,7 +1934,7 @@ int _debug_mutex_unlock(pthread_mutex_t *mutex, const char *mutexname, const cha
     if (strerror_r(r, errstr, sizeof(errstr)) == 0) {
       debug(1, "error %d: \"%s\" unlocking mutex \"%s\" at \"%s\".", r, errstr, mutexname, dstring);
     } else {
-      debug(1, "error %d: unlocking mutex \"%s\" at \"%s\".", r,  mutexname, dstring);    
+      debug(1, "error %d: unlocking mutex \"%s\" at \"%s\".", r, mutexname, dstring);
     }
   }
   pthread_setcancelstate(oldState, NULL);
@@ -1938,10 +1958,9 @@ void plist_cleanup(void *arg) {
 #endif
 
 void socket_cleanup(void *arg) {
-  intptr_t fdp = (intptr_t)arg;
-  int soc = fdp;
-  debug(3, "socket_cleanup called for socket: %d.", soc);
-  close(fdp);
+  int *p = (int *)arg;
+  debug(3, "socket_cleanup called for socket: %d.", *p);
+  safe_socket_close(p);
 }
 
 void cv_cleanup(void *arg) {
@@ -2349,12 +2368,8 @@ int get_device_id(uint8_t *id, int int_length) {
 #ifdef AF_PACKET
         if ((ifa->ifa_addr) && (ifa->ifa_addr->sa_family == AF_PACKET)) {
           struct sockaddr_ll *s = (struct sockaddr_ll *)ifa->ifa_addr;
-          if (
-              ((ifa->ifa_flags & IFF_UP) != 0) && 
-              ((ifa->ifa_flags & IFF_RUNNING) != 0) && 
-              ((ifa->ifa_flags & IFF_LOOPBACK) == 0) && 
-              (ifa->ifa_addr != 0)
-            ) {
+          if (((ifa->ifa_flags & IFF_UP) != 0) && ((ifa->ifa_flags & IFF_RUNNING) != 0) &&
+              ((ifa->ifa_flags & IFF_LOOPBACK) == 0) && (ifa->ifa_addr != 0)) {
             found = 1;
             response = 0;
             for (i = 0; ((i < s->sll_halen) && (i < int_length)); i++) {
@@ -2430,7 +2445,7 @@ int named_pthread_create(pthread_t *thread, const pthread_attr_t *attr,
     debug(1, "error creating thread \"%s\"", actual_name);
   }
 #ifndef COMPILE_FOR_OSX
-  else {
+  if (response == 0) {
     pthread_setname_np(*thread, actual_name);
   }
 #endif
@@ -2481,6 +2496,7 @@ int named_pthread_create_with_priority(pthread_t *thread, int priority,
   }
   // ret == 0 if creating and setting up the attributes was successful
   if (ret == 0) {
+
     ret = pthread_create(thread, &attr, start_routine, arg);
     pthread_attr_destroy(&attr);
   }
@@ -2489,7 +2505,7 @@ int named_pthread_create_with_priority(pthread_t *thread, int priority,
   if (ret != 0) {
     ret = pthread_create(thread, NULL, start_routine, arg);
     if (failed_to_set_rt == 0) {
-      inform("Can not set realtime properties of a thread.");
+      inform("Can not set realtime properties of thread \"%s\".", actual_name);
       failed_to_set_rt = 1;
     }
   }

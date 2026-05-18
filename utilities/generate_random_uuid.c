@@ -1,9 +1,6 @@
 /*
  * Generate a random UUID. This file is part of Shairport Sync
  * Copyright (c) Mike Brady 2026
-
- * Modifications, including those associated with audio synchronization, multithreading and
- * metadata handling copyright (c) Mike Brady 2014--2025
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -26,10 +23,10 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
- 
+
 #include <stdlib.h>
 #include <uuid/uuid.h>
- 
+
 #include "generate_random_uuid.h"
 
 // user is responsible for deallocating returned string

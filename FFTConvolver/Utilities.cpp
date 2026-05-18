@@ -21,12 +21,9 @@
 
 #include "Utilities.h"
 
+namespace fftconvolver {
 
-namespace fftconvolver
-{
-
-bool SSEEnabled()
-{
+bool SSEEnabled() {
 #if defined(FFTCONVOLVER_USE_SSE)
   return true;
 #else
@@ -34,47 +31,35 @@ bool SSEEnabled()
 #endif
 }
 
-
-void Sum(Sample* FFTCONVOLVER_RESTRICT result,
-         const Sample* FFTCONVOLVER_RESTRICT a,
-         const Sample* FFTCONVOLVER_RESTRICT b,
-         size_t len)
-{
+void Sum(Sample *FFTCONVOLVER_RESTRICT result, const Sample *FFTCONVOLVER_RESTRICT a,
+         const Sample *FFTCONVOLVER_RESTRICT b, size_t len) {
   const size_t end4 = 4 * (len / 4);
-  for (size_t i=0; i<end4; i+=4)
-  {
-    result[i+0] = a[i+0] + b[i+0];
-    result[i+1] = a[i+1] + b[i+1];
-    result[i+2] = a[i+2] + b[i+2];
-    result[i+3] = a[i+3] + b[i+3];
+  for (size_t i = 0; i < end4; i += 4) {
+    result[i + 0] = a[i + 0] + b[i + 0];
+    result[i + 1] = a[i + 1] + b[i + 1];
+    result[i + 2] = a[i + 2] + b[i + 2];
+    result[i + 3] = a[i + 3] + b[i + 3];
   }
-  for (size_t i=end4; i<len; ++i)
-  {
+  for (size_t i = end4; i < len; ++i) {
     result[i] = a[i] + b[i];
   }
 }
 
-
-void ComplexMultiplyAccumulate(SplitComplex& result, const SplitComplex& a, const SplitComplex& b)
-{
+void ComplexMultiplyAccumulate(SplitComplex &result, const SplitComplex &a, const SplitComplex &b) {
   assert(result.size() == a.size());
   assert(result.size() == b.size());
-  ComplexMultiplyAccumulate(result.re(), result.im(), a.re(), a.im(), b.re(), b.im(), result.size());
+  ComplexMultiplyAccumulate(result.re(), result.im(), a.re(), a.im(), b.re(), b.im(),
+                            result.size());
 }
 
-
-void ComplexMultiplyAccumulate(Sample* FFTCONVOLVER_RESTRICT re, 
-                               Sample* FFTCONVOLVER_RESTRICT im,
-                               const Sample* FFTCONVOLVER_RESTRICT reA,
-                               const Sample* FFTCONVOLVER_RESTRICT imA,
-                               const Sample* FFTCONVOLVER_RESTRICT reB,
-                               const Sample* FFTCONVOLVER_RESTRICT imB,
-                               const size_t len)
-{
+void ComplexMultiplyAccumulate(Sample *FFTCONVOLVER_RESTRICT re, Sample *FFTCONVOLVER_RESTRICT im,
+                               const Sample *FFTCONVOLVER_RESTRICT reA,
+                               const Sample *FFTCONVOLVER_RESTRICT imA,
+                               const Sample *FFTCONVOLVER_RESTRICT reB,
+                               const Sample *FFTCONVOLVER_RESTRICT imB, const size_t len) {
 #if defined(FFTCONVOLVER_USE_SSE)
   const size_t end4 = 4 * (len / 4);
-  for (size_t i=0; i<end4; i+=4)
-  {
+  for (size_t i = 0; i < end4; i += 4) {
     const __m128 ra = _mm_load_ps(&reA[i]);
     const __m128 rb = _mm_load_ps(&reB[i]);
     const __m128 ia = _mm_load_ps(&imA[i]);
@@ -88,26 +73,23 @@ void ComplexMultiplyAccumulate(Sample* FFTCONVOLVER_RESTRICT re,
     imag = _mm_add_ps(imag, _mm_mul_ps(ia, rb));
     _mm_store_ps(&im[i], imag);
   }
-  for (size_t i=end4; i<len; ++i)
-  {
+  for (size_t i = end4; i < len; ++i) {
     re[i] += reA[i] * reB[i] - imA[i] * imB[i];
     im[i] += reA[i] * imB[i] + imA[i] * reB[i];
   }
 #else
   const size_t end4 = 4 * (len / 4);
-  for (size_t i=0; i<end4; i+=4)
-  {
-    re[i+0] += reA[i+0] * reB[i+0] - imA[i+0] * imB[i+0];
-    re[i+1] += reA[i+1] * reB[i+1] - imA[i+1] * imB[i+1];
-    re[i+2] += reA[i+2] * reB[i+2] - imA[i+2] * imB[i+2];
-    re[i+3] += reA[i+3] * reB[i+3] - imA[i+3] * imB[i+3];
-    im[i+0] += reA[i+0] * imB[i+0] + imA[i+0] * reB[i+0];
-    im[i+1] += reA[i+1] * imB[i+1] + imA[i+1] * reB[i+1];
-    im[i+2] += reA[i+2] * imB[i+2] + imA[i+2] * reB[i+2];
-    im[i+3] += reA[i+3] * imB[i+3] + imA[i+3] * reB[i+3];
+  for (size_t i = 0; i < end4; i += 4) {
+    re[i + 0] += reA[i + 0] * reB[i + 0] - imA[i + 0] * imB[i + 0];
+    re[i + 1] += reA[i + 1] * reB[i + 1] - imA[i + 1] * imB[i + 1];
+    re[i + 2] += reA[i + 2] * reB[i + 2] - imA[i + 2] * imB[i + 2];
+    re[i + 3] += reA[i + 3] * reB[i + 3] - imA[i + 3] * imB[i + 3];
+    im[i + 0] += reA[i + 0] * imB[i + 0] + imA[i + 0] * reB[i + 0];
+    im[i + 1] += reA[i + 1] * imB[i + 1] + imA[i + 1] * reB[i + 1];
+    im[i + 2] += reA[i + 2] * imB[i + 2] + imA[i + 2] * reB[i + 2];
+    im[i + 3] += reA[i + 3] * imB[i + 3] + imA[i + 3] * reB[i + 3];
   }
-  for (size_t i=end4; i<len; ++i)
-  {
+  for (size_t i = end4; i < len; ++i) {
     re[i] += reA[i] * reB[i] - imA[i] * imB[i];
     im[i] += reA[i] * imB[i] + imA[i] * reB[i];
   }

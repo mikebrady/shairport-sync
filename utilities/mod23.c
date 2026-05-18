@@ -1,9 +1,6 @@
 /*
  * 23-bit modular arithmetic. This file is part of Shairport Sync
  * Copyright (c) Mike Brady 2025
-
- * Modifications, including those associated with audio synchronization, multithreading and
- * metadata handling copyright (c) Mike Brady 2014--2025
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -26,9 +23,9 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
- 
- #include <stdint.h>
- #include "mod23.h"
+
+#include "mod23.h"
+#include <stdint.h>
 
 #define MOD_23BIT 0x7FFFFF // 2^23 - 1
 

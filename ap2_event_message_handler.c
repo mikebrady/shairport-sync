@@ -27,11 +27,10 @@
 #include "ap2_event_message_handler.h"
 #include "common.h"
 #include "rtsp.h"
-#include "utilities/structured_buffer.h"
 #include "utilities/generate_random_uuid.h"
+#include "utilities/structured_buffer.h"
 
-
-void decodeAndLogPlist(plist_t plist_to_log) { 
+void decodeAndLogPlist(plist_t plist_to_log) {
   if (plist_to_log != NULL) {
     char *plist_as_string = plist_as_xml_text(plist_to_log);
     if (plist_as_string != NULL) {
@@ -80,13 +79,13 @@ ssize_t ap2_event_port_send_message(rtsp_conn_info *conn, char *data, size_t dat
 
 ssize_t ap2_event_port_post_command(rtsp_conn_info *conn, plist_t command) {
   ssize_t result = 0;
-  decodeAndLogPlist(command);  
+  decodeAndLogPlist(command);
   structured_buffer *sbuf = sbuf_new(4096);
   if (sbuf != NULL) {
     pthread_cleanup_push(sbuf_cleanup, sbuf);
     char *plistString = NULL;
     uint32_t plistStringLength = 0;
-    
+
     plist_to_bin(command, &plistString, &plistStringLength);
     if (plistString != NULL) {
       sbuf_printf(sbuf, "POST /command RTSP/1.0\r\nContent-Length: %u\r\n", plistStringLength);
@@ -104,7 +103,7 @@ ssize_t ap2_event_port_post_command(rtsp_conn_info *conn, plist_t command) {
     }
     pthread_cleanup_pop(1); // delete the structured buffer
   }
-  return result;  
+  return result;
 }
 
 ssize_t ap2_event_send_update_info(rtsp_conn_info *conn) {
@@ -121,14 +120,14 @@ ssize_t ap2_event_send_update_info(rtsp_conn_info *conn) {
     if (update_info_plist != NULL) {
       plist_dict_set_item(update_info_plist, "type", plist_new_string("updateInfo"));
       plist_dict_set_item(update_info_plist, "value", value_plist);
-      
+
       char *plist_as_string = plist_as_xml_text(update_info_plist);
       if (plist_as_string != NULL) {
         debug(3, "update_info_plist is:\n--\n\"%s\"\n--\n", plist_as_string);
         free(plist_as_string);
       }
-      
-      result = ap2_event_port_post_command(conn, update_info_plist);           
+
+      result = ap2_event_port_post_command(conn, update_info_plist);
       plist_free(update_info_plist);
     } else {
       debug(1, "Could not build an updateInfo plist");

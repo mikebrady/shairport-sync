@@ -8,14 +8,16 @@
 #include "common.h"
 #include "player.h"
 #include "rtsp.h"
+#include "utilities/string_utilities.h"
 
 #include "rtp.h"
 
 #ifdef CONFIG_DACP_CLIENT
 #include "dacp.h"
 #endif
-#include "metadata/hub.h"
+
 #include "metadata/core.h"
+#include "metadata/hub.h"
 #include "metadata/pc_queue.h"
 
 #include "mqtt.h"
@@ -79,7 +81,7 @@ void on_message(__attribute__((unused)) struct mosquitto *mosq,
       debug(2, "[MQTT]: Received Recognized Command: %s\n", commands[it]);
       if (strcmp(commands[it], "disconnect") == 0) {
         debug(2, "[MQTT]: Disconnect Command: %s\n", commands[it]);
-        release_play_lock(NULL); // stop any current session and don't replace it
+        stop_play(); // stop any current session and don't replace it
       } else {
         debug(2, "[MQTT]: DACP Command: %s\n", commands[it]);
 #ifdef CONFIG_DACP_CLIENT
@@ -211,10 +213,10 @@ void send_autodiscovery_messages(struct mosquitto *mosq) {
         (strcmp(sensors[i], "active") == 0 || strcmp(sensors[i], "playing") == 0);
     bool is_volume_sensor = strcmp(sensors[i], "volume") == 0;
 
-    const char* entity_type = is_binary_sensor ? "binary_sensor" : "sensor";
+    const char *entity_type = is_binary_sensor ? "binary_sensor" : "sensor";
 
-    snprintf(topic, sizeof(topic), "%s/%s/%s_%s/%s/config", autodiscovery_prefix,
-             entity_type, model, device_id_no_colons, sensors[i]);
+    snprintf(topic, sizeof(topic), "%s/%s/%s_%s/%s/config", autodiscovery_prefix, entity_type,
+             model, device_id_no_colons, sensors[i]);
 
     snprintf(id_string, sizeof(id_string), "%s_%s_%s", model, device_name, sensors[i]);
 
@@ -232,12 +234,12 @@ void send_autodiscovery_messages(struct mosquitto *mosq) {
         "\"default_entity_id\": \"%s.%s\","
         "%s%s%s"
         "}",
-        sensor_names[i], // name
-        config.mqtt_topic, sensors[i], //state_topic
-        icons[i], // icon
-        id_string, // unique_id
-        id_string, // object_id
-        entity_type, id_string, // default_entity_id
+        sensor_names[i],               // name
+        config.mqtt_topic, sensors[i], // state_topic
+        icons[i],                      // icon
+        id_string,                     // unique_id
+        id_string,                     // object_id
+        entity_type, id_string,        // default_entity_id
         is_binary_sensor ? "\"payload_on\": \"1\",\"payload_off\": \"0\"," : "",
         is_volume_sensor
             ? "\"value_template\": \"{{ ((value | regex_findall_index("
@@ -268,8 +270,7 @@ void mqtt_publish(char *topic, char *data_in, uint32_t length_in) {
 
   int rc;
   if ((rc = mosquitto_publish(global_mosq, NULL, fulltopic, length, data, 0,
-                              config.mqtt_publish_retain)) !=
-      MOSQ_ERR_SUCCESS) {
+                              config.mqtt_publish_retain)) != MOSQ_ERR_SUCCESS) {
     switch (rc) {
     case MOSQ_ERR_NO_CONN:
       debug(1, "[MQTT]: Publish failed: not connected to broker");
@@ -503,15 +504,13 @@ void metadata_mqtt_queue_init() {
     debug(1, "Failed to create metadata mqtt thread!");
 }
 void metadata_mqtt_queue_stop() {
-    // debug(2, "metadata stop mqtt thread.");
-    pthread_cancel(metadata_mqtt_thread);
-    pthread_join(metadata_mqtt_thread, NULL);
-    pc_queue_delete(&metadata_mqtt_queue);
-    // debug(2, "metadata stop mqtt done.");
+  // debug(2, "metadata stop mqtt thread.");
+  pthread_cancel(metadata_mqtt_thread);
+  pthread_join(metadata_mqtt_thread, NULL);
+  pc_queue_delete(&metadata_mqtt_queue);
+  // debug(2, "metadata stop mqtt done.");
 }
-int send_metadata_to_mqtt_queue(const uint32_t type, const uint32_t code,
-                           const char *data, const uint32_t length, rtsp_message *carrier,
-                           int block) {
-    return send_metadata_to_queue(&metadata_mqtt_queue, type, code, data, length, carrier, block);
+int send_metadata_to_mqtt_queue(const uint32_t type, const uint32_t code, const char *data,
+                                const uint32_t length, rtsp_message *carrier, int block) {
+  return send_metadata_to_queue(&metadata_mqtt_queue, type, code, data, length, carrier, block);
 }
-

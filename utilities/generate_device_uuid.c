@@ -1,9 +1,6 @@
 /*
  * Generate a device-related UUID. This file is part of Shairport Sync
  * Copyright (c) Mike Brady 2026
-
- * Modifications, including those associated with audio synchronization, multithreading and
- * metadata handling copyright (c) Mike Brady 2014--2025
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -26,23 +23,23 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
- 
+
 #include <stdlib.h>
 #include <string.h>
 #include <uuid/uuid.h>
- 
-#include "generate_device_uuid.h"
+
 #include "definitions.h"
+#include "generate_device_uuid.h"
 
 // user is responsible for deallocating returned string
 char *generate_device_uuid(const char *device_id) {
-    uuid_t namespace_uuid;
-    uuid_t derived_uuid;
+  uuid_t namespace_uuid;
+  uuid_t derived_uuid;
 
-    uuid_parse(SHAIRPORT_SYNC_DEVICE_NAMESPACE, namespace_uuid); 
-    uuid_generate_sha1(derived_uuid, namespace_uuid, device_id, strlen(device_id));
+  uuid_parse(SHAIRPORT_SYNC_DEVICE_NAMESPACE, namespace_uuid);
+  uuid_generate_sha1(derived_uuid, namespace_uuid, device_id, strlen(device_id));
 
-    char *uuid = malloc(UUID_STR_LEN + 1);
-    uuid_unparse_lower(derived_uuid, uuid);
-    return uuid;
+  char *uuid = malloc(UUID_STR_LEN + 1);
+  uuid_unparse_lower(derived_uuid, uuid);
+  return uuid;
 }

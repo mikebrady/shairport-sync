@@ -30,6 +30,7 @@
 #include "rtp.h"
 #include "utilities/buffered_read.h"
 #include "utilities/mod23.h"
+#include "utilities/network_utilities.h"
 #include <sodium.h>
 #include <stdint.h>
 
@@ -91,10 +92,9 @@ void addADTStoPacket(uint8_t *packet, int packetLen, int rate, int channel_confi
 void rtp_buffered_audio_cleanup_handler(__attribute__((unused)) void *arg) {
   debug(2, "Buffered Audio Receiver Cleanup Start.");
   rtsp_conn_info *conn = (rtsp_conn_info *)arg;
-  close(conn->buffered_audio_socket);
+  safe_socket_close(&conn->buffered_audio_socket);
   debug(3, "Connection %d: closing TCP Buffered Audio port: %u.", conn->connection_number,
         conn->local_buffered_audio_port);
-  conn->buffered_audio_socket = 0;
   debug(2, "Connection %d: rtp_buffered_audio_processor exit.", conn->connection_number);
 }
 
@@ -198,7 +198,7 @@ void *rtp_buffered_audio_processor(void *arg) {
   int packets_played_in_this_sequence = 0;
 
   int play_enabled = 0;
-  
+
   int very_early_packets_signalled = 0;
   // double requested_lead_time = 0.0; // normal lead time minimum -- maybe  it should be about 0.1
 
@@ -276,20 +276,19 @@ void *rtp_buffered_audio_processor(void *arg) {
           if (payload_ssrc != SSRC_NONE)
             previous_ssrc = payload_ssrc;
           payload_ssrc = nctohl(&packet[8]);
-          
-          
 
           if ((payload_ssrc != previous_ssrc) && (payload_ssrc != SSRC_NONE)) {
             if (ssrc_is_recognised(payload_ssrc) == 0) {
               debug(2, "Unrecognised SSRC: %u.", payload_ssrc);
             } else {
               debug(2, "Connection %d: incoming audio encoding is%s \"%s\".",
-                    conn->connection_number, previous_ssrc == SSRC_NONE ? "" : " switching to", get_ssrc_name(payload_ssrc));
+                    conn->connection_number, previous_ssrc == SSRC_NONE ? "" : " switching to",
+                    get_ssrc_name(payload_ssrc));
             }
           }
 
           if ((payload_ssrc != previous_ssrc) && (ssrc_is_recognised(payload_ssrc) == 0)) {
-              debug(2, "Unrecognised SSRC: %u.", payload_ssrc);
+            debug(2, "Unrecognised SSRC: %u.", payload_ssrc);
           }
 
           if (blocks_read_since_play_began == 1) {
@@ -327,7 +326,8 @@ void *rtp_buffered_audio_processor(void *arg) {
         finished = 1;
       } else if (nread < 0) {
         char errorstring[1024];
-        (void) !strerror_r(errno, (char *)errorstring, sizeof(errorstring)); // (void) ! to suppress unused response warning
+        (void)!strerror_r(errno, (char *)errorstring,
+                          sizeof(errorstring)); // (void) ! to suppress unused response warning
         debug(1, "error in rtp_buffered_audio_processor %d: \"%s\". Could not recv a data_len .",
               errno, errorstring);
         finished = 1;
@@ -343,33 +343,41 @@ void *rtp_buffered_audio_processor(void *arg) {
             debug(2, "immediate flush started at sequence number %u until sequence number of %u.",
                   seq_no, conn->ap2_immediate_flush_until_sequence_number);
           }
-          if ((blocks_read != 0) && ((a_minus_b_mod23(seq_no, conn->ap2_immediate_flush_until_sequence_number) > 0))) {
-            debug(1, "immediate flush may have escaped its endpoint! Seq_no is %u, conn->ap2_immediate_flush_until_sequence_number is %u.", seq_no, conn->ap2_immediate_flush_until_sequence_number);
+          if ((blocks_read != 0) &&
+              ((a_minus_b_mod23(seq_no, conn->ap2_immediate_flush_until_sequence_number) > 0))) {
+            debug(1,
+                  "immediate flush may have escaped its endpoint! Seq_no is %u, "
+                  "conn->ap2_immediate_flush_until_sequence_number is %u.",
+                  seq_no, conn->ap2_immediate_flush_until_sequence_number);
           }
-          
-          if ((blocks_read != 0) && ((a_minus_b_mod23(seq_no, conn->ap2_immediate_flush_until_sequence_number) >= 0))) {
-            debug(2, "immediate flush completed at seq_no: %u, conn->ap2_immediate_flush_until_sequence_number: %u.", seq_no, conn->ap2_immediate_flush_until_sequence_number);
+
+          if ((blocks_read != 0) &&
+              ((a_minus_b_mod23(seq_no, conn->ap2_immediate_flush_until_sequence_number) >= 0))) {
+            debug(2,
+                  "immediate flush completed at seq_no: %u, "
+                  "conn->ap2_immediate_flush_until_sequence_number: %u.",
+                  seq_no, conn->ap2_immediate_flush_until_sequence_number);
 
             conn->ap2_immediate_flush_requested = 0;
             ap2_immediate_flush_requested = 0;
 
-            
             // turn off all deferred requests. Not sure if this is right...
             unsigned int f = 0;
             for (f = 0; f < MAX_DEFERRED_FLUSH_REQUESTS; f++) {
-              if ((conn->ap2_deferred_flush_requests[f].inUse != 0) && (conn->ap2_deferred_flush_requests[f].active = 0)) {
+              if ((conn->ap2_deferred_flush_requests[f].inUse != 0) &&
+                  (conn->ap2_deferred_flush_requests[f].active = 0)) {
                 debug(1,
-                  "deferred flush cancelled by an immediate flush:  flushFromTS: %12u, flushFromSeq: %12u, "
-                  "flushUntilTS: %12u, flushUntilSeq: %12u, timestamp: %12u.",
-                  conn->ap2_deferred_flush_requests[f].flushFromTS,
-                  conn->ap2_deferred_flush_requests[f].flushFromSeq,
-                  conn->ap2_deferred_flush_requests[f].flushUntilTS,
-                  conn->ap2_deferred_flush_requests[f].flushUntilSeq, timestamp);
+                      "deferred flush cancelled by an immediate flush:  flushFromTS: %12u, "
+                      "flushFromSeq: %12u, "
+                      "flushUntilTS: %12u, flushUntilSeq: %12u, timestamp: %12u.",
+                      conn->ap2_deferred_flush_requests[f].flushFromTS,
+                      conn->ap2_deferred_flush_requests[f].flushFromSeq,
+                      conn->ap2_deferred_flush_requests[f].flushUntilTS,
+                      conn->ap2_deferred_flush_requests[f].flushUntilSeq, timestamp);
               }
               conn->ap2_deferred_flush_requests[f].inUse = 0;
               conn->ap2_deferred_flush_requests[f].active = 0;
             }
-
 
           } else {
             debug(4, "immediate flush of block %u until block %u", seq_no,
@@ -426,11 +434,10 @@ void *rtp_buffered_audio_processor(void *arg) {
           } else if (conn->ap2_deferred_flush_requests[f].active != 0) {
             new_audio_block_needed = 1;
             debug(4,
-                  "deferred flush of block: %u, timestamp: %u, SSRC: \"%s\". flushFromTS: %12u, flushFromSeq: %12u, "
+                  "deferred flush of block: %u, timestamp: %u, SSRC: \"%s\". flushFromTS: %12u, "
+                  "flushFromSeq: %12u, "
                   "flushUntilTS: %12u, flushUntilSeq: %12u, timestamp: %12u.",
-                  seq_no, 
-                  timestamp,
-                  get_ssrc_name(payload_ssrc),
+                  seq_no, timestamp, get_ssrc_name(payload_ssrc),
                   conn->ap2_deferred_flush_requests[f].flushFromTS,
                   conn->ap2_deferred_flush_requests[f].flushFromSeq,
                   conn->ap2_deferred_flush_requests[f].flushUntilTS,
@@ -453,22 +460,28 @@ void *rtp_buffered_audio_processor(void *arg) {
         // and send it to the player. Otherwise, keep the block and sleep for a while.
 
         // calculate if there is room in the decoded audio buffer...
-        
-        // debug(1, "frames buffered: %f seconds, desired length: %f seconds.", (1.0 * player_buffer_occupancy * conn->frames_per_packet) / conn->input_rate, config.audio_decoded_buffer_desired_length);
-        
-        // int audio_decoded_buffer_below_desired_length = ((1.0 * player_buffer_occupancy * conn->frames_per_packet) / conn->input_rate) <= config.audio_decoded_buffer_desired_length;
+
+        // debug(1, "frames buffered: %f seconds, desired length: %f seconds.", (1.0 *
+        // player_buffer_occupancy * conn->frames_per_packet) / conn->input_rate,
+        // config.audio_decoded_buffer_desired_length);
+
+        // int audio_decoded_buffer_below_desired_length = ((1.0 * player_buffer_occupancy *
+        // conn->frames_per_packet) / conn->input_rate) <=
+        // config.audio_decoded_buffer_desired_length;
         uint64_t buffer_should_be_time;
-        
+
         int have_valid_time = (frame_to_local_time(timestamp, &buffer_should_be_time, conn) == 0);
-        
+
         // calculate the lead time to make sure it's not too early...
         int64_t lead_time = buffer_should_be_time - get_absolute_time_in_ns();
-        
-        
-        // debug(1,"play_enabled: %d, have_valid_time: %d, audio_decoded_buffer_below_desired_length: %d, lead_time * 1E-9: %f, (config.audio_decoded_buffer_desired_length + 0.1): %f, player_buffer_occupancy: %zu",
-        //  play_enabled, have_valid_time, audio_decoded_buffer_below_desired_length, lead_time * 1E-9, (config.audio_decoded_buffer_desired_length + 0.1), player_buffer_occupancy
+
+        // debug(1,"play_enabled: %d, have_valid_time: %d,
+        // audio_decoded_buffer_below_desired_length: %d, lead_time * 1E-9: %f,
+        // (config.audio_decoded_buffer_desired_length + 0.1): %f, player_buffer_occupancy: %zu",
+        //  play_enabled, have_valid_time, audio_decoded_buffer_below_desired_length, lead_time *
+        //  1E-9, (config.audio_decoded_buffer_desired_length + 0.1), player_buffer_occupancy
         // );
-             
+
         // A slight problem here is that counting the number of buffers may not be sufficient,
         // because the actual device may be
         // taking data in large quantities at a single time.
@@ -476,34 +489,35 @@ void *rtp_buffered_audio_processor(void *arg) {
         // So we just have to ensure that there
         // is enough of a lead time maintained for sufficient audio to be available to prevent
         // the device from under-running.
-        
+
         // If means that the Shairport Sync player might riun out of audio occasionally, but
         // as long as the device has enough in its buffer, everything is fine.
-        
+
         // But it also means that Shairport Sync's buffers must be sufficient to hold all the
         // entire lead-time's amount of audio in case the device has a zero-sized buffer.
-            
-        if ((play_enabled != 0) && (have_valid_time != 0)
-//            (audio_decoded_buffer_below_desired_length != 0) &&
+
+        if ((play_enabled != 0) &&
+            (have_valid_time != 0)
+            //            (audio_decoded_buffer_below_desired_length != 0) &&
             && (lead_time * 1E-9 < (config.audio_decoded_buffer_desired_length + 0.1))
-//            && (audio_decoded_buffer_below_desired_length != 0)
-            ) {
-            
-            very_early_packets_signalled = 0; //reset very early packet warning signaller
-          
+            //            && (audio_decoded_buffer_below_desired_length != 0)
+        ) {
+
+          very_early_packets_signalled = 0; // reset very early packet warning signaller
+
           // try to identify blocks that are timed to before the last buffer, and drop 'em
           int64_t time_from_last_buffer_time =
               buffer_should_be_time - previous_buffer_should_be_time;
 
           if ((packets_played_in_this_sequence == 0) || (time_from_last_buffer_time > 0)) {
-            
+
             payload_length = 0;
             if (ssrc_is_recognised(payload_ssrc) != 0) {
               // prepare_decoding_chain(conn, payload_ssrc);
               unsigned long long new_payload_length = 0;
               payload_pointer = m + leading_free_space_length;
               if (lead_time >= 0) { // only decipher the packet if it's not too late
-                int response = -1;    // guess that there is a problem
+                int response = -1;  // guess that there is a problem
                 if (conn->session_key != NULL) {
                   unsigned char nonce[12];
                   memset(nonce, 0, sizeof(nonce));
@@ -661,11 +675,16 @@ void *rtp_buffered_audio_processor(void *arg) {
           }
           new_audio_block_needed = 1; // the block has been used up and is no longer current
         } else {
-          if ((have_valid_time != 0) && (very_early_packets_signalled == 0) && (lead_time * 1E-9 > (config.audio_decoded_buffer_desired_length + 0.2))) {
-            debug(1, "incoming frame suddenly (?) has a lead time of %f seconds, with a desired decoded buffer length of %f.", 1.0 * lead_time * 1E-9, config.audio_decoded_buffer_desired_length);
+          if ((have_valid_time != 0) && (very_early_packets_signalled == 0) &&
+              (lead_time * 1E-9 > (config.audio_decoded_buffer_desired_length + 0.2))) {
+            debug(1,
+                  "incoming frame suddenly (?) has a lead time of %f seconds, with a desired "
+                  "decoded buffer length of %f.",
+                  1.0 * lead_time * 1E-9, config.audio_decoded_buffer_desired_length);
             very_early_packets_signalled = 1;
           }
-          usleep(((1000000 * conn->frames_per_packet) / conn->input_rate) * 2); // wait for approximately the length of two packets
+          usleep(((1000000 * conn->frames_per_packet) / conn->input_rate) *
+                 2); // wait for approximately the length of two packets
         }
       }
     }

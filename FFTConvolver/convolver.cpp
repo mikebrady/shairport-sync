@@ -46,8 +46,8 @@ void convolver_pool_init(size_t numThreads, size_t numConvolvers) {
   if (!pool.init(numThreads, numConvolvers)) {
     debug(1, "failed to initialize thread pool!");
   } else {
-    debug(1, "thread pool initialized with %u thread%s and %u convolver%s.", numThreads, numThreads == 1 ? "" : "s",
-          numConvolvers, numConvolvers == 1 ? "" : "s");
+    debug(1, "thread pool initialized with %u thread%s and %u convolver%s.", numThreads,
+          numThreads == 1 ? "" : "s", numConvolvers, numConvolvers == 1 ? "" : "s");
   }
 }
 
@@ -56,8 +56,8 @@ void convolver_pool_closedown() {
   debug(3, "thread pool shut down");
 }
 
-int convolver_init(const char *filename, unsigned char channel_count,
-                       double max_length_in_seconds, size_t block_size) {
+int convolver_init(const char *filename, unsigned char channel_count, double max_length_in_seconds,
+                   size_t block_size) {
   debug(3, "convolver_init");
   int success = 0;
   SF_INFO info = {}; // Zero everything, including format
@@ -67,10 +67,10 @@ int convolver_init(const char *filename, unsigned char channel_count,
       size_t max_length = (size_t)(max_length_in_seconds * info.samplerate);
       const size_t size =
           (unsigned int)info.frames > max_length ? max_length : (unsigned int)info.frames;
-      float *buffer = (float*)malloc(sizeof(float) * size * info.channels);
+      float *buffer = (float *)malloc(sizeof(float) * size * info.channels);
       if (buffer != NULL) {
         // float buffer[size * info.channels];
-        float *abuffer = (float*)malloc(sizeof(float) * size);
+        float *abuffer = (float *)malloc(sizeof(float) * size);
         if (abuffer != NULL) {
           size_t l = sf_readf_float(file, buffer, size);
           if (l != 0) {
@@ -91,7 +91,7 @@ int convolver_init(const char *filename, unsigned char channel_count,
                 }
                 if (!pool.initConvolver(cc, block_size, abuffer, size)) {
                   debug(1, "new convolver failed to initialize convolver %u ", cc);
-                }               
+                }
               }
             }
             success = 1;
@@ -101,11 +101,11 @@ int convolver_init(const char *filename, unsigned char channel_count,
                 "%d samples",
                 filename, info.channels, info.channels == 1 ? "" : "s", size);
           sf_close(file);
-          free((void*)abuffer);
+          free((void *)abuffer);
         } else {
           debug(1, "failed to init convolvers because insufficient memory was available");
         }
-        free((void*)buffer);
+        free((void *)buffer);
       } else {
         warn("failed to init convolvers because insufficient memory was available");
       }
@@ -124,9 +124,7 @@ void convolver_process(unsigned int channel, float *data, int length) {
 
 void convolver_wait_for_all() { pool.waitForAll(); }
 
-void convolver_clear_state() {
-  pool.clearAllStates();
-}
+void convolver_clear_state() { pool.clearAllStates(); }
 
 const unsigned int max_channels = 8;
 fftconvolver::FFTConvolver convolvers[max_channels];

@@ -39,7 +39,9 @@
       <opt>[-a </opt><arg>service-name</arg><opt> | --name=</opt><arg>service-name</arg><opt>]</opt>
       <opt>[-B </opt><arg>command</arg><opt> | --onstart=</opt><arg>command</arg><opt>]</opt>
       <opt>[-c </opt><arg>configurationfile</arg><opt> | --configfile=</opt><arg>configurationfile</arg><opt>]</opt>
+      <opt>[--classic-airplay-only]</opt>
       <opt>[-d | --daemon]</opt>
+      <opt>[--dbus-default-message-bus=</opt><arg>bus</arg><opt>]</opt>
       <opt>[-E </opt><arg>command</arg><opt> | --onstop=</opt><arg>command</arg><opt>]</opt>
       <opt>[-g | --get-cover-art]</opt>
       <opt>[-j | --justDaemoniseNoPIDFile]</opt>
@@ -202,6 +204,15 @@
 		shairport-sync has been compiled with libdaemon support.
 		</p></optdesc>
 	  </option>
+	  
+	  <option>
+		<p><opt>--dbus-default-message-bus=</opt><arg>bus</arg></p>
+		<optdesc><p>
+		Use the <arg>bus</arg> specified for the native D-Bus and MPRIS interfaces.
+		The <arg>bus</arg> must be <opt>system</opt> or <opt>session</opt>. This option is
+		only available if Shairport Sync is built with the D-Bus or MPRIS interface.
+		</p></optdesc>
+	  </option>
 
 	  <option>
 		<p><opt>-E </opt><arg>program</arg><opt> | --on-stop=</opt><arg>program</arg></p>
@@ -351,6 +362,23 @@
 	  </option>
 
 	  <option>
+		<p><opt>--service-type</opt></p>
+		<optdesc><p>
+		On an AirPlay-2-capable Shairport Sync, if you need offer only the older
+		"classic" AirPlay (sometimes called AirPlay 1) service, set
+		<opt>--service-type=classic</opt>.
+		A potential use of this would be for Apple Music on Windows, which is not compatible
+		with the AirPlay 2 service offered by Shairport Sync,
+		but which is compatible with the classic-only service.
+		To offer AirPlay 2 service only, set <opt>--service-type=airplay2</opt> (note that this
+		requires NQPTP).
+		Set <opt>--service-type=auto</opt> to allow Shairport Sync to choose AirPlay 2
+		service if NQPTP is present or classic AirPlay service if not, with
+		"(Classic)" appended to the default service name.
+		</p></optdesc>
+	  </option>
+
+	  <option>
 		<p><opt>--statistics</opt></p>
 		<optdesc><p>
 		Print some performance information to <file>STDERR</file>, or to <opt>syslog</opt> if the <opt>--log-to-syslog</opt> command line option is also chosen.
@@ -365,11 +393,13 @@
     process of adding or removing frames of audio to or from the
     stream sent to the output device in order to keep it synchronised
     with the player.
-    The <opt>basic</opt> mode is normally almost completely inaudible.
-    The alternative mode, <opt>soxr</opt>, is even less obtrusive but
+    The <opt>vernier</opt> mode is normally almost completely inaudible and suitable for low-powered devices.
+    An alternative mode, <opt>soxr</opt>, is less obtrusive but
     requires much more processing power. For this mode, support for
     <opt>libsoxr</opt>, the SoX Resampler Library, must be selected when
     <opt>shairport-sync</opt> is built.
+    The <opt>basic</opt> mode is also suitable for low-powered device,
+    but <opt>vernier</opt> is better.
     
     The default setting, <opt>auto</opt>, allows Shairport Sync to choose
     <opt>soxr</opt> mode if the system is powerful enough.
@@ -484,6 +514,10 @@
       </cmd>
 
   </section>
+
+  <section name="Note">
+	<p>The <opt>dacquery</opt> utility (<url href="https://github.com/mikebrady/dacquery"/>) might be useful for discovering the properties of your system's DACs.</p>
+	</section>
 
 	<section name="Credits">
 	<p>Mike Brady (<url href="https://github.com/mikebrady"/>) developed Shairport Sync from Shairport by James Wah (<url href="https://github.com/abrasive"/>).</p>

@@ -61,7 +61,7 @@ public:
 
   // Get the number of threads
   size_t getNumThreads() const { return _threads.size(); }
-  
+
   void shutdown();
 
 private:

@@ -194,7 +194,5 @@ void _metadata_hub_read_epilog(const char *filename, const int linenumber);
 // metadata queue stuff
 void metadata_hub_queue_init();
 void metadata_hub_queue_stop();
-int send_metadata_to_hub_queue(const uint32_t type, const uint32_t code,
-                           const char *data, const uint32_t length, rtsp_message *carrier,
-                           int block);
-
+int send_metadata_to_hub_queue(const uint32_t type, const uint32_t code, const char *data,
+                               const uint32_t length, rtsp_message *carrier, int block);

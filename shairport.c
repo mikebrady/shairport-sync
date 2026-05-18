@@ -2,7 +2,7 @@
  * Shairport, an Apple Airplay receiver
  * Copyright (c) James Laird 2013
  * All rights reserved.
- * Modifications and additions (c) Mike Brady 2014--2025
+ * Modifications and additions (c) Mike Brady 2014--2026
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -50,12 +50,12 @@
 
 #ifdef CONFIG_AIRPLAY_2
 #include "ptp-utilities.h"
+#include "utilities/generate_device_uuid.h"
+#include "utilities/generate_random_uuid.h"
 #include <gcrypt.h>
 #include <libavcodec/avcodec.h>
 #include <sodium.h>
 #include <uuid/uuid.h>
-#include "utilities/generate_random_uuid.h"
-#include "utilities/generate_device_uuid.h"
 
 #endif
 
@@ -82,6 +82,7 @@
 #include "common.h"
 #include "rtp.h"
 #include "rtsp.h"
+#include "utilities/string_utilities.h"
 
 #if defined(CONFIG_DACP_CLIENT)
 #include "dacp.h"
@@ -265,7 +266,7 @@ void *soxr_time_check(__attribute__((unused)) void *arg) {
                  outbuffer, buffer_length - 1, &odone, // Output.
                  &io_spec,                             // Input, output and transfer spec.
                  NULL, NULL);                          // Default configuration.
-    
+
     pthread_setcancelstate(oldState, NULL);
   }
 
@@ -321,6 +322,7 @@ void usage(char *progname) {
     printf("Options:\n");
     printf("    -h, --help              Show this help.\n");
     printf("    -V, --version           Show version information -- the version string.\n");
+    printf("    --service-type          Select the type of AirPlay service: \"auto\", \"airplay2\" or \"classic\". (You can use \"airplay1\" in place of \"classic\".)\n");
     printf("    -X, --displayConfig     Output OS information, version string, command line, configuration file and active settings to the log.\n");
     printf("    --statistics            Print some interesting statistics. More will be printed if -v / -vv / -vvv are also chosen.\n");
     printf("    -v, --verbose           Print debug information; -v some; -vv more; -vvv lots -- generally too much.\n");
@@ -382,6 +384,7 @@ void usage(char *progname) {
 int parse_options(int argc, char **argv) {
   // there are potential memory leaks here -- it's called a second time, previously allocated
   // strings will dangle.
+  char *cli_service_type_string = NULL;
   char *raw_service_name = NULL; /* Used to pick up the service name before possibly expanding it */
   char *stuffing = NULL;         /* used for picking up the stuffing option */
 #if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
@@ -394,40 +397,40 @@ int parse_options(int argc, char **argv) {
   int tolerance_in_frames = 0;
   poptContext optCon; /* context for parsing command-line options */
   struct poptOption optionsTable[] = {
-    {"verbose", 'v', POPT_ARG_NONE, NULL, 'v', NULL, NULL},
-    {"kill", 'k', POPT_ARG_NONE, &killOption, 0, NULL, NULL},
-    {"daemon", 'd', POPT_ARG_NONE, &daemonisewith, 0, NULL, NULL},
-    {"justDaemoniseNoPIDFile", 'j', POPT_ARG_NONE, &daemonisewithout, 0, NULL, NULL},
-    {"configfile", 'c', POPT_ARG_STRING, &config.configfile, 0, NULL, NULL},
-    {"statistics", 0, POPT_ARG_NONE, &config.statistics_requested, 0, NULL, NULL},
-    {"logOutputLevel", 0, POPT_ARG_NONE, &config.logOutputLevel, 0, NULL, NULL},
-    {"version", 'V', POPT_ARG_NONE, NULL, 0, NULL, NULL},
-    {"displayConfig", 'X', POPT_ARG_NONE, &display_config_selected, 0, NULL, NULL},
-    {"port", 'p', POPT_ARG_INT, &config.port, 0, NULL, NULL},
-    {"name", 'a', POPT_ARG_STRING, &raw_service_name, 0, NULL, NULL},
-    {"output", 'o', POPT_ARG_STRING, &config.output_name, 0, NULL, NULL},
-    {"on-start", 'B', POPT_ARG_STRING, &config.cmd_start, 0, NULL, NULL},
-    {"on-stop", 'E', POPT_ARG_STRING, &config.cmd_stop, 0, NULL, NULL},
-    {"wait-cmd", 'w', POPT_ARG_NONE, &config.cmd_blocking, 0, NULL, NULL},
-    {"mdns", 'm', POPT_ARG_STRING, &config.mdns_name, 0, NULL, NULL},
-    {"latency", 'L', POPT_ARG_INT, &config.userSuppliedLatency, 0, NULL, NULL},
-    {"stuffing", 'S', POPT_ARG_STRING, &stuffing, 'S', NULL, NULL},
-    {"resync", 'r', POPT_ARG_INT, &resync_threshold_in_frames, 'r', NULL, NULL},
-    {"timeout", 't', POPT_ARG_INT, &config.timeout, 't', NULL, NULL},
-    {"password", 0, POPT_ARG_STRING, &config.password, 0, NULL, NULL},
+      {"verbose", 'v', POPT_ARG_NONE, NULL, 'v', NULL, NULL},
+      {"kill", 'k', POPT_ARG_NONE, &killOption, 0, NULL, NULL},
+      {"daemon", 'd', POPT_ARG_NONE, &daemonisewith, 0, NULL, NULL},
+      {"justDaemoniseNoPIDFile", 'j', POPT_ARG_NONE, &daemonisewithout, 0, NULL, NULL},
+      {"configfile", 'c', POPT_ARG_STRING, &config.configfile, 0, NULL, NULL},
+      {"statistics", 0, POPT_ARG_NONE, &config.statistics_requested, 0, NULL, NULL},
+      {"logOutputLevel", 0, POPT_ARG_NONE, &config.logOutputLevel, 0, NULL, NULL},
+      {"version", 'V', POPT_ARG_NONE, NULL, 0, NULL, NULL},
+      {"displayConfig", 'X', POPT_ARG_NONE, &display_config_selected, 0, NULL, NULL},
+      {"port", 'p', POPT_ARG_INT, &config.port, 0, NULL, NULL},
+      {"name", 'a', POPT_ARG_STRING, &raw_service_name, 0, NULL, NULL},
+      {"output", 'o', POPT_ARG_STRING, &config.output_name, 0, NULL, NULL},
+      {"on-start", 'B', POPT_ARG_STRING, &config.cmd_start, 0, NULL, NULL},
+      {"on-stop", 'E', POPT_ARG_STRING, &config.cmd_stop, 0, NULL, NULL},
+      {"wait-cmd", 'w', POPT_ARG_NONE, &config.cmd_blocking, 0, NULL, NULL},
+      {"mdns", 'm', POPT_ARG_STRING, &config.mdns_name, 0, NULL, NULL},
+      {"latency", 'L', POPT_ARG_INT, &config.userSuppliedLatency, 0, NULL, NULL},
+      {"stuffing", 'S', POPT_ARG_STRING, &stuffing, 'S', NULL, NULL},
+      {"resync", 'r', POPT_ARG_INT, &resync_threshold_in_frames, 'r', NULL, NULL},
+      {"timeout", 't', POPT_ARG_INT, &config.timeout, 't', NULL, NULL},
+      {"password", 0, POPT_ARG_STRING, &config.password, 0, NULL, NULL},
+      {"service-type", 0, POPT_ARG_STRING, &cli_service_type_string, 0, NULL, NULL},
 #if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
-    {"dbus-default-message-bus", 0, POPT_ARG_STRING, &dbus_default_message_bus, 0, NULL, NULL},
+      {"dbus-default-message-bus", 0, POPT_ARG_STRING, &dbus_default_message_bus, 0, NULL, NULL},
 #endif
-    {"tolerance", 'z', POPT_ARG_INT, &tolerance_in_frames, 'z', NULL, NULL},
-    {"use-stderr", 'u', POPT_ARG_NONE, NULL, 'u', NULL, NULL},
-    {"log-to-syslog", 0, POPT_ARG_NONE, &log_to_syslog_selected, 0, NULL, NULL},
+      {"tolerance", 'z', POPT_ARG_INT, &tolerance_in_frames, 'z', NULL, NULL},
+      {"use-stderr", 'u', POPT_ARG_NONE, NULL, 'u', NULL, NULL},
+      {"log-to-syslog", 0, POPT_ARG_NONE, &log_to_syslog_selected, 0, NULL, NULL},
 #ifdef CONFIG_METADATA
-    {"metadata-enable", 'M', POPT_ARG_NONE, &config.metadata_enabled, 'M', NULL, NULL},
-    {"metadata-pipename", 0, POPT_ARG_STRING, &config.metadata_pipename, 0, NULL, NULL},
-    {"get-coverart", 'g', POPT_ARG_NONE, &config.get_coverart, 'g', NULL, NULL},
+      {"metadata-enable", 'M', POPT_ARG_NONE, &config.metadata_enabled, 'M', NULL, NULL},
+      {"metadata-pipename", 0, POPT_ARG_STRING, &config.metadata_pipename, 0, NULL, NULL},
+      {"get-coverart", 'g', POPT_ARG_NONE, &config.get_coverart, 'g', NULL, NULL},
 #endif
-    POPT_AUTOHELP{NULL, 0, 0, NULL, 0, NULL, NULL}
-  };
+      POPT_AUTOHELP{NULL, 0, 0, NULL, 0, NULL, NULL}};
 
   // we have to parse the command line arguments to look for a config file
   int optind;
@@ -552,8 +555,8 @@ int parse_options(int argc, char **argv) {
   // for unexpected circumstances
 
   config.model = strdup("ShairportSync");
-  //config.model = strdup("AirPort10,115");
-  // config.model = strdup("AudioAccessory5,1");
+  // config.model = strdup("AirPort10,115");
+  //  config.model = strdup("AudioAccessory5,1");
 
   // config.srcvers = strdup(PACKAGE_VERSION);
   // config.srcvers = strdup("760.13.1");
@@ -612,8 +615,8 @@ int parse_options(int argc, char **argv) {
   // use the MAC address placed in config.hw_addr to generate the default airplay_device_id
   uint64_t temporary_airplay_id = nctoh64(config.hw_addr);
   temporary_airplay_id =
-    temporary_airplay_id >> 16; // we only use the first 6 bytes but have imported 8.
-  
+      temporary_airplay_id >> 16; // we only use the first 6 bytes but have imported 8.
+
   config_init(&config_file_stuff);
 
   config_file_real_path = realpath(config.configfile, NULL);
@@ -628,6 +631,10 @@ int parse_options(int argc, char **argv) {
       // make config.cfg point to it
       config.cfg = &config_file_stuff;
 
+      /* See if a specific service type has been requested */
+      if (config_lookup_non_empty_string(config.cfg, "general.service_type", &str)) {
+        config.service_type = string_to_service_type(str, "general service_type");
+      }
       /* Get the Service Name. */
       if (config_lookup_non_empty_string(config.cfg, "general.name", &str)) {
         raw_service_name = (char *)str;
@@ -680,8 +687,7 @@ int parse_options(int argc, char **argv) {
        * starting at the port base. Only three ports are needed. */
       if (config_lookup_int(config.cfg, "general.udp_port_range", &value)) {
         if ((value < 3) || (value > 65535))
-          die("Invalid port range  \"%d\". It should be between 3 and 65535, default is 10",
-              value);
+          die("Invalid port range  \"%d\". It should be between 3 and 65535, default is 10", value);
         else
           config.udp_port_range = value;
       }
@@ -1297,6 +1303,132 @@ int parse_options(int argc, char **argv) {
             "controlled by a hardware mixer. "
             "You must not use a hardware mixer when using the loudness filter.");
 
+#if defined(CONFIG_DBUS_INTERFACE)
+      /* Get the dbus service sbus setting. */
+      if (config_lookup_string(config.cfg, "general.dbus_service_bus", &str)) {
+        if (strcasecmp(str, "system") == 0)
+          config.dbus_service_bus_type = DBT_system;
+        else if (strcasecmp(str, "session") == 0)
+          config.dbus_service_bus_type = DBT_session;
+        else
+          die("Invalid dbus_service_bus option choice \"%s\". It should be \"system\" (default) or "
+              "\"session\"",
+              str);
+      }
+#endif
+
+#if defined(CONFIG_MPRIS_INTERFACE)
+      /* Get the mpris service sbus setting. */
+      if (config_lookup_string(config.cfg, "general.mpris_service_bus", &str)) {
+        if (strcasecmp(str, "system") == 0)
+          config.mpris_service_bus_type = DBT_system;
+        else if (strcasecmp(str, "session") == 0)
+          config.mpris_service_bus_type = DBT_session;
+        else
+          die("Invalid mpris_service_bus option choice \"%s\". It should be \"system\" (default) "
+              "or "
+              "\"session\"",
+              str);
+      }
+#endif
+
+#ifdef CONFIG_MQTT
+      config_set_lookup_bool(config.cfg, "mqtt.enabled", &config.mqtt_enabled);
+      if (config.mqtt_enabled && !config.metadata_enabled) {
+        die("You need to have metadata enabled in order to use mqtt");
+      }
+      if (config_lookup_non_empty_string(config.cfg, "mqtt.hostname", &str)) {
+        config.mqtt_hostname = (char *)str;
+        // TODO: Document that, if this is false, whole mqtt func is disabled
+      }
+      config.mqtt_port = 1883;
+      if (config_lookup_int(config.cfg, "mqtt.port", &value)) {
+        if ((value < 0) || (value > 65535))
+          die("Invalid mqtt port number  \"%d\". It should be between 0 and 65535, default is 1883",
+              value);
+        else
+          config.mqtt_port = value;
+      }
+
+      if (config_lookup_non_empty_string(config.cfg, "mqtt.username", &str)) {
+        config.mqtt_username = (char *)str;
+      }
+      if (config_lookup_non_empty_string(config.cfg, "mqtt.password", &str)) {
+        config.mqtt_password = (char *)str;
+      }
+      int capath = 0;
+      if (config_lookup_non_empty_string(config.cfg, "mqtt.capath", &str)) {
+        config.mqtt_capath = (char *)str;
+        capath = 1;
+      }
+      if (config_lookup_non_empty_string(config.cfg, "mqtt.cafile", &str)) {
+        if (capath)
+          die("Supply either mqtt cafile or mqtt capath -- you have supplied both!");
+        config.mqtt_cafile = (char *)str;
+      }
+      int certkeynum = 0;
+      if (config_lookup_non_empty_string(config.cfg, "mqtt.certfile", &str)) {
+        config.mqtt_certfile = (char *)str;
+        certkeynum++;
+      }
+      if (config_lookup_non_empty_string(config.cfg, "mqtt.keyfile", &str)) {
+        config.mqtt_keyfile = (char *)str;
+        certkeynum++;
+      }
+      if (certkeynum != 0 && certkeynum != 2) {
+        die("If you want to use TLS Client Authentication, you have to specify "
+            "mqtt.certfile AND mqtt.keyfile.\nYou have supplied only one of them.\n"
+            "If you do not want to use TLS Client Authentication, leave both empty.");
+      }
+
+      if (config_lookup_non_empty_string(config.cfg, "mqtt.topic", &str)) {
+        config.mqtt_topic = (char *)str;
+      }
+      config_set_lookup_bool(config.cfg, "mqtt.publish_raw", &config.mqtt_publish_raw);
+      config_set_lookup_bool(config.cfg, "mqtt.publish_parsed", &config.mqtt_publish_parsed);
+      config_set_lookup_bool(config.cfg, "mqtt.publish_cover", &config.mqtt_publish_cover);
+      config_set_lookup_bool(config.cfg, "mqtt.publish_retain", &config.mqtt_publish_retain);
+      if (config.mqtt_publish_cover && !config.get_coverart) {
+        die("You need to have metadata.include_cover_art enabled in order to use "
+            "mqtt.publish_cover");
+      }
+      config_set_lookup_bool(config.cfg, "mqtt.enable_autodiscovery",
+                             &config.mqtt_enable_autodiscovery);
+      if (config_lookup_non_empty_string(config.cfg, "mqtt.autodiscovery_prefix", &str)) {
+        config.mqtt_autodiscovery_prefix = (char *)str;
+      }
+      config_set_lookup_bool(config.cfg, "mqtt.enable_remote", &config.mqtt_enable_remote);
+      if (config_lookup_non_empty_string(config.cfg, "mqtt.empty_payload_substitute", &str)) {
+        if (strlen(str) == 0)
+          config.mqtt_empty_payload_substitute = NULL;
+        else
+          config.mqtt_empty_payload_substitute = strdup(str);
+      } else {
+        config.mqtt_empty_payload_substitute = strdup("--");
+      }
+#ifndef CONFIG_AVAHI
+      if (config.mqtt_enable_remote) {
+        die("You have enabled MQTT remote control which requires shairport-sync to be built with "
+            "Avahi, but your installation is not using avahi. Please reinstall/recompile with "
+            "avahi enabled, or disable remote control.");
+      }
+#endif
+#endif
+#ifdef CONFIG_AIRPLAY_2
+      long long aid;
+
+      // replace the airplay_device_id with this, if provided
+      if (config_lookup_int64(config.cfg, "general.airplay_device_id", &aid)) {
+        temporary_airplay_id = aid;
+      }
+
+      // add the airplay_device_id_offset if provided
+      if (config_lookup_int64(config.cfg, "general.airplay_device_id_offset", &aid)) {
+        temporary_airplay_id += aid;
+      }
+
+#endif
+
     } else {
       if (config_error_type(&config_file_stuff) == CONFIG_ERR_FILE_IO)
         die("Error reading configuration file \"%s\": \"%s\".", config_file_real_path,
@@ -1306,131 +1438,6 @@ int parse_options(int argc, char **argv) {
             config_error_file(&config_file_stuff), config_error_text(&config_file_stuff));
       }
     }
-#if defined(CONFIG_DBUS_INTERFACE)
-    /* Get the dbus service sbus setting. */
-    if (config_lookup_string(config.cfg, "general.dbus_service_bus", &str)) {
-      if (strcasecmp(str, "system") == 0)
-        config.dbus_service_bus_type = DBT_system;
-      else if (strcasecmp(str, "session") == 0)
-        config.dbus_service_bus_type = DBT_session;
-      else
-        die("Invalid dbus_service_bus option choice \"%s\". It should be \"system\" (default) or "
-            "\"session\"",
-            str);
-    }
-#endif
-
-#if defined(CONFIG_MPRIS_INTERFACE)
-    /* Get the mpris service sbus setting. */
-    if (config_lookup_string(config.cfg, "general.mpris_service_bus", &str)) {
-      if (strcasecmp(str, "system") == 0)
-        config.mpris_service_bus_type = DBT_system;
-      else if (strcasecmp(str, "session") == 0)
-        config.mpris_service_bus_type = DBT_session;
-      else
-        die("Invalid mpris_service_bus option choice \"%s\". It should be \"system\" (default) or "
-            "\"session\"",
-            str);
-    }
-#endif
-
-#ifdef CONFIG_MQTT
-    config_set_lookup_bool(config.cfg, "mqtt.enabled", &config.mqtt_enabled);
-    if (config.mqtt_enabled && !config.metadata_enabled) {
-      die("You need to have metadata enabled in order to use mqtt");
-    }
-    if (config_lookup_non_empty_string(config.cfg, "mqtt.hostname", &str)) {
-      config.mqtt_hostname = (char *)str;
-      // TODO: Document that, if this is false, whole mqtt func is disabled
-    }
-    config.mqtt_port = 1883;
-    if (config_lookup_int(config.cfg, "mqtt.port", &value)) {
-      if ((value < 0) || (value > 65535))
-        die("Invalid mqtt port number  \"%d\". It should be between 0 and 65535, default is 1883",
-            value);
-      else
-        config.mqtt_port = value;
-    }
-
-    if (config_lookup_non_empty_string(config.cfg, "mqtt.username", &str)) {
-      config.mqtt_username = (char *)str;
-    }
-    if (config_lookup_non_empty_string(config.cfg, "mqtt.password", &str)) {
-      config.mqtt_password = (char *)str;
-    }
-    int capath = 0;
-    if (config_lookup_non_empty_string(config.cfg, "mqtt.capath", &str)) {
-      config.mqtt_capath = (char *)str;
-      capath = 1;
-    }
-    if (config_lookup_non_empty_string(config.cfg, "mqtt.cafile", &str)) {
-      if (capath)
-        die("Supply either mqtt cafile or mqtt capath -- you have supplied both!");
-      config.mqtt_cafile = (char *)str;
-    }
-    int certkeynum = 0;
-    if (config_lookup_non_empty_string(config.cfg, "mqtt.certfile", &str)) {
-      config.mqtt_certfile = (char *)str;
-      certkeynum++;
-    }
-    if (config_lookup_non_empty_string(config.cfg, "mqtt.keyfile", &str)) {
-      config.mqtt_keyfile = (char *)str;
-      certkeynum++;
-    }
-    if (certkeynum != 0 && certkeynum != 2) {
-      die("If you want to use TLS Client Authentication, you have to specify "
-          "mqtt.certfile AND mqtt.keyfile.\nYou have supplied only one of them.\n"
-          "If you do not want to use TLS Client Authentication, leave both empty.");
-    }
-
-    if (config_lookup_non_empty_string(config.cfg, "mqtt.topic", &str)) {
-      config.mqtt_topic = (char *)str;
-    }
-    config_set_lookup_bool(config.cfg, "mqtt.publish_raw", &config.mqtt_publish_raw);
-    config_set_lookup_bool(config.cfg, "mqtt.publish_parsed", &config.mqtt_publish_parsed);
-    config_set_lookup_bool(config.cfg, "mqtt.publish_cover", &config.mqtt_publish_cover);
-    config_set_lookup_bool(config.cfg, "mqtt.publish_retain", &config.mqtt_publish_retain);
-    if (config.mqtt_publish_cover && !config.get_coverart) {
-      die("You need to have metadata.include_cover_art enabled in order to use mqtt.publish_cover");
-    }
-    config_set_lookup_bool(config.cfg, "mqtt.enable_autodiscovery",
-                           &config.mqtt_enable_autodiscovery);
-    if (config_lookup_non_empty_string(config.cfg, "mqtt.autodiscovery_prefix", &str)) {
-      config.mqtt_autodiscovery_prefix = (char *)str;
-    }
-    config_set_lookup_bool(config.cfg, "mqtt.enable_remote", &config.mqtt_enable_remote);
-    if (config_lookup_non_empty_string(config.cfg, "mqtt.empty_payload_substitute", &str)) {
-      if (strlen(str) == 0)
-        config.mqtt_empty_payload_substitute = NULL;
-      else
-        config.mqtt_empty_payload_substitute = strdup(str);
-    } else {
-      config.mqtt_empty_payload_substitute = strdup("--");
-    }
-#ifndef CONFIG_AVAHI
-    if (config.mqtt_enable_remote) {
-      die("You have enabled MQTT remote control which requires shairport-sync to be built with "
-          "Avahi, but your installation is not using avahi. Please reinstall/recompile with "
-          "avahi enabled, or disable remote control.");
-    }
-#endif
-
-#ifdef CONFIG_AIRPLAY_2
-    long long aid;
-
-    // replace the airplay_device_id with this, if provided
-    if (config_lookup_int64(config.cfg, "general.airplay_device_id", &aid)) {
-      temporary_airplay_id = aid;
-    }
-
-    // add the airplay_device_id_offset if provided
-    if (config_lookup_int64(config.cfg, "general.airplay_device_id_offset", &aid)) {
-      temporary_airplay_id += aid;
-    }
-
-#endif
-#endif
-
   }
 
   // now, do the command line options again, but this time do them fully -- it's a unix convention
@@ -1497,6 +1504,10 @@ int parse_options(int argc, char **argv) {
     die("%s: %s", poptBadOption(optCon, POPT_BADOPTION_NOALIAS), poptStrerror(c));
   }
 
+  if (cli_service_type_string != NULL)
+    config.service_type = string_to_service_type(cli_service_type_string,
+                                                 "command line option \"--service-type\" argument");
+
   poptFreeContext(optCon);
 
 #if defined(CONFIG_DBUS_INTERFACE) || (CONFIG_MPRIS_INTERFACE)
@@ -1527,6 +1538,7 @@ int parse_options(int argc, char **argv) {
 
   config.nqptp_shared_memory_interface_name = strdup(NQPTP_INTERFACE_NAME);
 
+  // create the config.ap1_prefix[i]
   char apids[6 * 2 + 5 + 1]; // six pairs of digits, 5 colons and a NUL
   apids[6 * 2 + 5] = 0;      // NUL termination
   int i;
@@ -1555,15 +1567,13 @@ int parse_options(int argc, char **argv) {
   else
     memcpy(result, config.ap1_prefix, sizeof(result));
 
-  // OpenSSL is mandatory for AirPlay 2 anyway
-#ifdef CONFIG_OPENSSL
+  // OpenSSL is mandatory for AirPlay 2
   EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
   EVP_DigestInit_ex(mdctx, EVP_md5(), NULL);
   EVP_DigestUpdate(mdctx, config.ap1_prefix, sizeof(config.ap1_prefix));
   unsigned int md5_digest_len = EVP_MD_size(EVP_md5());
   EVP_DigestFinal_ex(mdctx, result, &md5_digest_len);
   EVP_MD_CTX_free(mdctx);
-#endif
 
   // now, convert it into a type 4 UUID
   // see https://stackoverflow.com/questions/10867405/generating-v5-uuid-what-is-name-and-namespace
@@ -1580,7 +1590,7 @@ int parse_options(int argc, char **argv) {
   // Produces a UUID string at uuid consisting of lower-case letters
   uuid_unparse_lower(result, psi_uuid);
   config.airplay_psi = psi_uuid;
-  
+
   debug(3, "size of pk is %zu.", sizeof(config.airplay_pk));
   pair_public_key_get(PAIR_SERVER_HOMEKIT, config.airplay_pk, config.airplay_device_id);
   char buf[128];
@@ -1590,24 +1600,24 @@ int parse_options(int argc, char **argv) {
     ptr += sprintf(ptr, "%02x", config.airplay_pk[pk_index]);
   *ptr = '\0';
   config.pk_string = strdup(buf);
-  
+
   // the features code is a 64-bit number, but in the mDNS advertisement, the least significant 32
   // bit are given first for example, if the features number is 0x1C340405F4A00, it will be given as
   // features=0x405F4A00,0x1C340 in the mDNS string, and in a signed decimal number in the plist:
   // 496155702020608 this setting here is the source of both the plist features response and the
   // mDNS string.
 
-  config.airplay_features =
-       0x00018340405C4A00; // no AP2 metadata (b50), no AP1 text (b17), no AP1 progress (b16), no AP1 artwork (b15)
-  //     0x0001C340405C4A00; // no AP2 metadata (b50), no AP1 text (b17), no AP1 progress (b16), no AP1 artwork (b15)
-  //     0x0001C340445D0A00;
+  config.airplay_features = 0x00018340405C4A00; // no AP2 metadata (b50), no AP1 text (b17), no AP1
+                                                // progress (b16), no AP1 artwork (b15)
+  //     0x0001C340405C4A00; // no AP2 metadata (b50), no AP1 text (b17), no AP1 progress (b16), no
+  //     AP1 artwork (b15) 0x0001C340445D0A00;
   // config.airplay_features |= (1 << 26); // 0x0x4000000
 
-  // features=0x0001C340445D0A00 -- AirPort Express 
+  // features=0x0001C340445D0A00 -- AirPort Express
 
 #ifdef CONFIG_METADATA
   // If we are asking for metadata, turn on the relevant bits
-  
+
   // If bit 50 is set, metadata is sent via plists in POST /command payloads.
   // The data consists of textual information about what is playing and cover art
   // It does not seem possible to turn off the cover art.
@@ -1615,13 +1625,15 @@ int parse_options(int argc, char **argv) {
   // While bit 50 is set, no data comes through the "classic" way. That is
   // no progress, text or picture data comes through in the way that
   // it comes through in Classic AirPlay (aka AirPlay 1).
-  
+
   // Although it is less flexible about what metadata is sent, bit 50 being set
   // provides much more information, so should be the default for AirPlay 2
-  
+
   if (config.metadata_enabled != 0) {
-    config.airplay_features |= (uint64_t)1 << 50; // metadata in a binary plist, including more state information    
-    // config.airplay_features |= ((uint64_t)1 << 15) | ((uint64_t)1 << 16) | ((uint64_t)1 << 17); // older metadata flags artwork, progress and text respectively
+    config.airplay_features |=
+        (uint64_t)1 << 50; // metadata in a binary plist, including more state information
+    // config.airplay_features |= ((uint64_t)1 << 15) | ((uint64_t)1 << 16) | ((uint64_t)1 << 17);
+    // // older metadata flags artwork, progress and text respectively
   }
 #endif
 
@@ -1642,11 +1654,11 @@ int parse_options(int argc, char **argv) {
   if (padding)
     *padding = 0;
   debug(2, "airplay_fex is \"%s\"", config.airplay_fex);
-  
+
   // now the status flags
   // Advertised with mDNS and returned with GET /info, see
   // https://openairplay.github.io/airplay-spec/status_flags.html
-  
+
   config.airplay_statusflags = 0;
   config.airplay_statusflags |= 1 << 2; // Audio cable is attached
   if (config.password != NULL) {
@@ -1708,34 +1720,88 @@ int parse_options(int argc, char **argv) {
   config.airplay_volume =
       config.default_airplay_volume; // if no volume is ever set or requested, default to initial
                                      // default value if nothing else comes in first.
-  // now, do the substitutions in the service name
-  char hostname[100];
-  gethostname(hostname, 100);
 
-  // strip off a terminating .<anything>, e.g. .local from the hostname
-  char *last_dot = strrchr(hostname, '.');
-  if (last_dot != NULL)
-    *last_dot = '\0';
+  // let's see if we have AirPlay 2 and NQPTP is installed or not and set service_type accordingly
+  // or exit. the outcome will be APST_airplay2, APST_classic or APST_forced_classic, and APST_auto
+  // will be gone.
 
-  char *i0;
-  if (raw_service_name == NULL)
-    i0 = strdup("%H"); // this is the default it the Service Name wasn't specified
-  else
-    i0 = strdup(raw_service_name);
+  char service_type_string[32];
+  service_type_to_string(config.service_type, service_type_string);
+  debug(1, "config.service_type is: \"%s\".", service_type_string);
 
-  // here, do the substitutions for %h, %H, %v and %V
-  char *i1 = str_replace(i0, "%h", hostname);
-  if ((hostname[0] >= 'a') && (hostname[0] <= 'z'))
-    hostname[0] = hostname[0] - 0x20; // convert a lowercase first letter into a capital letter
-  char *i2 = str_replace(i1, "%H", hostname);
-  char *i3 = str_replace(i2, "%v", PACKAGE_VERSION);
-  char *vs = get_version_string();
-  config.service_name = str_replace(i3, "%V", vs); // service name complete
-  free(i0);
-  free(i1);
-  free(i2);
-  free(i3);
-  free(vs);
+#ifdef CONFIG_AIRPLAY_2
+  // don't bother checking for NQPTP if we are providing a classic service
+  if (config.service_type != APST_classic) {
+    ptp_send_control_message_string(
+        "T"); // send this message to get nqptp to create the named shm interface
+    int response = 0;
+    /*
+    uint64_t nqptp_start_waiting_time = get_absolute_time_in_ns();
+    int continue_waiting = 0;
+    int64_t time_spent_waiting = 0;
+    do {
+      continue_waiting = 0;
+      response = ptp_shm_interface_open();
+      if ((response == -1) && (errno == ENOENT)) {
+        time_spent_waiting = get_absolute_time_in_ns() - nqptp_start_waiting_time;
+        if (time_spent_waiting < 10000000000L) {
+          continue_waiting = 1;
+          usleep(50000);
+        }
+      }
+    } while (continue_waiting != 0);
+    */
+
+    response = ptp_shm_interface_open(); // look for NQPTP service
+
+    if ((response == -1) && (errno == ENOENT)) {
+      debug(1, "NQPTP service not found.");
+      // change auto to forced classic
+      if (config.service_type == APST_auto) {
+        config.service_type = APST_forced_classic;
+      } else if (config.service_type == APST_airplay2) {
+        die("The NQPTP service can not be found. NQPTP must be installed and running to provide "
+            "AirPlay 2 service.");
+      }
+    } else if ((response == -1) && (errno == EACCES)) {
+      die("Shairport Sync must have read access to the NQPTP shared memory file in /dev/shm/.");
+    } else if (response != 0) {
+      die("an error occurred accessing the NQPTP service.");
+    }
+
+    if (response == 0) {
+      // change "auto" to "airplay2"
+      if (config.service_type == APST_auto) {
+        config.service_type = APST_airplay2;
+      }
+      // check that the version of Shairport Sync and NQPTP match...
+      debug(1, "NQPTP service found.");
+      if (config.service_type == APST_airplay2) {
+        // now that we are using AirPlay 2, check NQPTP and SPS match...
+        int ptp_clock_version = ptp_get_clock_version();
+        if (ptp_clock_version == 0) {
+          die("The NQPTP service on this system, which is required for Shairport Sync to operate, "
+              "does "
+              "not seem to be initialised.");
+        } else if (ptp_clock_version < NQPTP_SHM_STRUCTURES_VERSION) {
+          die("The NQPTP service (SMI Version %d) on this system is too old for this version of "
+              "Shairport Sync, which requires SMI Version %d. Please update.",
+              ptp_clock_version, NQPTP_SHM_STRUCTURES_VERSION);
+        } else if (ptp_clock_version > NQPTP_SHM_STRUCTURES_VERSION) {
+          die("This version of Shairport Sync (SMI Version %d) is too old for the version of NQPTP "
+              "(SMI "
+              "Version %d) on this system. Please update.",
+              NQPTP_SHM_STRUCTURES_VERSION, ptp_clock_version);
+        }
+      }
+    }
+  }
+#else
+  // if we don't have AirPLay 2, the service type must be classic
+  config.service_type = APST_classic;
+#endif
+
+  config.service_name = service_name(raw_service_name);
 
 #ifdef CONFIG_MQTT
   // mqtt topic was not set. As we have the service name just now, set it
@@ -1905,9 +1971,6 @@ void exit_function() {
 
 #endif
 
-      if (conns)
-        free(conns); // make sure the connections have been deleted first
-
       if (config.service_name)
         free(config.service_name);
 
@@ -1971,7 +2034,7 @@ void exit_function() {
     if (config.appName)
       free(config.appName);
 
-      // probably should be freeing malloc'ed memory here, including strdup-created strings...
+    // probably should be freeing malloc'ed memory here, including strdup-created strings...
 
 #ifdef CONFIG_LIBDAEMON
     if (this_is_the_daemon_process) { // this is the daemon that is exiting
@@ -2016,12 +2079,12 @@ void termHandler(__attribute__((unused)) int k) {
 
 void _display_config(const char *filename, const int linenumber, __attribute__((unused)) int argc,
                      __attribute__((unused)) char **argv) {
-                     
+
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-zero-length"
-#endif                     
-                     
+#endif
+
   _inform(filename, linenumber, ">> Display Config Start.");
 
   // see the man entry on popen
@@ -2200,11 +2263,11 @@ void _display_config(const char *filename, const int linenumber, __attribute__((
     }
   }
   _inform(filename, linenumber, "");
-  _inform(filename, linenumber, ">> Display Config End."); 
-  
-  #if defined(__GNUC__) || defined(__clang__)
-  #pragma GCC diagnostic pop
-  #endif
+  _inform(filename, linenumber, ">> Display Config End.");
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 }
 
 #define display_config(argc, argv) _display_config(__FILE__, __LINE__, argc, argv)
@@ -2328,7 +2391,6 @@ int main(int argc, char **argv) {
 
   pid = getpid();
   config.log_fd = -1;
-  conns = NULL; // no connections active
 
 #ifdef CONFIG_LIBDAEMON
   daemon_set_verbosity(LOG_DEBUG);
@@ -2339,6 +2401,8 @@ int main(int argc, char **argv) {
   type_of_exit_cleanup = TOE_normal; // what kind of exit cleanup needed
   debug(1, "adding the exit function");
   atexit(exit_function);
+
+  config.service_type = APST_auto; // this may be changed by the settings...
 
   // get a device id -- the first non-local MAC address
   get_device_id((uint8_t *)&config.hw_addr, 6);
@@ -2389,12 +2453,6 @@ int main(int argc, char **argv) {
   config.resync_threshold = 0.050; // default
   config.tolerance = 0.002;
 
-#ifdef CONFIG_AIRPLAY_2
-  config.port = 7000;
-#else
-  config.port = 5000;
-#endif
-
 #ifdef CONFIG_SOXR
   config.packet_stuffing = ST_auto; // use soxr interpolation by default if support has been
                                     // included and if the CPU is fast enough
@@ -2402,10 +2460,6 @@ int main(int argc, char **argv) {
   config.packet_stuffing = ST_vernier; // you need to explicitly ask for "basic" (ST_basic)
 #endif
 
-  // char hostname[100];
-  // gethostname(hostname, 100);
-  // config.service_name = malloc(20 + 100);
-  // snprintf(config.service_name, 20 + 100, "Shairport Sync on %s", hostname);
   set_requested_connection_state_to_output(
       1); // we expect to be able to connect to the output device
   config.audio_backend_buffer_desired_length = 0.15; // seconds
@@ -2464,13 +2518,6 @@ int main(int argc, char **argv) {
 #endif
   // parse arguments into config -- needed to locate pid_dir
   int audio_arg = parse_options(argc, argv);
-
-  // mDNS supports maximum of 63-character names (we append 13).
-  if (strlen(config.service_name) > 50) {
-    warn("The service name \"%s\" is too long (max 50 characters) and has been truncated.",
-         config.service_name);
-    config.service_name[50] = '\0'; // truncate it and carry on...
-  }
 
   if (display_config_selected != 0) {
     display_config(argc, argv);
@@ -2601,21 +2648,36 @@ int main(int argc, char **argv) {
 #endif
 
 #ifdef CONFIG_AIRPLAY_2
-
-  if (has_fltp_capable_aac_decoder() == 0) {
-    die("Shairport Sync can not run on this system. Run \"shairport-sync -h\" for more "
-        "information.");
+  if (config.service_type == APST_airplay2) {
+    config.port = 7000;
+  } else {
+    config.port = 5000;
   }
+#else
+  config.port = 5000;
+#endif
 
+#ifdef CONFIG_AIRPLAY_2
+  if (config.service_type == APST_airplay2) {
+    if (has_fltp_capable_aac_decoder() == 0) {
+      die("Shairport Sync can not run on this system. Run \"shairport-sync -h\" for more "
+          "information.");
+    }
+  }
   uint64_t apf = config.airplay_features;
   uint64_t apfh = config.airplay_features;
   apfh = apfh >> 32;
   uint32_t apf32 = apf;
   uint32_t apfh32 = apfh;
-  debug(1, "Startup in AirPlay 2 mode, with features 0x%" PRIx32 ",0x%" PRIx32 " on device \"%s\".",
-        apf32, apfh32, config.airplay_device_id);
+  if (config.service_type == APST_airplay2) {
+    debug(1,
+          "Startup in AirPlay 2 mode, with features 0x%" PRIx32 ",0x%" PRIx32 " on device \"%s\".",
+          apf32, apfh32, config.airplay_device_id);
+  } else {
+    debug(1, "Startup in Classic AirPlay (aka \"AirPlay 1\") mode. (AirPlay2 build.)");
+  }
 #else
-  debug(1, "Startup in classic Airplay (aka \"AirPlay 1\") mode.");
+  debug(1, "Startup in Classic AirPlay (aka \"AirPlay 1\") mode.");
 #endif
 
   // control-c (SIGINT) cleanly
@@ -2949,9 +3011,9 @@ int main(int argc, char **argv) {
               config.output_channel_map[i] = strdup(channel_id);
               debug(2, "output channel %d is \"%s\".", i, config.output_channel_map[i]);
             } else {
-            
-              
-              warn("during channel mapping, \"%s\" was not recognised as a channel name -- as a result, output channel %d will be silent.",
+
+              warn("during channel mapping, \"%s\" was not recognised as a channel name -- as a "
+                   "result, output channel %d will be silent.",
                    channel_id, i);
               config.output_channel_map[i] = strdup("--");
             }
@@ -3155,12 +3217,11 @@ int main(int argc, char **argv) {
     if (soxr_time_check_thread != NULL) {
       named_pthread_create(soxr_time_check_thread, NULL, &soxr_time_check, NULL, "soxr_checker");
     } else {
-      debug(1,"couldn't get memory to start the soxr_checker");
+      debug(1, "couldn't get memory to start the soxr_checker");
     }
     pthread_setcancelstate(oldState, NULL); // make this un-cancellable
-
   }
-  
+
 #endif
 
 #ifdef CONFIG_FFMPEG
@@ -3208,47 +3269,53 @@ int main(int argc, char **argv) {
 #endif
 
   // In AirPlay 2 mode, the AP1 prefix is the same as the device ID less the colons
+  // and has already been calculated.
+
   // In AirPlay 1 mode, the AP1 prefix is calculated by hashing the service name.
-#ifndef CONFIG_AIRPLAY_2
 
-  uint8_t ap_md5[16];
-
-  // debug(1, "size of hw_addr is %u.", sizeof(config.hw_addr));
+#ifdef CONFIG_AIRPLAY_2
+  if (config.service_type != APST_airplay2) {
+#endif
+    uint8_t ap_md5[16];
+    // debug(1, "size of hw_addr is %u.", sizeof(config.hw_addr));
 #ifdef CONFIG_OPENSSL
-  EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
-  EVP_DigestInit_ex(mdctx, EVP_md5(), NULL);
-  EVP_DigestUpdate(mdctx, config.service_name, strlen(config.service_name));
-  EVP_DigestUpdate(mdctx, config.hw_addr, sizeof(config.hw_addr));
-  unsigned int md5_digest_len = EVP_MD_size(EVP_md5());
-  EVP_DigestFinal_ex(mdctx, ap_md5, &md5_digest_len);
-  EVP_MD_CTX_free(mdctx);
+    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+    EVP_DigestInit_ex(mdctx, EVP_md5(), NULL);
+    EVP_DigestUpdate(mdctx, config.service_name, strlen(config.service_name));
+    EVP_DigestUpdate(mdctx, config.hw_addr, sizeof(config.hw_addr));
+    unsigned int md5_digest_len = EVP_MD_size(EVP_md5());
+    EVP_DigestFinal_ex(mdctx, ap_md5, &md5_digest_len);
+    EVP_MD_CTX_free(mdctx);
 #endif
 
 #ifdef CONFIG_MBEDTLS
 #if MBEDTLS_VERSION_MINOR >= 7
-  mbedtls_md5_context tctx;
-  mbedtls_md5_starts_ret(&tctx);
-  mbedtls_md5_update_ret(&tctx, (unsigned char *)config.service_name, strlen(config.service_name));
-  mbedtls_md5_update_ret(&tctx, (unsigned char *)config.hw_addr, sizeof(config.hw_addr));
-  mbedtls_md5_finish_ret(&tctx, ap_md5);
+    mbedtls_md5_context tctx;
+    mbedtls_md5_starts_ret(&tctx);
+    mbedtls_md5_update_ret(&tctx, (unsigned char *)config.service_name,
+                           strlen(config.service_name));
+    mbedtls_md5_update_ret(&tctx, (unsigned char *)config.hw_addr, sizeof(config.hw_addr));
+    mbedtls_md5_finish_ret(&tctx, ap_md5);
 #else
-  mbedtls_md5_context tctx;
-  mbedtls_md5_starts(&tctx);
-  mbedtls_md5_update(&tctx, (unsigned char *)config.service_name, strlen(config.service_name));
-  mbedtls_md5_update(&tctx, (unsigned char *)config.hw_addr, sizeof(config.hw_addr));
-  mbedtls_md5_finish(&tctx, ap_md5);
+    mbedtls_md5_context tctx;
+    mbedtls_md5_starts(&tctx);
+    mbedtls_md5_update(&tctx, (unsigned char *)config.service_name, strlen(config.service_name));
+    mbedtls_md5_update(&tctx, (unsigned char *)config.hw_addr, sizeof(config.hw_addr));
+    mbedtls_md5_finish(&tctx, ap_md5);
 #endif
 #endif
 
 #ifdef CONFIG_POLARSSL
-  md5_context tctx;
-  md5_starts(&tctx);
-  md5_update(&tctx, (unsigned char *)config.service_name, strlen(config.service_name));
-  md5_update(&tctx, (unsigned char *)config.hw_addr, sizeof(config.hw_addr));
-  md5_finish(&tctx, ap_md5);
+    md5_context tctx;
+    md5_starts(&tctx);
+    md5_update(&tctx, (unsigned char *)config.service_name, strlen(config.service_name));
+    md5_update(&tctx, (unsigned char *)config.hw_addr, sizeof(config.hw_addr));
+    md5_finish(&tctx, ap_md5);
 #endif
+    memcpy(config.ap1_prefix, ap_md5, sizeof(config.ap1_prefix));
 
-  memcpy(config.ap1_prefix, ap_md5, sizeof(config.ap1_prefix));
+#ifdef CONFIG_AIRPLAY_2
+  }
 #endif
 
 #ifdef CONFIG_METADATA
@@ -3275,55 +3342,6 @@ int main(int argc, char **argv) {
   glib_worker_thread = g_thread_new("glib worker", glib_worker_thread_function, NULL);
 #endif
 
-#ifdef CONFIG_AIRPLAY_2
-
-  ptp_send_control_message_string(
-      "T"); // send this message to get nqptp to create the named shm interface
-  uint64_t nqptp_start_waiting_time = get_absolute_time_in_ns();
-  int continue_waiting = 0;
-  int response = 0;
-  int64_t time_spent_waiting = 0;
-  do {
-    continue_waiting = 0;
-    response = ptp_shm_interface_open();
-    if ((response == -1) && (errno == ENOENT)) {
-      time_spent_waiting = get_absolute_time_in_ns() - nqptp_start_waiting_time;
-      if (time_spent_waiting < 10000000000L) {
-        continue_waiting = 1;
-        usleep(50000);
-      }
-    }
-  } while (continue_waiting != 0);
-
-  if ((response == -1) && (errno == ENOENT)) {
-    die("Shairport Sync can not find the nqptp service on this system.  Is nqptp installed and "
-        "running?");
-  } else if ((response == -1) && (errno == EACCES)) {
-    die("Shairport Sync must have read access to the nqptp shared memory file in /dev/shm/.");
-  } else if (response != 0) {
-    die("an error occurred accessing the nqptp service.");
-  }
-
-  int ptp_clock_version = ptp_get_clock_version();
-  if (ptp_clock_version == 0) {
-    die("The nqptp service on this system, which is required for Shairport Sync to operate, does "
-        "not seem to be initialised.");
-  } else if (ptp_clock_version < NQPTP_SHM_STRUCTURES_VERSION) {
-    die("The nqptp service (SMI Version %d) on this system is too old for this version of "
-        "Shairport Sync, which requires SMI Version %d. Please update.",
-        ptp_clock_version, NQPTP_SHM_STRUCTURES_VERSION);
-  } else if (ptp_clock_version > NQPTP_SHM_STRUCTURES_VERSION) {
-    die("This version of Shairport Sync (SMI Version %d) is too old for the version of nqptp (SMI "
-        "Version %d) on this system. Please update.",
-        NQPTP_SHM_STRUCTURES_VERSION, ptp_clock_version);
-  }
-
-  if (time_spent_waiting == 0)
-    debug(1, "NQPTP is online.");
-  else
-    debug(1, "NQPTP came online after %.3f milliseconds.", 0.000001 * time_spent_waiting);
-#endif
-
 #ifdef CONFIG_METADATA
   send_ssnc_metadata('svna', config.service_name, strlen(config.service_name), 1);
 #endif
@@ -3332,8 +3350,10 @@ int main(int argc, char **argv) {
   convolver_pool_init(config.convolution_threads, 8); // 8 channels
 #endif
   activity_monitor_start();
-  debug(3, "create an RTSP listener");
-  named_pthread_create(&rtsp_listener_thread, NULL, &rtsp_listen_loop, NULL, "bonjour");
+  debug(4, "create an RTSP listener");
+  // note: the Avahi Threaded Poll thread will be named after whatever name you use here too, so
+  // you'll see two threads named "listener" or whatever...
+  named_pthread_create(&rtsp_listener_thread, NULL, &rtsp_listen_loop, NULL, "listener");
   atexit(exit_rtsp_listener);
   pthread_join(rtsp_listener_thread, NULL);
   return 0;
