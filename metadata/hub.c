@@ -534,7 +534,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     // ignore the following
     case 'dapo':
       char *dacp_port_string = strndup(data, length);
-      debug(1, "DACP port is \"%s\"", dacp_port_string);
+      debug(4, "DACP port is \"%s\"", dacp_port_string);
       free(dacp_port_string);
       break;
     case 'pcst':

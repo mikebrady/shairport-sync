@@ -30,6 +30,23 @@
 #include "player.h"
 #include "rtsp.h"
 
+
+// these are indexed by simple_command_t
+static const char *simple_command_strings[] = {
+    "play",         /* rcsc_play           = 0 */
+    "pause",        /* rcsc_pause          = 1 */
+    "playpause",    /* rcsc_play_pause     = 2 */
+    "stop",         /* rcsc_stop           = 3 */
+    "nextitem",     /* rcsc_next_item      = 4 */
+    "previtem",     /* rcsc_previous_item  = 5 */
+    "shuffle_songs",/* rcsc_toggle_shuffle = 6 */
+    NULL,           /* rcsc_cycle_repeat   = 7 — no match */
+    "beginff",      /* rcsc_fast_forward   = 8 */
+    NULL,           /* rcsc_fast_forward_stop = 9 — no match */
+    "beginrew",     /* rcsc_rewind         = 10 */
+    NULL,           /* rcsc_rewind_stop    = 11 — no match */
+};
+
 #ifdef CONFIG_DACP_CLIENT
 #include "dacp.h"
 #endif
@@ -178,8 +195,8 @@ void completeModernMediaRemoteCommand(plist_t command_plist, const char *command
 
   plist_t archive_plist = prepareNSKeyedArchiver(deviceUUID);
 
-  debug(1, "kMRMediaRemoteOptionDestinationDeviceUIDs archive:");
-  decodeAndLogPlist(archive_plist);
+  // debug(1, "kMRMediaRemoteOptionDestinationDeviceUIDs archive:");
+  // decodeAndLogPlist(archive_plist);
 
   /* serialise to binary plist */
   char *bplist_buf = NULL;
@@ -198,7 +215,8 @@ void completeModernMediaRemoteCommand(plist_t command_plist, const char *command
   plist_dict_set_item(command_plist, "params", params_plist);
 }
 
-ssize_t ap2_event_send_modern_media_remote_command(rtsp_conn_info *conn,
+// send a simple command -- one with a command number an no arguments.
+ssize_t ap2_event_send_simple_modern_media_remote_command(rtsp_conn_info *conn,
                                                    unsigned int command_number) {
   ssize_t result = -1;
   char command_number_string[32];
@@ -338,18 +356,51 @@ void remote_set_airplay_volume(double volume) {
 #endif
 }
 
-int remote_set_airplay_volume_available() {
+void remote_simple_command(simple_command_t command) {
   int available = 0;
 #ifdef CONFIG_DACP_CLIENT
   available = metadata_store.dacp_server_active;
+  if (available) {
+    // see if we can find the commands string
+    if ((command <= rcsc_rewind_stop) && (simple_command_strings[command] != NULL)) {
+      debug(1, "remote_simple_command \"%s\" -- DACP active.", simple_command_strings[command]);
+      send_simple_dacp_command(simple_command_strings[command]);    
+    }
+  }
 #endif
 #ifdef CONFIG_AIRPLAY_2
   pthread_rwlock_rdlock(&principal_conn_lock); // don't let the principal_conn be changed
   pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
   if ((available == 0) && (principal_conn != NULL) && (principal_conn->airplay_type == ap_2)) {
-    available = 1;
+    if (principal_conn != NULL) {
+      debug(1, "remote_simple_command %u -- AirPlay 2.", command);
+      ap2_event_send_simple_modern_media_remote_command(principal_conn, command);
+    }
   }
   pthread_cleanup_pop(1); // release the principal_conn lock
 #endif
-  return available;
 }
+
+void remote_playpause() {
+  int available = 0;
+#ifdef CONFIG_DACP_CLIENT
+  available = metadata_store.dacp_server_active;
+  if (available) {
+    debug(1, "remote_playpause -- DACP active.");
+    send_simple_dacp_command("playpause");
+  }
+#endif
+#ifdef CONFIG_AIRPLAY_2
+  pthread_rwlock_rdlock(&principal_conn_lock); // don't let the principal_conn be changed
+  pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
+  if ((available == 0) && (principal_conn != NULL) && (principal_conn->airplay_type == ap_2)) {
+    if (principal_conn != NULL) {
+      debug(1, "remote_playpause -- AirPlay 2.");
+      ap2_event_send_simple_modern_media_remote_command(principal_conn, 2);
+    }
+  }
+  pthread_cleanup_pop(1); // release the principal_conn lock
+#endif
+}
+
+

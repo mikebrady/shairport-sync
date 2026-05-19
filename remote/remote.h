@@ -1,4 +1,21 @@
 #pragma once
 
-int remote_set_airplay_volume_available();
+// simple commands
+typedef enum {
+  rcsc_play = 0,
+  rcsc_pause,
+  rcsc_play_pause,
+  rcsc_stop,
+  rcsc_next_item,
+  rcsc_previous_item,
+  rcsc_toggle_shuffle,
+  rcsc_cycle_repeat,
+  rcsc_fast_forward,
+  rcsc_fast_forward_stop,
+  rcsc_rewind,
+  rcsc_rewind_stop,
+} simple_command_t;
+
 void remote_set_airplay_volume(double volume);
+
+void remote_simple_command(simple_command_t command);

@@ -348,9 +348,8 @@ static gboolean on_handle_set_volume(ShairportSyncAdvancedRemoteControl *skeleto
 static gboolean on_handle_fast_forward(ShairportSyncRemoteControl *skeleton,
                                        GDBusMethodInvocation *invocation,
                                        __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("beginff");
-#endif
+  debug(4, "D-Bus fast forward.");
+  remote_simple_command(rcsc_fast_forward);
   shairport_sync_remote_control_complete_fast_forward(skeleton, invocation);
   return TRUE;
 }
@@ -358,9 +357,8 @@ static gboolean on_handle_fast_forward(ShairportSyncRemoteControl *skeleton,
 static gboolean on_handle_rewind(ShairportSyncRemoteControl *skeleton,
                                  GDBusMethodInvocation *invocation,
                                  __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("beginrew");
-#endif
+  debug(4, "D-Bus rewind.");
+  remote_simple_command(rcsc_rewind);
   shairport_sync_remote_control_complete_rewind(skeleton, invocation);
   return TRUE;
 }
@@ -378,9 +376,8 @@ static gboolean on_handle_toggle_mute(ShairportSyncRemoteControl *skeleton,
 static gboolean on_handle_next(ShairportSyncRemoteControl *skeleton,
                                GDBusMethodInvocation *invocation,
                                __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("nextitem");
-#endif
+  debug(4, "D-Bus next item.");
+  remote_simple_command(rcsc_next_item);
   shairport_sync_remote_control_complete_next(skeleton, invocation);
   return TRUE;
 }
@@ -388,9 +385,8 @@ static gboolean on_handle_next(ShairportSyncRemoteControl *skeleton,
 static gboolean on_handle_previous(ShairportSyncRemoteControl *skeleton,
                                    GDBusMethodInvocation *invocation,
                                    __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("previtem");
-#endif
+  debug(4, "D-Bus previous item.");
+  remote_simple_command(rcsc_previous_item);
   shairport_sync_remote_control_complete_previous(skeleton, invocation);
   return TRUE;
 }
@@ -398,9 +394,8 @@ static gboolean on_handle_previous(ShairportSyncRemoteControl *skeleton,
 static gboolean on_handle_pause(ShairportSyncRemoteControl *skeleton,
                                 GDBusMethodInvocation *invocation,
                                 __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("pause");
-#endif
+  debug(4, "D-Bus pause.");
+  remote_simple_command(rcsc_pause);
   shairport_sync_remote_control_complete_pause(skeleton, invocation);
   return TRUE;
 }
@@ -408,9 +403,8 @@ static gboolean on_handle_pause(ShairportSyncRemoteControl *skeleton,
 static gboolean on_handle_play_pause(ShairportSyncRemoteControl *skeleton,
                                      GDBusMethodInvocation *invocation,
                                      __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("playpause");
-#endif
+  debug(4, "D-Bus playpause.");
+  remote_simple_command(rcsc_play_pause);
   shairport_sync_remote_control_complete_play_pause(skeleton, invocation);
   return TRUE;
 }
@@ -418,9 +412,8 @@ static gboolean on_handle_play_pause(ShairportSyncRemoteControl *skeleton,
 static gboolean on_handle_play(ShairportSyncRemoteControl *skeleton,
                                GDBusMethodInvocation *invocation,
                                __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("play");
-#endif
+  debug(4, "D-Bus play.");
+  remote_simple_command(rcsc_play);
   shairport_sync_remote_control_complete_play(skeleton, invocation);
   return TRUE;
 }
@@ -428,9 +421,8 @@ static gboolean on_handle_play(ShairportSyncRemoteControl *skeleton,
 static gboolean on_handle_stop(ShairportSyncRemoteControl *skeleton,
                                GDBusMethodInvocation *invocation,
                                __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("stop");
-#endif
+  debug(4, "D-Bus stop.");
+  remote_simple_command(rcsc_stop);
   shairport_sync_remote_control_complete_stop(skeleton, invocation);
   return TRUE;
 }
@@ -448,9 +440,8 @@ static gboolean on_handle_resume(ShairportSyncRemoteControl *skeleton,
 static gboolean on_handle_shuffle_songs(ShairportSyncRemoteControl *skeleton,
                                         GDBusMethodInvocation *invocation,
                                         __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("shuffle_songs");
-#endif
+  debug(4, "D-Bus shuffle_songs.");
+  remote_simple_command(rcsc_toggle_shuffle);
   shairport_sync_remote_control_complete_shuffle_songs(skeleton, invocation);
   return TRUE;
 }
@@ -480,7 +471,7 @@ static gboolean on_handle_set_airplay_volume(ShairportSyncRemoteControl *skeleto
                                              const gdouble volume,
                                              __attribute__((unused)) gpointer user_data) {
 
-  debug(1, "D-Bus set airplay volume to %.3f.", volume);
+  debug(4, "D-Bus set airplay volume to %.3f.", volume);
   remote_set_airplay_volume(volume);
   shairport_sync_remote_control_complete_set_airplay_volume(skeleton, invocation);
   return TRUE;
