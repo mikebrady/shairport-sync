@@ -234,12 +234,12 @@ ssize_t ap2_event_send_simple_modern_media_remote_command(rtsp_conn_info *conn,
   return result;
 }
 
-ssize_t ap2_event_send_dev_mule() {
+ssize_t ap2_event_send_dev_mule(unsigned int command_number) {
   ssize_t result = -1;
   rtsp_conn_info *conn = principal_conn;
   if (conn != NULL) {
     char command_number_string[32];
-    snprintf(command_number_string, sizeof(command_number_string), "%u", 25); // set repeat mode
+    snprintf(command_number_string, sizeof(command_number_string), "%u", command_number);
     plist_t modernMediaCommand = plist_new_dict();
     plist_dict_set_item(modernMediaCommand, "modernMediaRemoteCommand",
                         plist_new_string(command_number_string));
@@ -403,4 +403,9 @@ void remote_playpause() {
 #endif
 }
 
-
+void remote_player_stop(rtsp_conn_info *conn) {
+    if (conn != NULL) {
+    debug(1, "remote_player_stop -- AirPlay 2.");
+    ap2_event_send_simple_modern_media_remote_command(conn, rcsc_stop);
+  }
+}

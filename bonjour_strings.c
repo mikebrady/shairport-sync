@@ -1,6 +1,6 @@
 /*
  * Bonjour strings manager. This file is part of Shairport Sync.
- * Copyright (c) Mike Brady 2014--2025
+ * Copyright (c) Mike Brady 2014--2026
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -55,6 +55,7 @@ char modelString[128];
 char srcversString[128];
 char osversString[128];
 char ap1OsversString[128];
+char vvString[32];
 #endif
 
 #ifdef CONFIG_AIRPLAY_2
@@ -191,7 +192,8 @@ void build_bonjour_strings(__attribute((unused)) rtsp_conn_info *conn) {
       bnprintf(srcversString, sizeof(srcversString), "srcvers=%s", config.srcvers);
   secondary_txt_records[entry_number++] =
       bnprintf(osversString, sizeof(osversString), "osvers=%s", config.osvers);
-  secondary_txt_records[entry_number++] = "vv=2";
+  secondary_txt_records[entry_number++] =
+      bnprintf(vvString, sizeof(vvString), "vv=%u", config.vv);
   secondary_txt_records[entry_number++] = fwString; // already calculated
   secondary_txt_records[entry_number++] = NULL;
 #endif

@@ -2,8 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>vv</key>
-	<integer>2</integer>
+	<!-- <key>vv</key> -->
+	<!-- <integer>2</integer> -->
 	<key>playbackCapabilities</key>
 	<dict>
 		<key>supportsInterstitials</key>
@@ -19,8 +19,8 @@
 	<false/>
 	<key>protocolVersion</key>
 	<string>1.1</string>
-	<key>volumeControlType</key>
-	<integer>3</integer>
+	<!-- <key>volumeControlType</key> -->
+	<!-- <integer>3</integer> -->
 	<!-- <key>senderAddress</key> --> <!-- hoping we don't need this -->
 	<!-- <string>192.168.50.63:45008</string> -->
 	<key>screenDemoMode</key>
@@ -53,7 +53,7 @@
 	<!-- <string>b8:27:eb:82:d0:87</string> -->
 	<key>receiverHDRCapability</key>
 	<string>4k60</string>
-	<!-- key values for initialVolume, sourceVersion, deviceID, features, pi, name, model, featuresEx and a txtAirPlay data field are added programatically -->
+	<!-- key values for initialVolume, vv, volumeControlType, sourceVersion, deviceID, features, pi, name, model, featuresEx and a txtAirPlay data field are added programatically -->
 	<!-- key values for firmwareBuildDate (string), build (string) and PTPInfo (string)
 	 should be added programatically -->
 </dict>

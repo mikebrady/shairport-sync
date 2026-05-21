@@ -1097,7 +1097,7 @@ void generateTxtDataValueInfo(rtsp_conn_info *conn, void **response, size_t *res
                             &qualifier_response_data, &qualifier_response_data_length) == 0)
     debug(1, "Problem");
 
-  if (add_pstring_to_malloc("vv=2", &qualifier_response_data, &qualifier_response_data_length) == 0)
+  if (add_pstring_to_malloc(bnprintf(localString, sizeof(localString), "vv=%u", config.vv), &qualifier_response_data, &qualifier_response_data_length) == 0)
     debug(1, "Problem");
 
   *response = qualifier_response_data;
@@ -1136,6 +1136,13 @@ plist_t generateInfoPlist(rtsp_conn_info *conn) {
     plist_dict_set_item(response_plist, "senderAddress", plist_new_string(senderAddress));
     plist_dict_set_item(response_plist, "initialVolume", plist_new_real(suggested_volume(conn)));
     plist_dict_set_item(response_plist, "sourceVersion", plist_new_string(config.srcvers));
+    plist_dict_set_item(response_plist, "vv", plist_new_uint(config.vv));
+    // don't display volume control if we're asking to ignore the volume control
+    if (config.ignore_volume_control == 0) {
+      plist_dict_set_item(response_plist, "volumeControlType", plist_new_uint(config.volumeControlType));
+    } else {
+      plist_dict_set_item(response_plist, "volumeControlType", plist_new_uint(0));
+    }
     pthread_cleanup_pop(1); // release the principal_conn lock
     // Create a dictionary of supported formats for the bufferStream
     uint64_t bufferStreamFormats = 0L;
@@ -2081,9 +2088,9 @@ void handle_feedback(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message 
 
 void handle_command(rtsp_conn_info *conn, rtsp_message *req,
                     __attribute__((unused)) rtsp_message *resp) {
-  debug(3, "Connection %d: POST %s Content-Length %d", conn->connection_number, req->path,
+  debug(1, "Connection %d: POST %s Content-Length %d", conn->connection_number, req->path,
         req->contentlength);
-  debug_log_rtsp_message(3, NULL, req);
+  debug_log_rtsp_message(1, NULL, req);
   if (rtsp_message_contains_plist(req)) {
     // we are not going to load the plist here because we don't wamt
     // to incur the memory and processing cost. So we'll just send it to the
@@ -2297,12 +2304,12 @@ void handle_options_2(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message
 void handle_teardown_2(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *req,
                        rtsp_message *resp) {
 
-  debug(2, "Connection %d from \"%s\": TEARDOWN 2 %s.", conn->connection_number,
+  debug(1, "Connection %d from \"%s\": TEARDOWN 2 %s.", conn->connection_number,
         conn->ap2_client_name, get_category_string(conn->airplay_stream_category));
   debug_log_rtsp_message(2, "TEARDOWN 2: ", req);
 
   if (conn->player_thread) {
-    debug(2, "TEARDOWN 2 is stopping a player thread before exiting...");
+    debug(2, "TEARDOWN 1 is stopping a player thread before exiting...");
     player_stop(conn);                    // this nulls the player_thread and cancels the threads...
     activity_monitor_signify_activity(0); // inactive, and should be after command_stop()
   }

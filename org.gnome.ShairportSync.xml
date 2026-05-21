@@ -19,6 +19,9 @@
       <arg name="reply" type="i" direction="out" />
       <arg name="response" type="s" direction="out" />
     </method>
+    <method name="Mule">
+      <arg name="command" type="i" direction="in" />
+    </method>
     <property name="VolumeControlProfile" type="s" access="readwrite" />
     <property name="Interpolation" type="s" access="readwrite" />
     <property name="ALACDecoder" type="s" access="readwrite" />

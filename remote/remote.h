@@ -1,5 +1,7 @@
 #pragma once
 
+#include "player.h"
+
 // simple commands
 typedef enum {
   rcsc_play = 0,
@@ -19,3 +21,7 @@ typedef enum {
 void remote_set_airplay_volume(double volume);
 
 void remote_simple_command(simple_command_t command);
+
+void remote_player_stop(rtsp_conn_info *conn);
+
+ssize_t ap2_event_send_dev_mule(unsigned int command_number);

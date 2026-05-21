@@ -928,6 +928,15 @@ static gboolean on_handle_quit(ShairportSync *skeleton, GDBusMethodInvocation *i
   return TRUE;
 }
 
+static gboolean on_handle_mule(ShairportSync *skeleton, GDBusMethodInvocation *invocation,
+                                         const gint command,
+                                         __attribute__((unused)) gpointer user_data) {
+  debug(1, "Mule with command %d.", command);
+  ap2_event_send_dev_mule(command);
+  shairport_sync_complete_mule(skeleton, invocation);
+  return TRUE;
+}
+
 static gboolean on_handle_remote_command(ShairportSync *skeleton, GDBusMethodInvocation *invocation,
                                          const gchar *command,
                                          __attribute__((unused)) gpointer user_data) {
@@ -1027,6 +1036,9 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
 
   g_signal_connect(shairportSyncSkeleton, "handle-remote-command",
                    G_CALLBACK(on_handle_remote_command), NULL);
+  
+  g_signal_connect(shairportSyncSkeleton, "handle-mule",
+                   G_CALLBACK(on_handle_mule), NULL);
 
   g_signal_connect(shairportSyncSkeleton, "handle-drop-session", G_CALLBACK(on_handle_drop_session),
                    NULL);
