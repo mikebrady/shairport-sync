@@ -622,7 +622,7 @@ enum rtsp_read_request_response rtsp_read_request(rtsp_conn_info *conn, rtsp_mes
           // But it does seem as it it's not always sent, e.g. if another read() is outstanding (?)
           // EAGAIN seems to be simply from the read() request timing out.
           if (errno == ETIMEDOUT) {
-            debug(1,
+            debug(2,
                   "Connection %d has disappeared. As Yeats almost said, \"Too long a "
                   "silence / can make a stone "
                   "of the heart\". ETIMEOUT",
@@ -631,11 +631,11 @@ enum rtsp_read_request_response rtsp_read_request(rtsp_conn_info *conn, rtsp_mes
           } else if (nread == 0) {
             if (errno == 0) {
               // a blocking read that returns zero means eof -- implies connection closed by client
-              debug(2, "Connection %d RTSP closed by client.", conn->connection_number);
+              debug(2, "Connection %d: RTSP closed by client.", conn->connection_number);
             } else {
               char errorstring[1024];
               strerror_r(errno, (char *)errorstring, sizeof(errorstring));
-              debug(2, "Connection %d RTSP port closed by client with error %d: \"%s\".",
+              debug(2, "Connection %d: RTSP port closed by client with error %d: \"%s\".",
                     conn->connection_number, errno, (char *)errorstring);
             }
             safe_socket_close(&conn->fd); // close it from our end too...
@@ -1784,9 +1784,9 @@ void handle_pair_setup(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *re
       free(conn->ap2_client_name);
     conn->ap2_client_name = strdup(hdr);
   }
-  debug(2, "Connection %d from \"%s\": handle_pair_setup, Content-Length %d",
+  debug(4, "Connection %d from \"%s\": handle_pair_setup, Content-Length %d",
         conn->connection_number, conn->ap2_client_name, req->contentlength);
-  debug_log_rtsp_message_conn(conn, 2, "pair-setup request", req);
+  debug_log_rtsp_message_conn(conn, 4, "pair-setup request", req);
 
   int ret;
   uint8_t *body = NULL;
@@ -2269,8 +2269,8 @@ void handle_options(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *
 
 void handle_teardown(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *req,
                      rtsp_message *resp) {
-  debug(2, "Connection %d: TEARDOWN (Classic AirPlay)", conn->connection_number);
-  debug_log_rtsp_message(2, "TEARDOWN (Classic AirPlay) request", req);
+  debug(4, "Connection %d: TEARDOWN (Classic AirPlay)", conn->connection_number);
+  debug_log_rtsp_message(4, "TEARDOWN (Classic AirPlay) request", req);
 
   // most of the cleanup here is done by the exiting player_thread, if any, and by the event
   // receiver if and when it exits.
@@ -2282,9 +2282,8 @@ void handle_teardown(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message 
   }
 
   resp->respcode = 200;
-  msg_add_header(resp, "Connection", "close");
-  // debug(1,"Bogus exit for valgrind -- remember to comment it out!.");
-  // exit(EXIT_SUCCESS);
+  msg_add_header(resp, "Connection", "close");  
+  conn->stop = 1;
 }
 
 #ifdef CONFIG_AIRPLAY_2
@@ -2304,20 +2303,18 @@ void handle_options_2(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message
 void handle_teardown_2(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *req,
                        rtsp_message *resp) {
 
-  debug(1, "Connection %d from \"%s\": TEARDOWN 2 %s.", conn->connection_number,
+  debug(4, "Connection %d from \"%s\": TEARDOWN 2 %s.", conn->connection_number,
         conn->ap2_client_name, get_category_string(conn->airplay_stream_category));
-  debug_log_rtsp_message(2, "TEARDOWN 2: ", req);
+  debug_log_rtsp_message(4, "TEARDOWN 2: ", req);
 
   if (conn->player_thread) {
-    debug(2, "TEARDOWN 1 is stopping a player thread before exiting...");
+    debug(4, "TEARDOWN 1 is stopping a player thread before exiting...");
     player_stop(conn);                    // this nulls the player_thread and cancels the threads...
     activity_monitor_signify_activity(0); // inactive, and should be after command_stop()
   }
   resp->respcode = 200;
-  msg_add_header(resp, "Connection", "close");
-
-  // debug(1,"Bogus exit for valgrind -- remember to comment it out!.");
-  // sps_shutdown(TOE_normal); // ask for a normal exit
+  msg_add_header(resp, "Connection", "close");  
+  conn->stop = 1;
 }
 #endif
 
