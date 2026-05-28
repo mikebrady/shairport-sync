@@ -405,7 +405,7 @@ void remote_playpause() {
 
 void remote_player_stop(rtsp_conn_info *conn) {
     if (conn != NULL) {
-    debug(1, "remote_player_stop -- AirPlay 2.");
+    debug(1, "Connection %d: remote_player_stop -- AirPlay 2.", conn->connection_number);
     ap2_event_send_simple_modern_media_remote_command(conn, rcsc_stop);
   }
 }
