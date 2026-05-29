@@ -2276,8 +2276,7 @@ void handle_teardown(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message 
 
   resp->respcode = 200;
   msg_add_header(resp, "Connection", "close");
-  // debug(1,"Bogus exit for valgrind -- remember to comment it out!.");
-  // exit(EXIT_SUCCESS);
+  conn->stop = 1;
 }
 
 #ifdef CONFIG_AIRPLAY_2
@@ -2308,9 +2307,7 @@ void handle_teardown_2(rtsp_conn_info *conn, __attribute__((unused)) rtsp_messag
   }
   resp->respcode = 200;
   msg_add_header(resp, "Connection", "close");
-
-  // debug(1,"Bogus exit for valgrind -- remember to comment it out!.");
-  // sps_shutdown(TOE_normal); // ask for a normal exit
+  conn->stop = 1;
 }
 #endif
 
