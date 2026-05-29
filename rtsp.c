@@ -186,7 +186,7 @@ void cancel_all_RTSP_threads(airplay_stream_c stream_category, int except_this_o
         ((conns[i]->airplay_stream_category == stream_category) ||
          (stream_category == unspecified_stream_category))) {
       pthread_cancel(conns[i]->thread);
-      debug(2, "Connection %d: %s cancelled.", conns[i]->connection_number,
+      debug(2, "Connection %d from \"%s\": %s cancelled.", conns[i]->connection_number, conns[i]->ap2_client_name,
             get_category_string(conns[i]->airplay_stream_category));
     }
   }
@@ -1975,7 +1975,8 @@ void handle_fp_setup(__attribute__((unused)) rtsp_conn_info *conn, rtsp_message 
 void handle_configure(rtsp_conn_info *conn __attribute__((unused)),
                       rtsp_message *req __attribute__((unused)), rtsp_message *resp) {
 
-  debug_log_rtsp_message_conn(conn, 1, "POST /configure req:", req);
+  debug(1, "Connection %d from \"%s\": POST %s Content-Length %d", conn->connection_number, conn->ap2_client_name, req->path, req->contentlength);
+  debug_log_rtsp_message_conn(conn, 4, "POST /configure req:", req);
 
   int existingEnable_HK_Access_Control = config.enable_HK_Access_Control;
 
@@ -2033,13 +2034,12 @@ void handle_configure(rtsp_conn_info *conn __attribute__((unused)),
   plist_free(response_plist);
 
   msg_add_header(resp, "Content-Type", "application/x-apple-binary-plist");
-  debug_log_rtsp_message_conn(conn, 1, "POST /configure response:", resp);
+  debug_log_rtsp_message_conn(conn, 4, "POST /configure response:", resp);
 }
 
 void handle_feedback(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *req,
                      __attribute__((unused)) rtsp_message *resp) {
-  debug(4, "Connection %d: POST %s Content-Length %d", conn->connection_number, req->path,
-        req->contentlength);
+  debug(4, "Connection %d from \"%s\": POST %s Content-Length %d", conn->connection_number, conn->ap2_client_name, req->path, req->contentlength);
   debug_log_rtsp_message(4, NULL, req);
 
   int is_playing = 0;
@@ -2088,9 +2088,8 @@ void handle_feedback(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message 
 
 void handle_command(rtsp_conn_info *conn, rtsp_message *req,
                     __attribute__((unused)) rtsp_message *resp) {
-  debug(1, "Connection %d: POST %s Content-Length %d", conn->connection_number, req->path,
-        req->contentlength);
-  debug_log_rtsp_message(1, NULL, req);
+  debug(4, "Connection %d from \"%s\": POST %s Content-Length %d", conn->connection_number, conn->ap2_client_name, req->path, req->contentlength);
+  debug_log_rtsp_message(4, NULL, req);
   if (rtsp_message_contains_plist(req)) {
     // we are not going to load the plist here because we don't wamt
     // to incur the memory and processing cost. So we'll just send it to the
@@ -2303,9 +2302,8 @@ void handle_options_2(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message
 void handle_teardown_2(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *req,
                        rtsp_message *resp) {
 
-  debug(4, "Connection %d from \"%s\": TEARDOWN 2 %s.", conn->connection_number,
-        conn->ap2_client_name, get_category_string(conn->airplay_stream_category));
-  debug_log_rtsp_message(4, "TEARDOWN 2: ", req);
+  debug(1, "Connection %d from \"%s\": %s TEARDOWN %s Content-Length %d", conn->connection_number, conn->ap2_client_name, get_category_string(conn->airplay_stream_category), req->path, req->contentlength);        
+  debug_log_rtsp_message_conn(conn, 4, "TEARDOWN: ", req);
 
   if (conn->player_thread) {
     debug(4, "TEARDOWN 1 is stopping a player thread before exiting...");
@@ -2457,11 +2455,8 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
                   conn->connection_number);
           }
         }
-
-        debug(2,
-              "Connection %d from \"%s\": Initial (i.e. no streams array) SETUP (AirPlay 2) on %s",
-              conn->connection_number, conn->ap2_client_name,
-              get_category_string(conn->airplay_stream_category));
+        
+        debug(1, "Connection %d from \"%s\": %s SETUP %s Content-Length %d", conn->connection_number, conn->ap2_client_name, get_category_string(conn->airplay_stream_category), req->path, req->contentlength);        
         debug_log_rtsp_message_conn(
             conn, 2, "Initial (i.e. no streams array) SETUP (AirPlay 2) incoming message", req);
 

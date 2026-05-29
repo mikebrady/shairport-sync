@@ -364,22 +364,22 @@ const char *get_category_string(airplay_stream_c cat) {
   char *category;
   switch (cat) {
   case unspecified_stream_category:
-    category = "unspecified stream";
+    category = "unspecified";
     break;
   case ptp_stream:
-    category = "PTP stream";
+    category = "PTP";
     break;
   case ntp_stream:
-    category = "NTP stream";
+    category = "NTP";
     break;
   case remote_control_stream:
-    category = "Remote Control stream";
+    category = "Remote Control";
     break;
   case classic_airplay_stream:
-    category = "Classic AirPlay stream";
+    category = "Classic AirPlay";
     break;
   default:
-    category = "Unexpected stream code";
+    category = "unknown";
     break;
   }
   return category;
