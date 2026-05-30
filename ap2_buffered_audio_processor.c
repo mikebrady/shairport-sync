@@ -495,196 +495,195 @@ void *rtp_buffered_audio_processor(void *arg) {
 
         // But it also means that Shairport Sync's buffers must be sufficient to hold all the
         // entire lead-time's amount of audio in case the device has a zero-sized buffer.
-
-        if ((play_enabled != 0) &&
-            (have_valid_time != 0)
-            //            (audio_decoded_buffer_below_desired_length != 0) &&
-            && (lead_time * 1E-9 < (config.audio_decoded_buffer_desired_length + 0.1))
-            //            && (audio_decoded_buffer_below_desired_length != 0)
-        ) {
-
-          very_early_packets_signalled = 0; // reset very early packet warning signaller
-
-          // try to identify blocks that are timed to before the last buffer, and drop 'em
-          int64_t time_from_last_buffer_time =
-              buffer_should_be_time - previous_buffer_should_be_time;
-
-          if ((packets_played_in_this_sequence == 0) || (time_from_last_buffer_time > 0)) {
-
-            payload_length = 0;
-            if (ssrc_is_recognised(payload_ssrc) != 0) {
-              // prepare_decoding_chain(conn, payload_ssrc);
-              unsigned long long new_payload_length = 0;
-              payload_pointer = m + leading_free_space_length;
-              if (lead_time >= 0) { // only decipher the packet if it's not too late
-                int response = -1;  // guess that there is a problem
-                if (conn->session_key != NULL) {
-                  unsigned char nonce[12];
-                  memset(nonce, 0, sizeof(nonce));
-                  memcpy(
-                      nonce + 4, packet + nread - 8,
-                      8); // front-pad the 8-byte nonce received to get the 12-byte nonce expected
-
-                  // https://libsodium.gitbook.io/doc/secret-key_cryptography/aead/chacha20-poly1305/ietf_chacha20-poly1305_construction
-                  // Note: the eight-byte nonce must be front-padded out to 12 bytes.
-
-                  // Leave leading_free_space_length bytes at the start for possible headers like an
-                  // ADTS header (7 bytes)
-                  memset(m, 0, leading_free_space_length);
-                  response = crypto_aead_chacha20poly1305_ietf_decrypt(
-                      payload_pointer,     // where the decrypted payload will start
-                      &new_payload_length, // mlen_p
-                      NULL,                // nsec,
-                      packet +
-                          12, // the ciphertext starts 12 bytes in and is followed by the MAC tag,
-                      nread - (8 + 12), // clen -- the last 8 bytes are the nonce
-                      packet + 4,       // authenticated additional data
-                      8,                // authenticated additional data length
-                      nonce,
-                      conn->session_key); // *k
-                  if (response != 0)
-                    debug(1, "Error decrypting audio packet %u -- packet length %zd.", seq_no,
-                          nread);
-                } else {
-                  debug(2, "No session key, so the audio packet can not be deciphered -- skipped.");
-                }
-
-                if ((response == 0) && (new_payload_length > 0)) {
-                  // now we have the deciphered block, so send it to the player if we can
-                  payload_length = new_payload_length;
-
-                  if (ssrc_is_aac(payload_ssrc)) {
-                    payload_pointer =
-                        payload_pointer - 7; // including the 7-byte leader for the ADTS
-                    payload_length = payload_length + 7;
-
-                    // now, fill in the 7-byte ADTS information, which seems to be needed by the
-                    // decoder we made room for it in the front of the buffer by filling from m + 7.
-                    int channelConfiguration = 2; // 2: 2 channels: front-left, front-right
-                    if (payload_ssrc == AAC_48000_F24_5P1)
-                      channelConfiguration = 6; // 6: 6 channels: front-center, front-left,
-                                                // front-right, back-left, back-right, LFE-channel
-                    else if (payload_ssrc == AAC_48000_F24_7P1)
-                      channelConfiguration =
-                          7; // 7: 8 channels: front-center, front-left, front-right,
-                             // side-left, side-right, back-left, back-right, LFE-channel
-                    addADTStoPacket(payload_pointer, payload_length, conn->input_rate,
-                                    channelConfiguration);
-                  }
-                  int mute =
-                      ((packets_played_in_this_sequence == 0) && (ssrc_is_aac(payload_ssrc)));
-                  if (mute) {
-                    debug(2, "Connection %d: muting first AAC block -- block %u -- timestamp %u.",
-                          conn->connection_number, seq_no, timestamp);
-                  }
-                  int32_t timestamp_difference = 0;
-                  if (packets_played_in_this_sequence == 0) {
-                    // first_block_in_this_sequence = seq_no;
-                    first_timestamp_in_this_sequence = timestamp;
-                    debug(2,
-                          "Connection %d: "
-                          "first block %u, first timestamp %u.",
-                          conn->connection_number, seq_no, timestamp);
+        
+        if (have_valid_time != 0) {
+          if ((play_enabled != 0) && (lead_time * 1E-9 < (config.audio_decoded_buffer_desired_length + 0.1))) {
+              //            && (audio_decoded_buffer_below_desired_length != 0)  
+            very_early_packets_signalled = 0; // reset very early packet warning signaller
+  
+            // try to identify blocks that are timed to before the last buffer, and drop 'em
+            int64_t time_from_last_buffer_time =
+                buffer_should_be_time - previous_buffer_should_be_time;
+  
+            if ((packets_played_in_this_sequence == 0) || (time_from_last_buffer_time > 0)) {
+  
+              payload_length = 0;
+              if (ssrc_is_recognised(payload_ssrc) != 0) {
+                // prepare_decoding_chain(conn, payload_ssrc);
+                unsigned long long new_payload_length = 0;
+                payload_pointer = m + leading_free_space_length;
+                if (lead_time >= 0) { // only decipher the packet if it's not too late
+                  int response = -1;  // guess that there is a problem
+                  if (conn->session_key != NULL) {
+                    unsigned char nonce[12];
+                    memset(nonce, 0, sizeof(nonce));
+                    memcpy(
+                        nonce + 4, packet + nread - 8,
+                        8); // front-pad the 8-byte nonce received to get the 12-byte nonce expected
+  
+                    // https://libsodium.gitbook.io/doc/secret-key_cryptography/aead/chacha20-poly1305/ietf_chacha20-poly1305_construction
+                    // Note: the eight-byte nonce must be front-padded out to 12 bytes.
+  
+                    // Leave leading_free_space_length bytes at the start for possible headers like an
+                    // ADTS header (7 bytes)
+                    memset(m, 0, leading_free_space_length);
+                    response = crypto_aead_chacha20poly1305_ietf_decrypt(
+                        payload_pointer,     // where the decrypted payload will start
+                        &new_payload_length, // mlen_p
+                        NULL,                // nsec,
+                        packet +
+                            12, // the ciphertext starts 12 bytes in and is followed by the MAC tag,
+                        nread - (8 + 12), // clen -- the last 8 bytes are the nonce
+                        packet + 4,       // authenticated additional data
+                        8,                // authenticated additional data length
+                        nonce,
+                        conn->session_key); // *k
+                    if (response != 0)
+                      debug(1, "Error decrypting audio packet %u -- packet length %zd.", seq_no,
+                            nread);
                   } else {
-                    timestamp_difference = timestamp - expected_timestamp;
-                    if (timestamp_difference != 0) {
+                    debug(2, "No session key, so the audio packet can not be deciphered -- skipped.");
+                  }
+  
+                  if ((response == 0) && (new_payload_length > 0)) {
+                    // now we have the deciphered block, so send it to the player if we can
+                    payload_length = new_payload_length;
+  
+                    if (ssrc_is_aac(payload_ssrc)) {
+                      payload_pointer =
+                          payload_pointer - 7; // including the 7-byte leader for the ADTS
+                      payload_length = payload_length + 7;
+  
+                      // now, fill in the 7-byte ADTS information, which seems to be needed by the
+                      // decoder we made room for it in the front of the buffer by filling from m + 7.
+                      int channelConfiguration = 2; // 2: 2 channels: front-left, front-right
+                      if (payload_ssrc == AAC_48000_F24_5P1)
+                        channelConfiguration = 6; // 6: 6 channels: front-center, front-left,
+                                                  // front-right, back-left, back-right, LFE-channel
+                      else if (payload_ssrc == AAC_48000_F24_7P1)
+                        channelConfiguration =
+                            7; // 7: 8 channels: front-center, front-left, front-right,
+                               // side-left, side-right, back-left, back-right, LFE-channel
+                      addADTStoPacket(payload_pointer, payload_length, conn->input_rate,
+                                      channelConfiguration);
+                    }
+                    int mute =
+                        ((packets_played_in_this_sequence == 0) && (ssrc_is_aac(payload_ssrc)));
+                    if (mute) {
+                      debug(2, "Connection %d: muting first AAC block -- block %u -- timestamp %u.",
+                            conn->connection_number, seq_no, timestamp);
+                    }
+                    int32_t timestamp_difference = 0;
+                    if (packets_played_in_this_sequence == 0) {
+                      // first_block_in_this_sequence = seq_no;
+                      first_timestamp_in_this_sequence = timestamp;
                       debug(2,
                             "Connection %d: "
-                            "unexpected timestamp in block %u. Actual: %u, expected: %u "
-                            "difference: %d, "
-                            "%f ms. "
-                            "Positive means later, i.e. a gap. First timestamp was %u, payload "
-                            "type: \"%s\".",
-                            conn->connection_number, seq_no, timestamp, expected_timestamp,
-                            timestamp_difference, 1000.0 * timestamp_difference / conn->input_rate,
-                            first_timestamp_in_this_sequence, get_ssrc_name(payload_ssrc));
-                      // mute the first packet after a discontinuity
-                      if (ssrc_is_aac(payload_ssrc)) {
+                            "first block %u, first timestamp %u.",
+                            conn->connection_number, seq_no, timestamp);
+                    } else {
+                      timestamp_difference = timestamp - expected_timestamp;
+                      if (timestamp_difference != 0) {
                         debug(2,
-                              "Connection %d: muting first AAC block -- block %u -- following a "
-                              "timestamp discontinuity, timestamp %u.",
-                              conn->connection_number, seq_no, timestamp);
-                        mute = 1;
+                              "Connection %d: "
+                              "unexpected timestamp in block %u. Actual: %u, expected: %u "
+                              "difference: %d, "
+                              "%f ms. "
+                              "Positive means later, i.e. a gap. First timestamp was %u, payload "
+                              "type: \"%s\".",
+                              conn->connection_number, seq_no, timestamp, expected_timestamp,
+                              timestamp_difference, 1000.0 * timestamp_difference / conn->input_rate,
+                              first_timestamp_in_this_sequence, get_ssrc_name(payload_ssrc));
+                        // mute the first packet after a discontinuity
+                        if (ssrc_is_aac(payload_ssrc)) {
+                          debug(2,
+                                "Connection %d: muting first AAC block -- block %u -- following a "
+                                "timestamp discontinuity, timestamp %u.",
+                                conn->connection_number, seq_no, timestamp);
+                          mute = 1;
+                        }
                       }
                     }
-                  }
-                  int skip_this_block = 0;
-                  if (timestamp_difference < 0) {
-
-                    // uncomment this to work back to replace buffers that have been already decoded
-                    // and placed in the player queue with the incoming new buffers this is a bit
-                    // trickier, but maybe the new buffers are better than the previous ones they
-                    // will replace (?)
-                    /*
-                    seq_t revised_seqno = get_revised_seqno(conn, timestamp);
-                    if (revised_seqno != sequence_number_for_player) {
-                      debug(1, "revised seqno calculated: conn->ab_read: %u, revised_seqno: %u,
-                    conn->ab_write: %u.", conn->ab_read, revised_seqno, conn->ab_write);
-                      clear_buffers_from(conn, revised_seqno);
-                      sequence_number_for_player = revised_seqno;
-                      timestamp_difference = 0;
+                    int skip_this_block = 0;
+                    if (timestamp_difference < 0) {
+  
+                      // uncomment this to work back to replace buffers that have been already decoded
+                      // and placed in the player queue with the incoming new buffers this is a bit
+                      // trickier, but maybe the new buffers are better than the previous ones they
+                      // will replace (?)
+                      /*
+                      seq_t revised_seqno = get_revised_seqno(conn, timestamp);
+                      if (revised_seqno != sequence_number_for_player) {
+                        debug(1, "revised seqno calculated: conn->ab_read: %u, revised_seqno: %u,
+                      conn->ab_write: %u.", conn->ab_read, revised_seqno, conn->ab_write);
+                        clear_buffers_from(conn, revised_seqno);
+                        sequence_number_for_player = revised_seqno;
+                        timestamp_difference = 0;
+                      }
+                      */
+  
+                      // uncomment this to drop incoming new buffers that are too old and for whose
+                      // timings buffers have already been decoded and placed in the player queue this
+                      // is easier, but maybe the new late buffers are better than the previous ones
+                      // (?)
+  
+                      int32_t abs_timestamp_difference = -timestamp_difference;
+                      if ((size_t)abs_timestamp_difference > get_ssrc_block_length(payload_ssrc)) {
+                        skip_this_block = 1;
+                        debug(2,
+                              "skipping block %u because it is too old. Timestamp "
+                              "difference: %d, length of block: %zu.",
+                              seq_no, timestamp_difference, get_ssrc_block_length(payload_ssrc));
+                      }
                     }
-                    */
-
-                    // uncomment this to drop incoming new buffers that are too old and for whose
-                    // timings buffers have already been decoded and placed in the player queue this
-                    // is easier, but maybe the new late buffers are better than the previous ones
-                    // (?)
-
-                    int32_t abs_timestamp_difference = -timestamp_difference;
-                    if ((size_t)abs_timestamp_difference > get_ssrc_block_length(payload_ssrc)) {
-                      skip_this_block = 1;
-                      debug(2,
-                            "skipping block %u because it is too old. Timestamp "
-                            "difference: %d, length of block: %zu.",
-                            seq_no, timestamp_difference, get_ssrc_block_length(payload_ssrc));
+                    if (skip_this_block == 0) {
+                      uint32_t packet_size = player_put_packet(
+                          payload_ssrc, sequence_number_for_player, timestamp, payload_pointer,
+                          payload_length, mute, timestamp_difference, conn);
+                      debug(4, "block %u, timestamp %u, length %u sent to the player.", seq_no,
+                            timestamp, packet_size);
+                      sequence_number_for_player++;                 // simply increment
+                      expected_timestamp = timestamp + packet_size; // for the next time
+                      packets_played_in_this_sequence++;
                     }
                   }
-                  if (skip_this_block == 0) {
-                    uint32_t packet_size = player_put_packet(
-                        payload_ssrc, sequence_number_for_player, timestamp, payload_pointer,
-                        payload_length, mute, timestamp_difference, conn);
-                    debug(4, "block %u, timestamp %u, length %u sent to the player.", seq_no,
-                          timestamp, packet_size);
-                    sequence_number_for_player++;                 // simply increment
-                    expected_timestamp = timestamp + packet_size; // for the next time
-                    packets_played_in_this_sequence++;
+                } else {
+                  debug(3,
+                        "skipped deciphering block %u with timestamp %u because its lead time is "
+                        "out of range at %f "
+                        "seconds.",
+                        seq_no, timestamp, lead_time * 1.0E-9);
+                  uint32_t currentAnchorRTP = 0;
+                  uint64_t currentAnchorLocalTime = 0;
+                  if (get_ptp_anchor_local_time_info(conn, &currentAnchorRTP,
+                                                     &currentAnchorLocalTime) == clock_ok) {
+                    debug(3, "anchorRTP: %u, anchorLocalTime: %" PRIu64 ".", currentAnchorRTP,
+                          currentAnchorLocalTime);
+                  } else {
+                    debug(3, "Clock not okay");
                   }
                 }
               } else {
-                debug(3,
-                      "skipped deciphering block %u with timestamp %u because its lead time is "
-                      "out of range at %f "
-                      "seconds.",
-                      seq_no, timestamp, lead_time * 1.0E-9);
-                uint32_t currentAnchorRTP = 0;
-                uint64_t currentAnchorLocalTime = 0;
-                if (get_ptp_anchor_local_time_info(conn, &currentAnchorRTP,
-                                                   &currentAnchorLocalTime) == clock_ok) {
-                  debug(3, "anchorRTP: %u, anchorLocalTime: %" PRIu64 ".", currentAnchorRTP,
-                        currentAnchorLocalTime);
-                } else {
-                  debug(3, "Clock not okay");
-                }
+                debug(2, "Unrecognised or invalid ssrc: %s.", get_ssrc_name(payload_ssrc));
               }
             } else {
-              debug(2, "Unrecognised or invalid ssrc: %s.", get_ssrc_name(payload_ssrc));
+              debug(1, "dropping buffer that should have played before the last actually played.");
             }
+            new_audio_block_needed = 1; // the block has been used up and is no longer current
           } else {
-            debug(1, "dropping buffer that should have played before the last actually played.");
+            if ((very_early_packets_signalled == 0) && (lead_time * 1E-9 > (config.audio_decoded_buffer_desired_length + 0.2))) {
+              debug(1,
+                    "incoming frame suddenly (?) has a lead time of %f seconds, with a desired "
+                    "decoded buffer length of %f.",
+                    1.0 * lead_time * 1E-9, config.audio_decoded_buffer_desired_length);
+              very_early_packets_signalled = 1;
+            }
+            usleep(((1000000 * conn->frames_per_packet) / conn->input_rate) *
+                   2); // wait for approximately the length of two packets
           }
-          new_audio_block_needed = 1; // the block has been used up and is no longer current
         } else {
-          if ((have_valid_time != 0) && (very_early_packets_signalled == 0) &&
-              (lead_time * 1E-9 > (config.audio_decoded_buffer_desired_length + 0.2))) {
-            debug(1,
-                  "incoming frame suddenly (?) has a lead time of %f seconds, with a desired "
-                  "decoded buffer length of %f.",
-                  1.0 * lead_time * 1E-9, config.audio_decoded_buffer_desired_length);
-            very_early_packets_signalled = 1;
-          }
-          usleep(((1000000 * conn->frames_per_packet) / conn->input_rate) *
-                 2); // wait for approximately the length of two packets
+          debug(3, "just you wait, Henry Higgins, without valid timing information...");
+          usleep(20000); // just you wait, Henry Higgins...        
         }
       }
     }
