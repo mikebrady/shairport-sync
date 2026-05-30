@@ -911,7 +911,7 @@ void handle_record_2(rtsp_conn_info *conn, __attribute((unused)) rtsp_message *r
 #endif
 
 void handle_record(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
-  debug(2, "Connection %d: RECORD", conn->connection_number);
+  debug(1, "Connection %d: RECORD", conn->connection_number);
   if ((conn != NULL) && (principal_conn == conn)) {
     if (conn->player_thread)
       warn("Connection %d: RECORD: Duplicate RECORD message -- ignored", conn->connection_number);
@@ -2262,14 +2262,14 @@ void handle_options(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *
 
 void handle_teardown(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *req,
                      rtsp_message *resp) {
-  debug(2, "Connection %d: TEARDOWN (Classic AirPlay)", conn->connection_number);
-  debug_log_rtsp_message(2, "TEARDOWN (Classic AirPlay) request", req);
+  debug(4, "Connection %d from \"%s\": TEARDOWN (Classic) %s Content-Length %d", conn->connection_number, conn->ap2_client_name, req->path, req->contentlength);
+  debug_log_rtsp_message_conn(conn, 4, "TEARDOWN (Classic)", req);
 
   // most of the cleanup here is done by the exiting player_thread, if any, and by the event
   // receiver if and when it exits.
 
   if (conn->player_thread) {
-    debug(2, "TEARDOWN is stopping a player thread before exiting...");
+    debug(2, "TEARDOWN (Classic) is stopping a player thread before exiting...");
     player_stop(conn);                    // this nulls the player_thread and cancels the threads...
     activity_monitor_signify_activity(0); // inactive, and should be after command_stop()
   }
@@ -2291,23 +2291,37 @@ void handle_options_2(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message
                  "OPTIONS, POST, GET, PUT");
 }
 
-// TEARDOWN and TEARDOWN for AP2 look the same!
-
 void handle_teardown_2(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *req,
                        rtsp_message *resp) {
 
-  debug(2, "Connection %d from \"%s\": TEARDOWN 2 %s.", conn->connection_number,
-        conn->ap2_client_name, get_category_string(conn->airplay_stream_category));
-  debug_log_rtsp_message(2, "TEARDOWN 2: ", req);
-
-  if (conn->player_thread) {
-    debug(2, "TEARDOWN 2 is stopping a player thread before exiting...");
-    player_stop(conn);                    // this nulls the player_thread and cancels the threads...
-    activity_monitor_signify_activity(0); // inactive, and should be after command_stop()
+  debug(4, "Connection %d from \"%s\": TEARDOWN (AP2 %s) %s Content-Length %d", conn->connection_number, conn->ap2_client_name, get_category_string(conn->airplay_stream_category), req->path, req->contentlength);
+  debug_log_rtsp_message_conn(conn, 4, "TEARDOWN (AP2)", req);
+  // look for a configuration dictionary
+  
+  plist_t messagePlist = plist_from_rtsp_content(req);
+  if (messagePlist != NULL) {
+    plist_t streams = plist_dict_get_item(messagePlist, "streams");
+    if (streams != NULL) {
+      // just drop the player, leave the connection open
+      if (conn->player_thread) {
+        debug(4, "Connection %d from \"%s\": TEARDOWN (AP2 %s) %s Content-Length %d is stopping a player thread", conn->connection_number, conn->ap2_client_name, get_category_string(conn->airplay_stream_category), req->path, req->contentlength);
+        player_stop(conn);                    // this nulls the player_thread and cancels the threads...
+        activity_monitor_signify_activity(0); // inactive, and should be after command_stop()
+      }
+    } else {
+      if (plist_dict_get_size(messagePlist) != 0) {
+        debug(1, "Connection %d from \"%s\": TEARDOWN (AP2 %s) %s Content-Length %d plist is non-empty but contains no \"streams\" item.", conn->connection_number, conn->ap2_client_name, get_category_string(conn->airplay_stream_category), req->path, req->contentlength);
+        debug_log_rtsp_message_conn(conn, 4, "Contents follow:", req);
+      }
+      msg_add_header(resp, "Connection", "close");  
+      debug(4, "Connection %d from \"%s\": TEARDOWN (AP2 %s) %s Content-Length %d is asking to terminate the connection.", conn->connection_number, conn->ap2_client_name, get_category_string(conn->airplay_stream_category), req->path, req->contentlength);
+      conn->stop = 1;
+    }
+    plist_free(messagePlist);
+  } else {
+    debug(1, "Connection %d from \"%s\": TEARDOWN (AP2 %s) %s Content-Length %d has no plist -- nothing done.", conn->connection_number, conn->ap2_client_name, get_category_string(conn->airplay_stream_category), req->path, req->contentlength);
   }
   resp->respcode = 200;
-  msg_add_header(resp, "Connection", "close");
-  conn->stop = 1;
 }
 #endif
 
@@ -2366,6 +2380,9 @@ static void check_and_send_plist_metadata(plist_t messagePlist, const char *plis
 
 void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
   int err;
+  
+  debug(4, "Connection %d from \"%s\": SETUP (AP2) %s Content-Length %d", conn->connection_number, conn->ap2_client_name, req->path, req->contentlength);
+  debug_log_rtsp_message_conn(conn, 4, "SETUP (AP2)", req);
 
   plist_t messagePlist = plist_from_rtsp_content(req);
 
@@ -2722,13 +2739,6 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
       warn("Unrecognised SETUP incoming message -- ignored.");
     }
   } else {
-
-    debug(2,
-          "Connection %d from \"%s\": Subsequent (i.e. with streams array) SETUP (AirPlay 2) on %s",
-          conn->connection_number, conn->ap2_client_name,
-          get_category_string(conn->airplay_stream_category));
-    debug_log_rtsp_message_conn(
-        conn, 2, "Subsequent (i.e. with streams array) SETUP (AirPlay 2) incoming message", req);
 
     if (conn->airplay_stream_category == ptp_stream) {
 
