@@ -1,3 +1,9 @@
+Version  5.1-dev-15-g2d89d2bf
+==
+**Bug Fixes**
+* Fix a race condition that was allowing a `TEARDOWN` request to close the *next* connection rather than the current one.
+* Fix a compilation bug when build for Classic operation only.
+
 Version 5.1-dev
 ==
 
