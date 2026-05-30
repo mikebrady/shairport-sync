@@ -2262,7 +2262,7 @@ void handle_options(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *
 
 void handle_teardown(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *req,
                      rtsp_message *resp) {
-  debug(4, "Connection %d from \"%s\": TEARDOWN (Classic) %s Content-Length %d", conn->connection_number, conn->ap2_client_name, req->path, req->contentlength);
+  debug(4, "Connection %d: TEARDOWN (Classic) %s Content-Length %d", conn->connection_number, req->path, req->contentlength);
   debug_log_rtsp_message_conn(conn, 4, "TEARDOWN (Classic)", req);
 
   // most of the cleanup here is done by the exiting player_thread, if any, and by the event
