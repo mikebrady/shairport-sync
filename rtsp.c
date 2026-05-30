@@ -2276,7 +2276,7 @@ void handle_teardown(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message 
 
   resp->respcode = 200;
   msg_add_header(resp, "Connection", "close");
-  conn->stop = 1;
+  // conn->stop = 1; //an anomaly needs to be fixed
 }
 
 #ifdef CONFIG_AIRPLAY_2
@@ -2307,7 +2307,7 @@ void handle_teardown_2(rtsp_conn_info *conn, __attribute__((unused)) rtsp_messag
   }
   resp->respcode = 200;
   msg_add_header(resp, "Connection", "close");
-  conn->stop = 1;
+  // conn->stop = 1; //an anomaly needs to be fixed
 }
 #endif
 
