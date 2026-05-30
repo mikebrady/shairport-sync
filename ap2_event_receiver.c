@@ -80,7 +80,7 @@ void *ap2_event_receiver(void *arg) {
     ap2_event_send_update_info(conn);
 
     while (1) {
-      usleep(1000000);
+      usleep(100000);
     };
 
     debug(3, "Connection %d: AP2 Event Receiver RTP thread starting \"normal\" exit.",
@@ -88,7 +88,7 @@ void *ap2_event_receiver(void *arg) {
     pthread_cleanup_pop(1); // do the cleanup
   } else {
     debug(1, "Connection %d: could not accept an event socket", conn->connection_number);
-    conn->event_channel_fd = 0;
+    conn->event_channel_fd = -1;
   }
   debug(2, "Connection %d: AP2 Event Receiver RTP thread \"normal\" exit.",
         conn->connection_number);
