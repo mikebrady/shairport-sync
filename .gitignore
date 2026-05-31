@@ -50,6 +50,7 @@ shairport-sync.xcodeproj
 
 # separate build directories
 build
+shairport-rs/target/
 
 # vscode
 .vscode

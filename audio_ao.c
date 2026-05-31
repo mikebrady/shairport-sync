@@ -28,8 +28,11 @@
 #include "audio.h"
 #include "common.h"
 #include <ao/ao.h>
+#include <errno.h>
 #include <memory.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 typedef struct {
@@ -62,6 +65,9 @@ ao_option *ao_opts = NULL;
 ao_sample_format ao_output_format;
 int driver = 0;
 static int32_t current_encoded_output_format = 0;
+static char *ao_output_matrix = NULL;
+static int ao_play_error_reported = 0;
+static int ao_play_success_reported = 0;
 
 static int check_settings(sps_format_t sample_format, unsigned int sample_rate,
                           unsigned int channel_count) {
@@ -116,21 +122,19 @@ static int32_t get_configuration(unsigned int channels, unsigned int rate, unsig
 }
 
 static int configure(int32_t requested_encoded_format, char **channel_map) {
-  debug(3, "a0: configure %s.", short_format_description(requested_encoded_format));
+  debug(3, "ao: configure %s.", short_format_description(requested_encoded_format));
   int response = EINVAL;
   if (current_encoded_output_format != requested_encoded_format) {
     uint64_t start_time = get_absolute_time_in_ns();
     if (current_encoded_output_format == 0)
-      debug(1, "a0: setting output configuration to %s.",
+      debug(1, "ao: setting output configuration to %s.",
             short_format_description(requested_encoded_format));
     else
       // note -- can't use short_format_description twice in one call because it returns the same
       // string buffer each time
-      debug(1, "a0: changing output configuration to %s.",
+      debug(1, "ao: changing output configuration to %s.",
             short_format_description(requested_encoded_format));
-    current_encoded_output_format = requested_encoded_format;
-    sps_ao_t *format_info =
-        sps_format_lookup(FORMAT_FROM_ENCODED_FORMAT(current_encoded_output_format));
+    sps_ao_t *format_info = sps_format_lookup(FORMAT_FROM_ENCODED_FORMAT(requested_encoded_format));
 
     if (format_info == NULL)
       die("ao: can't find format information!");
@@ -141,46 +145,49 @@ static int configure(int32_t requested_encoded_format, char **channel_map) {
       }
     }
     dev = NULL;
+    ao_play_error_reported = 0;
+    ao_play_success_reported = 0;
+    if (ao_output_matrix != NULL) {
+      free(ao_output_matrix);
+      ao_output_matrix = NULL;
+    }
     memset(&ao_output_format, 0, sizeof(ao_output_format));
     ao_output_format.bits = format_info->bits_per_sample;
-    ao_output_format.rate = RATE_FROM_ENCODED_FORMAT(current_encoded_output_format);
-    ao_output_format.channels = CHANNELS_FROM_ENCODED_FORMAT(current_encoded_output_format);
+    ao_output_format.rate = RATE_FROM_ENCODED_FORMAT(requested_encoded_format);
+    ao_output_format.channels = CHANNELS_FROM_ENCODED_FORMAT(requested_encoded_format);
     ao_output_format.byte_format = format_info->byte_format;
-    switch (CHANNELS_FROM_ENCODED_FORMAT(current_encoded_output_format)) {
+    switch (CHANNELS_FROM_ENCODED_FORMAT(requested_encoded_format)) {
     case 2:
-      ao_output_format.matrix = strdup("L,R");
+      ao_output_matrix = strdup("L,R");
       break;
     case 6:
-      ao_output_format.matrix = strdup("L,R,C,LFE,BR,BL");
+      ao_output_matrix = strdup("L,R,C,LFE,BR,BL");
       break;
     case 8:
-      ao_output_format.matrix = strdup("L,R,C,LFE,BR,BL,SL,SR");
+      ao_output_matrix = strdup("L,R,C,LFE,BR,BL,SL,SR");
       break;
     default:
       break;
     }
-    // fmt.matrix = strdup("L,R");
-    /*
-    dev = ao_open_live(driver, &ao_output_format, ao_opts);
-    if (dev != NULL) {
-      debug(
-          1, "ao: configure %u/%s/%u opened!",
-          RATE_FROM_ENCODED_FORMAT(current_encoded_output_format),
-          sps_format_description_string(FORMAT_FROM_ENCODED_FORMAT(current_encoded_output_format)),
-          CHANNELS_FROM_ENCODED_FORMAT(current_encoded_output_format));
+    ao_output_format.matrix = ao_output_matrix;
+
+    if (check_settings(FORMAT_FROM_ENCODED_FORMAT(requested_encoded_format),
+                       RATE_FROM_ENCODED_FORMAT(requested_encoded_format),
+                       CHANNELS_FROM_ENCODED_FORMAT(requested_encoded_format)) == 0) {
+      current_encoded_output_format = requested_encoded_format;
       response = 0;
     } else {
       debug(
-          1, "ao: configure %u/%s/%u is not available!",
-          RATE_FROM_ENCODED_FORMAT(current_encoded_output_format),
-          sps_format_description_string(FORMAT_FROM_ENCODED_FORMAT(current_encoded_output_format)),
-          CHANNELS_FROM_ENCODED_FORMAT(current_encoded_output_format));
+          1, "ao: configure %u/%s/%u is not available.",
+          RATE_FROM_ENCODED_FORMAT(requested_encoded_format),
+          sps_format_description_string(FORMAT_FROM_ENCODED_FORMAT(requested_encoded_format)),
+          CHANNELS_FROM_ENCODED_FORMAT(requested_encoded_format));
     }
-    */
     int64_t elapsed_time = get_absolute_time_in_ns() - start_time;
-    debug(3, "pa: configure took %0.3f mS.", elapsed_time * 0.000001);
+    debug(3, "ao: configure took %0.3f mS.", elapsed_time * 0.000001);
   } else {
-    debug(3, "pa: setting output configuration  -- configuration unchanged, so nothing done.");
+    debug(3, "ao: setting output configuration  -- configuration unchanged, so nothing done.");
+    response = 0;
   }
   if ((response == 0) && (channel_map != NULL)) {
     *channel_map = NULL; // nothing back here
@@ -291,6 +298,10 @@ static void deinit(void) {
   if (dev != NULL)
     ao_close(dev);
   dev = NULL;
+  if (ao_output_matrix != NULL) {
+    free(ao_output_matrix);
+    ao_output_matrix = NULL;
+  }
   ao_shutdown();
 }
 
@@ -303,13 +314,33 @@ static int play(void *buf, int samples, __attribute__((unused)) int sample_type,
     debug(1, "ao play(): ao_open_live to play %d samples, bytes per sample: %u, channels: %u",
           samples, ao_output_format.bits / 8, ao_output_format.channels);
     dev = ao_open_live(driver, &ao_output_format, ao_opts);
+    if (dev == NULL) {
+      warn("ao play(): ao_open_live failed for %u/%s/%u; audio will be dropped.",
+           ao_output_format.rate,
+           sps_format_description_string(FORMAT_FROM_ENCODED_FORMAT(current_encoded_output_format)),
+           ao_output_format.channels);
+      return -1;
+    }
+    ao_play_error_reported = 0;
+    ao_play_success_reported = 0;
   }
   // debug(1,"ao play(): play %d samples, bytes per sample: %u, channels: %u", samples,
   // ao_output_format.bits/8, ao_output_format.channels);
   int oldState;
   pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
-  response = ao_play(dev, buf, samples * ao_output_format.bits / 8 * ao_output_format.channels);
+  int bytes_to_play = samples * ao_output_format.bits / 8 * ao_output_format.channels;
+  response = ao_play(dev, buf, bytes_to_play);
   pthread_setcancelstate(oldState, NULL);
+  if (response == 0) {
+    if (ao_play_error_reported == 0) {
+      warn("ao play(): ao_play failed while writing %d bytes: %s.", bytes_to_play,
+           strerror(errno));
+      ao_play_error_reported = 1;
+    }
+  } else if (ao_play_success_reported == 0) {
+    debug(1, "ao play(): ao_play accepted %d bytes.", bytes_to_play);
+    ao_play_success_reported = 1;
+  }
   return response;
 }
 
@@ -318,6 +349,8 @@ static void stop(void) {
     debug(1, "ao stop(): ao_close");
     ao_close(dev);
     dev = NULL;
+    ao_play_error_reported = 0;
+    ao_play_success_reported = 0;
   }
 }
 

@@ -2384,8 +2384,30 @@ int get_device_id(uint8_t *id, int int_length) {
     }
     time_to_wait = wait_until - get_absolute_time_in_ns();
   } while ((response != 0) && (time_to_wait > 0));
-  if (response != 0)
+  if (response != 0) {
+#ifdef __CYGWIN__
+    char hostname[256];
+    memset(hostname, 0, sizeof(hostname));
+    if (gethostname(hostname, sizeof(hostname) - 1) != 0)
+      strncpy(hostname, "shairport-sync-cygwin", sizeof(hostname) - 1);
+
+    uint64_t hash = 1469598103934665603ULL;
+    char *hp = hostname;
+    while (*hp != '\0') {
+      hash = hash ^ (uint8_t)*hp++;
+      hash = hash * 1099511628211ULL;
+    }
+
+    t = id;
+    for (i = 0; i < int_length; i++)
+      *t++ = (hash >> (i * 8)) & 0xff;
+    id[0] = (id[0] | 0x02) & 0xfe; // locally administered unicast
+    response = 0;
+    warn("Can't find a valid MAC address; using a hostname-derived device ID.");
+#else
     warn("Can't create a device ID -- no valid MAC address can be found.");
+#endif
+  }
   return response;
 }
 

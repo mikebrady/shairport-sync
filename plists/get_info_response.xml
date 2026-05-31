@@ -12,7 +12,7 @@
 		<false/>
 		<key>supportsUIForAudioOnlyContent</key>
 		<false/>
-	</dict>
+	<!-- </dict> -->
 	<key>canRecordScreenStream</key>
 	<false/>
 	<key>keepAliveSendStatsAsBody</key>

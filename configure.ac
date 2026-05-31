@@ -13,16 +13,16 @@ AC_SUBST([HOME], [$HOME])
 # Derived from the Avahi configure.ac file
 # Specifying the OS type, defaulting to linux.
 #
-AC_ARG_WITH(os, AS_HELP_STRING([--with-os=OSType],[Specify the distribution to target: One of linux, freebsd, openbsd or darwin]))
+AC_ARG_WITH(os, AS_HELP_STRING([--with-os=OSType],[Specify the distribution to target: One of linux, freebsd, openbsd, darwin or cygwin]))
 if test "z$with_os" = "z"; then
   with_os="linux"
 fi
 with_os=`echo ${with_os} | tr '[[:upper:]]' '[[:lower:]]' `
 case "x${with_os}" in
-xlinux|xfreebsd|xopenbsd|xdarwin)
+xlinux|xfreebsd|xopenbsd|xdarwin|xcygwin)
   ;;
 *)
-  AC_MSG_ERROR([--with-os=<arg> argument must be one of linux, freebsd, openbsd or darwin])
+  AC_MSG_ERROR([--with-os=<arg> argument must be one of linux, freebsd, openbsd, darwin or cygwin])
   ;;
 esac
 
@@ -34,10 +34,10 @@ AC_PROG_INSTALL
 
 # see if we have git -- not fatal if we don't
 AC_CHECK_PROGS([GIT], [git])
-if test -n "$GIT" && test -e "$srcdir/.git/index" ; then
+if test -n "$GIT" && test -e "$srcdir/.git/index" && test "x${with_os}" != xcygwin ; then
   AC_DEFINE([CONFIG_USE_GIT_VERSION_STRING], 1, [Use the version string produced by running 'git describe --dirty'.])
 fi
-AM_CONDITIONAL([USE_GIT_VERSION], [test -n "$GIT" && test -e "$srcdir/.git/index" ])
+AM_CONDITIONAL([USE_GIT_VERSION], [test -n "$GIT" && test -e "$srcdir/.git/index" && test "x${with_os}" != xcygwin ])
 
 # see if we have xmltoman -- not fatal if we don't
 AC_CHECK_PROGS([XMLTOMAN], [xmltoman])
@@ -59,6 +59,7 @@ AM_CONDITIONAL([BUILD_FOR_LINUX], [test "x${with_os}" = xlinux ])
 AM_CONDITIONAL([BUILD_FOR_FREEBSD], [test "x${with_os}" = xfreebsd ])
 AM_CONDITIONAL([BUILD_FOR_OPENBSD], [test "x${with_os}" = xopenbsd ])
 AM_CONDITIONAL([BUILD_FOR_DARWIN], [test "x${with_os}" = xdarwin ])
+AM_CONDITIONAL([BUILD_FOR_CYGWIN], [test "x${with_os}" = xcygwin ])
 
 ##### Some build systems are not fully using pkg-config, so we can use the flag ${with_pkg_config} on a case-by-case basis
 ##### to control how to deal with them
@@ -112,6 +113,10 @@ AC_ARG_WITH([freebsd-startup],[AS_HELP_STRING([--with-freebsd-startup],[install 
 AM_CONDITIONAL([INSTALL_FREEBSD_STARTUP], [test "x$with_freebsd_startup" = "xyes"])
 
 AC_ARG_WITH([cygwin-startup],[AS_HELP_STRING([--with-cygwin-startup],[install a CYGWIN startup script to start Shairport Sync after startup])])
+AC_ARG_WITH([cygwin-service],[AS_HELP_STRING([--with-cygwin-service],[alias for --with-cygwin-startup])])
+if test "x$with_cygwin_service" = "xyes" ; then
+  with_cygwin_startup=yes
+fi
 AM_CONDITIONAL([INSTALL_CYGWIN_STARTUP], [test "x$with_cygwin_startup" = "xyes"])
 
 AC_ARG_WITH([external-mdns],[AS_HELP_STRING([--with-external-mdns],[support the use of 'avahi-publish-service' or 'mDNSPublish' to advertise the service on Bonjour/ZeroConf])])

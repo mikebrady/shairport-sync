@@ -1,0 +1,24 @@
+[server]
+bind = "127.0.0.1:3689"
+
+[airplay]
+enabled = true
+bind = "0.0.0.0:7000"
+device_id = "00:11:22:33:44:55"
+audio_port = 6000
+control_port = 6001
+timing_port = 6002
+
+[mdns]
+backend = "builtin"
+service_name = "Shairport RS"
+hostname = "shairport-rs"
+
+[audio]
+backend = "cpal"
+host = "default"
+
+[ptp]
+enabled = true
+event_port = 319
+general_port = 320

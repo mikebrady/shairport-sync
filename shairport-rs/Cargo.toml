@@ -1,0 +1,44 @@
+[package]
+name = "shairport-rs"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Rust-native Shairport Sync rewrite scaffold with built-in PTP, CPAL audio, and flexible mDNS"
+
+[features]
+default = []
+asio = ["cpal/asio"]
+jack = ["cpal/jack"]
+
+[dependencies]
+anyhow = "1.0"
+axum = { version = "0.8", features = ["ws"] }
+base64 = "0.22"
+bytes = "1.10"
+chacha20poly1305 = "0.10"
+clap = { version = "4.5", features = ["derive", "env"] }
+cpal = "0.17"
+ed25519-dalek = { version = "2.2", features = ["rand_core"] }
+futures-util = "0.3"
+hkdf = "0.12"
+mdns-sd = "0.15"
+parking_lot = "0.12"
+plist = "1.8"
+rand = "0.9"
+rand_core = "0.6"
+ringbuf = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+thiserror = "2.0"
+tokio = { version = "1.48", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+toml = "0.9"
+tower-http = { version = "0.6", features = ["trace"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1.18", features = ["v4", "serde"] }
+x25519-dalek = { version = "2.0", features = ["static_secrets"] }
+
+[dev-dependencies]
+http-body-util = "0.1"
+tower = { version = "0.5", features = ["util"] }

@@ -122,6 +122,7 @@ FreeBSD and most recent Linux distributions can run an application as a daemon w
 | `--with-systemdsystemunitdir=<dir>` |
 | `--with-systemv-startup` |
 | `--with-freebsd-startup` |
+| `--with-cygwin-startup` |
 | `--with-cygwin-service` |
 
 Daemon programs such as Shairport Sync should be started automatically so that the service they provide becomes available without further intervention. Typically this is done using startup scripts. Four options are provided – two for Linux, one for FreeBSD and one for CYGWIN. In Linux, the choice depends on whether [systemd](https://en.wikipedia.org/wiki/Systemd) is used or not. If `systemd` is installed, then the `--with-systemd-startup` option is suggested. If not, the `--with-systemv-startup` option is suggested.
@@ -130,7 +131,8 @@ Daemon programs such as Shairport Sync should be started automatically so that t
   - `--with-systemdsystemunitdir=<dir>` Specifies the directory for `systemd` service files.
 - `--with-systemv-startup` Includes a script to create a Shairport Sync service that can optionally launch automatically at startup on System V based Linuxes. Default is not to to install.
 - `--with-freebsd-startup` Includes a script to create a Shairport Sync service that can optionally launch automatically at startup on FreeBSD. Default is not to to install.
-- `--with-cygwin-service` Includes a script to create a Shairport Sync service that can optionally launch automatically at startup on CYGWIN. Default is not to to install.
+- `--with-cygwin-startup` Includes a script to create a Shairport Sync service that can optionally launch automatically at startup on CYGWIN. Default is not to to install.
+- `--with-cygwin-service` Alias for `--with-cygwin-startup`.
 
 ### Cryptography
 | Flags |
@@ -157,20 +159,20 @@ For classic Shairport Sync, the options are as follows:
 
 AirPlay devices advertise their existence and status using [Zeroconf](http://www.zeroconf.org) (aka [Bonjour](https://en.wikipedia.org/wiki/Bonjour_(software))).
 
-AirPlay 2 operation requires the [Avahi](https://www.avahi.org) libraries, so the option `--with-avahi` is mandatory.
+AirPlay 2 operation requires a Zeroconf backend that can publish both the `_raop._tcp` and `_airplay._tcp` services. Use `--with-avahi` on systems with Avahi, or `--with-dns_sd` on systems with Bonjour / DNS-SD, including the supported Cygwin build.
 
 For classic Shairport Sync, the options are as follows:
 
 The Zeroconf-related options are as follows:
-- `--with-avahi` Chooses [Avahi](https://www.avahi.org)-based Zeroconf support. This is mandatory for AirPlay 2 operation.
+- `--with-avahi` Chooses [Avahi](https://www.avahi.org)-based Zeroconf support.
 - `--with-tinysvcmdns` Chooses [tinysvcmdns](https://github.com/philippe44/TinySVCmDNS)-based Zeroconf support (deprecated).
 - `--with-external-mdns` Supports the use of ['avahi-publish-service'](https://linux.die.net/man/1/avahi-publish-service) or 'mDNSPublish' to advertise the service on Bonjour/ZeroConf.
-- `--with-dns_sd` Chooses `dns-sd` Zeroconf support.
+- `--with-dns_sd` Chooses `dns-sd` Zeroconf support. This is the supported Cygwin AirPlay 2 mDNS backend.
 
 ### Miscellaneous
 | Flag                 | Significance |
 | -------------------- | ---- |
-| `--with-os=<OSType>`   | Specifies the Operating System to target: One of `linux` (default), `freebsd`, `openbsd` or `darwin`. |
+| `--with-os=<OSType>`   | Specifies the Operating System to target: One of `linux` (default), `freebsd`, `openbsd`, `darwin` or `cygwin`. |
 | `--with-configfiles` | Installs configuration files (including a sample configuration file) during `make install`. |
 | `--with-pkg-config`  | Specifies the use of `pkg-config` to find libraries. (Obselete for AirPlay 2. Special purpose use only.) |
 
