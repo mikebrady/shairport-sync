@@ -127,7 +127,7 @@ void *buffered_tcp_reader(void *arg) {
 
     // now we know it is not full, so go ahead and try to read some more into it
 
-    // wrap
+    // wrap if we're up at the end of the buffer
     if ((size_t)(descriptor->eoq - descriptor->buffer) == descriptor->buffer_max_size)
       descriptor->eoq = descriptor->buffer;
 
@@ -137,6 +137,7 @@ void *buffered_tcp_reader(void *arg) {
     if (bytes_to_request > free_space)
       bytes_to_request = free_space; // don't ask for more than will fit
 
+    // we know that this can't be zero.
     size_t gap_to_end_of_buffer =
         descriptor->buffer + descriptor->buffer_max_size - descriptor->eoq;
     if (gap_to_end_of_buffer < bytes_to_request)
@@ -162,7 +163,7 @@ void *buffered_tcp_reader(void *arg) {
       descriptor->closed = 1;
       debug(
           2,
-          "buffered audio port closed by remote end. Terminating the buffered_tcp_reader thread.");
+          "buffered audio port closed by remote end when asking for %zu bytes. Terminating the buffered_tcp_reader thread.", bytes_to_request);
       finished = 1;
     } else if (nread > 0) {
       descriptor->eoq += nread;

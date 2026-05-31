@@ -706,7 +706,7 @@ int setup_software_resampler(rtsp_conn_info *conn, ssrc_t ssrc) {
     if (config.mixdown_enable != 0) {
       if (config.mixdown_channel_layout == 0) {
         if ((signed)CHANNELS_FROM_ENCODED_FORMAT(output_configuration) <
-            (av_get_channel_layout_nb_channels(input_layout)) {
+            (av_get_channel_layout_nb_channels(input_layout))) {
           output_layout =
               av_get_default_channel_layout(CHANNELS_FROM_ENCODED_FORMAT(output_configuration));
         } // else leave output_layout as it was: the sames as the input_layout.
