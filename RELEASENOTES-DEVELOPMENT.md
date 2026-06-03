@@ -13,7 +13,7 @@ Version 5.1-dev
 ==
 
 **Enhancements**
-1. Enable the AirPlay 2 build to operate an optional classic-AirPlay-only service or to gracefully degrade to classic AirPlay, as follows:
+1. Enable the AirPlay 2 build to operate an optional classic-AirPlay-only service or to gracefully revert to classic AirPlay, as follows:
   * Add a new command-line option `-—service-type=<type>` and an equivalent configuration entry `service_type = "<type>";` in the `general` section of the configuration file, where `<type>` can be `"auto"`, `"classic"` or `"airplay2"`:
     1. `"auto"` (default) means that the service will be AirPlay 2 if NQPTP is running and classic AirPlay otherwsie. If NQPTP is not running, classic AirPlay service will be provided and `(Classic)` will be appended to the default AirPlay service name visible to AirPlay clients like Apple Music, for example `RaspberryPi3B (Classic)`.
     2. `"classic"` means the service will be classic AirPlay (aka AirPlay 1).
