@@ -1,3 +1,8 @@
+Version 5.1-dev-17-g9b16ff92
+==
+**Bug Fixes**
+* Set locales in the test clients `shairport-sync-dbus-test-client` and `shairport-sync-mpris-test-client` so that they can deal with non-ASCII characters, e.g. accented characters, properly.
+
 Version  5.1-dev-15-g2d89d2bf
 ==
 **Bug Fixes**
