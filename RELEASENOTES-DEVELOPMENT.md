@@ -1,3 +1,8 @@
+Version 5.1-dev-17-g9b16ff92
+==
+**Bug Fixes**
+* Set locales in the test clients `shairport-sync-dbus-test-client` and `shairport-sync-mpris-test-client` so that they can deal with non-ASCII characters, e.g. accented characters, properly.
+
 Version  5.1-dev-15-g2d89d2bf
 ==
 **Bug Fixes**
@@ -8,9 +13,9 @@ Version 5.1-dev
 ==
 
 **Enhancements**
-1. Enable the AirPlay 2 build to operate an optional classic-AirPlay-only service or to gracefully degrade to classic AirPlay, as follows:
+1. Enable the AirPlay 2 build to provide pure classic AirPlay either optionally or automatically if NQPTP is not running, as follows:
   * Add a new command-line option `-—service-type=<type>` and an equivalent configuration entry `service_type = "<type>";` in the `general` section of the configuration file, where `<type>` can be `"auto"`, `"classic"` or `"airplay2"`:
-    1. `"auto"` (default) means that the service will be AirPlay 2 if NQPTP is running and classic AirPlay otherwsie. If NQPTP is not running, classic AirPlay service will be provided and `(Classic)` will be appended to the default AirPlay service name visible to AirPlay clients like Apple Music, for example `RaspberryPi3B (Classic)`.
+    1. `"auto"` (default) means that the service will be AirPlay 2 if NQPTP is running. If NQPTP is not running, classic AirPlay service will be provided and `(Classic)` will be appended to the default AirPlay service name visible to AirPlay clients like Apple Music, for example `RaspberryPi3B (Classic)`.
     2. `"classic"` means the service will be classic AirPlay (aka AirPlay 1).
     3. `"airplay2"` means the service will be the modern AirPlay 2. In this case, as distinct from `"auto"`, if NQPTP is not running, Shairport Sync will log an error and terminate.
   * In the `systemd` service file, NQPTP is now a `Want` rather than a `Require`. If it's present, it will be launched before Shairport Sync.
