@@ -344,7 +344,7 @@ void remote_set_airplay_volume(double volume) {
             present_unit_volume -= 0.09;
         }
         ap2_event_send_unit_volume_notification(principal_conn, present_unit_volume);
-        debug(1, "remote_set_airplay_volume set unit volume to %.3f.", present_unit_volume);
+        debug(4, "remote_set_airplay_volume set unit volume to %.3f.", present_unit_volume);
         usleep(10000);
       }
       player_volume(volume, principal_conn);
