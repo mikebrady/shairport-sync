@@ -1,3 +1,4 @@
+pub mod buffered_audio;
 pub mod crypto;
 pub mod metadata;
 pub mod pairing;

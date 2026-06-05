@@ -92,6 +92,19 @@ async fn main() -> anyhow::Result<()> {
         Vec::new()
     };
 
+    let buffered_audio_handle = if config.airplay.airplay2_enabled {
+        Some(
+            airplay::buffered_audio::spawn_buffered_audio_receiver(
+                config.airplay.clone(),
+                app_state.clone(),
+                audio_engine.clone(),
+            )
+            .await?,
+        )
+    } else {
+        None
+    };
+
     let mdns_backend = MdnsBackend::from_config(&config.mdns);
     let mdns_advertiser = MdnsAdvertiser::new(mdns_backend, config.mdns.clone());
     let services = airplay::txt_records::airplay_services(&config);
@@ -136,6 +149,9 @@ async fn main() -> anyhow::Result<()> {
         handle.abort();
     }
     for handle in rtp_handles {
+        handle.abort();
+    }
+    if let Some(handle) = buffered_audio_handle {
         handle.abort();
     }
     drop(audio_output);
