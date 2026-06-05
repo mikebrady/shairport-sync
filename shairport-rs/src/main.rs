@@ -1,6 +1,7 @@
 mod airplay;
 mod api;
 mod audio;
+mod codec;
 mod config;
 mod decoder;
 mod mdns;

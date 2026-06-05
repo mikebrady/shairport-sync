@@ -9,6 +9,7 @@ description = "Rust-native Shairport Sync rewrite scaffold with built-in PTP, CP
 default = []
 asio = ["cpal/asio"]
 jack = ["cpal/jack"]
+ffmpeg = ["ffmpeg-next"]
 
 [dependencies]
 aes = "0.8"
@@ -22,6 +23,7 @@ clap = { version = "4.5", features = ["derive", "env"] }
 cpal = "0.17"
 digest = "0.10"
 ed25519-dalek = { version = "2.2", features = ["rand_core"] }
+ffmpeg-next = { version = "8.1", optional = true }
 futures-util = "0.3"
 hkdf = "0.12"
 mdns-sd = "0.15"
