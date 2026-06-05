@@ -4,6 +4,7 @@ bind = "127.0.0.1:3689"
 [airplay]
 enabled = true
 airplay2_enabled = false
+pin = "3939"
 bind = "0.0.0.0:7000"
 device_id = "00:11:22:33:44:55"
 audio_port = 6000

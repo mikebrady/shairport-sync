@@ -15,7 +15,7 @@ use tokio::{
 use tracing::{debug, info, trace, warn};
 
 use crate::{
-    airplay::crypto::PairCipher,
+    airplay::crypto::{IdentityKey, PairCipher},
     airplay::pairing::{PairingEndpoint, PairingService, PairingSession},
     airplay::sdp::parse_sdp,
     config::AirplayConfig,
@@ -53,7 +53,15 @@ pub async fn spawn_rtsp_server(
     let listener = TcpListener::bind(bind)
         .await
         .with_context(|| format!("failed to bind AirPlay RTSP listener {bind}"))?;
-    let pairing = Arc::new(PairingService::new(config.device_id.clone()));
+    let identity_key = IdentityKey::load_or_generate(
+        config.identity_key_path.as_ref().map(std::path::Path::new),
+    );
+    let pairing = Arc::new(PairingService::new(
+        identity_key,
+        config.device_id.clone(),
+        config.pin.clone(),
+        config.pairing_db_path.as_ref().map(std::path::PathBuf::from),
+    ));
 
     Ok(tokio::spawn(async move {
         loop {
@@ -184,6 +192,27 @@ fn route_request(
                 .with_cseq(request)
         }
         ("POST", "/pair-pin-start") => response(200, "OK").with_cseq(request),
+        ("POST", "/pair-add") => {
+            let reply = pairing.handle(&mut session.pairing, PairingEndpoint::Add, &request.body);
+            response(reply.status_code, "OK")
+                .header("Content-Type", "application/octet-stream")
+                .body(reply.body)
+                .with_cseq(request)
+        }
+        ("POST", "/pair-remove") => {
+            let reply = pairing.handle(&mut session.pairing, PairingEndpoint::Remove, &request.body);
+            response(reply.status_code, "OK")
+                .header("Content-Type", "application/octet-stream")
+                .body(reply.body)
+                .with_cseq(request)
+        }
+        ("POST", "/pair-list") => {
+            let reply = pairing.handle(&mut session.pairing, PairingEndpoint::List, &request.body);
+            response(reply.status_code, "OK")
+                .header("Content-Type", "application/octet-stream")
+                .body(reply.body)
+                .with_cseq(request)
+        }
         ("POST", "/pair-verify") => {
             let reply = pairing.handle(&mut session.pairing, PairingEndpoint::Verify, &request.body);
             if session.control_cipher.is_none()

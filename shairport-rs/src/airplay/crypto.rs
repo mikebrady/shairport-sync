@@ -44,6 +44,27 @@ impl IdentityKey {
         }
     }
 
+    /// Load identity key from a file, or generate and save if not present.
+    pub fn load_or_generate(path: Option<&std::path::Path>) -> Self {
+        if let Some(path) = path {
+            if let Ok(data) = std::fs::read(path) {
+                if data.len() == 32 {
+                    let mut seed = [0u8; 32];
+                    seed.copy_from_slice(&data);
+                    return Self::from_seed(seed);
+                }
+            }
+            // Generate and persist
+            let key = Self::generate();
+            if let Err(e) = std::fs::write(path, &key.signing.to_bytes()) {
+                tracing::warn!(%e, "failed to persist identity key");
+            }
+            return key;
+        }
+        // Use deterministic seed from device_id as fallback
+        Self::generate()
+    }
+
     pub fn verifying_key(&self) -> [u8; 32] {
         self.signing.verifying_key().to_bytes()
     }
@@ -52,7 +73,6 @@ impl IdentityKey {
         self.signing.sign(message).to_bytes()
     }
 
-    #[allow(dead_code)]
     pub fn verify(public_key: &[u8; 32], message: &[u8], signature: &[u8; 64]) -> bool {
         let Ok(key) = VerifyingKey::from_bytes(public_key) else {
             return false;
