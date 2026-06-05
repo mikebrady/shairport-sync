@@ -23,6 +23,7 @@ pub struct ServerConfig {
 #[serde(default)]
 pub struct AirplayConfig {
     pub enabled: bool,
+    pub airplay2_enabled: bool,
     pub bind: String,
     pub device_id: String,
     pub audio_port: u16,
@@ -110,6 +111,7 @@ impl Default for AirplayConfig {
     fn default() -> Self {
         Self {
             enabled: true,
+            airplay2_enabled: false,
             bind: "0.0.0.0:7000".to_string(),
             device_id: "00:11:22:33:44:55".to_string(),
             audio_port: 6000,

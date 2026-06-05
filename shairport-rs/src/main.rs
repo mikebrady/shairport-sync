@@ -28,15 +28,29 @@ use crate::{
 struct Args {
     #[arg(short, long, env = "SHAIRPORT_RS_CONFIG")]
     config: Option<PathBuf>,
+
+    #[arg(long, env = "SHAIRPORT_RS_DEBUG")]
+    debug: bool,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let args = Args::parse();
+    let env_filter = std::env::var("RUST_LOG").unwrap_or_else(|_| {
+        if args.debug {
+            "shairport_rs=debug,tower_http=debug".to_string()
+        } else {
+            "info".to_string()
+        }
+    });
     tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .with_env_filter(tracing_subscriber::EnvFilter::new(env_filter))
         .init();
 
-    let args = Args::parse();
+    if args.debug {
+        info!("debug logging enabled");
+    }
+
     let config = Config::load(args.config.as_deref())?;
     let app_state = AppState::new(config.clone());
 
@@ -71,14 +85,16 @@ async fn main() -> anyhow::Result<()> {
 
     let mdns_backend = MdnsBackend::from_config(&config.mdns);
     let mdns_advertiser = MdnsAdvertiser::new(mdns_backend, config.mdns.clone());
-    if let Err(err) = mdns_advertiser
-        .publish(airplay::txt_records::airplay_services(&config))
-        .await
-    {
+    let services = airplay::txt_records::airplay_services(&config);
+    let service_types: Vec<String> = services
+        .iter()
+        .map(|s| s.service_type.trim_end_matches(".local.").to_string())
+        .collect();
+    if let Err(err) = mdns_advertiser.publish(services).await {
         warn!(%err, "mDNS publication failed");
         app_state.set_mdns_error(err.to_string());
     } else {
-        app_state.set_mdns_running(config.mdns.backend.to_string());
+        app_state.set_mdns_running(config.mdns.backend.to_string(), service_types);
     }
 
     let api_context = ApiContext::new(

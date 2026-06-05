@@ -221,12 +221,12 @@ impl AppState {
         });
     }
 
-    pub fn set_mdns_running(&self, backend: String) {
+    pub fn set_mdns_running(&self, backend: String, service_types: Vec<String>) {
         self.mutate(|state| {
             state.mdns.backend = backend;
             state.mdns.running = true;
             state.mdns.error = None;
-            state.mdns.services = vec!["_raop._tcp".to_string(), "_airplay._tcp".to_string()];
+            state.mdns.services = service_types;
         });
     }
 
