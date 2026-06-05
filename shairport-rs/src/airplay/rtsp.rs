@@ -5,6 +5,7 @@ use std::{
 };
 
 use anyhow::Context;
+use parking_lot::Mutex;
 use plist::{Dictionary, Value};
 use serde::{Deserialize, Serialize};
 use tokio::{
@@ -102,9 +103,42 @@ async fn handle_connection(
             return Ok(());
         }
         buf.extend_from_slice(&chunk[..read]);
-        while let Some((request, consumed)) = parse_request(&buf) {
+        while let Some((mut request, consumed)) = parse_request(&buf) {
             log_request(peer, &request);
-            let response = route_request(&config, &state, &pairing, &mut session, &request, &player);
+
+            // Decrypt request body if control cipher is active
+            if let Some(ref mut cipher) = session.control_cipher {
+                if !request.body.is_empty() {
+                    match cipher.decrypt_blocks(&request.body) {
+                        Ok((plaintext, _consumed)) => {
+                            request.body = plaintext;
+                        }
+                        Err(e) => {
+                            warn!(%e, "RTSP request decryption failed");
+                        }
+                    }
+                }
+            }
+
+            let mut response = route_request(&config, &state, &pairing, &mut session, &request, &player);
+
+            // Encrypt response body if control cipher is active
+            if session.control_cipher.is_some() && !response.body.is_empty() {
+                if let Some(ref mut cipher) = session.control_cipher {
+                    match cipher.encrypt_blocks(&response.body) {
+                        Ok(encrypted) => {
+                            response.body = encrypted;
+                            response
+                                .headers
+                                .insert("Content-Type".to_string(), "application/octet-stream".to_string());
+                        }
+                        Err(e) => {
+                            warn!(%e, "RTSP response encryption failed");
+                        }
+                    }
+                }
+            }
+
             log_response(peer, &request, &response);
             stream.write_all(&response.to_bytes()).await?;
             buf.drain(..consumed);
@@ -128,7 +162,7 @@ fn route_request(
         ("OPTIONS", _) => response(200, "OK")
             .header(
                 "Public",
-                "ANNOUNCE, SETUP, RECORD, PAUSE, FLUSH, FLUSHBUFFERED, TEARDOWN, OPTIONS, POST, GET, PUT",
+                "ANNOUNCE, SETUP, RECORD, PAUSE, FLUSH, FLUSHBUFFERED, TEARDOWN, OPTIONS, POST, GET, PUT, SETPEERS",
             )
             .with_cseq(request),
         ("GET", "/info") | ("GET", "info") => {
@@ -144,9 +178,6 @@ fn route_request(
             let params = parsed.classic_params();
 
             if let Some(encrypted_key) = &params.rsaaeskey {
-                // Try to generate an RSA key on-the-fly for key exchange.
-                // For Phase 1 this is best-effort: if it fails, the session
-                // will still proceed but decryption will not work.
                 let rsa_key = decoder::generate_rsa_key();
                 match decoder::rsa_oaep_decrypt(&rsa_key, encrypted_key) {
                     Ok(mut aes_key_bytes) => {
@@ -179,7 +210,6 @@ fn route_request(
             if let Some(fpp) = params.frames_per_packet {
                 state.frames_per_packet.write().clone_from(&Some(fpp));
             }
-            // channels default to 2 for classic AP
             state.alac_channels.write().clone_from(&Some(2));
 
             response(200, "OK").with_cseq(request)
@@ -219,6 +249,9 @@ fn route_request(
                 && let Some(shared_secret) = session.pairing.shared_secret()
             {
                 session.control_cipher = Some(PairCipher::control_for_server(shared_secret));
+                // Also create event cipher
+                session.event_cipher = Some(PairCipher::events_for_server(shared_secret));
+                info!("AP2 control and event ciphers activated");
             }
             response(reply.status_code, "OK")
                 .header("Content-Type", "application/octet-stream")
@@ -232,7 +265,21 @@ fn route_request(
                 .body(body)
                 .with_cseq(request)
         }
-        ("POST", "/command") | ("POST", "/feedback") => response(200, "OK").with_cseq(request),
+        ("POST", "/command") => {
+            // Command endpoint receives encrypted plist commands
+            // For now, acknowledge and parse best-effort
+            info!("received /command ({} bytes)", request.body.len());
+            response(200, "OK")
+                .header("Content-Type", "application/octet-stream")
+                .body(Vec::new())
+                .with_cseq(request)
+        }
+        ("POST", "/feedback") => {
+            // Feedback endpoint for AP2 event/status updates
+            info!("received /feedback ({} bytes)", request.body.len());
+            response(200, "OK").with_cseq(request)
+        }
+        ("POST", "/configure") => response(200, "OK").with_cseq(request),
         ("GET_PARAMETER", _) => response(200, "OK").with_cseq(request),
         ("SET_PARAMETER", _) => {
             apply_set_parameter(state, request);
@@ -263,7 +310,6 @@ fn route_request(
                 .get("X-Apple-Latency")
                 .and_then(|v| v.parse::<u32>().ok())
                 .unwrap_or(11025);
-            // Derive sample rate from the alac_sample_rate state
             let rate = state.alac_sample_rate.read().unwrap_or(44100);
             player.set_sample_rate(rate);
             player.start(latency);
@@ -404,6 +450,7 @@ struct RtspSession {
     session_id: Option<String>,
     pairing: PairingSession,
     control_cipher: Option<PairCipher>,
+    event_cipher: Option<PairCipher>,
 }
 
 fn apply_set_parameter(state: &AppState, request: &RtspRequest) {
