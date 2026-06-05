@@ -288,21 +288,38 @@ fn route_request(
         ("SETUP", _) => {
             session.session_id = Some("1".to_string());
             state.set_active(true);
-            let server_port = config.audio_port;
-            let control_port = config.control_port;
-            let timing_port = config.timing_port;
-            info!(server_port, control_port, timing_port, "AP1 SETUP");
 
-            response(200, "OK")
-                .header("Session", "1")
-                .header(
-                    "Transport",
-                    format!(
-                        "RTP/AVP/UDP;unicast;mode=record;server_port={};control_port={};timing_port={}",
-                        server_port, control_port, timing_port
-                    ),
-                )
-                .with_cseq(request)
+            // Detect AP2 SETUP from Content-Type
+            let is_ap2 = request
+                .headers
+                .get("Content-Type")
+                .map(|ct| ct.contains("application/x-apple-binary-plist"))
+                .unwrap_or(false);
+
+            if is_ap2 && config.airplay2_enabled {
+                handle_ap2_setup(config, state, session, request)
+                    .with_cseq(request)
+            } else if is_ap2 {
+                // AP2 plist but AP2 is disabled - respond with error
+                warn!("AP2 SETUP received but airplay2_enabled is false");
+                response(501, "Not Implemented").with_cseq(request)
+            } else {
+                // Classic AP1 SETUP
+                let server_port = config.audio_port;
+                let control_port = config.control_port;
+                let timing_port = config.timing_port;
+                info!(server_port, control_port, timing_port, "AP1 SETUP");
+                response(200, "OK")
+                    .header("Session", "1")
+                    .header(
+                        "Transport",
+                        format!(
+                            "RTP/AVP/UDP;unicast;mode=record;server_port={};control_port={};timing_port={}",
+                            server_port, control_port, timing_port
+                        ),
+                    )
+                    .with_cseq(request)
+            }
         }
         ("RECORD", _) => {
             let latency = request
@@ -445,12 +462,133 @@ fn fairplay_setup_reply(body: &[u8]) -> Option<Vec<u8>> {
     }
 }
 
+/// AP2 stream types
+#[derive(Clone, Copy, Debug)]
+enum Ap2StreamType {
+    RealtimeAudio = 96,
+    BufferedAudio = 103,
+    DataStream = 130,
+}
+
 #[derive(Default)]
 struct RtspSession {
     session_id: Option<String>,
     pairing: PairingSession,
     control_cipher: Option<PairCipher>,
     event_cipher: Option<PairCipher>,
+    ap2_timing_protocol: Option<String>,
+    ap2_streams: Vec<Ap2StreamType>,
+    ap2_group_uuid: Option<String>,
+}
+
+/// Handle an AirPlay 2 SETUP with binary plist body.
+fn handle_ap2_setup(
+    _config: &AirplayConfig,
+    state: &AppState,
+    session: &mut RtspSession,
+    request: &RtspRequest,
+) -> RtspResponse {
+    let plist_body = &request.body;
+    let setup = match plist::from_bytes::<plist::Dictionary>(plist_body) {
+        Ok(dict) => dict,
+        Err(e) => {
+            warn!(%e, "failed to parse AP2 SETUP plist");
+            return response(400, "Bad Request");
+        }
+    };
+
+    // Check for streams array
+    if let Some(plist::Value::Array(streams)) = setup.get("streams") {
+        for stream_val in streams {
+            if let plist::Value::Dictionary(stream) = stream_val {
+                if let Some(plist::Value::Integer(stream_type)) = stream.get("type") {
+                    let type_val: u32 = stream_type
+                        .as_unsigned()
+                        .unwrap_or(0)
+                        .try_into()
+                        .unwrap_or(0);
+                    match type_val {
+                        96 => {
+                            session.ap2_streams.push(Ap2StreamType::RealtimeAudio);
+                            info!("AP2 realtime audio stream requested");
+                        }
+                        103 => {
+                            session.ap2_streams.push(Ap2StreamType::BufferedAudio);
+                            info!("AP2 buffered audio stream requested");
+                        }
+                        130 => {
+                            session.ap2_streams.push(Ap2StreamType::DataStream);
+                            info!("AP2 data/event stream requested");
+                        }
+                        other => warn!(type = other, "unknown AP2 stream type"),
+                    }
+                }
+            }
+        }
+
+        // Build response plist with stream status
+        let mut response_dict = plist::Dictionary::new();
+        let mut response_streams: Vec<plist::Value> = Vec::new();
+        for stream_type in &session.ap2_streams {
+            let mut stream_dict = plist::Dictionary::new();
+            stream_dict.insert(
+                "type".to_string(),
+                plist::Value::Integer(plist::Integer::from(*stream_type as u64)),
+            );
+            stream_dict.insert(
+                "status".to_string(),
+                plist::Value::Integer(plist::Integer::from(0u64)),
+            );
+            stream_dict.insert(
+                "status".to_string(),
+                plist::Value::Integer(0.into()), // 0 = success
+            );
+            response_streams.push(plist::Value::Dictionary(stream_dict));
+        }
+        response_dict.insert("streams".to_string(), plist::Value::Array(response_streams));
+
+        let mut body = Vec::new();
+        if plist::to_writer_binary(&mut body, &plist::Value::Dictionary(response_dict)).is_ok() {
+            return response(200, "OK")
+                .header("Content-Type", "application/x-apple-binary-plist")
+                .body(body);
+        }
+        return response(200, "OK").with_cseq(request);
+    }
+
+    // Initial SETUP (no streams) - handle timing protocol
+    if let Some(tp) = setup
+        .get("timingProtocol")
+        .and_then(|v| v.as_string())
+    {
+        info!(protocol = %tp, "AP2 initial SETUP with timing protocol");
+        state.set_diagnostic("ap2_timing_protocol", tp.to_string());
+        session.ap2_timing_protocol = Some(tp.to_string());
+
+        // For PTP, we need to signal the PTP service
+        if tp == "PTP" {
+            // Check for groupUUID
+            if let Some(plist::Value::String(gid)) = setup.get("groupUUID") {
+                session.ap2_group_uuid = Some(gid.clone());
+                state.set_diagnostic("ap2_group_uuid", gid.clone());
+            }
+
+            let mut response_dict = plist::Dictionary::new();
+            response_dict.insert(
+                "status".to_string(),
+                plist::Value::Integer(plist::Integer::from(0u64)),
+            );
+            let mut body = Vec::new();
+            if plist::to_writer_binary(&mut body, &plist::Value::Dictionary(response_dict)).is_ok()
+            {
+                return response(200, "OK")
+                    .header("Content-Type", "application/x-apple-binary-plist")
+                    .body(body);
+            }
+        }
+    }
+
+    response(200, "OK").with_cseq(request)
 }
 
 fn apply_set_parameter(state: &AppState, request: &RtspRequest) {
@@ -486,9 +624,9 @@ fn get_info_body(config: &AirplayConfig) -> Vec<u8> {
     dict.insert("deviceID".into(), Value::String(config.device_id.clone()));
     dict.insert(
         "features".into(),
-        Value::Integer(496_155_701_824_000i64.into()),
+        Value::Integer(plist::Integer::from(496_155_701_824_000u64)),
     );
-    dict.insert("statusFlags".into(), Value::Integer(4.into()));
+    dict.insert("statusFlags".into(), Value::Integer(plist::Integer::from(4u64)));
     dict.insert("sourceVersion".into(), Value::String("366.0".to_string()));
     dict.insert("name".into(), Value::String("Shairport RS".to_string()));
     dict.insert("model".into(), Value::String("ShairportSync".to_string()));
