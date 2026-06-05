@@ -4,6 +4,7 @@ mod audio;
 mod config;
 mod decoder;
 mod mdns;
+mod player;
 mod ptp;
 mod state;
 mod web;
@@ -57,6 +58,7 @@ async fn main() -> anyhow::Result<()> {
 
     let audio_manager = audio::AudioManager::new(config.audio.clone());
     let audio_engine = audio::AudioEngine::new(48_000 * 2 * 4);
+    let player = player::SharedPlayer::new();
     app_state.update_audio_devices(audio_manager.list_devices());
     let audio_output = match audio_manager.start_output(audio_engine.clone()) {
         Ok(output) => Some(output),
@@ -74,7 +76,7 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let rtsp_handle = if config.airplay.enabled {
-        Some(airplay::rtsp::spawn_rtsp_server(config.airplay.clone(), app_state.clone()).await?)
+        Some(airplay::rtsp::spawn_rtsp_server(config.airplay.clone(), app_state.clone(), player.clone()).await?)
     } else {
         None
     };
@@ -83,6 +85,7 @@ async fn main() -> anyhow::Result<()> {
             config.airplay.clone(),
             app_state.clone(),
             audio_engine.clone(),
+            player.clone(),
         )
         .await?
     } else {

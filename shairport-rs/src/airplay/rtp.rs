@@ -10,7 +10,7 @@ use tokio::{net::UdpSocket, task::JoinHandle};
 use tracing::{debug, info, warn};
 
 use crate::{
-    audio::AudioEngine, config::AirplayConfig, decoder,
+    audio::AudioEngine, config::AirplayConfig, decoder, player::SharedPlayer,
     state::AppState,
 };
 
@@ -36,9 +36,10 @@ pub async fn spawn_rtp_receivers(
     config: AirplayConfig,
     state: AppState,
     audio_engine: AudioEngine,
+    player: SharedPlayer,
 ) -> anyhow::Result<Vec<JoinHandle<()>>> {
     let audio =
-        bind_audio_channel(config.audio_port, state.clone(), audio_engine.clone()).await?;
+        bind_audio_channel(config.audio_port, state.clone(), audio_engine.clone(), player).await?;
     let control = bind_channel(RtpChannel::Control, config.control_port, state.clone()).await?;
     let timing = bind_channel(RtpChannel::Timing, config.timing_port, state).await?;
     Ok(vec![audio, control, timing])
@@ -48,6 +49,7 @@ async fn bind_audio_channel(
     port: u16,
     state: AppState,
     audio_engine: AudioEngine,
+    player: SharedPlayer,
 ) -> anyhow::Result<JoinHandle<()>> {
     let bind = SocketAddr::from(([0, 0, 0, 0], port));
     let socket = UdpSocket::bind(bind)
@@ -159,11 +161,18 @@ async fn bind_audio_channel(
                         match dec.decode_frame(&decrypted) {
                             Ok(samples) => {
                                 if !samples.is_empty() {
+                                    let ts = u32::from_be_bytes([buf[4], buf[5], buf[6], buf[7]]);
                                     // Convert i32 samples to f32 for the audio engine
                                     let float_samples: Vec<f32> = samples
                                         .iter()
-                                        .map(|&s| (s as f32) / 2147483648.0) // / 2^31
+                                        .map(|&s| (s as f32) / 2147483648.0)
                                         .collect();
+
+                                    // Track via player for timing/flush management
+                                    let rate = state.alac_sample_rate.read().unwrap_or(44100);
+                                    player.push_frame(ts, float_samples.clone(), rate, 2);
+
+                                    // Push directly to audio engine for now
                                     let enqueued =
                                         audio_engine.enqueue_interleaved(&float_samples);
                                     if enqueued < float_samples.len() {

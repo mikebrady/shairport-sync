@@ -20,6 +20,7 @@ use crate::{
     airplay::sdp::parse_sdp,
     config::AirplayConfig,
     decoder,
+    player::SharedPlayer,
     state::{AppState, PlayerState},
 };
 
@@ -43,6 +44,7 @@ pub struct RtspResponse {
 pub async fn spawn_rtsp_server(
     config: AirplayConfig,
     state: AppState,
+    player: SharedPlayer,
 ) -> anyhow::Result<JoinHandle<()>> {
     let bind: SocketAddr = config
         .bind
@@ -60,9 +62,10 @@ pub async fn spawn_rtsp_server(
                     let state = state.clone();
                     let config = config.clone();
                     let pairing = pairing.clone();
+                    let player = player.clone();
                     tokio::spawn(async move {
                         if let Err(err) =
-                            handle_connection(stream, peer, config, state, pairing).await
+                            handle_connection(stream, peer, config, state, pairing, player).await
                         {
                             warn!(%peer, %err, "RTSP connection failed");
                         }
@@ -80,6 +83,7 @@ async fn handle_connection(
     config: AirplayConfig,
     state: AppState,
     pairing: Arc<PairingService>,
+    player: SharedPlayer,
 ) -> anyhow::Result<()> {
     let mut buf = Vec::with_capacity(8192);
     let mut session = RtspSession::default();
@@ -92,7 +96,7 @@ async fn handle_connection(
         buf.extend_from_slice(&chunk[..read]);
         while let Some((request, consumed)) = parse_request(&buf) {
             log_request(peer, &request);
-            let response = route_request(&config, &state, &pairing, &mut session, &request);
+            let response = route_request(&config, &state, &pairing, &mut session, &request, &player);
             log_response(peer, &request, &response);
             stream.write_all(&response.to_bytes()).await?;
             buf.drain(..consumed);
@@ -106,6 +110,7 @@ fn route_request(
     pairing: &PairingService,
     session: &mut RtspSession,
     request: &RtspRequest,
+    player: &SharedPlayer,
 ) -> RtspResponse {
     if let Some(client_name) = request.headers.get("X-Apple-Client-Name") {
         state.set_client_name(client_name.clone());
@@ -224,17 +229,17 @@ fn route_request(
                 .with_cseq(request)
         }
         ("RECORD", _) => {
-            // Decode the latency request header if present
             let latency = request
                 .headers
                 .get("X-Apple-Latency")
                 .and_then(|v| v.parse::<u32>().ok())
                 .unwrap_or(11025);
+            // Derive sample rate from the alac_sample_rate state
+            let rate = state.alac_sample_rate.read().unwrap_or(44100);
+            player.set_sample_rate(rate);
+            player.start(latency);
             state.set_player_state(PlayerState::Playing);
             state.set_diagnostic("ap1_latency", latency.to_string());
-
-            // Signal the RTP audio pipeline via session key & ALAC params.
-            // The actual decode happens in the RTP receiver.
             info!(latency, "AP1 RECORD");
 
             response(200, "OK")
@@ -243,6 +248,7 @@ fn route_request(
                 .with_cseq(request)
         }
         ("FLUSH", _) => {
+            player.flush();
             state.set_player_state(PlayerState::Paused);
             info!("AP1 FLUSH");
             response(200, "OK").with_cseq(request)
@@ -253,6 +259,7 @@ fn route_request(
             response(200, "OK").with_cseq(request)
         }
         ("TEARDOWN", _) => {
+            player.stop();
             state.set_active(false);
             state.set_player_state(PlayerState::Stopped);
             *state.session_key.write() = None;
