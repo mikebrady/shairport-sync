@@ -41,6 +41,16 @@ impl Tlv {
             .map(Vec::as_slice)
     }
 
+    pub fn joined(&self, ty: u8) -> Option<Vec<u8>> {
+        let values = self.values.get(&ty)?;
+        let len = values.iter().map(Vec::len).sum();
+        let mut out = Vec::with_capacity(len);
+        for value in values {
+            out.extend_from_slice(value);
+        }
+        Some(out)
+    }
+
     pub fn encode(&self) -> Vec<u8> {
         let mut out = Vec::new();
         for (ty, values) in &self.values {
@@ -72,5 +82,6 @@ mod tests {
         assert_eq!(chunks.len(), 2);
         assert_eq!(chunks[0].len(), 255);
         assert_eq!(chunks[1].len(), 45);
+        assert_eq!(parsed.joined(1).unwrap(), value);
     }
 }

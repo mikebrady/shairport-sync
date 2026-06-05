@@ -4,7 +4,7 @@ use std::{
 };
 
 use anyhow::{Context, bail};
-use mdns_sd::{ServiceDaemon, ServiceInfo};
+use mdns_sd::{IfKind, ServiceDaemon, ServiceInfo};
 use parking_lot::Mutex;
 
 use crate::{
@@ -66,6 +66,15 @@ impl MdnsAdvertiser {
 
     async fn publish_builtin(&self, services: Vec<AirplayService>) -> anyhow::Result<()> {
         let daemon = ServiceDaemon::new().context("failed to create built-in mDNS daemon")?;
+        if let Some(interface) = self.config.interface.as_deref() {
+            daemon
+                .enable_interface(interface)
+                .with_context(|| format!("failed to enable mDNS interface {interface}"))?;
+        } else {
+            daemon
+                .enable_interface(IfKind::IPv4)
+                .context("failed to enable IPv4 mDNS interfaces")?;
+        }
         for service in services {
             let txt: Vec<(&str, &str)> = service
                 .txt
@@ -80,6 +89,7 @@ impl MdnsAdvertiser {
                 service.port,
                 &txt[..],
             )
+            .map(ServiceInfo::enable_addr_auto)
             .with_context(|| {
                 format!("failed to build service info for {}", service.service_type)
             })?;
@@ -107,15 +117,52 @@ impl MdnsAdvertiser {
         services: Vec<AirplayService>,
     ) -> anyhow::Result<()> {
         for service in services {
-            let child = Command::new(command)
-                .arg(&service.instance_name)
-                .arg(&service.service_type)
-                .arg(service.port.to_string())
-                .args(service.txt.iter())
+            let mut cmd = Command::new(command);
+            if command.eq_ignore_ascii_case("dns-sd") || command.ends_with("dns-sd") {
+                cmd.arg("-R")
+                    .arg(&service.instance_name)
+                    .arg(trim_local_domain(&service.service_type))
+                    .arg("local")
+                    .arg(service.port.to_string())
+                    .args(service.txt.iter());
+            } else if command.eq_ignore_ascii_case("avahi-publish-service")
+                || command.ends_with("avahi-publish-service")
+            {
+                cmd.arg(&service.instance_name)
+                    .arg(trim_local_domain(&service.service_type))
+                    .arg(service.port.to_string())
+                    .args(service.txt.iter());
+            } else {
+                cmd.arg(&service.instance_name)
+                    .arg(&service.service_type)
+                    .arg(service.port.to_string())
+                    .args(service.txt.iter());
+            }
+
+            let child = cmd
                 .spawn()
                 .with_context(|| format!("failed to spawn {command}"))?;
             self.external_children.lock().push(child);
         }
         Ok(())
+    }
+}
+
+fn trim_local_domain(service_type: &str) -> &str {
+    service_type
+        .strip_suffix(".local.")
+        .or_else(|| service_type.strip_suffix(".local"))
+        .unwrap_or(service_type)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn trims_local_domain_for_external_publishers() {
+        assert_eq!(trim_local_domain("_airplay._tcp.local."), "_airplay._tcp");
+        assert_eq!(trim_local_domain("_raop._tcp.local"), "_raop._tcp");
+        assert_eq!(trim_local_domain("_raop._tcp"), "_raop._tcp");
     }
 }

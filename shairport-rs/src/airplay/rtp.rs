@@ -1,11 +1,18 @@
-use std::net::SocketAddr;
+use std::{
+    net::SocketAddr,
+    sync::Arc,
+};
 
 use anyhow::Context;
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use tokio::{net::UdpSocket, task::JoinHandle};
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 
-use crate::{config::AirplayConfig, state::AppState};
+use crate::{
+    audio::AudioEngine, config::AirplayConfig, decoder,
+    state::AppState,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum RtpChannel {
@@ -28,11 +35,154 @@ pub struct RtpPacket {
 pub async fn spawn_rtp_receivers(
     config: AirplayConfig,
     state: AppState,
+    audio_engine: AudioEngine,
 ) -> anyhow::Result<Vec<JoinHandle<()>>> {
-    let audio = bind_channel(RtpChannel::Audio, config.audio_port, state.clone()).await?;
+    let audio =
+        bind_audio_channel(config.audio_port, state.clone(), audio_engine.clone()).await?;
     let control = bind_channel(RtpChannel::Control, config.control_port, state.clone()).await?;
     let timing = bind_channel(RtpChannel::Timing, config.timing_port, state).await?;
     Ok(vec![audio, control, timing])
+}
+
+async fn bind_audio_channel(
+    port: u16,
+    state: AppState,
+    audio_engine: AudioEngine,
+) -> anyhow::Result<JoinHandle<()>> {
+    let bind = SocketAddr::from(([0, 0, 0, 0], port));
+    let socket = UdpSocket::bind(bind)
+        .await
+        .with_context(|| format!("failed to bind RTP Audio socket on {bind}"))?;
+    Ok(tokio::spawn(async move {
+        let mut buf = [0u8; 2048];
+        // AES-CBC uses chaining IV: start with aesiv from SDP, update per packet
+        let iv: Arc<RwLock<Option<[u8; 16]>>> = Arc::new(RwLock::new(None));
+        // ALAC decoder, created lazily
+        let mut decoder: Option<decoder::AlacDecoder> = None;
+
+        loop {
+            match socket.recv_from(&mut buf).await {
+                Ok((len, _)) => {
+                    if len < 12 {
+                        continue;
+                    }
+                    let payload_type = buf[1] & 0x7f;
+                    // Classic AP1 audio type: 0x60 (audio data) or 0x56 (resend)
+                    if payload_type != 0x60 && payload_type != 0x56 {
+                        continue;
+                    }
+
+                    let rtp_payload_len = len - 12;
+                    if rtp_payload_len < 16 {
+                        continue;
+                    }
+
+                    let payload = &buf[12..len];
+
+                    // Wait until session key is available
+                    let session_key = *state.session_key.read();
+                    let Some(key) = session_key else {
+                        debug!("no session key yet — buffering");
+                        continue;
+                    };
+
+                    // Initialize IV from session state if not set
+                    {
+                        let mut iv_guard = iv.write();
+                        if iv_guard.is_none() {
+                            // For classic AP, the first IV comes from the SDP `a=aesiv`
+                            // but we need to start with the last ciphertext block as chaining.
+                            // If no SDP IV is set, use a zero IV.
+                            *iv_guard = Some(state.alac_magic_cookie.read().as_ref()
+                                .and_then(|_| {
+                                    // The actual initial IV is stored in the SDP aesiv field
+                                    // which isn't in alac_magic_cookie. Use zero as fallback.
+                                    None
+                                })
+                                .unwrap_or([0u8; 16]));
+                        }
+                    }
+
+                    // Decrypt the AES-CBC payload in place
+                    let mut decrypted = payload.to_vec();
+                    if decrypted.len() < 16 {
+                        continue;
+                    }
+
+                    let aes_len = decrypted.len() & !0xf;
+                    if aes_len == 0 {
+                        continue;
+                    }
+
+                    // Get current IV (will be updated in-place by AES-CBC)
+                    let current_iv = {
+                        let iv_guard = iv.read();
+                        iv_guard.unwrap_or([0u8; 16])
+                    };
+
+                    if let Err(e) = decoder::aes_cbc_decrypt_in_place(
+                        &key,
+                        &current_iv,
+                        &mut decrypted[..aes_len],
+                    ) {
+                        warn!(%e, "AES-CBC decrypt failed");
+                        continue;
+                    }
+
+                    // Update chaining IV from last ciphertext block
+                    let last_block_start = aes_len.saturating_sub(16);
+                    if last_block_start + 16 <= payload.len() {
+                        let mut new_iv = [0u8; 16];
+                        new_iv.copy_from_slice(&payload[last_block_start..last_block_start + 16]);
+                        *iv.write() = Some(new_iv);
+                    }
+
+                    // Initialize ALAC decoder lazily
+                    if decoder.is_none() {
+                        let cookie = state.alac_magic_cookie.read().clone();
+                        if let Some(ref cookie) = cookie {
+                            match decoder::AlacDecoder::new(16, 2, cookie) {
+                                Ok(d) => {
+                                    decoder = Some(d);
+                                    info!("ALAC decoder initialized");
+                                }
+                                Err(e) => {
+                                    warn!(%e, "ALAC decoder init failed");
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+
+                    // Decode ALAC
+                    if let Some(ref mut dec) = decoder {
+                        match dec.decode_frame(&decrypted) {
+                            Ok(samples) => {
+                                if !samples.is_empty() {
+                                    // Convert i32 samples to f32 for the audio engine
+                                    let float_samples: Vec<f32> = samples
+                                        .iter()
+                                        .map(|&s| (s as f32) / 2147483648.0) // / 2^31
+                                        .collect();
+                                    let enqueued =
+                                        audio_engine.enqueue_interleaved(&float_samples);
+                                    if enqueued < float_samples.len() {
+                                        debug!("audio ring buffer full, dropped {} samples",
+                                               float_samples.len() - enqueued);
+                                    }
+                                }
+                                state.record_rtp_packet(RtpChannel::Audio, parse_rtp_packet_inner(&buf[..len]));
+                            }
+                            Err(e) => {
+                                warn!(%e, "ALAC decode failed");
+                            }
+                        }
+                    }
+                }
+                Err(err) => warn!(?err, "RTP audio receive failed"),
+            }
+        }
+    }))
 }
 
 async fn bind_channel(
@@ -48,9 +198,9 @@ async fn bind_channel(
         let mut buf = [0u8; 65_536];
         loop {
             match socket.recv_from(&mut buf).await {
-                Ok((len, peer)) => {
+                Ok((len, _)) => {
                     if let Some(packet) = parse_rtp_packet(&buf[..len]) {
-                        debug!(?channel, %peer, seq = packet.sequence_number, "RTP packet received");
+                        debug!(?channel, seq = packet.sequence_number, "RTP packet received");
                         state.record_rtp_packet(channel, packet);
                     }
                 }
@@ -58,6 +208,20 @@ async fn bind_channel(
             }
         }
     }))
+}
+
+fn parse_rtp_packet_inner(buf: &[u8]) -> RtpPacket {
+    let csrc_count = (buf[0] & 0x0f) as usize;
+    let header_len = 12 + csrc_count * 4;
+    RtpPacket {
+        version: buf[0] >> 6,
+        marker: buf[1] & 0x80 != 0,
+        payload_type: buf[1] & 0x7f,
+        sequence_number: u16::from_be_bytes([buf[2], buf[3]]),
+        timestamp: u32::from_be_bytes([buf[4], buf[5], buf[6], buf[7]]),
+        ssrc: u32::from_be_bytes([buf[8], buf[9], buf[10], buf[11]]),
+        payload_len: buf.len() - header_len,
+    }
 }
 
 pub fn parse_rtp_packet(packet: &[u8]) -> Option<RtpPacket> {

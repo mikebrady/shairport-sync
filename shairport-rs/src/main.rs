@@ -2,6 +2,7 @@ mod airplay;
 mod api;
 mod audio;
 mod config;
+mod decoder;
 mod mdns;
 mod ptp;
 mod state;
@@ -78,7 +79,12 @@ async fn main() -> anyhow::Result<()> {
         None
     };
     let rtp_handles = if config.airplay.enabled {
-        airplay::rtp::spawn_rtp_receivers(config.airplay.clone(), app_state.clone()).await?
+        airplay::rtp::spawn_rtp_receivers(
+            config.airplay.clone(),
+            app_state.clone(),
+            audio_engine.clone(),
+        )
+        .await?
     } else {
         Vec::new()
     };

@@ -11,13 +11,16 @@ asio = ["cpal/asio"]
 jack = ["cpal/jack"]
 
 [dependencies]
+aes = "0.8"
 anyhow = "1.0"
 axum = { version = "0.8", features = ["ws"] }
 base64 = "0.22"
 bytes = "1.10"
+cbc = "0.1"
 chacha20poly1305 = "0.10"
 clap = { version = "4.5", features = ["derive", "env"] }
 cpal = "0.17"
+digest = "0.10"
 ed25519-dalek = { version = "2.2", features = ["rand_core"] }
 futures-util = "0.3"
 hkdf = "0.12"
@@ -27,17 +30,24 @@ plist = "1.8"
 rand = "0.9"
 rand_core = "0.6"
 ringbuf = "0.4"
+rsa = "0.9"
+sha1 = "0.10"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10"
+sha2_011 = { package = "sha2", version = "0.11" }
+srp = "0.7.0-rc.3"
 thiserror = "2.0"
 tokio = { version = "1.48", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 toml = "0.9"
 tower-http = { version = "0.6", features = ["trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-uuid = { version = "1.18", features = ["v4", "serde"] }
+uuid = { version = "1.18", features = ["v4", "v5", "serde"] }
 x25519-dalek = { version = "2.0", features = ["static_secrets"] }
+
+[build-dependencies]
+cc = "1.2"
 
 [dev-dependencies]
 http-body-util = "0.1"

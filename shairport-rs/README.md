@@ -18,6 +18,30 @@ cargo run --manifest-path shairport-rs/Cargo.toml -- --config shairport-rs/shair
 
 The API listens on `127.0.0.1:3689` by default.
 
+## Discovery
+
+The built-in mDNS backend publishes `_raop._tcp.local.` and
+`_airplay._tcp.local.` and uses automatic LAN address selection. On hosts with
+multiple active adapters, set `mdns.interface` in `shairport-rs.toml` to the
+interface that is on the same network as the Apple sender. On Windows, ensure
+the firewall allows inbound UDP 5353 and TCP 7000 for the daemon.
+
+Examples:
+
+```toml
+[mdns]
+backend = "builtin"
+interface = "Ethernet"
+```
+
+If the built-in backend is blocked by the OS or another mDNS responder, use the
+native Bonjour publisher:
+
+```toml
+[mdns]
+backend = "dns-sd"
+```
+
 ## Windows ASIO
 
 ASIO support is feature-gated through CPAL:

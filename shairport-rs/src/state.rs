@@ -1,4 +1,8 @@
-use std::{collections::BTreeMap, sync::Arc, time::SystemTime};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+    time::SystemTime,
+};
 
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -10,6 +14,11 @@ use crate::{audio::AudioDevice, config::Config};
 pub struct AppState {
     inner: Arc<RwLock<StateSnapshot>>,
     events: broadcast::Sender<StateSnapshot>,
+    pub session_key: Arc<RwLock<Option<[u8; 16]>>>,
+    pub alac_magic_cookie: Arc<RwLock<Option<Vec<u8>>>>,
+    pub alac_sample_rate: Arc<RwLock<Option<u32>>>,
+    pub alac_channels: Arc<RwLock<Option<u16>>>,
+    pub frames_per_packet: Arc<RwLock<Option<u32>>>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -148,6 +157,11 @@ impl AppState {
         Self {
             inner: Arc::new(RwLock::new(snapshot)),
             events,
+            session_key: Arc::new(RwLock::new(None)),
+            alac_magic_cookie: Arc::new(RwLock::new(None)),
+            alac_sample_rate: Arc::new(RwLock::new(None)),
+            alac_channels: Arc::new(RwLock::new(None)),
+            frames_per_packet: Arc::new(RwLock::new(None)),
         }
     }
 

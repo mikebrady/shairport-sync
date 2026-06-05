@@ -69,6 +69,14 @@ pub fn nonce_from_label(label: &[u8]) -> [u8; 12] {
     nonce
 }
 
+pub fn accessory_public_key_for_device_id(device_id: &str) -> [u8; 32] {
+    let mut seed = [0u8; 32];
+    let id = device_id.as_bytes();
+    let len = id.len().min(seed.len());
+    seed[..len].copy_from_slice(&id[..len]);
+    IdentityKey::from_seed(seed).verifying_key()
+}
+
 impl AgreementKey {
     pub fn generate() -> Self {
         let secret = StaticSecret::random_from_rng(OsRng);
