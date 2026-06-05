@@ -27,6 +27,7 @@ pub struct MdnsAdvertiser {
     config: MdnsConfig,
     builtin_daemons: Arc<Mutex<Vec<ServiceDaemon>>>,
     external_children: Arc<Mutex<Vec<Child>>>,
+    published_services: Arc<Mutex<Vec<AirplayService>>>,
 }
 
 impl MdnsBackend {
@@ -48,10 +49,13 @@ impl MdnsAdvertiser {
             config,
             builtin_daemons: Arc::new(Mutex::new(Vec::new())),
             external_children: Arc::new(Mutex::new(Vec::new())),
+            published_services: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
     pub async fn publish(&self, services: Vec<AirplayService>) -> anyhow::Result<()> {
+        // Store for later republish
+        *self.published_services.lock() = services.clone();
         match self.backend {
             MdnsBackend::Builtin => self.publish_builtin(services).await,
             MdnsBackend::Avahi => {
@@ -62,6 +66,16 @@ impl MdnsAdvertiser {
             MdnsBackend::External => self.publish_configured_external(services).await,
             MdnsBackend::Off => Ok(()),
         }
+    }
+
+    /// Republish with the same services (e.g. after TXT record changes).
+    /// For the builtin backend this re-registers; for external backends it spawns new processes.
+    pub async fn republish(&self) -> anyhow::Result<()> {
+        let services = self.published_services.lock().clone();
+        if services.is_empty() {
+            return Ok(());
+        }
+        self.publish(services).await
     }
 
     async fn publish_builtin(&self, services: Vec<AirplayService>) -> anyhow::Result<()> {

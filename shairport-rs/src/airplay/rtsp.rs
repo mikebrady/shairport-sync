@@ -5,7 +5,6 @@ use std::{
 };
 
 use anyhow::Context;
-use parking_lot::Mutex;
 use plist::{Dictionary, Value};
 use serde::{Deserialize, Serialize};
 use tokio::{
@@ -597,7 +596,37 @@ fn apply_set_parameter(state: &AppState, request: &RtspRequest) {
         .get("Content-Type")
         .map(String::as_str)
         .unwrap_or_default();
-    if content_type.contains("text/parameters") {
+
+    if content_type.contains("application/x-apple-binary-plist") {
+        // AP2 metadata as binary plist
+        if let Ok(dict) = plist::from_bytes::<plist::Dictionary>(&request.body) {
+            if let Some(plist::Value::String(title)) = dict.get("title") {
+                state.set_track_metadata(Some(title.clone()), None, None);
+            }
+            if let Some(plist::Value::String(artist)) = dict.get("artist") {
+                state.set_track_metadata(None, Some(artist.clone()), None);
+            }
+            if let Some(plist::Value::String(album)) = dict.get("album") {
+                state.set_track_metadata(None, None, Some(album.clone()));
+            }
+            if let Some(plist::Value::Data(artwork)) = dict.get("artwork") {
+                state.set_diagnostic("artwork_size", artwork.len().to_string());
+            }
+            if let Some(plist::Value::Real(progress)) = dict.get("progress") {
+                state.set_progress_ms((progress * 1000.0) as u64);
+            }
+            if let Some(plist::Value::Real(duration)) = dict.get("duration") {
+                state.set_duration_ms((duration * 1000.0) as u64);
+            }
+            // DACP / remote control identifiers
+            if let Some(plist::Value::String(dacp_id)) = dict.get("dacpID") {
+                state.set_diagnostic("dacp_id", dacp_id.clone());
+            }
+            if let Some(plist::Value::String(active_remote)) = dict.get("activeRemote") {
+                state.set_diagnostic("active_remote", active_remote.clone());
+            }
+        }
+    } else if content_type.contains("text/parameters") {
         let body = String::from_utf8_lossy(&request.body);
         let mut title = None;
         let mut artist = None;
@@ -613,6 +642,13 @@ fn apply_set_parameter(state: &AppState, request: &RtspRequest) {
                 artist = Some(value.trim().to_string());
             } else if let Some(value) = line.strip_prefix("album:") {
                 album = Some(value.trim().to_string());
+            } else if let Some(value) = line.strip_prefix("Progress:") {
+                // Format: "Progress: position/duration"
+                if let Some(progress_str) = value.split('/').next() {
+                    if let Ok(pos) = progress_str.trim().parse::<f64>() {
+                        state.set_progress_ms((pos * 1000.0) as u64);
+                    }
+                }
             }
         }
         state.set_track_metadata(title, artist, album);

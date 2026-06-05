@@ -9,9 +9,8 @@ use serde::{Deserialize, Serialize};
 use tokio::{
     net::UdpSocket,
     task::JoinHandle,
-    time::Instant,
 };
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 
 use crate::{config::PtpConfig, state::AppState};
 
@@ -196,11 +195,10 @@ async fn run_event_socket(socket: UdpSocket, state: AppState, servo: PtpServo) {
     let mut buf = [0u8; 2048];
     loop {
         match tokio::time::timeout(Duration::from_secs(30), socket.recv_from(&mut buf)).await {
-            Ok(Ok((len, peer))) => {
+            Ok(Ok((len, _peer))) => {
                 if let Some(message) = parse_ptp_message(&buf[..len]) {
                     match message.message_type {
                         PtpMessageType::Sync => {
-                            // Sync carries the estimated origin timestamp at the sender
                             if let Some(ts) = message.origin_timestamp_ns {
                                 let local_now = timestamp_now_ns();
                                 let offset = local_now as i64 - ts as i64;
@@ -226,16 +224,15 @@ async fn run_event_socket(socket: UdpSocket, state: AppState, servo: PtpServo) {
     }
 }
 
-async fn run_general_socket(socket: UdpSocket, state: AppState, _servo: PtpServo) {
+async fn run_general_socket(socket: UdpSocket, state: AppState, _: PtpServo) {
     let mut buf = [0u8; 2048];
     loop {
         match tokio::time::timeout(Duration::from_secs(30), socket.recv_from(&mut buf)).await {
-            Ok(Ok((len, peer))) => {
+            Ok(Ok((len, _))) => {
                 if let Some(message) = parse_ptp_message(&buf[..len]) {
                     if message.message_type == PtpMessageType::FollowUp {
                         // FollowUp has the precise origin timestamp
-                        if let Some(ts) = message.origin_timestamp_ns {
-                            // The offset was already computed from Sync; FollowUp refines it
+                        if message.origin_timestamp_ns.is_some() {
                             debug!(seq = message.sequence_id, "PTP FollowUp received");
                         }
                     }

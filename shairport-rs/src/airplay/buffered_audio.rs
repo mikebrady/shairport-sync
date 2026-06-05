@@ -131,7 +131,7 @@ async fn handle_buffered_stream(
             SSRC_ALAC_44100_S16_2 | SSRC_ALAC_48000_S24_2 => 352,
             _ => 1024, // AAC
         };
-        let sample_rate = match ssrc {
+        let _sample_rate = match ssrc {
             SSRC_ALAC_44100_S16_2 | SSRC_AAC_44100_F24_2 => 44100,
             _ => 48000,
         };

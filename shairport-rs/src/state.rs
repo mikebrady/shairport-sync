@@ -216,6 +216,14 @@ impl AppState {
         self.mutate(|state| state.track.client_name = Some(client_name));
     }
 
+    pub fn set_progress_ms(&self, progress_ms: u64) {
+        self.mutate(|state| state.track.progress_ms = Some(progress_ms));
+    }
+
+    pub fn set_duration_ms(&self, duration_ms: u64) {
+        self.mutate(|state| state.track.duration_ms = Some(duration_ms));
+    }
+
     pub fn set_track_metadata(
         &self,
         title: Option<String>,
