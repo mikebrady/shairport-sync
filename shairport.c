@@ -1764,6 +1764,7 @@ int parse_options(int argc, char **argv) {
         (uint64_t)1 << 50; // metadata in a binary plist, including more state information
     // config.airplay_features |= ((uint64_t)1 << 15) | ((uint64_t)1 << 16) | ((uint64_t)1 << 17);
     // // older metadata flags artwork, progress and text respectively
+    config.airplay_features |= ((uint64_t)1 << 16); // progress
   }
 #endif
 
