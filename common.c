@@ -1828,6 +1828,21 @@ uint64_t nctoh64(const uint8_t *p) {
   return vl;
 }
 
+uint64_t hton64(const uint64_t n) {    // convert a host uint64_t number to network order
+  uint64_t result = n; // presume bigendian -- already in network order
+  if (config.endianness == SS_LITTLE_ENDIAN) {
+    uint32_t lo = n & 0xFFFFFFFF;
+    uint64_t hi64 = n >> 32;
+    uint32_t hi = hi64 & 0xFFFFFFFF;
+    lo = htonl(lo);
+    hi = htonl(hi);
+    result = lo;
+    result = result << 32;
+    result = result + hi;
+  }
+  return result;
+}
+
 pthread_mutex_t barrier_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void memory_barrier() {
@@ -2288,13 +2303,15 @@ int string_update_with_size(char **str, int *flag, char *s, size_t len) {
         *str = p;
         *flag = 1;
       } else {
-        *flag = 0;
+        if (flag)
+          *flag = 0;
       }
     } else {
       // old string is non-NULL, new string is NULL or length 0
       free(*str);
       *str = NULL;
-      *flag = 1;
+      if (flag)
+        *flag = 1;
     }
   } else { // old string is NULL
     if ((s) && (len)) {
@@ -2303,13 +2320,18 @@ int string_update_with_size(char **str, int *flag, char *s, size_t len) {
       memcpy(p, s, len);
       p[len] = '\0';
       *str = p;
-      *flag = 1;
+      if (flag)
+        *flag = 1;
     } else {
       // old string is NULL and new string is NULL or length 0
-      *flag = 0; // so no change
+      if (flag)
+        *flag = 0; // so no change
     }
   }
-  return *flag;
+  int response = 0;
+  if (flag)
+    response = *flag;
+  return response;
 }
 
 // from https://stackoverflow.com/questions/13663617/memdup-function-in-c, with thanks
