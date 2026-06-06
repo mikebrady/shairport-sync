@@ -97,6 +97,7 @@
 #include "pair_ap/pair.h"
 #include "plists/get_info_response.h"
 #include "ptp-utilities.h"
+#include "metadata/handle_command.h"
 #include <plist/plist.h>
 
 #ifdef HAVE_LIBPLIST_GE_2_3_0
@@ -911,7 +912,7 @@ void handle_record_2(rtsp_conn_info *conn, __attribute((unused)) rtsp_message *r
 #endif
 
 void handle_record(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
-  debug(1, "Connection %d: RECORD", conn->connection_number);
+  debug(4, "Connection %d: RECORD", conn->connection_number);
   if ((conn != NULL) && (principal_conn == conn)) {
     if (conn->player_thread)
       warn("Connection %d: RECORD: Duplicate RECORD message -- ignored", conn->connection_number);
@@ -1360,8 +1361,11 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
             ", flushUntilSeq: %" PRIu64 ".",
             conn->connection_number, flushUntilTS, flushUntilSeq & 0x7fffff);
       conn->ap2_play_enabled = 0; // stop trying to play audio
-      ptp_send_control_message_string(
-          "P"); // "P"ause signify clock no longer valid and will be restarted by a subsequent play
+      // ptp_send_control_message_string(
+      //     "P"); // "P"ause signify clock no longer valid and will be restarted by a subsequent play
+      // debug(1, "FLUSHBUFFERED calling reset_ptp_anchor_info");
+      reset_ptp_anchor_info(conn); // stop the clock for an immediate flush until it is restarted using SETRATEANCHORI      
+      
     } else {
       // look for a record slot that isn't in use
       unsigned int i = 0;
@@ -1411,9 +1415,9 @@ void handle_unimplemented_ap1(__attribute((unused)) rtsp_conn_info *conn, rtsp_m
 }
 
 void handle_setrateanchori(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
-  debug(2, "Connection %d: SETRATEANCHORI %s :: Content-Length %d", conn->connection_number,
+  debug(4, "Connection %d: SETRATEANCHORI %s :: Content-Length %d", conn->connection_number,
         req->path, req->contentlength);
-  debug_log_rtsp_message(3, "SETRATEANCHORI", req);
+  debug_log_rtsp_message_conn(conn, 4, "SETRATEANCHORI", req);
   plist_t messagePlist = plist_from_rtsp_content(req);
 
   if (messagePlist != NULL) {
@@ -2086,89 +2090,38 @@ void handle_feedback(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message 
   }
 }
 
-void handle_command(rtsp_conn_info *conn, rtsp_message *req,
-                    __attribute__((unused)) rtsp_message *resp) {
-  debug(4, "Connection %d from \"%s\": POST %s Content-Length %d", conn->connection_number, conn->ap2_client_name, req->path, req->contentlength);
-  debug_log_rtsp_message(4, NULL, req);
-  if (rtsp_message_contains_plist(req)) {
-    // we are not going to load the plist here because we don't wamt
-    // to incur the memory and processing cost. So we'll just send it to the
-    // metadata handling code and it can be dealt with there.
-#ifdef CONFIG_METADATA
-    send_metadata('ssnc', 'copl', req->content, req->contentlength, req,
-                  1); // COmmand PList (and release 'req' afterwards)
-#endif
-    /*
-    plist_t command_dict = NULL;
-    plist_from_memory(req->content, req->contentlength, &command_dict);
-    if (command_dict != NULL) {
-      // we have a plist -- try to get the dict item keyed to "updateMRSupportedCommands"
-      plist_t item = plist_dict_get_item(command_dict, "type");
-      if (item != NULL) {
-        char *typeValue = NULL;
-        plist_get_string_val(item, &typeValue);
-        debug(1, "Connection %d: POST /command plist type \"%s\" received.",
-              conn->connection_number, typeValue);
-        debug_log_rtsp_message(1, NULL, req);
-        if ((typeValue != NULL) && (strcmp(typeValue, "updateMRSupportedCommands") == 0)) {
-          item = plist_dict_get_item(command_dict, "params");
-          if (item != NULL) {
-            // the item should be a dict
-            plist_t item_array = plist_dict_get_item(item, "mrSupportedCommandsFromSender");
-            if (item_array != NULL) {
-              // here we have an array of data items
-              uint32_t items = plist_array_get_size(item_array);
-              if (items) {
-                uint32_t item_number;
-                for (item_number = 0; item_number < items; item_number++) {
-                  plist_t the_item = plist_array_get_item(item_array, item_number);
-                  char *buff = NULL;
-                  uint64_t length = 0;
-                  plist_get_data_val(the_item, &buff, &length);
-                  // debug(1,"Item %d, length: %" PRId64 " bytes", item_number, length);
-                  if ((buff != NULL) && (length >= strlen("bplist00")) &&
-                      (strstr(buff, "bplist00") == buff)) {
-                    // debug(1,"Contains a plist.");
-                    plist_t subsidiary_plist = NULL;
-                    plist_from_memory(buff, length, &subsidiary_plist);
-                    if (subsidiary_plist) {
-                      char *printable_plist = plist_as_xml_text(subsidiary_plist);
-                      if (printable_plist) {
-                        debug(4, "Connection %d:\n==\n%s\n==", conn->connection_number,
-    printable_plist); free(printable_plist); } else { debug(1, "Can't print the plist!");
-                      }
-                      plist_free(subsidiary_plist);
-                    } else {
-                      debug(1, "Can't access the plist!");
-                    }
-                  }
-                  if (buff != NULL)
-                    free(buff);
-                }
-              }
-            } else {
-              debug(1, "Connection %d: POST /command no mrSupportedCommandsFromSender item.",
-                    conn->connection_number);
-            }
-          } else {
-            debug(1, "Connection %d: POST /command no params dict.", conn->connection_number);
-          }
-          resp->respcode = 200;
-        }
-        if (typeValue != NULL)
-          free(typeValue);
-      } else {
-        debug(2, "Connection %d: Could not find a \"type\" item.", conn->connection_number);
-      }
 
-      plist_free(command_dict);
+
+void handle_command(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
+  // first, check that this is an airplay 2 session
+  if (conn->airplay_type == ap_2) {
+    if (rtsp_message_contains_plist(req)) {
+      // we are not going to load the plist here because we don't wamt
+      // to incur the memory and processing cost. So we'll just send it to the
+      // metadata handling code and it can be dealt with there.
+#ifdef CONFIG_METADATA
+      send_metadata('ssnc', 'copl', req->content, req->contentlength, req,
+                    1); // COmmand PList (and release 'req' afterwards)
+#ifdef CONFIG_METADATA_HUB
+      // if we are using the metadata hub, we need to extract some of the fields here,
+      // for example the artwork, and forward them to the hub
+      plist_t command_dict = NULL;
+      plist_from_memory(req->content, req->contentlength, &command_dict);
+      if (command_dict != NULL) {
+        metadata_hub_handle_command_plist(command_dict);
+        plist_free(command_dict);
+      } else {
+        debug(1, "Connection %d: POST /command  -- cannot extract the plist", conn->connection_number);
+      }
+#endif
+#endif
     } else {
-      debug(1, "Connection %d: POST /command plist cannot be inputted.", conn->connection_number);
+      debug(1, "Connection %d: POST /command contains no plist", conn->connection_number);
     }
-    */
   } else {
-    debug(1, "Connection %d: POST /command contains no plist", conn->connection_number);
+    debug(1, "handle_command called for a non-AirPlay 2 connection");
   }
+  resp->respcode = 200;
 }
 
 void handle_audio_mode(rtsp_conn_info *conn, rtsp_message *req,
@@ -2474,7 +2427,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
           }
         }
         
-        debug(1, "Connection %d from \"%s\": %s SETUP %s Content-Length %d", conn->connection_number, conn->ap2_client_name, get_category_string(conn->airplay_stream_category), req->path, req->contentlength);        
+        debug(2, "Connection %d from \"%s\": %s SETUP %s Content-Length %d", conn->connection_number, conn->ap2_client_name, get_category_string(conn->airplay_stream_category), req->path, req->contentlength);        
         debug_log_rtsp_message_conn(
             conn, 2, "Initial (i.e. no streams array) SETUP (AirPlay 2) incoming message", req);
 
