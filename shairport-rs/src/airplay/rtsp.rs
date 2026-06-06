@@ -93,14 +93,17 @@ async fn handle_connection(
     pairing: Arc<PairingService>,
     player: SharedPlayer,
 ) -> anyhow::Result<()> {
+    debug!(%peer, "RTSP connection opened");
     let mut buf = Vec::with_capacity(8192);
     let mut session = RtspSession::default();
     loop {
         let mut chunk = [0u8; 4096];
         let read = stream.read(&mut chunk).await?;
         if read == 0 {
+            debug!(%peer, "RTSP connection closed by client (read EOF)");
             return Ok(());
         }
+        trace!(%peer, bytes_read = read, "RTSP raw read");
         buf.extend_from_slice(&chunk[..read]);
         while let Some((mut request, consumed)) = parse_request(&buf) {
             log_request(peer, &request);
@@ -139,8 +142,14 @@ async fn handle_connection(
             }
 
             log_response(peer, &request, &response);
-            stream.write_all(&response.to_bytes()).await?;
+            let wire = response.to_bytes();
+            trace!(%peer, wire_len = wire.len(), wire = %String::from_utf8_lossy(&wire), "RTSP response wire");
+            stream.write_all(&wire).await?;
             buf.drain(..consumed);
+        }
+        // If we have residual data but no complete message, log at trace
+        if !buf.is_empty() {
+            trace!(%peer, pending = buf.len(), pending_hex = ?buf, "RTSP incomplete frame waiting for more data");
         }
     }
 }
@@ -157,13 +166,29 @@ fn route_request(
         state.set_client_name(client_name.clone());
     }
 
+    // Log any request body at debug level for non-OPTIONS methods
+    if request.method != "OPTIONS" && request.method != "GET_PARAMETER" {
+        debug!(
+            method = %request.method,
+            uri = %request.uri,
+            content_type = request.headers.get("Content-Type").map(|s| s.as_str()).unwrap_or(""),
+            body_len = request.body.len(),
+            body_hex = %body_preview(&request.body),
+            "RTSP handler"
+        );
+    }
+
     match (request.method.as_str(), request.uri.as_str()) {
-        ("OPTIONS", _) => response(200, "OK")
-            .header(
-                "Public",
-                "ANNOUNCE, SETUP, RECORD, PAUSE, FLUSH, FLUSHBUFFERED, TEARDOWN, OPTIONS, POST, GET, PUT, SETPEERS",
-            )
-            .with_cseq(request),
+        ("OPTIONS", _) => {
+            let public = if config.airplay2_enabled {
+                "ANNOUNCE, SETUP, RECORD, PAUSE, FLUSH, FLUSHBUFFERED, TEARDOWN, OPTIONS, POST, GET, PUT, SETPEERS"
+            } else {
+                "ANNOUNCE, SETUP, RECORD, PAUSE, FLUSH, TEARDOWN, OPTIONS, GET_PARAMETER, SET_PARAMETER"
+            };
+            response(200, "OK")
+                .header("Public", public)
+                .with_cseq(request)
+        }
         ("GET", "/info") | ("GET", "info") => {
             response(200, "OK")
                 .header("Content-Type", "application/x-apple-binary-plist")
@@ -171,6 +196,7 @@ fn route_request(
                 .with_cseq(request)
         }
         ("ANNOUNCE", _) => {
+            info!("AP1 ANNOUNCE received ({} bytes body)", request.body.len());
             let sdp = String::from_utf8_lossy(&request.body);
             let parsed = parse_sdp(&sdp);
             state.set_source_format(parsed.source_format_description());
@@ -304,6 +330,8 @@ fn route_request(
                 response(501, "Not Implemented").with_cseq(request)
             } else {
                 // Classic AP1 SETUP
+                info!("AP1 SETUP — requesting audio on ports {} {} {}",
+                    config.audio_port, config.control_port, config.timing_port);
                 let server_port = config.audio_port;
                 let control_port = config.control_port;
                 let timing_port = config.timing_port;
@@ -357,7 +385,14 @@ fn route_request(
             info!("AP1 TEARDOWN");
             response(200, "OK").with_cseq(request)
         }
-        _ => response(404, "Not Found").with_cseq(request),
+        _ => {
+            warn!(
+                method = %request.method,
+                uri = %request.uri,
+                "unhandled RTSP method — responding 404"
+            );
+            response(404, "Not Found").with_cseq(request)
+        },
     }
 }
 
@@ -383,6 +418,18 @@ fn log_request(peer: SocketAddr, request: &RtspRequest) {
     );
 }
 
+/// Log the raw wire bytes of a request (called from handle_connection at trace level)
+fn log_raw_request(peer: SocketAddr, raw: &[u8], consumed: usize) {
+    if consumed > 0 {
+        trace!(
+            %peer,
+            consumed,
+            raw = %std::str::from_utf8(&raw[..consumed]).unwrap_or("<non-utf8>"),
+            "RTSP raw request consumed"
+        );
+    }
+}
+
 fn log_response(peer: SocketAddr, request: &RtspRequest, response: &RtspResponse) {
     debug!(
         %peer,
@@ -390,12 +437,13 @@ fn log_response(peer: SocketAddr, request: &RtspRequest, response: &RtspResponse
         uri = %request.uri,
         cseq = request.headers.get("CSeq").map(String::as_str).unwrap_or(""),
         status = response.code,
+        reason = response.reason,
         content_length = response.body.len(),
+        response_headers = ?response.headers,
         "RTSP response"
     );
     trace!(
         %peer,
-        headers = ?response.headers,
         body_preview = %body_preview(&response.body),
         "RTSP response details"
     );
@@ -719,10 +767,13 @@ fn find_header_end(buf: &[u8]) -> Option<usize> {
 }
 
 fn response(code: u16, reason: &'static str) -> RtspResponse {
+    let mut headers = BTreeMap::new();
+    headers.insert("Server".to_string(), "AirTunes/105.1".to_string());
+    headers.insert("Content-Length".to_string(), "0".to_string());
     RtspResponse {
         code,
         reason,
-        headers: BTreeMap::new(),
+        headers,
         body: Vec::new(),
     }
 }
