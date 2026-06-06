@@ -23,7 +23,7 @@ use tracing::{info, warn};
 
 use crate::{
     api::ApiContext,
-    config::Config,
+    config::{Config, PtpBackendName},
     mdns::{MdnsAdvertiser, MdnsBackend},
     state::AppState,
 };
@@ -72,11 +72,29 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let ptp_handle = if config.ptp.enabled {
-        Some(ptp::spawn_ptp_service(config.ptp.clone(), app_state.clone()).await?)
-    } else {
-        None
-    };
+    let ptp_handle =
+        if config.airplay.enabled && config.airplay.airplay2_enabled && config.ptp.enabled {
+            match config.ptp.backend {
+                PtpBackendName::Embedded => {
+                    match ptp::spawn_ptp_service(config.ptp.clone(), app_state.clone()).await {
+                        Ok(handle) => Some(handle),
+                        Err(err) => {
+                            warn!(%err, "embedded PTP service not started");
+                            app_state.set_diagnostic("ptp_error", err.to_string());
+                            None
+                        }
+                    }
+                }
+                PtpBackendName::Nqptp => {
+                    info!("external nqptp configured; embedded PTP socket bind skipped");
+                    app_state.set_diagnostic("ptp_backend", "nqptp".to_string());
+                    None
+                }
+                PtpBackendName::Off => None,
+            }
+        } else {
+            None
+        };
 
     let rtsp_handle = if config.airplay.enabled {
         Some(airplay::rtsp::spawn_rtsp_server(config.airplay.clone(), app_state.clone(), player.clone()).await?)

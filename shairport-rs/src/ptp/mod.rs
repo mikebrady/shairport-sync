@@ -6,6 +6,7 @@ use std::{
 use anyhow::Context;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
+use socket2::{Domain, Protocol, Socket, Type};
 use tokio::{
     net::UdpSocket,
     task::JoinHandle,
@@ -151,12 +152,8 @@ pub async fn spawn_ptp_service(
 ) -> anyhow::Result<JoinHandle<()>> {
     let event_addr = SocketAddr::from(([0, 0, 0, 0], config.event_port));
     let general_addr = SocketAddr::from(([0, 0, 0, 0], config.general_port));
-    let event_socket = UdpSocket::bind(event_addr)
-        .await
-        .with_context(|| format!("failed to bind PTP event port {event_addr}"))?;
-    let general_socket = UdpSocket::bind(general_addr)
-        .await
-        .with_context(|| format!("failed to bind PTP general port {general_addr}"))?;
+    let event_socket = bind_ptp_socket(event_addr, "event")?;
+    let general_socket = bind_ptp_socket(general_addr, "general")?;
 
     let servo = PtpServo::new();
     state.mark_ptp_running();
@@ -189,6 +186,30 @@ pub async fn spawn_ptp_service(
             }
         }
     }))
+}
+
+fn bind_ptp_socket(addr: SocketAddr, name: &str) -> anyhow::Result<UdpSocket> {
+    let socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))
+        .with_context(|| format!("failed to create PTP {name} UDP socket for {addr}"))?;
+    socket
+        .set_reuse_address(true)
+        .with_context(|| format!("failed to set SO_REUSEADDR on PTP {name} socket {addr}"))?;
+
+    #[cfg(unix)]
+    socket
+        .set_reuse_port(true)
+        .with_context(|| format!("failed to set SO_REUSEPORT on PTP {name} socket {addr}"))?;
+
+    socket
+        .bind(&addr.into())
+        .with_context(|| format!("failed to bind PTP {name} UDP socket on {addr}"))?;
+    socket
+        .set_nonblocking(true)
+        .with_context(|| format!("failed to set PTP {name} socket nonblocking on {addr}"))?;
+
+    let std_socket: std::net::UdpSocket = socket.into();
+    UdpSocket::from_std(std_socket)
+        .with_context(|| format!("failed to attach PTP {name} socket {addr} to Tokio"))
 }
 
 async fn run_event_socket(socket: UdpSocket, state: AppState, servo: PtpServo) {
@@ -348,7 +369,7 @@ mod tests {
     fn clock_servo_converges() {
         let mut servo = ClockServo::new();
         assert!(!servo.locked);
-        for i in 0..25 {
+        for _ in 0..25 {
             servo.update_offset(1000, 0x42);
         }
         assert!(servo.locked);

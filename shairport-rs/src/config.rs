@@ -83,8 +83,17 @@ pub enum AudioHostName {
 #[serde(default)]
 pub struct PtpConfig {
     pub enabled: bool,
+    pub backend: PtpBackendName,
     pub event_port: u16,
     pub general_port: u16,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum PtpBackendName {
+    Embedded,
+    Nqptp,
+    Off,
 }
 
 impl Config {
@@ -161,9 +170,21 @@ impl Default for PtpConfig {
     fn default() -> Self {
         Self {
             enabled: true,
+            backend: PtpBackendName::Embedded,
             event_port: 319,
             general_port: 320,
         }
+    }
+}
+
+impl fmt::Display for PtpBackendName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let value = match self {
+            Self::Embedded => "embedded",
+            Self::Nqptp => "nqptp",
+            Self::Off => "off",
+        };
+        f.write_str(value)
     }
 }
 
@@ -211,11 +232,15 @@ mod tests {
             [audio]
             backend = "cpal"
             host = "asio"
+
+            [ptp]
+            backend = "nqptp"
             "#,
         )
         .unwrap();
 
         assert_eq!(config.mdns.backend, MdnsBackendName::DnsSd);
         assert_eq!(config.audio.host, AudioHostName::Asio);
+        assert_eq!(config.ptp.backend, PtpBackendName::Nqptp);
     }
 }

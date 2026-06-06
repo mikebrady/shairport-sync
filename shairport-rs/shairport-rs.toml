@@ -22,5 +22,6 @@ host = "default"
 
 [ptp]
 enabled = true
+backend = "embedded"
 event_port = 319
 general_port = 320
