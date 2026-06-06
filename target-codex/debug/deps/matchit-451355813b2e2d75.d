@@ -1,0 +1,12 @@
+D:\Documents\GitHub\shairport-sync\target-codex\debug\deps\matchit-451355813b2e2d75.d: C:\Users\TAY\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\matchit-0.8.4\src\lib.rs C:\Users\TAY\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\matchit-0.8.4\src\error.rs C:\Users\TAY\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\matchit-0.8.4\src\escape.rs C:\Users\TAY\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\matchit-0.8.4\src\params.rs C:\Users\TAY\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\matchit-0.8.4\src\router.rs C:\Users\TAY\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\matchit-0.8.4\src\tree.rs
+
+D:\Documents\GitHub\shairport-sync\target-codex\debug\deps\libmatchit-451355813b2e2d75.rlib: C:\Users\TAY\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\matchit-0.8.4\src\lib.rs C:\Users\TAY\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\matchit-0.8.4\src\error.rs C:\Users\TAY\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\matchit-0.8.4\src\escape.rs C:\Users\TAY\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\matchit-0.8.4\src\params.rs C:\Users\TAY\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\matchit-0.8.4\src\router.rs C:\Users\TAY\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\matchit-0.8.4\src\tree.rs
+
+D:\Documents\GitHub\shairport-sync\target-codex\debug\deps\libmatchit-451355813b2e2d75.rmeta: C:\Users\TAY\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\matchit-0.8.4\src\lib.rs C:\Users\TAY\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\matchit-0.8.4\src\error.rs C:\Users\TAY\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\matchit-0.8.4\src\escape.rs C:\Users\TAY\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\matchit-0.8.4\src\params.rs C:\Users\TAY\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\matchit-0.8.4\src\router.rs C:\Users\TAY\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\matchit-0.8.4\src\tree.rs
+
+C:\Users\TAY\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\matchit-0.8.4\src\lib.rs:
+C:\Users\TAY\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\matchit-0.8.4\src\error.rs:
+C:\Users\TAY\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\matchit-0.8.4\src\escape.rs:
+C:\Users\TAY\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\matchit-0.8.4\src\params.rs:
+C:\Users\TAY\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\matchit-0.8.4\src\router.rs:
+C:\Users\TAY\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\matchit-0.8.4\src\tree.rs:

@@ -250,7 +250,7 @@ static int count_leading_zeros(int input) {
   return output;
 }
 #else
-#warning using generic count leading zeroes. You may wish to write one for your CPU / compiler
+/* using generic count leading zeroes. Consider writing a CPU-specific one */
 static int count_leading_zeros(int input) {
   int output = 0;
   int curbyte = 0;
