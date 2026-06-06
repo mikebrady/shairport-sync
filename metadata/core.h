@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../rtsp.h"
+#include "rtsp.h"
 #include "common.h"
 #include "config.h"
 #include "pc_queue.h"
