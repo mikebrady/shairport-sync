@@ -257,7 +257,7 @@ void dbus_metadata_watcher(struct metadata_bundle *argc, __attribute__((unused))
   // Add in the Track ID based on the 'mper' metadata if it is valid
   if (argc->item_id_is_valid != 0) {
     char trackidstring[128];
-    snprintf(trackidstring, sizeof(trackidstring), "/org/gnome/ShairportSync/%" PRIX64 "",
+    snprintf(trackidstring, sizeof(trackidstring), "/org/gnome/ShairportSync/%" PRIu64 "",
              argc->item_id);
     GVariant *trackid = g_variant_new("o", trackidstring);
     g_variant_builder_add(dict_builder, "{sv}", "mpris:trackid", trackid);
@@ -276,6 +276,12 @@ void dbus_metadata_watcher(struct metadata_bundle *argc, __attribute__((unused))
   if (argc->track_name) {
     GVariant *track_name = g_variant_new("s", argc->track_name);
     g_variant_builder_add(dict_builder, "{sv}", "xesam:title", track_name);
+  }
+  
+  // Add the track number if it is valid
+  if (argc->track_number_is_valid != 0) {
+    GVariant *tracknumber = g_variant_new("x", argc->track_number);
+    g_variant_builder_add(dict_builder, "{sv}", "xesam:trackNumber", tracknumber);
   }
 
   // Add the album name if it exists
@@ -320,12 +326,8 @@ void dbus_metadata_watcher(struct metadata_bundle *argc, __attribute__((unused))
     g_variant_builder_add(dict_builder, "{sv}", "xesam:genre", genre);
   }
 
-  if (argc->songtime_in_milliseconds_is_valid != 0) {
-    uint64_t track_length_in_microseconds = argc->songtime_in_milliseconds;
-    track_length_in_microseconds *= 1000; // to microseconds in 64-bit precision
-                                          // Make up the track name and album name
-    // debug(1, "Set tracklength to %" PRId64 ".", track_length_in_microseconds);
-    GVariant *tracklength = g_variant_new("x", track_length_in_microseconds);
+  if (argc->songtime_in_microseconds_is_valid != 0) {
+    GVariant *tracklength = g_variant_new("x", argc->songtime_in_microseconds);
     g_variant_builder_add(dict_builder, "{sv}", "mpris:length", tracklength);
   }
 
