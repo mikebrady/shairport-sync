@@ -33,10 +33,6 @@
 
 #ifdef CONFIG_AIRPLAY_2
 #include <plist/plist.h>
-#ifdef HAVE_LIBPLIST_GE_2_3_0
-#define plist_from_memory(plist_data, length, plist)                                               \
-  plist_from_memory((plist_data), (length), (plist), NULL)
-#endif
 #endif
 
 // every time we want to retain or release a reference count, lock it with this
