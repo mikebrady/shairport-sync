@@ -695,6 +695,7 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
                 // char *st;
                 int32_t r;
                 uint32_t ui;
+                uint64_t ui64;
                 // uint64_t v;
                 // int i;
 
@@ -834,13 +835,14 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
                 case 'astm':
                   t = sp - item_size;
                   ui = ntohl(*(uint32_t *)(t));
-                  debug(2, "DACP Song Time seen: \"%u\" of length %u.", ui, item_size);
-                  if (ui != metadata_store.songtime_in_milliseconds) {
-                    metadata_store.songtime_in_milliseconds = ui;
-                    metadata_store.songtime_in_milliseconds_changed = 1;
-                    metadata_store.songtime_in_milliseconds_is_valid = 1;
-                    debug(2, "DACP Song Time set to: \"%u\"",
-                          metadata_store.songtime_in_milliseconds);
+                  debug(2, "DACP Song Time seen: \"%u\" milliseconds, of length %u.", ui, item_size);
+                  ui64 = ui * 1000; // microseconds
+                  if (ui64 != metadata_store.songtime_in_microseconds) {
+                    metadata_store.songtime_in_microseconds = ui64;
+                    metadata_store.songtime_in_microseconds_changed = 1;
+                    metadata_store.songtime_in_microseconds_is_valid = 1;
+                    debug(2, "DACP Song Time set to: %" PRIu64 " microseconds.",
+                          metadata_store.songtime_in_microseconds);
                   }
                   break;
 
