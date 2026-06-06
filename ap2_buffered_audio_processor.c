@@ -360,6 +360,7 @@ void *rtp_buffered_audio_processor(void *arg) {
 
             conn->ap2_immediate_flush_requested = 0;
             ap2_immediate_flush_requested = 0;
+            // debug(1, "flushed to %u, requested %u.", seq_no, conn->ap2_immediate_flush_until_sequence_number);
 
             // turn off all deferred requests. Not sure if this is right...
             unsigned int f = 0;
@@ -472,16 +473,6 @@ void *rtp_buffered_audio_processor(void *arg) {
 
         int have_valid_time = (frame_to_local_time(timestamp, &buffer_should_be_time, conn) == 0);
 
-        // calculate the lead time to make sure it's not too early...
-        int64_t lead_time = buffer_should_be_time - get_absolute_time_in_ns();
-
-        // debug(1,"play_enabled: %d, have_valid_time: %d,
-        // audio_decoded_buffer_below_desired_length: %d, lead_time * 1E-9: %f,
-        // (config.audio_decoded_buffer_desired_length + 0.1): %f, player_buffer_occupancy: %zu",
-        //  play_enabled, have_valid_time, audio_decoded_buffer_below_desired_length, lead_time *
-        //  1E-9, (config.audio_decoded_buffer_desired_length + 0.1), player_buffer_occupancy
-        // );
-
         // A slight problem here is that counting the number of buffers may not be sufficient,
         // because the actual device may be
         // taking data in large quantities at a single time.
@@ -490,13 +481,15 @@ void *rtp_buffered_audio_processor(void *arg) {
         // is enough of a lead time maintained for sufficient audio to be available to prevent
         // the device from under-running.
 
-        // If means that the Shairport Sync player might riun out of audio occasionally, but
+        // If means that the Shairport Sync player might run out of audio occasionally, but
         // as long as the device has enough in its buffer, everything is fine.
 
         // But it also means that Shairport Sync's buffers must be sufficient to hold all the
         // entire lead-time's amount of audio in case the device has a zero-sized buffer.
         
         if (have_valid_time != 0) {
+          // calculate the lead time to make sure it's not too early...
+          int64_t lead_time = buffer_should_be_time - get_absolute_time_in_ns();
           if ((play_enabled != 0) && (lead_time * 1E-9 < (config.audio_decoded_buffer_desired_length + 0.1))) {
               //            && (audio_decoded_buffer_below_desired_length != 0)  
             very_early_packets_signalled = 0; // reset very early packet warning signaller
@@ -673,8 +666,8 @@ void *rtp_buffered_audio_processor(void *arg) {
           } else {
             if ((very_early_packets_signalled == 0) && (lead_time * 1E-9 > (config.audio_decoded_buffer_desired_length + 0.2))) {
               debug(1,
-                    "incoming frame suddenly (?) has a lead time of %f seconds, with a desired "
-                    "decoded buffer length of %f.",
+                    "incoming frame, sequence number %u suddenly has a lead time of %f seconds, with a desired "
+                    "decoded buffer length of %f.", seq_no,
                     1.0 * lead_time * 1E-9, config.audio_decoded_buffer_desired_length);
               very_early_packets_signalled = 1;
             }
