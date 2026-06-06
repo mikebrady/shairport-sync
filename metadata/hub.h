@@ -103,6 +103,10 @@ typedef struct metadata_bundle {
   char *track_name;
   int track_name_changed;
 
+  unsigned int track_number;
+  int track_number_changed;
+  int track_number_is_valid;
+
   char *artist_name;
   int artist_name_changed;
 
@@ -142,14 +146,13 @@ typedef struct metadata_bundle {
   char *sort_composer;
   int sort_composer_changed;
 
-  uint32_t songtime_in_milliseconds;
-  int songtime_in_milliseconds_changed;
-  int songtime_in_milliseconds_is_valid;
+  uint64_t songtime_in_microseconds;
+  int songtime_in_microseconds_changed;
+  int songtime_in_microseconds_is_valid;
 
   // end
 
-  play_status_type
-      player_state; // this is the state of the actual player itself, which can be a bit noisy.
+  play_status_type player_state; // this is the state of the actual player itself, which can be a bit noisy.
   active_state_type active_state;
 
   int speaker_volume; // this is the actual speaker volume, allowing for the main volume and the
@@ -168,8 +171,8 @@ void add_metadata_watcher(metadata_watcher fn, void *userdata);
 void metadata_hub_init(void);
 void metadata_hub_stop(void);
 void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uint32_t length);
-void metadata_hub_reset_track_metadata(void);
-void metadata_hub_release_track_artwork(void);
+int metadata_hub_process_picture(const char *data, const size_t length);
+void metadata_hub_reset_npi(); // reset "now playing" information
 
 // these functions lock and unlock the read-write mutex on the metadata hub and run the watchers
 // afterwards

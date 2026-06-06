@@ -129,7 +129,7 @@ void run_metadata_watchers(void) {
   metadata_store.sort_artist_changed = 0;
   metadata_store.sort_album_changed = 0;
   metadata_store.sort_composer_changed = 0;
-  metadata_store.songtime_in_milliseconds_changed = 0;
+  metadata_store.songtime_in_microseconds_changed = 0;
 }
 
 void metadata_hub_unlock_hub_mutex_cleanup(__attribute__((unused)) void *arg) {
@@ -169,6 +169,7 @@ void _metadata_hub_modify_epilog(int modified, const char *filename, const int l
   metadata_store.dacp_server_has_been_active =
       metadata_store.dacp_server_active; // set the scanner_has_been_active now.
   if (modified) {
+    // debug(1, "run metadata watchers");
     run_metadata_watchers();
   }
   if (metadata_hub_re_lock_access_is_delayed) {
@@ -210,6 +211,8 @@ char *metadata_write_image_file(const char *buf, int len) {
   // it will return a path to the image file allocated with malloc.
   // free it if you don't need it.
 
+  int oldState;
+  pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
   char *path = NULL;                                 // this will be what is returned
   if (strcmp(config.cover_art_cache_dir, "") != 0) { // an empty string means do not write the file
 
@@ -337,7 +340,32 @@ char *metadata_write_image_file(const char *buf, int len) {
             config.cover_art_cache_dir);
     }
   }
+  pthread_setcancelstate(oldState, NULL);
   return path;
+}
+
+int metadata_hub_process_picture(const char *data, const size_t length) {
+  int changed = 0;
+  if (length > 0) {
+    if (data != NULL) {
+      char uri[2048];
+      if ((length > 16) && (strcmp(config.cover_art_cache_dir, "") != 0)) { // if it's okay to write the file
+        char *pathname = metadata_write_image_file(data, length);
+        snprintf(uri, sizeof(uri), "file://%s", pathname);
+        free(pathname);
+        if (string_update(&metadata_store.cover_art_pathname, &metadata_store.cover_art_pathname_changed, uri))  { // if the picture's file path is different from the stored one...
+          changed = 1;
+        }
+      }
+    } else {
+      debug(1, "faulty picture data -- data NULL with non-zero length!");
+    }
+  } else { // length of incoming picture is zero...
+    if (string_update(&metadata_store.cover_art_pathname, &metadata_store.cover_art_pathname_changed, NULL))  { // drop an existing picture 
+      changed = 1;
+    }
+  }
+  return changed;
 }
 
 int metadata_packet_item_changed = 0; // set if any parsed part of a metadata stream changes
@@ -392,13 +420,14 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     } break;
     case 'astm': {
       uint32_t ui = ntohl(*(uint32_t *)data);
-      debug(3, "MH Song Time seen: \"%u\" of length %u.", ui, length);
-      if ((ui != metadata_store.songtime_in_milliseconds) ||
-          (metadata_store.songtime_in_milliseconds_is_valid == 0)) {
-        metadata_store.songtime_in_milliseconds = ui;
-        metadata_store.songtime_in_milliseconds_changed = 1;
-        metadata_store.songtime_in_milliseconds_is_valid = 1;
-        debug(3, "MH Song Time set to: \"%u\"", metadata_store.songtime_in_milliseconds);
+      debug(3, "MH Song Time seen: \"%u\" milliseconds, of length %u.", ui, length);
+      uint64_t ui64 = ui * 1000; // microseconds
+      if ((ui64 != metadata_store.songtime_in_microseconds) ||
+          (metadata_store.songtime_in_microseconds_is_valid == 0)) {
+        metadata_store.songtime_in_microseconds = ui64;
+        metadata_store.songtime_in_microseconds_changed = 1;
+        metadata_store.songtime_in_microseconds_is_valid = 1;
+        debug(3, "MH Song Time set to: %" PRIu64 " microseconds.", metadata_store.songtime_in_microseconds);
         metadata_packet_item_changed = 1;
       }
     } break;
@@ -451,6 +480,18 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       }
       free(cs);
       break;
+    case 'astn': {
+      uint16_t ui = ntohs(*(uint16_t *)data);
+      debug(3, "MH Track Number seen: \"%u\" of length %u.", ui, length);
+      if ((ui != metadata_store.track_number) ||
+          (metadata_store.track_number_is_valid == 0)) {
+        metadata_store.track_number = ui;
+        metadata_store.track_number_changed = 1;
+        metadata_store.track_number_is_valid = 1;
+        debug(3, "MH Track Number set to: \"%u\"", metadata_store.track_number);
+        metadata_packet_item_changed = 1;
+      }
+    } break;
     case 'ascp':
       cs = strndup(data, length);
       if (string_update(&metadata_store.composer, &metadata_store.composer_changed, cs)) {
@@ -552,30 +593,8 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       changed = metadata_packet_item_changed;
       break;
     case 'PICT':
-      debug(3, "MH Picture received, length %u bytes.", length);
-
-      char uri[2048];
-      if ((length > 16) &&
-          (strcmp(config.cover_art_cache_dir, "") != 0)) { // if it's okay to write the file
-                                                           // make this uncancellable
-        int oldState;
-        pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
-        char *pathname = metadata_write_image_file(data, length);
-        snprintf(uri, sizeof(uri), "file://%s", pathname);
-        free(pathname);
-        pthread_setcancelstate(oldState, NULL);
-
-      } else {
-        uri[0] = '\0';
-      }
-      if (string_update(&metadata_store.cover_art_pathname,
-                        &metadata_store.cover_art_pathname_changed,
-                        uri)) // if the picture's file path is different from the stored one...
-        changed = 1;
-      else
-        changed = 0;
-      //      pthread_cleanup_pop(0); // don't remove the lock -- it'll have been done
-      break;
+      changed = metadata_hub_process_picture(data, length);
+       break;
     case 'clip':
       cs = strndup(data, length);
       if (string_update(&metadata_store.client_ip, &metadata_store.client_ip_changed, cs)) {
@@ -699,7 +718,6 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
         changed = 1;
       }
     } break;
-
     default: {
       char typestring[5];
       uint32_t tm = htonl(type);
@@ -721,7 +739,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     }
   }
   pthread_cleanup_pop(0); // don't remove the lock
-  metadata_hub_modify_epilog(changed);
+  metadata_hub_modify_epilog(1);
 }
 
 void metadata_hub_close(void) {}
@@ -775,3 +793,31 @@ int send_metadata_to_hub_queue(const uint32_t type, const uint32_t code, const c
                                const uint32_t length, rtsp_message *carrier, int block) {
   return send_metadata_to_queue(&metadata_hub_queue, type, code, data, length, carrier, block);
 }
+
+// reset all now playing information
+void metadata_hub_reset_npi() {
+  // debug(1, "metadata_hub_reset_npi");
+  metadata_store.song_data_kind = 0;
+  metadata_store.song_data_kind_is_valid = 0;
+  metadata_store.item_id = 0;
+  metadata_store.item_id_is_valid = 0;
+  metadata_store.songtime_in_microseconds = 0;
+  metadata_store.songtime_in_microseconds_is_valid = 0;
+  metadata_store.track_number = 0;
+  metadata_store.track_number_is_valid = 0;
+  string_update(&metadata_store.cover_art_pathname, NULL, NULL); // leave any existing picture file there, to minimise repeated deletion and replacement of the same file
+  string_update(&metadata_store.album_name, NULL, NULL);
+  string_update(&metadata_store.artist_name, NULL, NULL);
+  string_update(&metadata_store.album_artist_name, NULL, NULL);
+  string_update(&metadata_store.comment, NULL, NULL);
+  string_update(&metadata_store.genre,NULL, NULL);
+  string_update(&metadata_store.track_name, NULL, NULL);
+  string_update(&metadata_store.composer, NULL, NULL);
+  string_update(&metadata_store.song_description, NULL, NULL);
+  string_update(&metadata_store.song_album_artist, NULL, NULL);
+  string_update(&metadata_store.sort_name, NULL, NULL);
+  string_update(&metadata_store.sort_artist, NULL, NULL);
+  string_update(&metadata_store.sort_album, NULL, NULL);
+  string_update(&metadata_store.sort_composer, NULL, NULL);
+}
+
