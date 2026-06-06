@@ -153,7 +153,6 @@ async fn handle_connection(
         }
     }
 }
-
 fn route_request(
     config: &AirplayConfig,
     state: &AppState,
@@ -241,6 +240,12 @@ fn route_request(
         }
         ("POST", "/pair-setup") => {
             let reply = pairing.handle(&mut session.pairing, PairingEndpoint::Setup, &request.body);
+            info!(
+                status = reply.status_code,
+                body_len = reply.body.len(),
+                has_shared_secret = session.pairing.shared_secret().is_some(),
+                "pair-setup step"
+            );
             response(reply.status_code, "OK")
                 .header("Content-Type", "application/octet-stream")
                 .body(reply.body)
@@ -274,9 +279,15 @@ fn route_request(
                 && let Some(shared_secret) = session.pairing.shared_secret()
             {
                 session.control_cipher = Some(PairCipher::control_for_server(shared_secret));
-                // Also create event cipher
                 session.event_cipher = Some(PairCipher::events_for_server(shared_secret));
                 info!("AP2 control and event ciphers activated");
+            } else {
+                info!(
+                    status = reply.status_code,
+                    has_cipher = session.control_cipher.is_some(),
+                    has_shared = session.pairing.shared_secret().is_some(),
+                    "pair-verify"
+                );
             }
             response(reply.status_code, "OK")
                 .header("Content-Type", "application/octet-stream")
@@ -704,13 +715,14 @@ fn apply_set_parameter(state: &AppState, request: &RtspRequest) {
 }
 
 fn get_info_body(config: &AirplayConfig) -> Vec<u8> {
+    use crate::airplay::txt_records::{AP2_FEATURES, AP2_STATUS_FLAGS};
     let mut dict = Dictionary::new();
     dict.insert("deviceID".into(), Value::String(config.device_id.clone()));
     dict.insert(
         "features".into(),
-        Value::Integer(plist::Integer::from(496_155_701_824_000u64)),
+        Value::Integer(plist::Integer::from(AP2_FEATURES)),
     );
-    dict.insert("statusFlags".into(), Value::Integer(plist::Integer::from(4u64)));
+    dict.insert("statusFlags".into(), Value::Integer(plist::Integer::from(AP2_STATUS_FLAGS as u64)));
     dict.insert("sourceVersion".into(), Value::String("366.0".to_string()));
     dict.insert("name".into(), Value::String("Shairport RS".to_string()));
     dict.insert("model".into(), Value::String("ShairportSync".to_string()));
@@ -768,7 +780,7 @@ fn find_header_end(buf: &[u8]) -> Option<usize> {
 
 fn response(code: u16, reason: &'static str) -> RtspResponse {
     let mut headers = BTreeMap::new();
-    headers.insert("Server".to_string(), "AirTunes/105.1".to_string());
+    headers.insert("Server".to_string(), "AirTunes/366.0".to_string());
     headers.insert("Content-Length".to_string(), "0".to_string());
     RtspResponse {
         code,

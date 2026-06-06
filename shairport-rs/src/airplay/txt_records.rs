@@ -7,8 +7,8 @@ const SRCVERS: &str = "366.0";
 const OSVERS: &str = "15.0";
 const FIRMWARE_VERSION: &str = "5.0-shairport-rs";
 
-const AP2_FEATURES: u64 = 0x1C340405D4A00 & !((1 << 17) | (1 << 16) | (1 << 15) | (1u64 << 50));
-const AP2_STATUS_FLAGS: u32 = 0x4;
+pub const AP2_FEATURES: u64 = 0x1C340405D4A00 & !((1 << 17) | (1 << 16) | (1 << 15) | (1u64 << 50));
+pub const AP2_STATUS_FLAGS: u32 = 0x4;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct AirplayService {

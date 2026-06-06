@@ -43,7 +43,7 @@ pub struct PairingReply {
 #[derive(Default)]
 pub struct PairingSession {
     setup: Option<PairSetupState>,
-    setup_shared_secret: Option<Vec<u8>>,
+    setup_shared_secret: Option<[u8; 32]>,
     verify_agreement: Option<AgreementKey>,
     verify_shared_secret: Option<[u8; 32]>,
     verify_session_key: Option<DerivedKey>,
@@ -99,7 +99,10 @@ impl Eq for PairSetupState {}
 
 impl PairingSession {
     pub fn shared_secret(&self) -> Option<&[u8; 32]> {
-        self.verify_shared_secret.as_ref().filter(|_| self.verified)
+        self.verify_shared_secret
+            .as_ref()
+            .or_else(|| self.setup_shared_secret.as_ref())
+            .filter(|_| self.verified)
     }
 }
 
@@ -310,7 +313,12 @@ impl PairingService {
             }
         };
         let shared_secret = match verifier.verify_client(&client_proof) {
-            Ok(shared_secret) => shared_secret.to_vec(),
+            Ok(shared_secret) => {
+                let mut arr = [0u8; 32];
+                let len = shared_secret.len().min(32);
+                arr[..len].copy_from_slice(&shared_secret[..len]);
+                arr
+            }
             Err(err) => {
                 warn!(%err, "pair-setup client proof rejected");
                 return auth_error(4);
