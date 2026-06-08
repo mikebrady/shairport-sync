@@ -97,7 +97,15 @@ async fn main() -> anyhow::Result<()> {
         };
 
     let rtsp_handle = if config.airplay.enabled {
-        Some(airplay::rtsp::spawn_rtsp_server(config.airplay.clone(), app_state.clone(), player.clone()).await?)
+        Some(
+            airplay::rtsp::spawn_rtsp_server(
+                config.airplay.clone(),
+                app_state.clone(),
+                audio_engine.clone(),
+                player.clone(),
+            )
+            .await?,
+        )
     } else {
         None
     };
@@ -113,18 +121,7 @@ async fn main() -> anyhow::Result<()> {
         Vec::new()
     };
 
-    let buffered_audio_handle = if config.airplay.airplay2_enabled {
-        Some(
-            airplay::buffered_audio::spawn_buffered_audio_receiver(
-                config.airplay.clone(),
-                app_state.clone(),
-                audio_engine.clone(),
-            )
-            .await?,
-        )
-    } else {
-        None
-    };
+    // AP2 buffered audio listeners are session-owned and opened during RTSP stream SETUP.
 
     let mdns_backend = MdnsBackend::from_config(&config.mdns);
     let mdns_advertiser = MdnsAdvertiser::new(mdns_backend, config.mdns.clone());
@@ -170,9 +167,6 @@ async fn main() -> anyhow::Result<()> {
         handle.abort();
     }
     for handle in rtp_handles {
-        handle.abort();
-    }
-    if let Some(handle) = buffered_audio_handle {
         handle.abort();
     }
     drop(audio_output);

@@ -1,7 +1,4 @@
-use std::{
-    net::SocketAddr,
-    sync::Arc,
-};
+use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Context;
 use parking_lot::RwLock;
@@ -10,8 +7,7 @@ use tokio::{net::UdpSocket, task::JoinHandle};
 use tracing::{debug, info, warn};
 
 use crate::{
-    audio::AudioEngine, config::AirplayConfig, decoder, player::SharedPlayer,
-    state::AppState,
+    audio::AudioEngine, config::AirplayConfig, decoder, player::SharedPlayer, state::AppState,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -38,8 +34,13 @@ pub async fn spawn_rtp_receivers(
     audio_engine: AudioEngine,
     player: SharedPlayer,
 ) -> anyhow::Result<Vec<JoinHandle<()>>> {
-    let audio =
-        bind_audio_channel(config.audio_port, state.clone(), audio_engine.clone(), player).await?;
+    let audio = bind_audio_channel(
+        config.audio_port,
+        state.clone(),
+        audio_engine.clone(),
+        player,
+    )
+    .await?;
     let control = bind_channel(RtpChannel::Control, config.control_port, state.clone()).await?;
     let timing = bind_channel(RtpChannel::Timing, config.timing_port, state).await?;
     Ok(vec![audio, control, timing])
@@ -95,13 +96,18 @@ async fn bind_audio_channel(
                             // For classic AP, the first IV comes from the SDP `a=aesiv`
                             // but we need to start with the last ciphertext block as chaining.
                             // If no SDP IV is set, use a zero IV.
-                            *iv_guard = Some(state.alac_magic_cookie.read().as_ref()
-                                .and_then(|_| {
-                                    // The actual initial IV is stored in the SDP aesiv field
-                                    // which isn't in alac_magic_cookie. Use zero as fallback.
-                                    None
-                                })
-                                .unwrap_or([0u8; 16]));
+                            *iv_guard = Some(
+                                state
+                                    .alac_magic_cookie
+                                    .read()
+                                    .as_ref()
+                                    .and_then(|_| {
+                                        // The actual initial IV is stored in the SDP aesiv field
+                                        // which isn't in alac_magic_cookie. Use zero as fallback.
+                                        None
+                                    })
+                                    .unwrap_or([0u8; 16]),
+                            );
                         }
                     }
 
@@ -173,14 +179,18 @@ async fn bind_audio_channel(
                                     player.push_frame(ts, float_samples.clone(), rate, 2);
 
                                     // Push directly to audio engine for now
-                                    let enqueued =
-                                        audio_engine.enqueue_interleaved(&float_samples);
+                                    let enqueued = audio_engine.enqueue_interleaved(&float_samples);
                                     if enqueued < float_samples.len() {
-                                        debug!("audio ring buffer full, dropped {} samples",
-                                               float_samples.len() - enqueued);
+                                        debug!(
+                                            "audio ring buffer full, dropped {} samples",
+                                            float_samples.len() - enqueued
+                                        );
                                     }
                                 }
-                                state.record_rtp_packet(RtpChannel::Audio, parse_rtp_packet_inner(&buf[..len]));
+                                state.record_rtp_packet(
+                                    RtpChannel::Audio,
+                                    parse_rtp_packet_inner(&buf[..len]),
+                                );
                             }
                             Err(e) => {
                                 warn!(%e, "ALAC decode failed");
@@ -209,7 +219,11 @@ async fn bind_channel(
             match socket.recv_from(&mut buf).await {
                 Ok((len, _)) => {
                     if let Some(packet) = parse_rtp_packet(&buf[..len]) {
-                        debug!(?channel, seq = packet.sequence_number, "RTP packet received");
+                        debug!(
+                            ?channel,
+                            seq = packet.sequence_number,
+                            "RTP packet received"
+                        );
                         state.record_rtp_packet(channel, packet);
                     }
                 }

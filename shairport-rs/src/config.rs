@@ -25,6 +25,8 @@ pub struct AirplayConfig {
     pub enabled: bool,
     pub airplay2_enabled: bool,
     pub bind: String,
+    pub ap2_bind_ip: Option<String>,
+    pub advertised_format_policy: AdvertisedFormatPolicy,
     pub device_id: String,
     pub pin: String,
     pub identity_key_path: Option<String>,
@@ -32,6 +34,13 @@ pub struct AirplayConfig {
     pub audio_port: u16,
     pub control_port: u16,
     pub timing_port: u16,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AdvertisedFormatPolicy {
+    AlacOnly,
+    AacIfAvailable,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -128,6 +137,8 @@ impl Default for AirplayConfig {
             identity_key_path: None,
             pairing_db_path: None,
             bind: "0.0.0.0:7000".to_string(),
+            ap2_bind_ip: None,
+            advertised_format_policy: AdvertisedFormatPolicy::AlacOnly,
             device_id: "00:11:22:33:44:55".to_string(),
             audio_port: 6000,
             control_port: 6001,
@@ -215,6 +226,16 @@ impl fmt::Display for AudioHostName {
     }
 }
 
+impl fmt::Display for AdvertisedFormatPolicy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let value = match self {
+            Self::AlacOnly => "alac-only",
+            Self::AacIfAvailable => "aac-if-available",
+        };
+        f.write_str(value)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -235,6 +256,9 @@ mod tests {
 
             [ptp]
             backend = "nqptp"
+            
+            [airplay]
+            advertised_format_policy = "alac-only"
             "#,
         )
         .unwrap();
@@ -242,5 +266,9 @@ mod tests {
         assert_eq!(config.mdns.backend, MdnsBackendName::DnsSd);
         assert_eq!(config.audio.host, AudioHostName::Asio);
         assert_eq!(config.ptp.backend, PtpBackendName::Nqptp);
+        assert_eq!(
+            config.airplay.advertised_format_policy,
+            AdvertisedFormatPolicy::AlacOnly
+        );
     }
 }

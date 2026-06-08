@@ -12,11 +12,7 @@ use tokio::{
 };
 use tracing::{debug, info, warn};
 
-use crate::{
-    audio::AudioEngine,
-    config::AirplayConfig,
-    state::AppState,
-};
+use crate::{audio::AudioEngine, config::AirplayConfig, state::AppState};
 
 /// SSRC constants for AP2 audio formats
 const SSRC_ALAC_44100_S16_2: u32 = 0x00000001;
@@ -157,7 +153,10 @@ async fn handle_buffered_stream(
         }
         let enqueued = audio_engine.enqueue_interleaved(&float_samples);
         if enqueued < float_samples.len() {
-            debug!("audio buffer full, dropped {}", float_samples.len() - enqueued);
+            debug!(
+                "audio buffer full, dropped {}",
+                float_samples.len() - enqueued
+            );
         }
 
         state.record_rtp_packet(

@@ -1,5 +1,5 @@
 use aes::Aes128;
-use cbc::cipher::{block_padding::NoPadding, BlockDecryptMut, KeyIvInit};
+use cbc::cipher::{BlockDecryptMut, KeyIvInit, block_padding::NoPadding};
 use rsa::{Oaep, RsaPrivateKey};
 use sha1::Sha1;
 
@@ -8,7 +8,11 @@ type Aes128CbcDec = cbc::Decryptor<Aes128>;
 /// Decrypt an AES-128-CBC encrypted payload in place.
 /// `key` must be 16 bytes. `iv` must be 16 bytes.
 /// Returns the number of plaintext bytes (same as input, padded).
-pub fn aes_cbc_decrypt_in_place(key: &[u8; 16], iv: &[u8; 16], data: &mut [u8]) -> Result<(), &'static str> {
+pub fn aes_cbc_decrypt_in_place(
+    key: &[u8; 16],
+    iv: &[u8; 16],
+    data: &mut [u8],
+) -> Result<(), &'static str> {
     let plaintext = Aes128CbcDec::new(key.into(), iv.into())
         .decrypt_padded_mut::<NoPadding>(data)
         .map_err(|_| "AES-CBC decryption failed")?;
@@ -23,7 +27,10 @@ pub fn generate_rsa_key() -> RsaPrivateKey {
 }
 
 /// Decrypt an RSA-OAEP-SHA1 encrypted blob using the private key.
-pub fn rsa_oaep_decrypt(private_key: &RsaPrivateKey, ciphertext: &[u8]) -> Result<Vec<u8>, &'static str> {
+pub fn rsa_oaep_decrypt(
+    private_key: &RsaPrivateKey,
+    ciphertext: &[u8],
+) -> Result<Vec<u8>, &'static str> {
     private_key
         .decrypt(Oaep::new::<Sha1>(), ciphertext)
         .map_err(|_| "RSA-OAEP decryption failed")

@@ -1,8 +1,4 @@
-use std::{
-    collections::BTreeMap,
-    sync::Arc,
-    time::SystemTime,
-};
+use std::{collections::BTreeMap, sync::Arc, time::SystemTime};
 
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};

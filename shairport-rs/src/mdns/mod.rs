@@ -130,6 +130,7 @@ impl MdnsAdvertiser {
         command: &str,
         services: Vec<AirplayService>,
     ) -> anyhow::Result<()> {
+        self.stop_external_children();
         for service in services {
             let mut cmd = Command::new(command);
             if command.eq_ignore_ascii_case("dns-sd") || command.ends_with("dns-sd") {
@@ -159,6 +160,32 @@ impl MdnsAdvertiser {
             self.external_children.lock().push(child);
         }
         Ok(())
+    }
+
+    fn stop_external_children(&self) {
+        let mut children = self.external_children.lock();
+        for child in children.iter_mut() {
+            match child.try_wait() {
+                Ok(Some(_)) => {}
+                Ok(None) => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                }
+                Err(_) => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                }
+            }
+        }
+        children.clear();
+    }
+}
+
+impl Drop for MdnsAdvertiser {
+    fn drop(&mut self) {
+        if Arc::strong_count(&self.external_children) == 1 {
+            self.stop_external_children();
+        }
     }
 }
 

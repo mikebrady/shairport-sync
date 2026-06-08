@@ -2,7 +2,6 @@
 ///
 /// Supports ALAC via the integrated Hammerton decoder.
 /// When the `ffmpeg` feature is enabled, also supports AAC and resampling.
-
 use crate::decoder::AlacDecoder;
 
 /// Supported audio formats.
@@ -69,7 +68,11 @@ pub enum AudioDecoder {
 }
 
 impl AudioDecoder {
-    pub fn new_alac(sample_size: u32, channels: u16, magic_cookie: &[u8]) -> Result<Self, &'static str> {
+    pub fn new_alac(
+        sample_size: u32,
+        channels: u16,
+        magic_cookie: &[u8],
+    ) -> Result<Self, &'static str> {
         AlacDecoder::new(sample_size, channels, magic_cookie).map(Self::Alac)
     }
 
@@ -78,14 +81,16 @@ impl AudioDecoder {
         Self::Ffmpeg(Box::new(FfmpegDecoder::new(format)))
     }
 
-    pub fn decode(&mut self, input: &[u8], format: AudioFormat) -> Result<DecodedFrame, &'static str> {
+    pub fn decode(
+        &mut self,
+        input: &[u8],
+        format: AudioFormat,
+    ) -> Result<DecodedFrame, &'static str> {
         match self {
             Self::Alac(dec) => {
                 let raw = dec.decode_frame(input)?;
-                let float_samples: Vec<f32> = raw
-                    .iter()
-                    .map(|&s| (s as f32) / 2147483648.0)
-                    .collect();
+                let float_samples: Vec<f32> =
+                    raw.iter().map(|&s| (s as f32) / 2147483648.0).collect();
                 Ok(DecodedFrame {
                     samples: float_samples,
                     sample_rate: format.sample_rate(),
@@ -114,7 +119,11 @@ impl FfmpegDecoder {
         }
     }
 
-    pub fn decode(&mut self, _input: &[u8], _format: AudioFormat) -> Result<DecodedFrame, &'static str> {
+    pub fn decode(
+        &mut self,
+        _input: &[u8],
+        _format: AudioFormat,
+    ) -> Result<DecodedFrame, &'static str> {
         Err("FFmpeg decoder not yet implemented")
     }
 }
@@ -186,10 +195,22 @@ mod tests {
 
     #[test]
     fn audio_format_from_ssrc() {
-        assert_eq!(AudioFormat::from_ssrc(0x00000001), Some(AudioFormat::Alac44100S16Stereo));
-        assert_eq!(AudioFormat::from_ssrc(0x00000007), Some(AudioFormat::Alac48000S24Stereo));
-        assert_eq!(AudioFormat::from_ssrc(0x00000004), Some(AudioFormat::Aac44100F24Stereo));
-        assert_eq!(AudioFormat::from_ssrc(0x00000005), Some(AudioFormat::Aac48000F24Stereo));
+        assert_eq!(
+            AudioFormat::from_ssrc(0x00000001),
+            Some(AudioFormat::Alac44100S16Stereo)
+        );
+        assert_eq!(
+            AudioFormat::from_ssrc(0x00000007),
+            Some(AudioFormat::Alac48000S24Stereo)
+        );
+        assert_eq!(
+            AudioFormat::from_ssrc(0x00000004),
+            Some(AudioFormat::Aac44100F24Stereo)
+        );
+        assert_eq!(
+            AudioFormat::from_ssrc(0x00000005),
+            Some(AudioFormat::Aac48000F24Stereo)
+        );
         assert_eq!(AudioFormat::from_ssrc(0x99999999), None);
     }
 

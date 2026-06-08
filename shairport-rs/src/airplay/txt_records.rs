@@ -87,7 +87,7 @@ pub fn raop_ap2_txt(config: &Config) -> Vec<String> {
         format!("ft=0x{features_lo:X},0x{features_hi:X}"),
         format!("fv={FIRMWARE_VERSION}"),
         format!("sf=0x{AP2_STATUS_FLAGS:X}"),
-        "md=0,1,2".to_string(),
+        "md=0,1".to_string(),
         "am=ShairportSync".to_string(),
         format!("pk={}", public_key_hex(&config.airplay.device_id)),
         "tp=UDP".to_string(),
@@ -135,7 +135,7 @@ fn public_key_hex(device_id: &str) -> String {
         .collect()
 }
 
-fn stable_uuid(label: &str, device_id: &str) -> Uuid {
+pub(crate) fn stable_uuid(label: &str, device_id: &str) -> Uuid {
     Uuid::new_v5(
         &Uuid::NAMESPACE_DNS,
         format!("shairport-rs:{label}:{device_id}").as_bytes(),
@@ -170,8 +170,16 @@ mod tests {
         config.airplay.airplay2_enabled = true;
         let services = airplay_services(&config);
         assert_eq!(services.len(), 2);
-        assert!(services.iter().any(|s| s.service_type == "_raop._tcp.local."));
-        assert!(services.iter().any(|s| s.service_type == "_airplay._tcp.local."));
+        assert!(
+            services
+                .iter()
+                .any(|s| s.service_type == "_raop._tcp.local.")
+        );
+        assert!(
+            services
+                .iter()
+                .any(|s| s.service_type == "_airplay._tcp.local.")
+        );
     }
 
     #[test]

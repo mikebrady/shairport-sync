@@ -62,10 +62,9 @@ impl SdpSession {
                 match key.as_str() {
                     "rsaaeskey" => {
                         if let Some(v) = value {
-                            params.rsaaeskey =
-                                base64::engine::general_purpose::STANDARD
-                                    .decode(v.trim())
-                                    .ok();
+                            params.rsaaeskey = base64::engine::general_purpose::STANDARD
+                                .decode(v.trim())
+                                .ok();
                         }
                     }
                     "aesiv" => {
@@ -281,13 +280,15 @@ mod tests {
 
     #[test]
     fn builds_alac_specific_config_correctly() {
-        let numbers = vec!["352", "0", "16", "40", "10", "14", "2", "255", "0", "0", "44100"];
+        let numbers = vec![
+            "352", "0", "16", "40", "10", "14", "2", "255", "0", "0", "44100",
+        ];
         let asc = build_alac_specific_config(&numbers);
         assert_eq!(asc.len(), 24);
         // 352 = 0x160 in big-endian
         assert_eq!(&asc[0..4], &[0, 0, 1, 0x60]);
-        assert_eq!(asc[5], 16);  // bitDepth
-        assert_eq!(asc[9], 2);   // numChannels
+        assert_eq!(asc[5], 16); // bitDepth
+        assert_eq!(asc[9], 2); // numChannels
         // maxRun = 255 = 0x00FF
         assert_eq!(asc[10], 0);
         assert_eq!(asc[11], 0xFF);

@@ -44,8 +44,16 @@ impl IdentityKey {
         }
     }
 
+    pub fn for_device_id(device_id: &str) -> Self {
+        let mut seed = [0u8; 32];
+        let id = device_id.as_bytes();
+        let len = id.len().min(seed.len());
+        seed[..len].copy_from_slice(&id[..len]);
+        Self::from_seed(seed)
+    }
+
     /// Load identity key from a file, or generate and save if not present.
-    pub fn load_or_generate(path: Option<&std::path::Path>) -> Self {
+    pub fn load_or_generate(path: Option<&std::path::Path>, device_id: &str) -> Self {
         if let Some(path) = path {
             if let Ok(data) = std::fs::read(path) {
                 if data.len() == 32 {
@@ -61,8 +69,8 @@ impl IdentityKey {
             }
             return key;
         }
-        // Use deterministic seed from device_id as fallback
-        Self::generate()
+        // Match the advertised TXT `pk` when no persistent identity file is configured.
+        Self::for_device_id(device_id)
     }
 
     pub fn verifying_key(&self) -> [u8; 32] {
@@ -90,11 +98,7 @@ pub fn nonce_from_label(label: &[u8]) -> [u8; 12] {
 }
 
 pub fn accessory_public_key_for_device_id(device_id: &str) -> [u8; 32] {
-    let mut seed = [0u8; 32];
-    let id = device_id.as_bytes();
-    let len = id.len().min(seed.len());
-    seed[..len].copy_from_slice(&id[..len]);
-    IdentityKey::from_seed(seed).verifying_key()
+    IdentityKey::for_device_id(device_id).verifying_key()
 }
 
 impl AgreementKey {
@@ -188,9 +192,9 @@ impl PairCipher {
         Self::new(
             shared_secret,
             write_salt.as_bytes(),
-            b"DataStream-Write-Encryption-Key",
+            b"DataStream-Input-Encryption-Key",
             read_salt.as_bytes(),
-            b"DataStream-Read-Encryption-Key",
+            b"DataStream-Output-Encryption-Key",
         )
     }
 
@@ -266,6 +270,15 @@ mod tests {
         let signature = key.sign(b"message");
         assert!(IdentityKey::verify(&public, b"message", &signature));
         assert!(!IdentityKey::verify(&public, b"other", &signature));
+    }
+
+    #[test]
+    fn device_id_identity_matches_advertised_public_key() {
+        let device_id = "00:11:22:33:44:55";
+        assert_eq!(
+            IdentityKey::load_or_generate(None, device_id).verifying_key(),
+            accessory_public_key_for_device_id(device_id)
+        );
     }
 
     #[test]
