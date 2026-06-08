@@ -255,10 +255,10 @@ void dbus_metadata_watcher(struct metadata_bundle *argc, __attribute__((unused))
   }
 
   // Add in the Track ID based on the 'mper' metadata if it is valid
-  if (argc->item_id_is_valid != 0) {
+  if (is_valid_uint64_record(&argc->item_id)) {
     char trackidstring[128];
     snprintf(trackidstring, sizeof(trackidstring), "/org/gnome/ShairportSync/%" PRIu64 "",
-             argc->item_id);
+             argc->item_id.item);
     GVariant *trackid = g_variant_new("o", trackidstring);
     g_variant_builder_add(dict_builder, "{sv}", "mpris:trackid", trackid);
   }
@@ -267,8 +267,8 @@ void dbus_metadata_watcher(struct metadata_bundle *argc, __attribute__((unused))
   // It seems that this is 0 for a timed play, e.g. a track or an album, but is 1 for an untimed
   // play, such as a stream.
 
-  if (argc->song_data_kind_is_valid != 0) {
-    GVariant *songdatakind = g_variant_new_uint32(argc->song_data_kind);
+  if (is_valid_uint64_record(&argc->song_data_kind)) {
+    GVariant *songdatakind = g_variant_new_uint32(argc->song_data_kind.item);
     g_variant_builder_add(dict_builder, "{sv}", "sps:songdatakind", songdatakind);
   }
 
@@ -277,10 +277,11 @@ void dbus_metadata_watcher(struct metadata_bundle *argc, __attribute__((unused))
     GVariant *track_name = g_variant_new("s", argc->track_name);
     g_variant_builder_add(dict_builder, "{sv}", "xesam:title", track_name);
   }
-  
+
   // Add the track number if it is valid
-  if (argc->track_number_is_valid != 0) {
-    GVariant *tracknumber = g_variant_new("x", argc->track_number);
+
+  if (is_valid_uint64_record(&argc->track_number)) {
+    GVariant *tracknumber = g_variant_new("x", argc->track_number.item);
     g_variant_builder_add(dict_builder, "{sv}", "xesam:trackNumber", tracknumber);
   }
 
@@ -326,7 +327,7 @@ void dbus_metadata_watcher(struct metadata_bundle *argc, __attribute__((unused))
     g_variant_builder_add(dict_builder, "{sv}", "xesam:genre", genre);
   }
 
-  if (argc->songtime_in_microseconds_is_valid != 0) {
+  if (is_valid_uint64_record(&argc->songtime_in_microseconds)) {
     GVariant *tracklength = g_variant_new("x", argc->songtime_in_microseconds);
     g_variant_builder_add(dict_builder, "{sv}", "mpris:length", tracklength);
   }
@@ -931,8 +932,7 @@ static gboolean on_handle_quit(ShairportSync *skeleton, GDBusMethodInvocation *i
 }
 
 static gboolean on_handle_mule(ShairportSync *skeleton, GDBusMethodInvocation *invocation,
-                                         const gint command,
-                                         __attribute__((unused)) gpointer user_data) {
+                               const gint command, __attribute__((unused)) gpointer user_data) {
   debug(1, "Mule with command %d.", command);
   ap2_event_send_dev_mule(command);
   shairport_sync_complete_mule(skeleton, invocation);
@@ -1038,9 +1038,8 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
 
   g_signal_connect(shairportSyncSkeleton, "handle-remote-command",
                    G_CALLBACK(on_handle_remote_command), NULL);
-  
-  g_signal_connect(shairportSyncSkeleton, "handle-mule",
-                   G_CALLBACK(on_handle_mule), NULL);
+
+  g_signal_connect(shairportSyncSkeleton, "handle-mule", G_CALLBACK(on_handle_mule), NULL);
 
   g_signal_connect(shairportSyncSkeleton, "handle-drop-session", G_CALLBACK(on_handle_drop_session),
                    NULL);
@@ -1200,9 +1199,13 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
   shairport_sync_set_service_name(SHAIRPORT_SYNC(shairportSyncSkeleton), config.service_name);
 
 #ifdef CONFIG_AIRPLAY_2
-  shairport_sync_set_protocol(SHAIRPORT_SYNC(shairportSyncSkeleton), "AirPlay 2");
-#else
-  shairport_sync_set_protocol(SHAIRPORT_SYNC(shairportSyncSkeleton), "AirPlay");
+  if (config.service_type == APST_airplay2) {
+    shairport_sync_set_protocol(SHAIRPORT_SYNC(shairportSyncSkeleton), "AirPlay 2");
+  } else {
+#endif
+    shairport_sync_set_protocol(SHAIRPORT_SYNC(shairportSyncSkeleton), "AirPlay");
+#ifdef CONFIG_AIRPLAY_2
+  }
 #endif
 
   shairport_sync_set_version(SHAIRPORT_SYNC(shairportSyncSkeleton), PACKAGE_VERSION);

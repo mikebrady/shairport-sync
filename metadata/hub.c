@@ -73,11 +73,64 @@ int metadata_hub_initialised = 0;
 
 pthread_rwlock_t metadata_hub_re_lock = PTHREAD_RWLOCK_INITIALIZER;
 
-int string_update(char **str, int *flag, char *s) {
-  if (s)
-    return string_update_with_size(str, flag, s, strlen(s));
+// update *str with the string specified by *data and length
+int update_string_record_with_data(char **str, const char *data, size_t length) {
+  int changed = 0;
+  if (((*str != NULL) && (data != NULL) && (strlen(*str) == length) &&
+       (strncmp(*str, data, length) == 0)) ||
+      ((*str == NULL) && ((data == NULL) || (length == 0)))) {
+    changed = 0;
+  } else {
+    changed = 1;
+    if (*str != NULL)
+      free(*str);
+    if ((data == NULL) || (length == 0))
+      *str = NULL;
+    else
+      *str = strndup(data, length);
+  }
+  return changed;
+}
+
+// free any pre-assigned string before copying in a new string
+// return 1 if anything has changed, 0 otherwise
+int update_string_record(char **str, const char *s) {
+  int result = 0;
+  if (s == NULL)
+    result = update_string_record_with_data(str, NULL, 0);
   else
-    return string_update_with_size(str, flag, NULL, 0);
+    result = update_string_record_with_data(str, s, strlen(s));
+  return result;
+}
+
+int update_uint64_record(uint64_record_t *record, const uint64_t value) {
+  int changed = 0;
+  if (record != NULL) {
+    changed = ((record->item != value) || (record->valid == 0));
+    record->item = value;
+    record->valid = 1;
+  } else {
+    debug(1, "passing a NULL uint64_record_t pointer to update_uint64_record!");
+  }
+  return changed;
+}
+
+int is_valid_uint64_record(uint64_record_t *record) {
+  int valid = 0;
+  if (record != NULL) {
+    valid = record->valid;
+  } else {
+    debug(1, "passing a NULL uint64_record_t pointer to is_valid_uint64_record!");
+  }
+  return valid;
+}
+
+void invalidate_uint64_record(uint64_record_t *record) {
+  if (record != NULL) {
+    record->valid = 0;
+  } else {
+    debug(1, "passing a NULL uint64_record_t pointer to invalidate_uint64_record!");
+  }
 }
 
 void metadata_hub_init(void) {
@@ -108,28 +161,28 @@ void run_metadata_watchers(void) {
     }
   }
   // turn off changed flags
-  metadata_store.cover_art_pathname_changed = 0;
-  metadata_store.client_ip_changed = 0;
-  metadata_store.client_name_changed = 0;
-  metadata_store.server_ip_changed = 0;
-  metadata_store.progress_string_changed = 0;
-  metadata_store.item_id_changed = 0;
-  metadata_store.item_composite_id_changed = 0;
-  metadata_store.artist_name_changed = 0;
-  metadata_store.album_artist_name_changed = 0;
-  metadata_store.album_name_changed = 0;
-  metadata_store.song_data_kind_changed = 0;
-  metadata_store.track_name_changed = 0;
-  metadata_store.genre_changed = 0;
-  metadata_store.comment_changed = 0;
-  metadata_store.composer_changed = 0;
-  metadata_store.file_kind_changed = 0;
-  metadata_store.song_description_changed = 0;
-  metadata_store.song_album_artist_changed = 0;
-  metadata_store.sort_artist_changed = 0;
-  metadata_store.sort_album_changed = 0;
-  metadata_store.sort_composer_changed = 0;
-  metadata_store.songtime_in_microseconds_changed = 0;
+  // metadata_store.cover_art_pathname_changed = 0;
+  // metadata_store.client_ip_changed = 0;
+  // metadata_store.client_name_changed = 0;
+  // metadata_store.server_ip_changed = 0;
+  // metadata_store.progress_string_changed = 0;
+  // metadata_store.item_id_changed = 0;
+  // metadata_store.item_composite_id_changed = 0;
+  // metadata_store.artist_name_changed = 0;
+  // metadata_store.album_artist_name_changed = 0;
+  // metadata_store.album_name_changed = 0;
+  // metadata_store.song_data_kind_changed = 0;
+  // metadata_store.track_name_changed = 0;
+  // metadata_store.genre_changed = 0;
+  // metadata_store.comment_changed = 0;
+  // metadata_store.composer_changed = 0;
+  // metadata_store.file_kind_changed = 0;
+  // metadata_store.song_description_changed = 0;
+  // metadata_store.song_album_artist_changed = 0;
+  // metadata_store.sort_artist_changed = 0;
+  // metadata_store.sort_album_changed = 0;
+  // metadata_store.sort_composer_changed = 0;
+  //  metadata_store.songtime_in_microseconds_changed = 0;
 }
 
 void metadata_hub_unlock_hub_mutex_cleanup(__attribute__((unused)) void *arg) {
@@ -172,6 +225,7 @@ void _metadata_hub_modify_epilog(int modified, const char *filename, const int l
     // debug(1, "run metadata watchers");
     run_metadata_watchers();
   }
+
   if (metadata_hub_re_lock_access_is_delayed) {
     if (last_metadata_hub_modify_prolog_file) {
       debug(1, "Metadata_hub write lock taken at \"%s:%d\" is freed at \"%s:%d\".",
@@ -213,7 +267,7 @@ char *metadata_write_image_file(const char *buf, int len) {
 
   int oldState;
   pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
-  char *path = NULL;                                 // this will be what is returned
+  char *path = NULL;                                         // this will be what is returned
   if (strcmp(config.cover_art_cache_dir, "") != 0) { // an empty string means do not write the file
 
     uint8_t img_md5[16];
@@ -349,21 +403,18 @@ int metadata_hub_process_picture(const char *data, const size_t length) {
   if (length > 0) {
     if (data != NULL) {
       char uri[2048];
-      if ((length > 16) && (strcmp(config.cover_art_cache_dir, "") != 0)) { // if it's okay to write the file
+      if ((length > 16) &&
+          (strcmp(config.cover_art_cache_dir, "") != 0)) { // if it's okay to write the file
         char *pathname = metadata_write_image_file(data, length);
         snprintf(uri, sizeof(uri), "file://%s", pathname);
         free(pathname);
-        if (string_update(&metadata_store.cover_art_pathname, &metadata_store.cover_art_pathname_changed, uri))  { // if the picture's file path is different from the stored one...
-          changed = 1;
-        }
+        changed = update_string_record(&metadata_store.cover_art_pathname, uri);
       }
     } else {
       debug(1, "faulty picture data -- data NULL with non-zero length!");
     }
   } else { // length of incoming picture is zero...
-    if (string_update(&metadata_store.cover_art_pathname, &metadata_store.cover_art_pathname_changed, NULL))  { // drop an existing picture 
-      changed = 1;
-    }
+    changed = update_string_record(&metadata_store.cover_art_pathname, NULL);
   }
   return changed;
 }
@@ -385,23 +436,13 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
   int changed = 0;
   metadata_hub_modify_prolog();
   pthread_cleanup_push(metadata_hub_unlock_hub_mutex_cleanup, NULL);
-
-  char *cs;
   if (type == 'core') {
     switch (code) {
     case 'asdk': {
       // get the one-byte number as an unsigned number
-      int song_data_kind = data[0];           // one byte
-      song_data_kind = song_data_kind & 0xFF; // unsigned
-      debug(3, "MH Song Data Kind seen: \"%d\" of length %u.", song_data_kind, length);
-      if ((song_data_kind != metadata_store.song_data_kind) ||
-          (metadata_store.song_data_kind_is_valid == 0)) {
-        metadata_store.song_data_kind = song_data_kind;
-        metadata_store.song_data_kind_changed = 1;
-        metadata_store.song_data_kind_is_valid = 1;
-        debug(3, "MH Song Data Kind set to: \"%d\"", metadata_store.song_data_kind);
-        metadata_packet_item_changed = 1;
-      }
+      debug(3, "MH Song Data Kind seen: \"%d\" of length %u.", (unsigned)data[0], length);
+      metadata_packet_item_changed |=
+          update_uint64_record(&metadata_store.song_data_kind, (unsigned)data[0]);
     } break;
     case 'mper': {
       // get the 64-bit number as a uint64_t by reading two uint32_t s and combining them
@@ -410,144 +451,93 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       uint64_t ul = ntohl(*(uint32_t *)(data + sizeof(uint32_t))); // and the low order 32 bits
       vl = vl + ul;
       debug(4, "MH Item ID seen: \"%" PRIx64 "\" of length %u.", vl, length);
-      if ((vl != metadata_store.item_id) || (metadata_store.item_id_is_valid == 0)) {
-        metadata_store.item_id = vl;
-        metadata_store.item_id_changed = 1;
-        metadata_store.item_id_is_valid = 1;
-        debug(3, "MH Item ID set to: \"%" PRIx64 "\"", metadata_store.item_id);
-        metadata_packet_item_changed = 1;
-      }
+      metadata_packet_item_changed |= update_uint64_record(&metadata_store.item_id, vl); // item id
     } break;
     case 'astm': {
       uint32_t ui = ntohl(*(uint32_t *)data);
       debug(3, "MH Song Time seen: \"%u\" milliseconds, of length %u.", ui, length);
-      uint64_t ui64 = ui * 1000; // microseconds
-      if ((ui64 != metadata_store.songtime_in_microseconds) ||
-          (metadata_store.songtime_in_microseconds_is_valid == 0)) {
-        metadata_store.songtime_in_microseconds = ui64;
-        metadata_store.songtime_in_microseconds_changed = 1;
-        metadata_store.songtime_in_microseconds_is_valid = 1;
-        debug(3, "MH Song Time set to: %" PRIu64 " microseconds.", metadata_store.songtime_in_microseconds);
-        metadata_packet_item_changed = 1;
-      }
+      metadata_packet_item_changed |=
+          update_uint64_record(&metadata_store.songtime_in_microseconds, ui * 1000); // microseconds
     } break;
     case 'asal':
-      cs = strndup(data, length);
-      if (string_update(&metadata_store.album_name, &metadata_store.album_name_changed, cs)) {
-        debug(3, "MH Album name set to: \"%s\"", metadata_store.album_name);
-        metadata_packet_item_changed = 1;
-      }
-      free(cs);
+      metadata_packet_item_changed |=
+          update_string_record_with_data(&metadata_store.album_name, data, length);
+      debug(3, "MH Album name set to: \"%s\"", metadata_store.album_name);
       break;
     case 'asar':
-      cs = strndup(data, length);
-      if (string_update(&metadata_store.artist_name, &metadata_store.artist_name_changed, cs)) {
-        debug(3, "MH Artist name set to: \"%s\"", metadata_store.artist_name);
-        metadata_packet_item_changed = 1;
-      }
-      free(cs);
+      metadata_packet_item_changed |=
+          update_string_record_with_data(&metadata_store.artist_name, data, length);
+      debug(3, "MH Artist name set to: \"%s\"", metadata_store.artist_name);
       break;
     case 'assl':
-      cs = strndup(data, length);
-      if (string_update(&metadata_store.album_artist_name,
-                        &metadata_store.album_artist_name_changed, cs)) {
-        debug(3, "MH Album Artist name set to: \"%s\"", metadata_store.album_artist_name);
-        metadata_packet_item_changed = 1;
-      }
-      free(cs);
+      metadata_packet_item_changed |=
+          update_string_record_with_data(&metadata_store.album_artist_name, data, length);
+      debug(3, "MH Album Artist name set to: \"%s\"", metadata_store.album_artist_name);
       break;
     case 'ascm':
-      cs = strndup(data, length);
-      if (string_update(&metadata_store.comment, &metadata_store.comment_changed, cs)) {
+      if (update_string_record_with_data(&metadata_store.comment, data, length)) {
         debug(3, "MH Comment set to: \"%s\"", metadata_store.comment);
-        metadata_packet_item_changed = 1;
+        metadata_packet_item_changed |= 1;
       }
-      free(cs);
       break;
     case 'asgn':
-      cs = strndup(data, length);
-      if (string_update(&metadata_store.genre, &metadata_store.genre_changed, cs)) {
+      if (update_string_record_with_data(&metadata_store.genre, data, length)) {
         debug(3, "MH Genre set to: \"%s\"", metadata_store.genre);
-        metadata_packet_item_changed = 1;
+        metadata_packet_item_changed |= 1;
       }
-      free(cs);
       break;
     case 'minm':
-      cs = strndup(data, length);
-      if (string_update(&metadata_store.track_name, &metadata_store.track_name_changed, cs)) {
+      if (update_string_record_with_data(&metadata_store.track_name, data, length)) {
         debug(3, "MH Track Name set to: \"%s\"", metadata_store.track_name);
-        metadata_packet_item_changed = 1;
+        metadata_packet_item_changed |= 1;
       }
-      free(cs);
       break;
     case 'astn': {
       uint16_t ui = ntohs(*(uint16_t *)data);
       debug(3, "MH Track Number seen: \"%u\" of length %u.", ui, length);
-      if ((ui != metadata_store.track_number) ||
-          (metadata_store.track_number_is_valid == 0)) {
-        metadata_store.track_number = ui;
-        metadata_store.track_number_changed = 1;
-        metadata_store.track_number_is_valid = 1;
-        debug(3, "MH Track Number set to: \"%u\"", metadata_store.track_number);
-        metadata_packet_item_changed = 1;
-      }
+      metadata_packet_item_changed |= update_uint64_record(&metadata_store.track_number, ui);
     } break;
     case 'ascp':
-      cs = strndup(data, length);
-      if (string_update(&metadata_store.composer, &metadata_store.composer_changed, cs)) {
+      if (update_string_record_with_data(&metadata_store.composer, data, length)) {
         debug(3, "MH Composer set to: \"%s\"", metadata_store.composer);
-        metadata_packet_item_changed = 1;
+        metadata_packet_item_changed |= 1;
       }
-      free(cs);
       break;
     case 'asdt':
-      cs = strndup(data, length);
-      if (string_update(&metadata_store.song_description, &metadata_store.song_description_changed,
-                        cs)) {
+      if (update_string_record_with_data(&metadata_store.song_description, data, length)) {
         debug(3, "MH Song Description set to: \"%s\"", metadata_store.song_description);
+        metadata_packet_item_changed |= 1;
       }
-      free(cs);
       break;
     case 'asaa':
-      cs = strndup(data, length);
-      if (string_update(&metadata_store.song_album_artist,
-                        &metadata_store.song_album_artist_changed, cs)) {
+      if (update_string_record_with_data(&metadata_store.song_album_artist, data, length)) {
         debug(3, "MH Song Album Artist set to: \"%s\"", metadata_store.song_album_artist);
-        metadata_packet_item_changed = 1;
+        metadata_packet_item_changed |= 1;
       }
-      free(cs);
       break;
     case 'assn':
-      cs = strndup(data, length);
-      if (string_update(&metadata_store.sort_name, &metadata_store.sort_name_changed, cs)) {
+      if (update_string_record_with_data(&metadata_store.sort_name, data, length)) {
         debug(3, "MH Sort Name set to: \"%s\"", metadata_store.sort_name);
-        metadata_packet_item_changed = 1;
+        metadata_packet_item_changed |= 1;
       }
-      free(cs);
       break;
     case 'assa':
-      cs = strndup(data, length);
-      if (string_update(&metadata_store.sort_artist, &metadata_store.sort_artist_changed, cs)) {
+      if (update_string_record_with_data(&metadata_store.sort_artist, data, length)) {
         debug(3, "MH Sort Artist set to: \"%s\"", metadata_store.sort_artist);
-        metadata_packet_item_changed = 1;
+        metadata_packet_item_changed |= 1;
       }
-      free(cs);
       break;
     case 'assu':
-      cs = strndup(data, length);
-      if (string_update(&metadata_store.sort_album, &metadata_store.sort_album_changed, cs)) {
+      if (update_string_record_with_data(&metadata_store.sort_album, data, length)) {
         debug(3, "MH Sort Album set to: \"%s\"", metadata_store.sort_album);
-        metadata_packet_item_changed = 1;
+        metadata_packet_item_changed |= 1;
       }
-      free(cs);
       break;
     case 'assc':
-      cs = strndup(data, length);
-      if (string_update(&metadata_store.sort_composer, &metadata_store.sort_composer_changed, cs)) {
+      if (update_string_record_with_data(&metadata_store.composer, data, length)) {
         debug(3, "MH Sort Composer set to: \"%s\"", metadata_store.sort_composer);
-        metadata_packet_item_changed = 1;
+        metadata_packet_item_changed |= 1;
       }
-      free(cs);
     default:
       /*
           {
@@ -587,89 +577,65 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       break;
     case 'mden':
       if (metadata_packet_item_changed != 0)
-        debug(3, "MH Metadata stream processing end with changes.");
+        debug(4, "MH Metadata stream processing end with changes.");
       else
         debug(4, "MH Metadata stream processing end without changes.");
       changed = metadata_packet_item_changed;
       break;
     case 'PICT':
       changed = metadata_hub_process_picture(data, length);
-       break;
+      break;
     case 'clip':
-      cs = strndup(data, length);
-      if (string_update(&metadata_store.client_ip, &metadata_store.client_ip_changed, cs)) {
-        changed = 1;
-        debug(3, "MH Client IP set to: \"%s\"", metadata_store.client_ip);
-      }
-      free(cs);
+      changed = update_string_record_with_data(&metadata_store.client_ip, data, length);
+      if (changed)
+        debug(1, "MH Client IP set to: \"%s\"", metadata_store.client_ip);
       break;
     case 'snam':
-      cs = strndup(data, length);
-      if (string_update(&metadata_store.client_name, &metadata_store.client_name_changed, cs)) {
-        changed = 1;
-        debug(3, "MH Client Name set to: \"%s\"", metadata_store.client_name);
-      }
-      free(cs);
+      changed = update_string_record_with_data(&metadata_store.client_name, data, length);
+      if (changed)
+        debug(1, "MH Client Name set to: \"%s\"", metadata_store.client_name);
       break;
     case 'prgr':
-      cs = strndup(data, length);
-      if (string_update(&metadata_store.progress_string, &metadata_store.progress_string_changed,
-                        cs)) {
-        changed = 1;
-        debug(3, "MH Progress String set to: \"%s\"", metadata_store.progress_string);
-      }
-      free(cs);
+      changed = update_string_record_with_data(&metadata_store.progress_string, data, length);
+      if (changed)
+        debug(4, "MH Progress String set to: \"%s\"", metadata_store.progress_string);
       break;
     case 'phbt':
-      cs = strndup(data, length);
-      if (string_update(&metadata_store.frame_position_string,
-                        &metadata_store.frame_position_string_changed, cs)) {
-        changed = 1;
+      changed = update_string_record_with_data(&metadata_store.frame_position_string, data, length);
+      if (changed)
         debug(3, "MH Frame Position String set to: \"%s\"", metadata_store.frame_position_string);
-      }
-      free(cs);
       break;
     case 'phb0':
-      cs = strndup(data, length);
-      if (string_update(&metadata_store.first_frame_position_string,
-                        &metadata_store.first_frame_position_string_changed, cs)) {
+      if (update_string_record_with_data(&metadata_store.first_frame_position_string, data,
+                                         length)) {
         changed = 1;
         debug(3, "MH First Frame Position String set to: \"%s\"",
               metadata_store.first_frame_position_string);
       }
-      free(cs);
       break;
     case 'styp':
-      cs = strndup(data, length);
-      if (string_update(&metadata_store.stream_type, &metadata_store.stream_type_changed, cs)) {
+      if (update_string_record_with_data(&metadata_store.stream_type, data, length)) {
         changed = 1;
         debug(3, "MH Stream Type set to: \"%s\"", metadata_store.stream_type);
       }
-      free(cs);
       break;
     case 'sdsc':
-      cs = strndup(data, length);
-      if (string_update(&metadata_store.source_format, &metadata_store.source_format_changed, cs)) {
+      if (update_string_record_with_data(&metadata_store.source_format, data, length)) {
         changed = 1;
         debug(3, "MH Source Format set to: \"%s\"", metadata_store.source_format);
       }
-      free(cs);
       break;
     case 'odsc':
-      cs = strndup(data, length);
-      if (string_update(&metadata_store.output_format, &metadata_store.output_format_changed, cs)) {
+      if (update_string_record_with_data(&metadata_store.output_format, data, length)) {
         changed = 1;
         debug(3, "MH Output Format set to: \"%s\"", metadata_store.output_format);
       }
-      free(cs);
       break;
     case 'svip':
-      cs = strndup(data, length);
-      if (string_update(&metadata_store.server_ip, &metadata_store.server_ip_changed, cs)) {
+      if (update_string_record_with_data(&metadata_store.server_ip, data, length)) {
         changed = 1;
         debug(3, "MH Server IP set to: \"%s\"", metadata_store.server_ip);
       }
-      free(cs);
       break;
     case 'abeg':
       changed = (metadata_store.active_state != AM_ACTIVE);
@@ -739,7 +705,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     }
   }
   pthread_cleanup_pop(0); // don't remove the lock
-  metadata_hub_modify_epilog(1);
+  metadata_hub_modify_epilog(changed);
 }
 
 void metadata_hub_close(void) {}
@@ -797,27 +763,24 @@ int send_metadata_to_hub_queue(const uint32_t type, const uint32_t code, const c
 // reset all now playing information
 void metadata_hub_reset_npi() {
   // debug(1, "metadata_hub_reset_npi");
-  metadata_store.song_data_kind = 0;
-  metadata_store.song_data_kind_is_valid = 0;
-  metadata_store.item_id = 0;
-  metadata_store.item_id_is_valid = 0;
-  metadata_store.songtime_in_microseconds = 0;
-  metadata_store.songtime_in_microseconds_is_valid = 0;
-  metadata_store.track_number = 0;
-  metadata_store.track_number_is_valid = 0;
-  string_update(&metadata_store.cover_art_pathname, NULL, NULL); // leave any existing picture file there, to minimise repeated deletion and replacement of the same file
-  string_update(&metadata_store.album_name, NULL, NULL);
-  string_update(&metadata_store.artist_name, NULL, NULL);
-  string_update(&metadata_store.album_artist_name, NULL, NULL);
-  string_update(&metadata_store.comment, NULL, NULL);
-  string_update(&metadata_store.genre,NULL, NULL);
-  string_update(&metadata_store.track_name, NULL, NULL);
-  string_update(&metadata_store.composer, NULL, NULL);
-  string_update(&metadata_store.song_description, NULL, NULL);
-  string_update(&metadata_store.song_album_artist, NULL, NULL);
-  string_update(&metadata_store.sort_name, NULL, NULL);
-  string_update(&metadata_store.sort_artist, NULL, NULL);
-  string_update(&metadata_store.sort_album, NULL, NULL);
-  string_update(&metadata_store.sort_composer, NULL, NULL);
+  invalidate_uint64_record(&metadata_store.song_data_kind);
+  invalidate_uint64_record(&metadata_store.item_id);
+  invalidate_uint64_record(&metadata_store.songtime_in_microseconds);
+  invalidate_uint64_record(&metadata_store.track_number);
+  update_string_record(&metadata_store.cover_art_pathname,
+                       NULL); // leave any existing picture file there, to minimise repeated
+                              // deletion and replacement of the same file
+  update_string_record(&metadata_store.album_name, NULL);
+  update_string_record(&metadata_store.artist_name, NULL);
+  update_string_record(&metadata_store.album_artist_name, NULL);
+  update_string_record(&metadata_store.comment, NULL);
+  update_string_record(&metadata_store.genre, NULL);
+  update_string_record(&metadata_store.track_name, NULL);
+  update_string_record(&metadata_store.composer, NULL);
+  update_string_record(&metadata_store.song_description, NULL);
+  update_string_record(&metadata_store.song_album_artist, NULL);
+  update_string_record(&metadata_store.sort_name, NULL);
+  update_string_record(&metadata_store.sort_artist, NULL);
+  update_string_record(&metadata_store.sort_album, NULL);
+  update_string_record(&metadata_store.sort_composer, NULL);
 }
-

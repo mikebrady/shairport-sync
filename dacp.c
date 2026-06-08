@@ -680,6 +680,7 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
             if (dacp_tlv_crawl(&sp, &item_size) == 'cmst') { // status
               // here, we know that we are receiving playerstatusupdates, so set a flag
               metadata_hub_modify_prolog();
+              int metadata_changed = 0;
               // debug(1, "playstatusupdate release track metadata");
               // metadata_hub_reset_track_metadata();
               // metadata_store.playerstatusupdates_are_received = 1;
@@ -691,13 +692,8 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
                 uint32_t type = dacp_tlv_crawl(&sp, &item_size);
                 le -= item_size + 8;
                 char *t;
-                // char u;
-                // char *st;
                 int32_t r;
                 uint32_t ui;
-                uint64_t ui64;
-                // uint64_t v;
-                // int i;
 
                 switch (type) {
                 case 'cmsr': // revision number
@@ -712,18 +708,21 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
                   case 2:
                     if (metadata_store.play_status != PS_STOPPED) {
                       metadata_store.play_status = PS_STOPPED;
+                      metadata_changed |= 1;
                       debug(2, "Play status is \"stopped\".");
                     }
                     break;
                   case 3:
                     if (metadata_store.play_status != PS_PAUSED) {
                       metadata_store.play_status = PS_PAUSED;
+                      metadata_changed |= 1;
                       debug(2, "Play status is \"paused\".");
                     }
                     break;
                   case 4:
                     if (metadata_store.play_status != PS_PLAYING) {
                       metadata_store.play_status = PS_PLAYING;
+                      metadata_changed |= 1;
                       debug(2, "Play status changed to \"playing\".");
                     }
                     break;
@@ -739,12 +738,14 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
                   case 0:
                     if (metadata_store.shuffle_status != SS_OFF) {
                       metadata_store.shuffle_status = SS_OFF;
+                      metadata_changed |= 1;
                       debug(2, "Shuffle status is \"off\".");
                     }
                     break;
                   case 1:
                     if (metadata_store.shuffle_status != SS_ON) {
                       metadata_store.shuffle_status = SS_ON;
+                      metadata_changed |= 1;
                       debug(2, "Shuffle status is \"on\".");
                     }
                     break;
@@ -760,18 +761,21 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
                   case 0:
                     if (metadata_store.repeat_status != RS_OFF) {
                       metadata_store.repeat_status = RS_OFF;
+                      metadata_changed |= 1;
                       debug(2, "Repeat status is \"none\".");
                     }
                     break;
                   case 1:
                     if (metadata_store.repeat_status != RS_ONE) {
                       metadata_store.repeat_status = RS_ONE;
+                      metadata_changed |= 1;
                       debug(2, "Repeat status is \"one\".");
                     }
                     break;
                   case 2:
                     if (metadata_store.repeat_status != RS_ALL) {
                       metadata_store.repeat_status = RS_ALL;
+                      metadata_changed |= 1;
                       debug(2, "Repeat status is \"all\".");
                     }
                     break;
@@ -782,33 +786,35 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
                   break;
                 case 'cann': // track name
                   debug(2, "DACP Track Name seen");
-                  if (string_update_with_size(&metadata_store.track_name,
-                                              &metadata_store.track_name_changed, sp - item_size,
-                                              item_size)) {
+
+                  if (update_string_record_with_data(&metadata_store.track_name, sp - item_size,
+                                                     item_size)) {
                     debug(2, "DACP Track Name set to: \"%s\"", metadata_store.track_name);
+                    metadata_changed |= 1;
                   }
                   break;
                 case 'cana': // artist name
                   debug(2, "DACP Artist Name seen");
-                  if (string_update_with_size(&metadata_store.artist_name,
-                                              &metadata_store.artist_name_changed, sp - item_size,
-                                              item_size)) {
+                  if (update_string_record_with_data(&metadata_store.artist_name, sp - item_size,
+                                                     item_size)) {
                     debug(2, "DACP Artist Name set to: \"%s\"", metadata_store.artist_name);
+                    metadata_changed |= 1;
                   }
                   break;
                 case 'canl': // album name
                   debug(2, "DACP Album Name seen");
-                  if (string_update_with_size(&metadata_store.album_name,
-                                              &metadata_store.album_name_changed, sp - item_size,
-                                              item_size)) {
+                  if (update_string_record_with_data(&metadata_store.album_name, sp - item_size,
+                                                     item_size)) {
                     debug(2, "DACP Album Name set to: \"%s\"", metadata_store.album_name);
+                    metadata_changed |= 1;
                   }
                   break;
                 case 'cang': // genre
                   debug(2, "DACP Genre seen");
-                  if (string_update_with_size(&metadata_store.genre, &metadata_store.genre_changed,
-                                              sp - item_size, item_size)) {
+                  if (update_string_record_with_data(&metadata_store.genre, sp - item_size,
+                                                     item_size)) {
                     debug(2, "DACP Genre set to: \"%s\"", metadata_store.genre);
+                    metadata_changed |= 1;
                   }
                   break;
                 case 'canp': // nowplaying 4 ids: dbid, plid, playlistItem, itemid (from mellowware
@@ -830,13 +836,17 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
                     debug(2, "Item composite ID changed to 0x%s.", st);
                     metadata_store.item_composite_id_changed = 1;
                     metadata_store.item_composite_id_is_valid = 1;
+                    metadata_changed |= 1;
                   }
                   break;
                 case 'astm':
                   t = sp - item_size;
                   ui = ntohl(*(uint32_t *)(t));
-                  debug(2, "DACP Song Time seen: \"%u\" milliseconds, of length %u.", ui, item_size);
-                  ui64 = ui * 1000; // microseconds
+                  debug(1, "DACP Song Time seen: \"%u\" milliseconds, of length %u.", ui,
+                        item_size);
+                  metadata_changed |= update_uint64_record(&metadata_store.songtime_in_microseconds,
+                                                           ui * 1000); // microseconds
+                  /*
                   if (ui64 != metadata_store.songtime_in_microseconds) {
                     metadata_store.songtime_in_microseconds = ui64;
                     metadata_store.songtime_in_microseconds_changed = 1;
@@ -844,6 +854,7 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
                     debug(2, "DACP Song Time set to: %" PRIu64 " microseconds.",
                           metadata_store.songtime_in_microseconds);
                   }
+                  */
                   break;
 
                 /*
@@ -896,8 +907,7 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
               }
 
               // finished possibly writing to the metadata hub
-              metadata_hub_modify_epilog(
-                  1); // should really see if this can be made responsive to changes
+              metadata_hub_modify_epilog(metadata_changed);
             } else {
               debug(1, "Status Update not found.\n");
             }

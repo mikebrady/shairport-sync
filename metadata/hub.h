@@ -31,8 +31,17 @@ typedef enum {
   RS_ALL,
 } repeat_status_type;
 
-int string_update(char **str, int *changed, char *s);
-int int_update(int *receptacle, int *changed, int value);
+typedef struct {
+  uint64_t item; // the value
+  int valid;     // set to true if valid
+} uint64_record_t;
+
+int update_string_record_with_data(char **str, const char *data, size_t length); // data and length
+int update_string_record(char **str, const char *s); // returns true if the string has changed
+int update_uint64_record(
+    uint64_record_t *record,
+    const uint64_t value); // returns true if the string has changed, sets item to valid
+int is_valid_uint64_record(uint64_record_t *record);
 
 struct metadata_bundle;
 
@@ -42,35 +51,17 @@ typedef struct metadata_bundle {
 
   char *client_ip; // IP number used by the audio source (i.e. the "client"), which is also the DACP
                    // server
-  int client_ip_changed;
-
-  char *client_name; // the name of the client device, if available
-  int client_name_changed;
-
-  char *server_ip; // IP number used by Shairport Sync
-  int server_ip_changed;
-
-  char *stream_type; // Realtime or Buffered
-  int stream_type_changed;
-
-  char *source_format; // Format of incoming audio, e.g. AAC/44100/S16_LE/2
-  int source_format_changed;
-
-  char *output_format; // Format of outgoing audio, e.g. 44100/S32_LE/2 (always PCM)
-  int output_format_changed;
-
-  char *progress_string; // progress string, emitted by the source from time to time
-  int progress_string_changed;
-
-  char *frame_position_string; // frame position string emitted by SPS on request
-  int frame_position_string_changed;
-
+  char *client_name;                 // the name of the client device, if available
+  char *server_ip;                   // IP number used by Shairport Sync
+  char *stream_type;                 // Realtime or Buffered
+  char *source_format;               // Format of incoming audio, e.g. AAC/44100/S16_LE/2
+  char *output_format;               // Format of outgoing audio, e.g. 44100/S32_LE/2 (always PCM)
+  char *progress_string;             // progress string, emitted by the source from time to time
+  char *frame_position_string;       // frame position string emitted by SPS on request
   char *first_frame_position_string; // first frame position string emitted by SPS on request
-  int first_frame_position_string_changed;
-
-  int player_thread_active; // true if a play thread is running
-  int dacp_server_active;   // true if there's a reachable DACP server (assumed to be the Airplay
-                            // client) ; false otherwise
+  int player_thread_active;          // true if a play thread is running
+  int dacp_server_active; // true if there's a reachable DACP server (assumed to be the Airplay
+                          // client) ; false otherwise
   int advanced_dacp_server_active; // true if there's a reachable DACP server with iTunes
                                    // capabilitiues
                                    // ; false otherwise
@@ -78,90 +69,43 @@ typedef struct metadata_bundle {
   // used detect transitions between server activity being on or off
   // e.g. to reease metadata when a server goes inactive, but not if it's permanently
   // inactive.
-  play_status_type play_status;
+  play_status_type play_status; // this is the state the client is in
   shuffle_status_type shuffle_status;
   repeat_status_type repeat_status;
-
-  // the following pertain to the track playing
-
-  char *cover_art_pathname;
-  int cover_art_pathname_changed;
-
-  uint64_t item_id; // seems to be a track ID -- see itemid in DACP.c
-  int item_id_changed;
-  int item_id_is_valid;
-
-  unsigned char
-      item_composite_id[16]; // seems to be nowplaying 4 ids: dbid, plid, playlistItem, itemid
-  int item_composite_id_changed;
-  int item_composite_id_is_valid;
-
-  int song_data_kind;
-  int song_data_kind_changed;
-  int song_data_kind_is_valid;
-
-  char *track_name;
-  int track_name_changed;
-
-  unsigned int track_number;
-  int track_number_changed;
-  int track_number_is_valid;
-
-  char *artist_name;
-  int artist_name_changed;
-
-  char *album_artist_name;
-  int album_artist_name_changed;
-
-  char *album_name;
-  int album_name_changed;
-
-  char *genre;
-  int genre_changed;
-
-  char *comment;
-  int comment_changed;
-
-  char *composer;
-  int composer_changed;
-
-  char *file_kind;
-  int file_kind_changed;
-
-  char *song_description;
-  int song_description_changed;
-
-  char *song_album_artist;
-  int song_album_artist_changed;
-
-  char *sort_name;
-  int sort_name_changed;
-
-  char *sort_artist;
-  int sort_artist_changed;
-
-  char *sort_album;
-  int sort_album_changed;
-
-  char *sort_composer;
-  int sort_composer_changed;
-
-  uint64_t songtime_in_microseconds;
-  int songtime_in_microseconds_changed;
-  int songtime_in_microseconds_is_valid;
-
-  // end
-
-  play_status_type player_state; // this is the state of the actual player itself, which can be a bit noisy.
+  play_status_type
+      player_state; // this is the state of the actual player itself, which can be a bit noisy.
   active_state_type active_state;
-
   int speaker_volume; // this is the actual speaker volume, allowing for the main volume and the
                       // speaker volume control
   double airplay_volume;
 
+  // the following pertain to the track playing
+  char *cover_art_pathname;
+  uint64_record_t item_id; // seems to be a track ID -- see itemid in DACP.c
+  unsigned char
+      item_composite_id[16]; // seems to be nowplaying 4 ids: dbid, plid, playlistItem, itemid
+  int item_composite_id_changed;
+  int item_composite_id_is_valid;
+  uint64_record_t song_data_kind; // 0 seems to mean a time-limited item
+  char *track_name;
+  uint64_record_t track_number;
+  char *artist_name;
+  char *album_artist_name;
+  char *album_name;
+  char *genre;
+  char *comment;
+  char *composer;
+  char *file_kind;
+  char *song_description;
+  char *song_album_artist;
+  char *sort_name;
+  char *sort_artist;
+  char *sort_album;
+  char *sort_composer;
+  uint64_record_t songtime_in_microseconds;
+
   metadata_watcher watchers[number_of_watchers]; // functions to call if the metadata is changed.
   void *watchers_data[number_of_watchers];       // their individual data
-
 } metadata_bundle;
 
 extern struct metadata_bundle metadata_store;
