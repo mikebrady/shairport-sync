@@ -24,11 +24,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 #include "dbus-interface.h"
+#include <locale.h>
 #include <popt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <locale.h>
 
 GMainLoop *loop;
 

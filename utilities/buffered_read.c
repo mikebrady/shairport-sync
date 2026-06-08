@@ -161,9 +161,10 @@ void *buffered_tcp_reader(void *arg) {
       descriptor->error_code = errno;
     } else if (nread == 0) {
       descriptor->closed = 1;
-      debug(
-          2,
-          "buffered audio port closed by remote end when asking for %zu bytes. Terminating the buffered_tcp_reader thread.", bytes_to_request);
+      debug(2,
+            "buffered audio port closed by remote end when asking for %zu bytes. Terminating the "
+            "buffered_tcp_reader thread.",
+            bytes_to_request);
       finished = 1;
     } else if (nread > 0) {
       descriptor->eoq += nread;

@@ -560,9 +560,10 @@ int parse_options(int argc, char **argv) {
 
   // config.srcvers = strdup(PACKAGE_VERSION);
   config.srcvers = strdup("760.13.1");
-  
-  config.vv = 2; // don't know what this does
-  config.volumeControlType = 3; // 0 in AP2 seems to mean don't show the volume controls on the player. 0 -- 4. 3 seems normal.
+
+  config.vv = 2;                // don't know what this does
+  config.volumeControlType = 3; // 0 in AP2 seems to mean don't show the volume controls on the
+                                // player. 0 -- 4. 3 seems normal.
 
   // config.srcvers = strdup("940.23.1");
 

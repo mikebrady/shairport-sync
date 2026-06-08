@@ -192,8 +192,7 @@ void build_bonjour_strings(__attribute((unused)) rtsp_conn_info *conn) {
       bnprintf(srcversString, sizeof(srcversString), "srcvers=%s", config.srcvers);
   secondary_txt_records[entry_number++] =
       bnprintf(osversString, sizeof(osversString), "osvers=%s", config.osvers);
-  secondary_txt_records[entry_number++] =
-      bnprintf(vvString, sizeof(vvString), "vv=%u", config.vv);
+  secondary_txt_records[entry_number++] = bnprintf(vvString, sizeof(vvString), "vv=%u", config.vv);
   secondary_txt_records[entry_number++] = fwString; // already calculated
   secondary_txt_records[entry_number++] = NULL;
 #endif

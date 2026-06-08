@@ -30,21 +30,20 @@
 #include "player.h"
 #include "rtsp.h"
 
-
 // these are indexed by simple_command_t
 static const char *simple_command_strings[] = {
-    "play",         /* rcsc_play           = 0 */
-    "pause",        /* rcsc_pause          = 1 */
-    "playpause",    /* rcsc_play_pause     = 2 */
-    "stop",         /* rcsc_stop           = 3 */
-    "nextitem",     /* rcsc_next_item      = 4 */
-    "previtem",     /* rcsc_previous_item  = 5 */
-    "shuffle_songs",/* rcsc_toggle_shuffle = 6 */
-    NULL,           /* rcsc_cycle_repeat   = 7 — no match */
-    "beginff",      /* rcsc_fast_forward   = 8 */
-    NULL,           /* rcsc_fast_forward_stop = 9 — no match */
-    "beginrew",     /* rcsc_rewind         = 10 */
-    NULL,           /* rcsc_rewind_stop    = 11 — no match */
+    "play",          /* rcsc_play           = 0 */
+    "pause",         /* rcsc_pause          = 1 */
+    "playpause",     /* rcsc_play_pause     = 2 */
+    "stop",          /* rcsc_stop           = 3 */
+    "nextitem",      /* rcsc_next_item      = 4 */
+    "previtem",      /* rcsc_previous_item  = 5 */
+    "shuffle_songs", /* rcsc_toggle_shuffle = 6 */
+    NULL,            /* rcsc_cycle_repeat   = 7 — no match */
+    "beginff",       /* rcsc_fast_forward   = 8 */
+    NULL,            /* rcsc_fast_forward_stop = 9 — no match */
+    "beginrew",      /* rcsc_rewind         = 10 */
+    NULL,            /* rcsc_rewind_stop    = 11 — no match */
 };
 
 #ifdef CONFIG_DACP_CLIENT
@@ -217,7 +216,7 @@ void completeModernMediaRemoteCommand(plist_t command_plist, const char *command
 
 // send a simple command -- one with a command number an no arguments.
 ssize_t ap2_event_send_simple_modern_media_remote_command(rtsp_conn_info *conn,
-                                                   unsigned int command_number) {
+                                                          unsigned int command_number) {
   ssize_t result = -1;
   char command_number_string[32];
   snprintf(command_number_string, sizeof(command_number_string), "%u", command_number);
@@ -364,7 +363,7 @@ void remote_simple_command(simple_command_t command) {
     // see if we can find the commands string
     if ((command <= rcsc_rewind_stop) && (simple_command_strings[command] != NULL)) {
       debug(1, "remote_simple_command \"%s\" -- DACP active.", simple_command_strings[command]);
-      send_simple_dacp_command(simple_command_strings[command]);    
+      send_simple_dacp_command(simple_command_strings[command]);
     }
   }
 #endif
@@ -404,7 +403,7 @@ void remote_playpause() {
 }
 
 void remote_player_stop(rtsp_conn_info *conn) {
-    if (conn != NULL) {
+  if (conn != NULL) {
     debug(1, "Connection %d: remote_player_stop -- AirPlay 2.", conn->connection_number);
     ap2_event_send_simple_modern_media_remote_command(conn, rcsc_stop);
   }

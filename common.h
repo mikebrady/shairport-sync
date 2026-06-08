@@ -420,8 +420,8 @@ typedef struct {
   char *pk_string;
   char *nqptp_shared_memory_interface_name; // client name for nqptp service
   int enable_HK_Access_Control;             // true if the device is part of an Apple Home
-  unsigned int vv;                  // may be associated with different volume control arrangements
-  unsigned int volumeControlType;   // may be associated with different volume control arrangements
+  unsigned int vv;                // may be associated with different volume control arrangements
+  unsigned int volumeControlType; // may be associated with different volume control arrangements
 #endif
 
   APST_t service_type; // APST_auto, APST_classic, APST_forced_classic, APST_airplay2

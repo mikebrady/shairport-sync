@@ -1828,8 +1828,8 @@ uint64_t nctoh64(const uint8_t *p) {
   return vl;
 }
 
-uint64_t hton64(const uint64_t n) {    // convert a host uint64_t number to network order
-  uint64_t result = n; // presume bigendian -- already in network order
+uint64_t hton64(const uint64_t n) { // convert a host uint64_t number to network order
+  uint64_t result = n;              // presume bigendian -- already in network order
   if (config.endianness == SS_LITTLE_ENDIAN) {
     uint32_t lo = n & 0xFFFFFFFF;
     uint64_t hi64 = n >> 32;

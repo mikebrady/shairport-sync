@@ -1508,7 +1508,8 @@ int frame_to_ptp_local_time(uint32_t timestamp, uint64_t *time, rtsp_conn_info *
   int result = -1;
   uint32_t anchor_rtptime = 0;
   uint64_t anchor_local_time = 0;
-  if ((conn->input_rate != 0) && (get_ptp_anchor_local_time_info(conn, &anchor_rtptime, &anchor_local_time) == clock_ok)) {
+  if ((conn->input_rate != 0) &&
+      (get_ptp_anchor_local_time_info(conn, &anchor_rtptime, &anchor_local_time) == clock_ok)) {
     int32_t frame_difference = timestamp - anchor_rtptime;
     int64_t time_difference = frame_difference;
     time_difference = time_difference * 1000000000;
@@ -1526,7 +1527,8 @@ int local_ptp_time_to_frame(uint64_t time, uint32_t *frame, rtsp_conn_info *conn
   int result = -1;
   uint32_t anchor_rtptime = 0;
   uint64_t anchor_local_time = 0;
-  if ((conn->input_rate != 0) && (get_ptp_anchor_local_time_info(conn, &anchor_rtptime, &anchor_local_time) == clock_ok)) {
+  if ((conn->input_rate != 0) &&
+      (get_ptp_anchor_local_time_info(conn, &anchor_rtptime, &anchor_local_time) == clock_ok)) {
     int64_t time_difference = time - anchor_local_time;
     int64_t frame_difference = time_difference;
     frame_difference = frame_difference * conn->input_rate; // but this is by 10^9

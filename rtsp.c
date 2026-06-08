@@ -94,10 +94,10 @@
 #ifdef CONFIG_AIRPLAY_2
 #include "ap2_buffered_audio_processor.h"
 #include "ap2_event_receiver.h"
+#include "metadata/handle_command.h"
 #include "pair_ap/pair.h"
 #include "plists/get_info_response.h"
 #include "ptp-utilities.h"
-#include "metadata/handle_command.h"
 #include <plist/plist.h>
 
 #ifdef HAVE_LIBPLIST_GE_2_3_0
@@ -187,8 +187,8 @@ void cancel_all_RTSP_threads(airplay_stream_c stream_category, int except_this_o
         ((conns[i]->airplay_stream_category == stream_category) ||
          (stream_category == unspecified_stream_category))) {
       pthread_cancel(conns[i]->thread);
-      debug(2, "Connection %d from \"%s\": %s cancelled.", conns[i]->connection_number, conns[i]->ap2_client_name,
-            get_category_string(conns[i]->airplay_stream_category));
+      debug(2, "Connection %d from \"%s\": %s cancelled.", conns[i]->connection_number,
+            conns[i]->ap2_client_name, get_category_string(conns[i]->airplay_stream_category));
     }
   }
   for (i = 0; i < nconns; i++) {
@@ -1098,7 +1098,8 @@ void generateTxtDataValueInfo(rtsp_conn_info *conn, void **response, size_t *res
                             &qualifier_response_data, &qualifier_response_data_length) == 0)
     debug(1, "Problem");
 
-  if (add_pstring_to_malloc(bnprintf(localString, sizeof(localString), "vv=%u", config.vv), &qualifier_response_data, &qualifier_response_data_length) == 0)
+  if (add_pstring_to_malloc(bnprintf(localString, sizeof(localString), "vv=%u", config.vv),
+                            &qualifier_response_data, &qualifier_response_data_length) == 0)
     debug(1, "Problem");
 
   *response = qualifier_response_data;
@@ -1140,7 +1141,8 @@ plist_t generateInfoPlist(rtsp_conn_info *conn) {
     plist_dict_set_item(response_plist, "vv", plist_new_uint(config.vv));
     // don't display volume control if we're asking to ignore the volume control
     if (config.ignore_volume_control == 0) {
-      plist_dict_set_item(response_plist, "volumeControlType", plist_new_uint(config.volumeControlType));
+      plist_dict_set_item(response_plist, "volumeControlType",
+                          plist_new_uint(config.volumeControlType));
     } else {
       plist_dict_set_item(response_plist, "volumeControlType", plist_new_uint(0));
     }
@@ -1362,10 +1364,12 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
             conn->connection_number, flushUntilTS, flushUntilSeq & 0x7fffff);
       conn->ap2_play_enabled = 0; // stop trying to play audio
       // ptp_send_control_message_string(
-      //     "P"); // "P"ause signify clock no longer valid and will be restarted by a subsequent play
+      //     "P"); // "P"ause signify clock no longer valid and will be restarted by a subsequent
+      //     play
       // debug(1, "FLUSHBUFFERED calling reset_ptp_anchor_info");
-      reset_ptp_anchor_info(conn); // stop the clock for an immediate flush until it is restarted using SETRATEANCHORI      
-      
+      reset_ptp_anchor_info(
+          conn); // stop the clock for an immediate flush until it is restarted using SETRATEANCHORI
+
     } else {
       // look for a record slot that isn't in use
       unsigned int i = 0;
@@ -1979,7 +1983,8 @@ void handle_fp_setup(__attribute__((unused)) rtsp_conn_info *conn, rtsp_message 
 void handle_configure(rtsp_conn_info *conn __attribute__((unused)),
                       rtsp_message *req __attribute__((unused)), rtsp_message *resp) {
 
-  debug(1, "Connection %d from \"%s\": POST %s Content-Length %d", conn->connection_number, conn->ap2_client_name, req->path, req->contentlength);
+  debug(1, "Connection %d from \"%s\": POST %s Content-Length %d", conn->connection_number,
+        conn->ap2_client_name, req->path, req->contentlength);
   debug_log_rtsp_message_conn(conn, 4, "POST /configure req:", req);
 
   int existingEnable_HK_Access_Control = config.enable_HK_Access_Control;
@@ -2043,7 +2048,8 @@ void handle_configure(rtsp_conn_info *conn __attribute__((unused)),
 
 void handle_feedback(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *req,
                      __attribute__((unused)) rtsp_message *resp) {
-  debug(4, "Connection %d from \"%s\": POST %s Content-Length %d", conn->connection_number, conn->ap2_client_name, req->path, req->contentlength);
+  debug(4, "Connection %d from \"%s\": POST %s Content-Length %d", conn->connection_number,
+        conn->ap2_client_name, req->path, req->contentlength);
   debug_log_rtsp_message(4, NULL, req);
 
   int is_playing = 0;
@@ -2090,8 +2096,6 @@ void handle_feedback(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message 
   }
 }
 
-
-
 void handle_command(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
   // first, check that this is an airplay 2 session
   if (conn->airplay_type == ap_2) {
@@ -2111,7 +2115,8 @@ void handle_command(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
         metadata_hub_handle_command_plist(command_dict);
         plist_free(command_dict);
       } else {
-        debug(1, "Connection %d: POST /command  -- cannot extract the plist", conn->connection_number);
+        debug(1, "Connection %d: POST /command  -- cannot extract the plist",
+              conn->connection_number);
       }
 #endif
 #endif
@@ -2221,7 +2226,8 @@ void handle_options(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *
 
 void handle_teardown(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *req,
                      rtsp_message *resp) {
-  debug(4, "Connection %d: TEARDOWN (Classic) %s Content-Length %d", conn->connection_number, req->path, req->contentlength);
+  debug(4, "Connection %d: TEARDOWN (Classic) %s Content-Length %d", conn->connection_number,
+        req->path, req->contentlength);
   debug_log_rtsp_message_conn(conn, 4, "TEARDOWN (Classic)", req);
 
   // most of the cleanup here is done by the exiting player_thread, if any, and by the event
@@ -2234,7 +2240,7 @@ void handle_teardown(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message 
   }
 
   resp->respcode = 200;
-  msg_add_header(resp, "Connection", "close");  
+  msg_add_header(resp, "Connection", "close");
   conn->stop = 1;
 }
 
@@ -2253,32 +2259,50 @@ void handle_options_2(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message
 void handle_teardown_2(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message *req,
                        rtsp_message *resp) {
 
-  debug(4, "Connection %d from \"%s\": TEARDOWN (AP2 %s) %s Content-Length %d", conn->connection_number, conn->ap2_client_name, get_category_string(conn->airplay_stream_category), req->path, req->contentlength);
+  debug(4, "Connection %d from \"%s\": TEARDOWN (AP2 %s) %s Content-Length %d",
+        conn->connection_number, conn->ap2_client_name,
+        get_category_string(conn->airplay_stream_category), req->path, req->contentlength);
   debug_log_rtsp_message_conn(conn, 4, "TEARDOWN (AP2)", req);
   // look for a configuration dictionary
-  
+
   plist_t messagePlist = plist_from_rtsp_content(req);
   if (messagePlist != NULL) {
     plist_t streams = plist_dict_get_item(messagePlist, "streams");
     if (streams != NULL) {
       // just drop the player, leave the connection open
       if (conn->player_thread) {
-        debug(4, "Connection %d from \"%s\": TEARDOWN (AP2 %s) %s Content-Length %d is stopping a player thread", conn->connection_number, conn->ap2_client_name, get_category_string(conn->airplay_stream_category), req->path, req->contentlength);
-        player_stop(conn);                    // this nulls the player_thread and cancels the threads...
+        debug(4,
+              "Connection %d from \"%s\": TEARDOWN (AP2 %s) %s Content-Length %d is stopping a "
+              "player thread",
+              conn->connection_number, conn->ap2_client_name,
+              get_category_string(conn->airplay_stream_category), req->path, req->contentlength);
+        player_stop(conn); // this nulls the player_thread and cancels the threads...
         activity_monitor_signify_activity(0); // inactive, and should be after command_stop()
       }
     } else {
       if (plist_dict_get_size(messagePlist) != 0) {
-        debug(1, "Connection %d from \"%s\": TEARDOWN (AP2 %s) %s Content-Length %d plist is non-empty but contains no \"streams\" item.", conn->connection_number, conn->ap2_client_name, get_category_string(conn->airplay_stream_category), req->path, req->contentlength);
+        debug(1,
+              "Connection %d from \"%s\": TEARDOWN (AP2 %s) %s Content-Length %d plist is "
+              "non-empty but contains no \"streams\" item.",
+              conn->connection_number, conn->ap2_client_name,
+              get_category_string(conn->airplay_stream_category), req->path, req->contentlength);
         debug_log_rtsp_message_conn(conn, 4, "Contents follow:", req);
       }
-      msg_add_header(resp, "Connection", "close");  
-      debug(4, "Connection %d from \"%s\": TEARDOWN (AP2 %s) %s Content-Length %d is asking to terminate the connection.", conn->connection_number, conn->ap2_client_name, get_category_string(conn->airplay_stream_category), req->path, req->contentlength);
+      msg_add_header(resp, "Connection", "close");
+      debug(4,
+            "Connection %d from \"%s\": TEARDOWN (AP2 %s) %s Content-Length %d is asking to "
+            "terminate the connection.",
+            conn->connection_number, conn->ap2_client_name,
+            get_category_string(conn->airplay_stream_category), req->path, req->contentlength);
       conn->stop = 1;
     }
     plist_free(messagePlist);
   } else {
-    debug(1, "Connection %d from \"%s\": TEARDOWN (AP2 %s) %s Content-Length %d has no plist -- nothing done.", conn->connection_number, conn->ap2_client_name, get_category_string(conn->airplay_stream_category), req->path, req->contentlength);
+    debug(1,
+          "Connection %d from \"%s\": TEARDOWN (AP2 %s) %s Content-Length %d has no plist -- "
+          "nothing done.",
+          conn->connection_number, conn->ap2_client_name,
+          get_category_string(conn->airplay_stream_category), req->path, req->contentlength);
   }
   resp->respcode = 200;
 }
@@ -2339,8 +2363,9 @@ static void check_and_send_plist_metadata(plist_t messagePlist, const char *plis
 
 void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
   int err;
-  
-  debug(4, "Connection %d from \"%s\": SETUP (AP2) %s Content-Length %d", conn->connection_number, conn->ap2_client_name, req->path, req->contentlength);
+
+  debug(4, "Connection %d from \"%s\": SETUP (AP2) %s Content-Length %d", conn->connection_number,
+        conn->ap2_client_name, req->path, req->contentlength);
   debug_log_rtsp_message_conn(conn, 4, "SETUP (AP2)", req);
 
   plist_t messagePlist = plist_from_rtsp_content(req);
@@ -2426,8 +2451,10 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
                   conn->connection_number);
           }
         }
-        
-        debug(2, "Connection %d from \"%s\": %s SETUP %s Content-Length %d", conn->connection_number, conn->ap2_client_name, get_category_string(conn->airplay_stream_category), req->path, req->contentlength);        
+
+        debug(2, "Connection %d from \"%s\": %s SETUP %s Content-Length %d",
+              conn->connection_number, conn->ap2_client_name,
+              get_category_string(conn->airplay_stream_category), req->path, req->contentlength);
         debug_log_rtsp_message_conn(
             conn, 2, "Initial (i.e. no streams array) SETUP (AirPlay 2) incoming message", req);
 
