@@ -12,7 +12,7 @@ use tokio::{
 };
 use tracing::{debug, info, warn};
 
-use crate::{audio::AudioEngine, config::AirplayConfig, state::AppState};
+use crate::{audio::AudioEngine, config::AirplayConfig, decoder, state::AppState};
 
 /// SSRC constants for AP2 audio formats
 const SSRC_ALAC_44100_S16_2: u32 = 0x00000001;
@@ -31,8 +31,16 @@ pub async fn spawn_buffered_audio_receiver(
         .await
         .with_context(|| format!("failed to bind buffered audio TCP on {bind}"))?;
     info!(port = config.audio_port, "AP2 buffered audio TCP listener");
+    Ok(spawn_buffered_accept_loop(listener, state, audio_engine))
+}
 
-    Ok(tokio::spawn(async move {
+/// Spawn an accept loop for buffered audio on an already-bound TcpListener.
+pub fn spawn_buffered_accept_loop(
+    listener: TcpListener,
+    state: AppState,
+    audio_engine: AudioEngine,
+) -> JoinHandle<()> {
+    tokio::spawn(async move {
         loop {
             match listener.accept().await {
                 Ok((stream, peer)) => {
@@ -47,11 +55,11 @@ pub async fn spawn_buffered_audio_receiver(
                 Err(e) => warn!(%e, "buffered audio accept error"),
             }
         }
-    }))
+    })
 }
 
 /// Handle one buffered audio TCP connection.
-async fn handle_buffered_stream(
+pub async fn handle_buffered_stream(
     mut stream: TcpStream,
     peer: SocketAddr,
     state: AppState,
@@ -72,6 +80,8 @@ async fn handle_buffered_stream(
 
     // Derive the data stream cipher
     let mut cipher = BufferedCipher::new(&session_key);
+    let mut alac_decoder: Option<(u32, decoder::AlacDecoder)> = None;
+    let mut warned_unsupported_aac = false;
 
     let mut word_buf = [0u8; 4];
 
@@ -122,16 +132,6 @@ async fn handle_buffered_stream(
             }
         };
 
-        // Detect format from SSRC and pass to audio engine
-        let frames_per_packet = match ssrc {
-            SSRC_ALAC_44100_S16_2 | SSRC_ALAC_48000_S24_2 => 352,
-            _ => 1024, // AAC
-        };
-        let _sample_rate = match ssrc {
-            SSRC_ALAC_44100_S16_2 | SSRC_AAC_44100_F24_2 => 44100,
-            _ => 48000,
-        };
-
         debug!(
             seq = seq_23,
             ts = timestamp,
@@ -140,17 +140,48 @@ async fn handle_buffered_stream(
             "buffered audio block"
         );
 
-        // For now, push raw bytes as f32 samples (placeholder for actual decode)
-        // Proper decode via ALAC/AAC will be added in Phase 8
-        let sample_count = frames_per_packet * 2; // stereo
-        let mut float_samples = Vec::with_capacity(sample_count);
-        for i in 0..sample_count.min(plaintext.len() / 2) {
-            let byte_idx = i * 2;
-            if byte_idx + 1 < plaintext.len() {
-                let sample = i16::from_be_bytes([plaintext[byte_idx], plaintext[byte_idx + 1]]);
-                float_samples.push((sample as f32) / 32768.0);
+        let Some((sample_rate, sample_size)) = alac_format_for_ssrc(ssrc) else {
+            if !warned_unsupported_aac
+                && matches!(ssrc, SSRC_AAC_44100_F24_2 | SSRC_AAC_48000_F24_2)
+            {
+                warn!(ssrc, "AP2 AAC buffered audio is not decoded by this build");
+                warned_unsupported_aac = true;
             }
-        }
+            continue;
+        };
+
+        let decoder = match alac_decoder.as_mut() {
+            Some((decoder_ssrc, decoder)) if *decoder_ssrc == ssrc => decoder,
+            _ => {
+                let cookie = alac_specific_config(sample_rate, sample_size);
+                match decoder::AlacDecoder::new(sample_size, 2, &cookie) {
+                    Ok(decoder) => {
+                        info!(
+                            ssrc,
+                            sample_rate, sample_size, "AP2 ALAC decoder initialized"
+                        );
+                        alac_decoder = Some((ssrc, decoder));
+                        &mut alac_decoder.as_mut().unwrap().1
+                    }
+                    Err(e) => {
+                        warn!(%e, ssrc, "AP2 ALAC decoder init failed");
+                        continue;
+                    }
+                }
+            }
+        };
+
+        let raw_samples = match decoder.decode_frame(&plaintext) {
+            Ok(samples) => samples,
+            Err(e) => {
+                warn!(%e, ssrc, "AP2 ALAC decode failed");
+                continue;
+            }
+        };
+        let float_samples: Vec<f32> = raw_samples
+            .iter()
+            .map(|&sample| (sample as f32) / 2_147_483_648.0)
+            .collect();
         let enqueued = audio_engine.enqueue_interleaved(&float_samples);
         if enqueued < float_samples.len() {
             debug!(
@@ -175,6 +206,30 @@ async fn handle_buffered_stream(
 
     info!(%peer, "buffered audio connection closed");
     Ok(())
+}
+
+fn alac_format_for_ssrc(ssrc: u32) -> Option<(u32, u32)> {
+    match ssrc {
+        SSRC_ALAC_44100_S16_2 => Some((44_100, 16)),
+        SSRC_ALAC_48000_S24_2 => Some((48_000, 24)),
+        _ => None,
+    }
+}
+
+fn alac_specific_config(sample_rate: u32, sample_size: u32) -> [u8; 24] {
+    let mut config = [0u8; 24];
+    config[0..4].copy_from_slice(&352u32.to_be_bytes());
+    config[4] = 0;
+    config[5] = sample_size as u8;
+    config[6] = 40;
+    config[7] = 10;
+    config[8] = 14;
+    config[9] = 2;
+    config[10..12].copy_from_slice(&255u16.to_be_bytes());
+    config[12..16].copy_from_slice(&0u32.to_be_bytes());
+    config[16..20].copy_from_slice(&0u32.to_be_bytes());
+    config[20..24].copy_from_slice(&sample_rate.to_be_bytes());
+    config
 }
 
 /// Chacha20-Poly1305 cipher for buffered audio decryption.

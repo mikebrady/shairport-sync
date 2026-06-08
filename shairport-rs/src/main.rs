@@ -121,7 +121,9 @@ async fn main() -> anyhow::Result<()> {
         Vec::new()
     };
 
-    // AP2 buffered audio listeners are session-owned and opened during RTSP stream SETUP.
+    // AP2 audio listeners are session-owned and opened during RTSP stream SETUP.
+    // The static buffered audio receiver on config.audio_port is removed;
+    // sessions negotiate their own ports dynamically.
 
     let mdns_backend = MdnsBackend::from_config(&config.mdns);
     let mdns_advertiser = MdnsAdvertiser::new(mdns_backend, config.mdns.clone());

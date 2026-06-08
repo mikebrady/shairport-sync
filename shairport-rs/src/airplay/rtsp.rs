@@ -1074,12 +1074,37 @@ impl RtspSession {
         Ok(port)
     }
 
-    fn ensure_buffered_audio_listener(&mut self) -> anyhow::Result<u16> {
+    fn ensure_buffered_audio_listener(
+        &mut self,
+        state: &AppState,
+        audio_engine: &AudioEngine,
+    ) -> anyhow::Result<u16> {
         if let Some(port) = self.buffered_audio_port {
             return Ok(port);
         }
         let bind = self.receiver_bind_addr();
-        let (port, handle) = spawn_tcp_drain_listener(bind, "ap2-buffered-audio")?;
+        let std_socket = match bind {
+            SocketAddr::V4(_) => Socket::new(Domain::IPV4, Type::STREAM, Some(Protocol::TCP))?,
+            SocketAddr::V6(_) => {
+                let socket = Socket::new(Domain::IPV6, Type::STREAM, Some(Protocol::TCP))?;
+                socket.set_only_v6(false)?;
+                socket
+            }
+        };
+        std_socket.set_reuse_address(true)?;
+        std_socket
+            .bind(&bind.into())
+            .with_context(|| format!("failed to bind buffered audio TCP on {bind}"))?;
+        std_socket.listen(128)?;
+        std_socket.set_nonblocking(true)?;
+        let std_listener: std::net::TcpListener = std_socket.into();
+        let port = std_listener.local_addr()?.port();
+        let listener = TcpListener::from_std(std_listener)?;
+        let handle = crate::airplay::buffered_audio::spawn_buffered_accept_loop(
+            listener,
+            state.clone(),
+            audio_engine.clone(),
+        );
         self.buffered_audio_port = Some(port);
         self.buffered_audio_listener = Some(handle);
         Ok(port)
@@ -1120,7 +1145,7 @@ fn handle_ap2_setup(
     state: &AppState,
     session: &mut RtspSession,
     request: &RtspRequest,
-    _audio_engine: &AudioEngine,
+    audio_engine: &AudioEngine,
 ) -> RtspResponse {
     let plist_body = &request.body;
     let setup = match plist::from_bytes::<plist::Dictionary>(plist_body) {
@@ -1193,13 +1218,14 @@ fn handle_ap2_setup(
                 }
                 103 => {
                     session.ap2_streams.push(Ap2StreamType::BufferedAudio);
-                    let data_port = match session.ensure_buffered_audio_listener() {
-                        Ok(port) => port,
-                        Err(e) => {
-                            warn!(%e, "failed to open AP2 buffered audio TCP socket");
-                            return response(503, "Service Unavailable");
-                        }
-                    };
+                    let data_port =
+                        match session.ensure_buffered_audio_listener(state, audio_engine) {
+                            Ok(port) => port,
+                            Err(e) => {
+                                warn!(%e, "failed to open AP2 buffered audio TCP socket");
+                                return response(503, "Service Unavailable");
+                            }
+                        };
                     if let Some(plist::Value::Data(shk)) = stream.get("shk")
                         && shk.len() >= 16
                     {
@@ -1832,16 +1858,13 @@ fn advertised_ap2_formats(policy: AdvertisedFormatPolicy) -> AdvertisedAp2Format
     const BUFFER_AAC_44100_F24_2: u64 = 0x0040_0000;
     const BUFFER_AAC_48000_F24_2: u64 = 0x0080_0000;
 
-    let buffer_stream = BUFFER_ALAC_44100_S16_2
-        | BUFFER_ALAC_48000_F24_2
-        | BUFFER_AAC_44100_F24_2
-        | BUFFER_AAC_48000_F24_2;
-    if policy == AdvertisedFormatPolicy::AlacOnly {
-        debug!(
-            "advertising AP2 AAC buffer formats despite alac-only policy for sender compatibility"
-        );
-    } else if !aac_decoder_available() {
-        debug!("advertising AP2 AAC buffer formats for parent parity without local AAC decoder");
+    let mut buffer_stream = BUFFER_ALAC_44100_S16_2 | BUFFER_ALAC_48000_F24_2;
+    if policy == AdvertisedFormatPolicy::AacIfAvailable {
+        if aac_decoder_available() {
+            buffer_stream |= BUFFER_AAC_44100_F24_2 | BUFFER_AAC_48000_F24_2;
+        } else {
+            debug!("not advertising AP2 AAC buffer formats because no AAC decoder is available");
+        }
     }
 
     AdvertisedAp2Formats {
@@ -2114,5 +2137,15 @@ mod tests {
         assert!(control_port > 0);
         assert_ne!(data_port, control_port);
         assert_eq!(*state.session_key.read(), Some([7u8; 16]));
+    }
+
+    #[test]
+    fn ap2_alac_only_does_not_advertise_aac_buffer_formats() {
+        let formats = advertised_ap2_formats(AdvertisedFormatPolicy::AlacOnly);
+
+        assert_ne!(formats.buffer_stream & 0x0004_0000, 0);
+        assert_ne!(formats.buffer_stream & 0x0020_0000, 0);
+        assert_eq!(formats.buffer_stream & 0x0040_0000, 0);
+        assert_eq!(formats.buffer_stream & 0x0080_0000, 0);
     }
 }
