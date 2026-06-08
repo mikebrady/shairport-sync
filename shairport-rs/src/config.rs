@@ -138,7 +138,7 @@ impl Default for AirplayConfig {
             pairing_db_path: None,
             bind: "0.0.0.0:7000".to_string(),
             ap2_bind_ip: None,
-            advertised_format_policy: AdvertisedFormatPolicy::AlacOnly,
+            advertised_format_policy: AdvertisedFormatPolicy::AacIfAvailable,
             device_id: "00:11:22:33:44:55".to_string(),
             audio_port: 6000,
             control_port: 6001,

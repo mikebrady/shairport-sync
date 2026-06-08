@@ -1874,7 +1874,7 @@ fn advertised_ap2_formats(policy: AdvertisedFormatPolicy) -> AdvertisedAp2Format
 }
 
 fn aac_decoder_available() -> bool {
-    false
+    cfg!(feature = "aac") || cfg!(feature = "ffmpeg")
 }
 
 fn build_txt_airplay_data(

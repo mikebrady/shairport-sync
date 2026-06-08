@@ -1,0 +1,771 @@
+2026-06-08T14:10:10.487828Z  INFO shairport_rs: log file created log=logs\20260608-221010.log
+2026-06-08T14:10:10.487969Z  INFO shairport_rs: debug logging enabled
+2026-06-08T14:10:11.370490Z  INFO shairport_rs: shairport-rs listening bind=127.0.0.1:3689
+2026-06-08T14:10:13.085787Z DEBUG shairport_rs::airplay::rtsp: RTSP connection opened peer=[fe80::182e:d1df:e53:b7e8%6]:54721
+2026-06-08T14:10:13.088810Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=GET uri=/info cseq="0" content_type="application/x-apple-binary-plist" content_length=70
+2026-06-08T14:10:13.088958Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=GET uri=/info content_type="application/x-apple-binary-plist" body_len=70 body_hex=62 70 6c 69 73 74 30 30 d1 01 02 59 71 75 61 6c 69 66 69 65 72 a1 03 5a 74 78 74 41 69 72 50 6c 61 79 08 0b 15 17 00 00 00 00 00 00 01 01 00 00 00 00 00 00 00 04 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 22
+2026-06-08T14:10:13.089570Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=GET uri=/info cseq="0" status=200 reason="OK" content_length=1232 response_headers=[("CSeq", "0"), ("Server", "AirTunes/366.0"), ("Content-Type", "application/x-apple-binary-plist")]
+2026-06-08T14:10:13.093854Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/pair-verify cseq="1" content_type="application/octet-stream" content_length=37
+2026-06-08T14:10:13.094079Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=POST uri=/pair-verify content_type="application/octet-stream" body_len=37 body_hex=06 01 01 03 20 00 93 f3 5a e4 ca 37 ef 06 eb f3 72 a2 52 38 e8 3b b2 76 0a c9 d3 da 39 de 6b 6a c7 4a ea d0 66
+2026-06-08T14:10:13.094220Z DEBUG shairport_rs::airplay::pairing: pairing request endpoint=Verify requested_state=1 body_len=37 tlv=3:frags=1,len=32,first=0093f35ae4ca37ef06ebf372...; 6:frags=1,len=1,first=01 session_verified=false has_setup_key=false has_verify_key=false
+2026-06-08T14:10:13.095182Z DEBUG shairport_rs::airplay::pairing: pair-verify M1 accepted client_public=0093f35ae4ca37ef06ebf372a25238e8... server_public=6c332da919307001a79234233a8feeba... shared_secret=442dea058462872da04dfd92d3626790... session_key=b91aa7dac7d7bc77fd33ed37f1f553c2... encrypted_len=101 encrypted=1769b5ef729ef6c8985870f7b4d9b1c333edcaeb28771ec4...
+2026-06-08T14:10:13.095259Z DEBUG shairport_rs::airplay::pairing: pairing response endpoint=Verify requested_state=1 response_tlv=3:frags=1,len=32,first=6c332da919307001a7923423...; 5:frags=1,len=101,first=1769b5ef729ef6c8985870f7...; 6:frags=1,len=1,first=02 has_error=false
+2026-06-08T14:10:13.095330Z  INFO shairport_rs::airplay::rtsp: pair-verify status=200 has_cipher=false has_shared=false
+2026-06-08T14:10:13.095402Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/pair-verify cseq="1" status=200 reason="OK" content_length=140 response_headers=[("CSeq", "1"), ("Server", "AirTunes/366.0"), ("Content-Type", "application/octet-stream")]
+2026-06-08T14:10:13.116608Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/pair-setup cseq="2" content_type="application/x-apple-binary-plist" content_length=9
+2026-06-08T14:10:13.116899Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=POST uri=/pair-setup content_type="application/x-apple-binary-plist" body_len=9 body_hex=00 01 00 06 01 01 13 01 10
+2026-06-08T14:10:13.117056Z DEBUG shairport_rs::airplay::pairing: pairing request endpoint=Setup requested_state=1 body_len=9 tlv=0:frags=1,len=1,first=00; 6:frags=1,len=1,first=01; 19:frags=1,len=1,first=10 session_verified=false has_setup_key=false has_verify_key=true
+2026-06-08T14:10:13.136241Z DEBUG shairport_rs::airplay::pairing: pair-setup M1 accepted method=0 flags=0x10 is_transient=true srp_username_in_x=true srp_pad_g_in_m1=false pin_len=4 salt=d3e4df2aa21b21aee302a03d44573271 verifier_len=384 verifier=c6935dbeffc7e4c5e6da54fbe708bab4... server_private_len=48 server_private=2bc7f27424adf79610dc324cc7b88ff6... server_public_len=384 server_public=4b48b00aba9141f3313bbaefd9ab6a73...
+2026-06-08T14:10:13.136384Z DEBUG shairport_rs::airplay::pairing: pairing response endpoint=Setup requested_state=1 response_tlv=2:frags=1,len=16,first=d3e4df2aa21b21aee302a03d...; 3:frags=1,len=384,first=4b48b00aba9141f3313bbaef...; 6:frags=1,len=1,first=02 has_error=false
+2026-06-08T14:10:13.136551Z  INFO shairport_rs::airplay::rtsp: pair-setup step status=200 body_len=409 has_shared_secret=false
+2026-06-08T14:10:13.136649Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/pair-setup cseq="2" status=200 reason="OK" content_length=409 response_headers=[("CSeq", "2"), ("Server", "AirTunes/366.0"), ("Content-Type", "application/octet-stream")]
+2026-06-08T14:10:13.155793Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/pair-setup cseq="3" content_type="application/x-apple-binary-plist" content_length=457
+2026-06-08T14:10:13.156007Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=POST uri=/pair-setup content_type="application/x-apple-binary-plist" body_len=457 body_hex=06 01 03 03 ff 89 d5 a4 0f 00 31 a6 6b 73 9d af ba 91 7c 2a 12 8b 9d f5 0d 20 7a 1d 52 43 d1 25 25 cf 91 70 45 e8 b8 c7 ae a2 8f 01 9b 2a b3 97 a2 3e b2 fc 2f d7 2c 76 93 24 da d0 3a 7f 87 00 74 4b 70 14 5d 9b 3a 0c e5 26 99 88 18 58 94 70 79 81 82 6e d3 75 c4 5d b2 a7 c9 cd 9c 50 29 97 ...
+2026-06-08T14:10:13.156091Z DEBUG shairport_rs::airplay::pairing: pairing request endpoint=Setup requested_state=3 body_len=457 tlv=3:frags=2,len=384,first=89d5a40f0031a66b739dafba...; 4:frags=1,len=64,first=740b50acd21d0fb9fdda6281...; 6:frags=1,len=1,first=03 session_verified=false has_setup_key=false has_verify_key=true
+2026-06-08T14:10:13.156210Z DEBUG shairport_rs::airplay::pairing: pair-setup M3 SRP input is_transient=true salt=d3e4df2aa21b21aee302a03d44573271 verifier_len=384 verifier=c6935dbeffc7e4c5e6da54fbe708bab4... server_private_len=48 server_private=2bc7f27424adf79610dc324cc7b88ff6... server_public_len=384 server_public=4b48b00aba9141f3313bbaefd9ab6a73... client_public_len=384 client_public=89d5a40f0031a66b739dafba917c2a12... client_proof_len=64 client_proof=740b50acd21d0fb9fdda6281d3e80406...
+2026-06-08T14:10:13.183575Z DEBUG shairport_rs::airplay::pairing: pair-setup M3 SRP verifier built premaster_len=384 premaster=d744e0f96aa4333ee8183bcb0638988f... server_proof_len=64 server_proof=735bfea003970f227d546b67850ec589...
+2026-06-08T14:10:13.183759Z DEBUG shairport_rs::airplay::pairing: pair-setup M3 client proof verified session_key_len=64 session_key=da58d2498c1562de677894681f37a458... server_proof_len=64 server_proof=735bfea003970f227d546b67850ec589...
+2026-06-08T14:10:13.183837Z  INFO shairport_rs::airplay::pairing: pair-setup SRP proof verified, session key established
+2026-06-08T14:10:13.183920Z DEBUG shairport_rs::airplay::pairing: pairing response endpoint=Setup requested_state=3 response_tlv=4:frags=1,len=64,first=735bfea003970f227d546b67...; 6:frags=1,len=1,first=04 has_error=false
+2026-06-08T14:10:13.184197Z  INFO shairport_rs::airplay::rtsp: AP2 control cipher activated from pair-setup session key
+2026-06-08T14:10:13.184252Z  INFO shairport_rs::airplay::rtsp: pair-setup step status=200 body_len=69 has_shared_secret=true
+2026-06-08T14:10:13.184330Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/pair-setup cseq="3" status=200 reason="OK" content_length=69 response_headers=[("CSeq", "3"), ("Server", "AirTunes/366.0"), ("Content-Type", "application/octet-stream")]
+2026-06-08T14:10:13.191018Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/fp-setup cseq="4" content_type="application/octet-stream" content_length=16
+2026-06-08T14:10:13.191104Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=POST uri=/fp-setup content_type="application/octet-stream" body_len=16 body_hex=46 50 4c 59 03 01 01 00 00 00 00 04 02 00 01 bb
+2026-06-08T14:10:13.191180Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/fp-setup cseq="4" status=200 reason="OK" content_length=142 response_headers=[("CSeq", "4"), ("Server", "AirTunes/366.0"), ("Content-Type", "application/octet-stream")]
+2026-06-08T14:10:13.196997Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/fp-setup cseq="5" content_type="application/octet-stream" content_length=164
+2026-06-08T14:10:13.197111Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=POST uri=/fp-setup content_type="application/octet-stream" body_len=164 body_hex=46 50 4c 59 03 01 03 00 00 00 00 98 01 8f 1a 9c 9c f3 53 ba b7 41 5a ac 86 13 a4 eb c8 9d 8f 65 f3 aa 11 5d 77 df 85 cd 3b d0 03 d0 66 fe da 08 5f ec 8f 86 54 2a e4 b3 df 55 e1 a8 15 4d f0 20 02 24 3f 94 f1 fd 2a 2d 28 8f 5b 48 22 37 95 1a e0 3c 5c c0 7a 84 1c df e8 28 1a 62 09 e4 5a 2a ...
+2026-06-08T14:10:13.197186Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/fp-setup cseq="5" status=200 reason="OK" content_length=32 response_headers=[("CSeq", "5"), ("Server", "AirTunes/366.0"), ("Content-Type", "application/octet-stream")]
+2026-06-08T14:10:13.205865Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=SETUP uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 cseq="6" content_type="application/x-apple-binary-plist" content_length=1234
+2026-06-08T14:10:13.205981Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=SETUP uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 content_type="application/x-apple-binary-plist" body_len=1234 body_hex=62 70 6c 69 73 74 30 30 df 10 15 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 24 26 27 28 29 2a 2b 30 31 3c 3c 24 3f 40 41 42 3c 44 24 59 6f 73 56 65 72 73 69 6f 6e 5e 74 69 6d 69 6e 67 50 65 65 72 4c 69 73 74 5f 10 14 69 73 4d 75 6c 74 69 53 65 6c 65 63 74 41 69 ...
+2026-06-08T14:10:13.206489Z DEBUG shairport_rs::airplay::rtsp: AP2 SETUP plist parsed keys=osVersion,timingPeerList,isMultiSelectAirPlay,name,sessionCorrelationUUID,groupUUID,deviceID,timingProtocol,timingPeerInfo,sourceVersion,mc2ucDetectionSSMGroupInfo,groupContainsGroupLeader,statsCollectionEnabled,supportsGroupCohesion,model,macAddress,sessionUUID,osBuildVersion,updateSessionRequest,osName,senderSupportsRelay plist=<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict>	<key>osVersion</key>	<string>26.4</string>	<key>timingPeerList</key>	<array>		<dict>			<key>ID</key>			<string>71513C5A-F863-47A1-9A07-024F30B7BB83</string>			<key>Addresses</key>			<array>				<string>fe80::182e:d1df:e53:b7e8</string>				<string>192.168.1.43</string>			</array>			<key>ClockID</key>			<integer>2034633152828604424</integer>			<key>DeviceType</key>			<integer>0</integer>			<key>SupportsClockPortMatchingOverride</key>			<true/>		</dict>	</array>	<key>isMultiSelectAirPlay</key>	<true/>	<key>name</key>	<string>TAY iPhone</string>	<key>sessionCorrelationUUID</key>	<string>71513C5A-F863-47A1-9A07-024F30B7BB83</string>	<key>groupUUID</key>	<string>FE9F6AF7-6016-4031-AD18-CFE304858F30</string>	<key>deviceID</key>	<string>86:64:D8:9C:87:90</string>	<key>timingProtocol</key>	<string>PTP</string>	<key>timingPeerInfo</key>	<dict>		<key>ID</key>		<string>71513C5A-F863-47A1-9A07-024F30B7BB83</string>		<key>Addresses</key>		<array>			<string>fe80::182e:d1df:e53:b7e8</string>			<string>192.168.1.43</string>		</array>		<key>ClockID</key>		<integer>2034633152828604424</integer>		<key>DeviceType</key>		<integer>0</integer>		<key>SupportsClockPortMatchingOverride</key>		<true/>	</dict>	<key>sourceVersion</key>	<string>940.23.1</string>	<key>mc2ucDetectionSSMGroupInfo</key>	<dict>		<key>groupIPv6Addr</key>		<string>[ff33::f9e4:5b2e]:8738</string>		<key>sourceIPv6Addr</key>		<string>fe80::182e:d1df:e53:b7e8%en0</string>		<key>sourceIPv4Addr</key>		<string>192.168.1.43</string>		<key>groupIPv4Addr</key>		<string>232.231.106.161:8738</string>		<key>groupEncryptionKey</key>		<data>		1UKBjtsuTzIfqDME249I2Nx+ALPRyfpwVtmwbXQDNnM=		</data>	</dict>	<key>groupContainsGroupLeader</key>	<false/>	<key>statsCollectionEnabled</key>	<false/>	<key>supportsGroupCohesion</key>	<true/>	<key>model</key>	<string>iPhone17,1</string>	<key>macAddress</key>	<string>C2:76:82:0B:22:97</string>	<key>sessionUUID</key>	<string>DCB033CD-65C1-4D66-873E-7C6177F8E893</string>	<key>osBuildVersion</key>	<string>23E246</string>	<key>updateSessionRequest</key>	<false/>	<key>osName</key>	<string>iPhone OS</string>	<key>senderSupportsRelay</key>	<true/></dict></plist>
+2026-06-08T14:10:13.206575Z  INFO shairport_rs::airplay::rtsp: AP2 initial SETUP with timing protocol protocol=PTP
+2026-06-08T14:10:13.207000Z DEBUG shairport_rs::airplay::rtsp: AP2 SETUP timing peer response addresses=["fe80::c6d:130:c1f5:d39c"] id=fe80::c6d:130:c1f5:d39c primary_ip=fe80::c6d:130:c1f5:d39c clock_id=12823d95e9a015d6
+2026-06-08T14:10:13.207382Z  INFO shairport_rs::airplay::rtsp: AP2 event listener opened port=1899 bind=[fe80::c6d:130:c1f5:d39c%6]:0
+2026-06-08T14:10:13.207567Z DEBUG shairport_rs::airplay::rtsp: AP2 initial SETUP response plist plist=<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict>	<key>timingPeerInfo</key>	<dict>		<key>Addresses</key>		<array>			<string>fe80::c6d:130:c1f5:d39c</string>		</array>		<key>ID</key>		<string>fe80::c6d:130:c1f5:d39c</string>		<key>ClockID</key>		<integer>1333696153734092246</integer>		<key>DeviceType</key>		<integer>0</integer>		<key>SupportsClockPortMatchingOverride</key>		<true/>	</dict>	<key>eventPort</key>	<integer>1899</integer>	<key>timingPort</key>	<integer>0</integer></dict></plist>
+2026-06-08T14:10:13.207767Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=SETUP uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 cseq="6" status=200 reason="OK" content_length=221 response_headers=[("CSeq", "6"), ("Server", "AirTunes/366.0"), ("Content-Type", "application/x-apple-binary-plist")]
+2026-06-08T14:10:13.214655Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:13.230609Z  INFO shairport_rs::airplay::rtsp: AP2 event connection opened peer=[fe80::182e:d1df:e53:b7e8%6]:54723
+2026-06-08T14:10:13.231328Z DEBUG shairport_rs::airplay::rtsp: keys=["vv", "playbackCapabilities", "deviceID", "features", "featuresEx", "statusFlags", "sourceVersion", "name", "model", "pi", "pk", "senderAddress", "initialVolume", "supportedFormats", "receiverHDRCapability", "txtAirPlay"] group_uuid="FE9F6AF7-6016-4031-AD18-CFE304858F30" audio_stream=21235712 audio_stream_hex=0x1440800 buffer_stream=14942208 buffer_stream_hex=0xe40000 txt=["fex=AEpcQEDDAQA", "features=0x405C4A00,0x1C340", "gid=FE9F6AF7-6016-4031-AD18-CFE304858F30", "gcgl=0", "pgid=0b2bbd80-e3ab-5a65-9701-35be73d42068", "pgcgl=0", "protovers=1.1", "pi=0b2bbd80-e3ab-5a65-9701-35be73d42068", "psi=182a38da-01e8-5c4e-9107-842387e54cba"] body_len=16 AP2 updateInfo value built
+2026-06-08T14:10:13.231936Z DEBUG shairport_rs::airplay::rtsp: AP2 event updateInfo sent peer=[fe80::182e:d1df:e53:b7e8%6]:54723 plaintext_len=1363 encrypted_len=1399
+2026-06-08T14:10:13.234810Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=GET uri=/info cseq="7" content_type="" content_length=0
+2026-06-08T14:10:13.234943Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=GET uri=/info content_type="" body_len=0 body_hex=
+2026-06-08T14:10:13.235713Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=GET uri=/info cseq="7" status=200 reason="OK" content_length=1232 response_headers=[("CSeq", "7"), ("Server", "AirTunes/366.0"), ("Content-Type", "application/x-apple-binary-plist")]
+2026-06-08T14:10:13.237004Z DEBUG shairport_rs::airplay::rtsp: AP2 event payload received peer=[fe80::182e:d1df:e53:b7e8%6]:54723 plaintext_len=75 plaintext=RTSP/1.0 200 OK
+Date: Mon, 08 Jun 2026 14:10:13 GMT
+Content-Length: 0
+
+
+2026-06-08T14:10:13.240922Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=RECORD uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 cseq="8" content_type="" content_length=0
+2026-06-08T14:10:13.241053Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=RECORD uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 content_type="" body_len=0 body_hex=
+2026-06-08T14:10:13.241135Z  INFO shairport_rs::airplay::rtsp: AP2 RECORD category=Ptp timing_protocol="PTP"
+2026-06-08T14:10:13.241332Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=RECORD uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 cseq="8" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "8"), ("Server", "AirTunes/366.0"), ("Audio-Latency", "0")]
+2026-06-08T14:10:13.246858Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=SETPEERS uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 cseq="9" content_type="/peer-list-changed" content_length=86
+2026-06-08T14:10:13.246952Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=SETPEERS uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 content_type="/peer-list-changed" body_len=86 body_hex=62 70 6c 69 73 74 30 30 a2 01 02 5f 10 18 66 65 38 30 3a 3a 31 38 32 65 3a 64 31 64 66 3a 65 35 33 3a 62 37 65 38 5c 31 39 32 2e 31 36 38 2e 31 2e 34 33 08 0b 26 00 00 00 00 00 00 01 01 00 00 00 00 00 00 00 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 33
+2026-06-08T14:10:13.247145Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=SETPEERS uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 cseq="9" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "9"), ("Server", "AirTunes/366.0")]
+2026-06-08T14:10:13.252567Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/command cseq="10" content_type="application/x-apple-binary-plist" content_length=128
+2026-06-08T14:10:13.252725Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=POST uri=/command content_type="application/x-apple-binary-plist" body_len=128 body_hex=62 70 6c 69 73 74 30 30 d2 01 02 03 04 54 74 79 70 65 56 70 61 72 61 6d 73 5f 10 19 75 70 64 61 74 65 4d 52 53 75 70 70 6f 72 74 65 64 43 6f 6d 6d 61 6e 64 73 d1 05 06 5f 10 1d 6d 72 53 75 70 70 6f 72 74 65 64 43 6f 6d 6d 61 6e 64 73 46 72 6f 6d 53 65 6e 64 65 72 a0 08 0d 12 19 35 38 58 ...
+2026-06-08T14:10:13.253144Z DEBUG shairport_rs::airplay::rtsp: AP2 /command plist parsed command="updateMRSupportedCommands" top_keys=["type", "params"] params_keys="mrSupportedCommandsFromSender" body_len=128
+2026-06-08T14:10:13.253238Z DEBUG shairport_rs::airplay::rtsp: AP2 MR supported commands from sender count=0 first=[]
+2026-06-08T14:10:13.253368Z  INFO shairport_rs::airplay::rtsp: received /command (128 bytes)
+2026-06-08T14:10:13.253501Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/command cseq="10" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "10"), ("Server", "AirTunes/366.0"), ("Content-Type", "application/octet-stream")]
+2026-06-08T14:10:13.259253Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/command cseq="11" content_type="application/x-apple-binary-plist" content_length=6487
+2026-06-08T14:10:13.259384Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=POST uri=/command content_type="application/x-apple-binary-plist" body_len=6487 body_hex=62 70 6c 69 73 74 30 30 d2 01 02 03 04 54 74 79 70 65 56 70 61 72 61 6d 73 5f 10 19 75 70 64 61 74 65 4d 52 53 75 70 70 6f 72 74 65 64 43 6f 6d 6d 61 6e 64 73 d1 05 06 5f 10 1d 6d 72 53 75 70 70 6f 72 74 65 64 43 6f 6d 6d 61 6e 64 73 46 72 6f 6d 53 65 6e 64 65 72 af 10 20 07 08 09 0a 0b ...
+2026-06-08T14:10:13.259820Z DEBUG shairport_rs::airplay::rtsp: AP2 /command plist parsed command="updateMRSupportedCommands" top_keys=["type", "params"] params_keys="mrSupportedCommandsFromSender" body_len=6487
+2026-06-08T14:10:13.260053Z DEBUG shairport_rs::airplay::rtsp: AP2 MR supported commands from sender count=32 first=["0:plist command= enabled=- keys=kCommandInfoCommandKey|kCommandInfoEnabledKey", "1:plist command= enabled=- keys=kCommandInfoCommandKey|kCommandInfoEnabledKey", "2:plist command= enabled=- keys=kCommandInfoOptionsKey|kCommandInfoCommandKey|kCommandInfoEnabledKey", "3:plist command= enabled=- keys=kCommandInfoCommandKey|kCommandInfoEnabledKey", "4:plist command= enabled=- keys=kCommandInfoOptionsKey|kCommandInfoCommandKey|kCommandInfoEnabledKey", "5:plist command= enabled=- keys=kCommandInfoOptionsKey|kCommandInfoCommandKey|kCommandInfoEnabledKey", "6:plist command= enabled=- keys=kCommandInfoCommandKey|kCommandInfoEnabledKey", "7:plist command= enabled=- keys=kCommandInfoCommandKey|kCommandInfoEnabledKey", "8:plist command= enabled=- keys=kCommandInfoCommandKey|kCommandInfoEnabledKey", "9:plist command= enabled=- keys=kCommandInfoCommandKey|kCommandInfoEnabledKey", "10:plist command= enabled=- keys=kCommandInfoCommandKey|kCommandInfoEnabledKey", "11:plist command= enabled=- keys=kCommandInfoOptionsKey|kCommandInfoCommandKey|kCommandInfoEnabledKey"]
+2026-06-08T14:10:13.260117Z  INFO shairport_rs::airplay::rtsp: received /command (6487 bytes)
+2026-06-08T14:10:13.260189Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/command cseq="11" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "11"), ("Server", "AirTunes/366.0"), ("Content-Type", "application/octet-stream")]
+2026-06-08T14:10:13.264551Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=SET_PARAMETER uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 cseq="12" content_type="text/parameters" content_length=20
+2026-06-08T14:10:13.264654Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=SET_PARAMETER uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 content_type="text/parameters" body_len=20 body_hex=76 6f 6c 75 6d 65 3a 20 2d 32 30 2e 30 30 30 30 30 30 0d 0a
+2026-06-08T14:10:13.264945Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=SET_PARAMETER uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 cseq="12" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "12"), ("Server", "AirTunes/366.0")]
+2026-06-08T14:10:13.297876Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967194416 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:13.297989Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=1 origin_ns=109711049735416
+2026-06-08T14:10:13.422480Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967436450 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:13.422622Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=2 origin_ns=109711173950750
+2026-06-08T14:10:13.464543Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:13.612768Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710903064375 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:13.612903Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=3 origin_ns=109711299736875
+2026-06-08T14:10:13.616844Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=1 offset_ns=-109710902104525 path_delay_ns=0
+2026-06-08T14:10:13.672983Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967492366 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:13.673053Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=4 origin_ns=109711424516666
+2026-06-08T14:10:13.717932Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:13.798137Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967605525 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:13.798273Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=5 origin_ns=109711549743125
+2026-06-08T14:10:13.923271Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967513583 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:13.923388Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=6 origin_ns=109711674746583
+2026-06-08T14:10:14.132196Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710883679783 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:14.132372Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=7 origin_ns=109711799260583
+2026-06-08T14:10:14.173031Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967704416 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:14.173200Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=8 origin_ns=109711924696916
+2026-06-08T14:10:14.225711Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=SET_PARAMETER uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 cseq="13" content_type="text/parameters" content_length=20
+2026-06-08T14:10:14.225936Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=SET_PARAMETER uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 content_type="text/parameters" body_len=20 body_hex=76 6f 6c 75 6d 65 3a 20 2d 31 31 2e 36 36 36 36 36 35 0d 0a
+2026-06-08T14:10:14.226468Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=SET_PARAMETER uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 cseq="13" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "13"), ("Server", "AirTunes/366.0")]
+2026-06-08T14:10:14.237902Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=SET_PARAMETER uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 cseq="14" content_type="text/parameters" content_length=19
+2026-06-08T14:10:14.238188Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=SET_PARAMETER uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 content_type="text/parameters" body_len=19 body_hex=76 6f 6c 75 6d 65 3a 20 2d 39 2e 34 35 35 37 38 31 0d 0a
+2026-06-08T14:10:14.238882Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=SET_PARAMETER uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 cseq="14" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "14"), ("Server", "AirTunes/366.0")]
+2026-06-08T14:10:14.247362Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=SET_PARAMETER uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 cseq="15" content_type="text/parameters" content_length=19
+2026-06-08T14:10:14.247595Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=SET_PARAMETER uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 content_type="text/parameters" body_len=19 body_hex=76 6f 6c 75 6d 65 3a 20 2d 34 2e 39 39 39 39 39 39 0d 0a
+2026-06-08T14:10:14.248301Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=SET_PARAMETER uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 cseq="15" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "15"), ("Server", "AirTunes/366.0")]
+2026-06-08T14:10:14.255220Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=SET_PARAMETER uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 cseq="16" content_type="text/parameters" content_length=19
+2026-06-08T14:10:14.255409Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=SET_PARAMETER uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 content_type="text/parameters" body_len=19 body_hex=76 6f 6c 75 6d 65 3a 20 2d 33 2e 32 39 39 33 32 31 0d 0a
+2026-06-08T14:10:14.256077Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=SET_PARAMETER uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 cseq="16" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "16"), ("Server", "AirTunes/366.0")]
+2026-06-08T14:10:14.296054Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=SET_PARAMETER uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 cseq="17" content_type="text/parameters" content_length=18
+2026-06-08T14:10:14.296249Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=SET_PARAMETER uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 content_type="text/parameters" body_len=18 body_hex=76 6f 6c 75 6d 65 3a 20 30 2e 30 30 30 30 30 30 0d 0a
+2026-06-08T14:10:14.296672Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=SET_PARAMETER uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 cseq="17" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "17"), ("Server", "AirTunes/366.0")]
+2026-06-08T14:10:14.298022Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710966748841 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:14.298200Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=9 origin_ns=109712049230041
+2026-06-08T14:10:14.367017Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=2 offset_ns=-109710933595491 path_delay_ns=0
+2026-06-08T14:10:14.423696Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967623483 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:14.423880Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=10 origin_ns=109712173968083
+2026-06-08T14:10:14.548126Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967467425 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:14.548315Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=11 origin_ns=109712299545125
+2026-06-08T14:10:14.673121Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967459991 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:14.673278Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=12 origin_ns=109712424424291
+2026-06-08T14:10:14.716532Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:14.797130Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967526141 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:14.797293Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=13 origin_ns=109712548759041
+2026-06-08T14:10:14.922756Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967724958 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:14.922929Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=14 origin_ns=109712673754458
+2026-06-08T14:10:15.047809Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967651708 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:15.047968Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=15 origin_ns=109712799524208
+2026-06-08T14:10:15.181130Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=3 offset_ns=-109710995162183 path_delay_ns=27510475
+2026-06-08T14:10:15.181597Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710987450533 path_delay_ns=27510475 master=1c3c781292950008
+2026-06-08T14:10:15.181748Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=16 origin_ns=109712924741458
+2026-06-08T14:10:15.298257Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710995158125 path_delay_ns=27510475 master=1c3c781292950008
+2026-06-08T14:10:15.298443Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=17 origin_ns=109713049738250
+2026-06-08T14:10:15.362699Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="18" content_type="" content_length=0
+2026-06-08T14:10:15.362874Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=POST uri=/feedback content_type="" body_len=0 body_hex=
+2026-06-08T14:10:15.363005Z  INFO shairport_rs::airplay::rtsp: received /feedback (0 bytes)
+2026-06-08T14:10:15.363200Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="18" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "18"), ("Server", "AirTunes/366.0")]
+2026-06-08T14:10:15.422753Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710995030666 path_delay_ns=27510475 master=1c3c781292950008
+2026-06-08T14:10:15.422927Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=18 origin_ns=109713174289791
+2026-06-08T14:10:15.548200Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710995289008 path_delay_ns=27510475 master=1c3c781292950008
+2026-06-08T14:10:15.548393Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=19 origin_ns=109713299729833
+2026-06-08T14:10:15.709688Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=SETUP uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 cseq="19" content_type="application/x-apple-binary-plist" content_length=296
+2026-06-08T14:10:15.709911Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=SETUP uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 content_type="application/x-apple-binary-plist" body_len=296 body_hex=62 70 6c 69 73 74 30 30 d1 01 02 57 73 74 72 65 61 6d 73 a1 03 da 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 54 74 79 70 65 59 61 75 64 69 6f 4d 6f 64 65 52 63 74 5f 10 12 73 74 72 65 61 6d 43 6f 6e 6e 65 63 74 69 6f 6e 49 44 53 73 70 66 53 73 68 6b 5f 10 17 73 75 70 70 ...
+2026-06-08T14:10:15.710526Z DEBUG shairport_rs::airplay::rtsp: AP2 SETUP plist parsed keys=streams plist=<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict>	<key>streams</key>	<array>		<dict>			<key>type</key>			<integer>103</integer>			<key>audioMode</key>			<string>default</string>			<key>ct</key>			<integer>4</integer>			<key>streamConnectionID</key>			<integer>6252476918116336398</integer>			<key>spf</key>			<integer>1024</integer>			<key>shk</key>			<data>			aUmZOTq8LET/97uvZp7l8jj8b4pNEij8JsJ5D5YZXg8=			</data>			<key>supportsDynamicStreamID</key>			<true/>			<key>audioFormat</key>			<integer>8388608</integer>			<key>audioFormatIndex</key>			<integer>23</integer>			<key>clientID</key>			<string>com.apple.Music</string>		</dict>	</array></dict></plist>
+2026-06-08T14:10:15.712191Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710954447433 path_delay_ns=27510475 master=1c3c781292950008
+2026-06-08T14:10:15.712316Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=20 origin_ns=109713424265458
+2026-06-08T14:10:15.713070Z  INFO shairport_rs::airplay::rtsp: AP2 buffered audio stream requested data_port=1900 control_port=53390
+2026-06-08T14:10:15.713267Z DEBUG shairport_rs::airplay::rtsp: AP2 stream SETUP response plist plist=<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict>	<key>streams</key>	<array>		<dict>			<key>type</key>			<integer>103</integer>			<key>dataPort</key>			<integer>1900</integer>			<key>controlPort</key>			<integer>53390</integer>			<key>audioBufferSize</key>			<integer>8388608</integer>		</dict>	</array></dict></plist>
+2026-06-08T14:10:15.713534Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=SETUP uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 cseq="19" status=200 reason="OK" content_length=131 response_headers=[("CSeq", "19"), ("Server", "AirTunes/366.0"), ("Content-Type", "application/x-apple-binary-plist")]
+2026-06-08T14:10:15.716277Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:15.718834Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/audioMode cseq="20" content_type="application/x-apple-binary-plist" content_length=64
+2026-06-08T14:10:15.719025Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=POST uri=/audioMode content_type="application/x-apple-binary-plist" body_len=64 body_hex=62 70 6c 69 73 74 30 30 d1 01 02 59 61 75 64 69 6f 4d 6f 64 65 57 64 65 66 61 75 6c 74 08 0b 15 00 00 00 00 00 00 01 01 00 00 00 00 00 00 00 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 1d
+2026-06-08T14:10:15.719986Z DEBUG shairport_rs::airplay::rtsp: AP2 /audioMode plist parsed mode="default" keys="audioMode"
+2026-06-08T14:10:15.720204Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/audioMode cseq="20" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "20"), ("Server", "AirTunes/366.0")]
+2026-06-08T14:10:15.727144Z  INFO shairport_rs::airplay::buffered_audio: buffered audio connection opened peer=[fe80::182e:d1df:e53:b7e8%6]:51074
+2026-06-08T14:10:15.733634Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=TEARDOWN uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 cseq="21" content_type="application/x-apple-binary-plist" content_length=84
+2026-06-08T14:10:15.733864Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=TEARDOWN uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 content_type="application/x-apple-binary-plist" body_len=84 body_hex=62 70 6c 69 73 74 30 30 d1 01 02 57 73 74 72 65 61 6d 73 a1 03 d2 04 05 06 07 58 73 74 72 65 61 6d 49 44 54 74 79 70 65 10 00 10 67 08 0b 13 15 1a 23 28 2a 00 00 00 00 00 00 01 01 00 00 00 00 00 00 00 08 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 2c
+2026-06-08T14:10:15.734025Z  INFO shairport_rs::player: player stopped
+2026-06-08T14:10:15.734664Z  INFO shairport_rs::airplay::rtsp: TEARDOWN
+2026-06-08T14:10:15.734847Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=TEARDOWN uri=rtsp://fe80::c6d:130:c1f5:d39c/15902267241513700710 cseq="21" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "21"), ("Server", "AirTunes/366.0")]
+2026-06-08T14:10:15.798198Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710995111350 path_delay_ns=27510475 master=1c3c781292950008
+2026-06-08T14:10:15.798377Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=21 origin_ns=109713549729875
+2026-06-08T14:10:15.869941Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=4 offset_ns=-109710932512575 path_delay_ns=0
+2026-06-08T14:10:15.923322Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967651791 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:15.923499Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=22 origin_ns=109713674738291
+2026-06-08T14:10:16.047924Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967801216 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:16.048082Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=23 origin_ns=109713799746416
+2026-06-08T14:10:16.229124Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710911744533 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:16.229230Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=24 origin_ns=109713923786333
+2026-06-08T14:10:16.297873Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967289666 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:16.298040Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=25 origin_ns=109714049189166
+2026-06-08T14:10:16.424435Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967667383 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:16.424578Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=26 origin_ns=109714174250083
+2026-06-08T14:10:16.548770Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710966939625 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:16.548920Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=27 origin_ns=109714299743125
+2026-06-08T14:10:16.620845Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=5 offset_ns=-109710931956025 path_delay_ns=0
+2026-06-08T14:10:16.757553Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:16.760151Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710882092250 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:16.760290Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=28 origin_ns=109714424737250
+2026-06-08T14:10:16.797530Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967727675 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:16.797628Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=29 origin_ns=109714549168875
+2026-06-08T14:10:16.922942Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967630775 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:16.923076Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=30 origin_ns=109714673918875
+2026-06-08T14:10:17.048583Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967517325 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:17.048749Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=31 origin_ns=109714799739125
+2026-06-08T14:10:17.173579Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967594025 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:17.173674Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=32 origin_ns=109714924746125
+2026-06-08T14:10:17.287528Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="22" content_type="" content_length=0
+2026-06-08T14:10:17.287709Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=POST uri=/feedback content_type="" body_len=0 body_hex=
+2026-06-08T14:10:17.287812Z  INFO shairport_rs::airplay::rtsp: received /feedback (0 bytes)
+2026-06-08T14:10:17.287992Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="22" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "22"), ("Server", "AirTunes/366.0")]
+2026-06-08T14:10:17.298322Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967544291 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:17.298462Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=33 origin_ns=109715049741291
+2026-06-08T14:10:17.377922Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=6 offset_ns=-109710929011891 path_delay_ns=0
+2026-06-08T14:10:17.422938Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967690525 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:17.423027Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=34 origin_ns=109715174316625
+2026-06-08T14:10:17.549381Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710966291341 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:17.549528Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=35 origin_ns=109715299192041
+2026-06-08T14:10:17.672868Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967719233 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:17.672977Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=36 origin_ns=109715424749333
+2026-06-08T14:10:17.805615Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:17.807996Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710957902933 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:17.808139Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=37 origin_ns=109715549521833
+2026-06-08T14:10:17.923747Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967677275 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:17.923932Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=38 origin_ns=109715674740375
+2026-06-08T14:10:18.048317Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967718666 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:18.048462Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=39 origin_ns=109715799653666
+2026-06-08T14:10:18.129768Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=7 offset_ns=-109710928035466 path_delay_ns=0
+2026-06-08T14:10:18.173045Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967736016 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:18.173154Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=40 origin_ns=109715924747916
+2026-06-08T14:10:18.326089Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710940711483 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:18.326183Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=41 origin_ns=109716049746583
+2026-06-08T14:10:18.423077Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967703100 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:18.423207Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=42 origin_ns=109716174602000
+2026-06-08T14:10:18.548085Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967752716 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:18.548202Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=43 origin_ns=109716299744916
+2026-06-08T14:10:18.673608Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710966762783 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:18.673705Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=44 origin_ns=109716424405083
+2026-06-08T14:10:18.719331Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:18.856507Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710909739983 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:18.856617Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=45 origin_ns=109716549746083
+2026-06-08T14:10:18.867159Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=8 offset_ns=-109710905152633 path_delay_ns=0
+2026-06-08T14:10:18.923628Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967756350 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:18.923801Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=46 origin_ns=109716674750750
+2026-06-08T14:10:19.048180Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967637858 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:19.048285Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=47 origin_ns=109716799743958
+2026-06-08T14:10:19.174120Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967680541 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:19.174262Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=48 origin_ns=109716924745041
+2026-06-08T14:10:19.372712Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="23" content_type="" content_length=0
+2026-06-08T14:10:19.372836Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=POST uri=/feedback content_type="" body_len=0 body_hex=
+2026-06-08T14:10:19.372913Z  INFO shairport_rs::airplay::rtsp: received /feedback (0 bytes)
+2026-06-08T14:10:19.373046Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="23" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "23"), ("Server", "AirTunes/366.0")]
+2026-06-08T14:10:19.374761Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710891940075 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:19.374853Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=49 origin_ns=109717049642375
+2026-06-08T14:10:19.423206Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967632775 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:19.423370Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=50 origin_ns=109717174700875
+2026-06-08T14:10:19.548303Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967606975 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:19.548416Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=51 origin_ns=109717299743375
+2026-06-08T14:10:19.630256Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=9 offset_ns=-109710927502525 path_delay_ns=0
+2026-06-08T14:10:19.672903Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967796200 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:19.673006Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=52 origin_ns=109717424743500
+2026-06-08T14:10:19.720296Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:19.798801Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967045116 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:19.798896Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=53 origin_ns=109717549746916
+2026-06-08T14:10:19.923148Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967703733 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:19.923294Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=54 origin_ns=109717674751333
+2026-06-08T14:10:20.048136Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967687800 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:20.048272Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=55 origin_ns=109717799741000
+2026-06-08T14:10:20.172559Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968056183 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:20.172714Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=56 origin_ns=109717924573083
+2026-06-08T14:10:20.297888Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967802408 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:20.297990Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=57 origin_ns=109718049749208
+2026-06-08T14:10:20.423163Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=10 offset_ns=-109710996287924 path_delay_ns=28485516
+2026-06-08T14:10:20.424278Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710995564957 path_delay_ns=28485516 master=1c3c781292950008
+2026-06-08T14:10:20.424363Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=58 origin_ns=109718174747041
+2026-06-08T14:10:20.548431Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710995842857 path_delay_ns=28485516 master=1c3c781292950008
+2026-06-08T14:10:20.548531Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=59 origin_ns=109718299749541
+2026-06-08T14:10:20.673246Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710996135782 path_delay_ns=28485516 master=1c3c781292950008
+2026-06-08T14:10:20.673322Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=60 origin_ns=109718424748166
+2026-06-08T14:10:20.721101Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:20.797217Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710996281991 path_delay_ns=28485516 master=1c3c781292950008
+2026-06-08T14:10:20.797346Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=61 origin_ns=109718548994875
+2026-06-08T14:10:20.953389Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710965867899 path_delay_ns=28485516 master=1c3c781292950008
+2026-06-08T14:10:20.953482Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=62 origin_ns=109718674743583
+2026-06-08T14:10:21.047857Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710996296274 path_delay_ns=28485516 master=1c3c781292950008
+2026-06-08T14:10:21.047967Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=63 origin_ns=109718799747958
+2026-06-08T14:10:21.116289Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=11 offset_ns=-109710934539258 path_delay_ns=0
+2026-06-08T14:10:21.173126Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967708541 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:21.173237Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=64 origin_ns=109718924745541
+2026-06-08T14:10:21.298147Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967728325 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:21.298276Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=65 origin_ns=109719049752625
+2026-06-08T14:10:21.337575Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="24" content_type="" content_length=0
+2026-06-08T14:10:21.337692Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=POST uri=/feedback content_type="" body_len=0 body_hex=
+2026-06-08T14:10:21.337828Z  INFO shairport_rs::airplay::rtsp: received /feedback (0 bytes)
+2026-06-08T14:10:21.337939Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="24" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "24"), ("Server", "AirTunes/366.0")]
+2026-06-08T14:10:21.470847Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710920064591 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:21.470958Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=66 origin_ns=109719174744291
+2026-06-08T14:10:21.548459Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967681525 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:21.548559Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=67 origin_ns=109719299741125
+2026-06-08T14:10:21.672527Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967793250 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:21.672707Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=68 origin_ns=109719424196250
+2026-06-08T14:10:21.721269Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:21.797026Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967798250 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:21.797106Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=69 origin_ns=109719548887750
+2026-06-08T14:10:21.880447Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=12 offset_ns=-109710927693100 path_delay_ns=0
+2026-06-08T14:10:22.001899Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710889280866 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:22.002037Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=70 origin_ns=109719674745166
+2026-06-08T14:10:22.048150Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967849550 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:22.048290Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=71 origin_ns=109719799136750
+2026-06-08T14:10:22.173996Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967812375 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:22.174154Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=72 origin_ns=109719924751875
+2026-06-08T14:10:22.298882Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967597183 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:22.298971Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=73 origin_ns=109720049746083
+2026-06-08T14:10:22.423059Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967774541 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:22.423165Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=74 origin_ns=109720174741541
+2026-06-08T14:10:22.548140Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967768475 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:22.548290Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=75 origin_ns=109720299744875
+2026-06-08T14:10:22.630056Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=13 offset_ns=-109710927569775 path_delay_ns=0
+2026-06-08T14:10:22.672944Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967881841 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:22.673039Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=76 origin_ns=109720424743041
+2026-06-08T14:10:22.722454Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:22.797740Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967946525 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:22.797853Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=77 origin_ns=109720549747125
+2026-06-08T14:10:22.922994Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967791666 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:22.923090Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=78 origin_ns=109720674748166
+2026-06-08T14:10:23.051818Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710965088125 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:23.051905Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=79 origin_ns=109720799732625
+2026-06-08T14:10:23.173532Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710966994608 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:23.173642Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=80 origin_ns=109720924738208
+2026-06-08T14:10:23.297859Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967456058 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:23.297953Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=81 origin_ns=109721049090958
+2026-06-08T14:10:23.347360Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="25" content_type="" content_length=0
+2026-06-08T14:10:23.347530Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=POST uri=/feedback content_type="" body_len=0 body_hex=
+2026-06-08T14:10:23.347632Z  INFO shairport_rs::airplay::rtsp: received /feedback (0 bytes)
+2026-06-08T14:10:23.347754Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="25" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "25"), ("Server", "AirTunes/366.0")]
+2026-06-08T14:10:23.368144Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=14 offset_ns=-109710933254558 path_delay_ns=0
+2026-06-08T14:10:23.423325Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967478941 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:23.423508Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=82 origin_ns=109721174239541
+2026-06-08T14:10:23.569153Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710946970366 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:23.569276Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=83 origin_ns=109721299753666
+2026-06-08T14:10:23.672811Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967837591 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:23.672936Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=84 origin_ns=109721424738791
+2026-06-08T14:10:23.723401Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:23.797657Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967661775 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:23.797758Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=85 origin_ns=109721549173375
+2026-06-08T14:10:23.922367Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967919225 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:23.922448Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=86 origin_ns=109721674391625
+2026-06-08T14:10:24.101205Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710917198166 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:24.101341Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=87 origin_ns=109721799736666
+2026-06-08T14:10:24.118687Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=15 offset_ns=-109710908257216 path_delay_ns=0
+2026-06-08T14:10:24.173529Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967498333 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:24.173614Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=88 origin_ns=109721924735833
+2026-06-08T14:10:24.297425Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968094116 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:24.297501Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=89 origin_ns=109722049727916
+2026-06-08T14:10:24.423189Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967765091 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:24.423283Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=90 origin_ns=109722174740791
+2026-06-08T14:10:24.616164Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710898894658 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:24.616243Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=91 origin_ns=109722299107458
+2026-06-08T14:10:24.672702Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967883850 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:24.672789Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=92 origin_ns=109722424744250
+2026-06-08T14:10:24.725508Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:24.797943Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967828900 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:24.798017Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=93 origin_ns=109722549691000
+2026-06-08T14:10:24.871743Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=16 offset_ns=-109710932921850 path_delay_ns=0
+2026-06-08T14:10:24.922142Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968013800 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:24.922251Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=94 origin_ns=109722674326000
+2026-06-08T14:10:25.047398Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967828725 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:25.047477Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=95 origin_ns=109722799113125
+2026-06-08T14:10:25.174170Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967308408 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:25.174337Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=96 origin_ns=109722924737708
+2026-06-08T14:10:25.299721Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967412175 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:25.299818Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=97 origin_ns=109723049741375
+2026-06-08T14:10:25.358283Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="26" content_type="" content_length=0
+2026-06-08T14:10:25.358437Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=POST uri=/feedback content_type="" body_len=0 body_hex=
+2026-06-08T14:10:25.358576Z  INFO shairport_rs::airplay::rtsp: received /feedback (0 bytes)
+2026-06-08T14:10:25.358728Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="26" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "26"), ("Server", "AirTunes/366.0")]
+2026-06-08T14:10:25.422729Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967892816 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:25.422832Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=98 origin_ns=109723174738416
+2026-06-08T14:10:25.547716Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968004983 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:25.547868Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=99 origin_ns=109723299740083
+2026-06-08T14:10:25.666117Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=17 offset_ns=-109710931497233 path_delay_ns=0
+2026-06-08T14:10:25.672792Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967958375 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:25.672866Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=100 origin_ns=109723424744375
+2026-06-08T14:10:25.727019Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:25.798009Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967817816 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:25.798118Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=101 origin_ns=109723549738916
+2026-06-08T14:10:25.922591Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967861675 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:25.922761Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=102 origin_ns=109723674319875
+2026-06-08T14:10:26.048120Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967566966 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:26.048287Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=103 origin_ns=109723799742166
+2026-06-08T14:10:26.198045Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710944091141 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:26.198146Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=104 origin_ns=109723924299041
+2026-06-08T14:10:26.297842Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967875666 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:26.297921Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=105 origin_ns=109724049741166
+2026-06-08T14:10:26.374110Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=18 offset_ns=-109710930921766 path_delay_ns=0
+2026-06-08T14:10:26.423859Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967148566 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:26.423972Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=106 origin_ns=109724174736166
+2026-06-08T14:10:26.549165Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967238025 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:26.549282Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=107 origin_ns=109724299692625
+2026-06-08T14:10:26.713352Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710927339283 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:26.713439Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=108 origin_ns=109724424747083
+2026-06-08T14:10:26.729273Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:26.801105Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967988091 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:26.801204Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=109 origin_ns=109724549746791
+2026-06-08T14:10:26.922116Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967963975 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:26.922211Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=110 origin_ns=109724674121375
+2026-06-08T14:10:27.048476Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967968916 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:27.048547Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=111 origin_ns=109724799741916
+2026-06-08T14:10:27.127999Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=19 offset_ns=-109710929533266 path_delay_ns=0
+2026-06-08T14:10:27.245806Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710895472200 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:27.245903Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=112 origin_ns=109724924741000
+2026-06-08T14:10:27.297643Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968054766 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:27.297762Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=113 origin_ns=109725049740166
+2026-06-08T14:10:27.367648Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="27" content_type="" content_length=0
+2026-06-08T14:10:27.367832Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=POST uri=/feedback content_type="" body_len=0 body_hex=
+2026-06-08T14:10:27.367956Z  INFO shairport_rs::airplay::rtsp: received /feedback (0 bytes)
+2026-06-08T14:10:27.368140Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="27" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "27"), ("Server", "AirTunes/366.0")]
+2026-06-08T14:10:27.423150Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967587300 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:27.423293Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=114 origin_ns=109725174738500
+2026-06-08T14:10:27.549177Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967193616 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:27.549261Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=115 origin_ns=109725299755916
+2026-06-08T14:10:27.672558Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968109783 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:27.672640Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=116 origin_ns=109725424759083
+2026-06-08T14:10:27.765326Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:27.797590Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968071866 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:27.797678Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=117 origin_ns=109725549740166
+2026-06-08T14:10:27.876779Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=20 offset_ns=-109710929097116 path_delay_ns=0
+2026-06-08T14:10:27.922645Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968094833 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:27.922781Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=118 origin_ns=109725674735833
+2026-06-08T14:10:28.047862Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967921408 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:28.047974Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=119 origin_ns=109725799749708
+2026-06-08T14:10:28.172093Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968115166 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:28.172178Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=120 origin_ns=109725924324666
+2026-06-08T14:10:28.297774Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967965233 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:28.297853Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=121 origin_ns=109726049742333
+2026-06-08T14:10:28.422835Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968085883 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:28.422933Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=122 origin_ns=109726174735583
+2026-06-08T14:10:28.549550Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710966195991 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:28.549621Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=123 origin_ns=109726299747791
+2026-06-08T14:10:28.629244Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=21 offset_ns=-109710927329491 path_delay_ns=0
+2026-06-08T14:10:28.672584Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968041991 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:28.672684Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=124 origin_ns=109726424737291
+2026-06-08T14:10:28.810079Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:28.811990Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710953020608 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:28.812061Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=125 origin_ns=109726548967208
+2026-06-08T14:10:28.922514Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967630733 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:28.922608Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=126 origin_ns=109726674127333
+2026-06-08T14:10:29.048711Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967019800 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:29.048799Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=127 origin_ns=109726799741500
+2026-06-08T14:10:29.172469Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968161216 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:29.172601Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=128 origin_ns=109726924737416
+2026-06-08T14:10:29.342074Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710924646658 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:29.342180Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=129 origin_ns=109727049743958
+2026-06-08T14:10:29.379637Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=22 offset_ns=-109710906503208 path_delay_ns=0
+2026-06-08T14:10:29.407266Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="28" content_type="" content_length=0
+2026-06-08T14:10:29.407363Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=POST uri=/feedback content_type="" body_len=0 body_hex=
+2026-06-08T14:10:29.407411Z  INFO shairport_rs::airplay::rtsp: received /feedback (0 bytes)
+2026-06-08T14:10:29.407503Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="28" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "28"), ("Server", "AirTunes/366.0")]
+2026-06-08T14:10:29.422589Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968098158 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:29.422687Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=130 origin_ns=109727174736958
+2026-06-08T14:10:29.546986Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967974183 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:29.547088Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=131 origin_ns=109727299018583
+2026-06-08T14:10:29.672648Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967922958 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:29.672719Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=132 origin_ns=109727424655958
+2026-06-08T14:10:29.729968Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:29.860505Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710905106833 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:29.860584Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=133 origin_ns=109727549021333
+2026-06-08T14:10:29.922691Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968100641 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:29.922822Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=134 origin_ns=109727674738541
+2026-06-08T14:10:30.048513Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968163575 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:30.048613Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=135 origin_ns=109727799743875
+2026-06-08T14:10:30.133252Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=23 offset_ns=-109710927902475 path_delay_ns=0
+2026-06-08T14:10:30.173198Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968071866 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:30.173289Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=136 origin_ns=109727924366166
+2026-06-08T14:10:30.387667Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968067808 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:30.387806Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=137 origin_ns=109728049743708
+2026-06-08T14:10:30.422579Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968105816 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:30.422666Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=138 origin_ns=109728174738416
+2026-06-08T14:10:30.547594Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968100741 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:30.547691Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=139 origin_ns=109728299744041
+2026-06-08T14:10:30.672533Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968099400 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:30.672616Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=140 origin_ns=109728424740500
+2026-06-08T14:10:30.731056Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:30.797590Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968095850 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:30.797671Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=141 origin_ns=109728549743250
+2026-06-08T14:10:30.908443Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=24 offset_ns=-109710934363400 path_delay_ns=0
+2026-06-08T14:10:30.922477Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968188850 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:30.922587Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=142 origin_ns=109728674737250
+2026-06-08T14:10:31.047368Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968163575 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:31.047452Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=143 origin_ns=109728799484875
+2026-06-08T14:10:31.172547Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967989566 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:31.172622Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=144 origin_ns=109728924743666
+2026-06-08T14:10:31.297045Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968194400 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:31.297107Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=145 origin_ns=109729049000000
+2026-06-08T14:10:31.437359Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="29" content_type="" content_length=0
+2026-06-08T14:10:31.437449Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=POST uri=/feedback content_type="" body_len=0 body_hex=
+2026-06-08T14:10:31.437517Z  INFO shairport_rs::airplay::rtsp: received /feedback (0 bytes)
+2026-06-08T14:10:31.437595Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="29" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "29"), ("Server", "AirTunes/366.0")]
+2026-06-08T14:10:31.439132Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710952369941 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:31.439192Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=146 origin_ns=109729174742541
+2026-06-08T14:10:31.547701Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968064133 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:31.547843Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=147 origin_ns=109729299750333
+2026-06-08T14:10:31.621258Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=25 offset_ns=-109710931992133 path_delay_ns=0
+2026-06-08T14:10:31.671557Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968171775 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:31.671625Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=148 origin_ns=109729423768875
+2026-06-08T14:10:31.732291Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:31.797594Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968076850 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:31.797663Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=149 origin_ns=109729549743750
+2026-06-08T14:10:31.957155Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710933841216 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:31.957224Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=150 origin_ns=109729674740916
+2026-06-08T14:10:32.046919Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968118908 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:32.047004Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=151 origin_ns=109729798891708
+2026-06-08T14:10:32.172399Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968163616 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:32.172489Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=152 origin_ns=109729924730916
+2026-06-08T14:10:32.297025Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968138083 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:32.297092Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=153 origin_ns=109730049335083
+2026-06-08T14:10:32.373274Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=26 offset_ns=-109710931462033 path_delay_ns=0
+2026-06-08T14:10:32.488290Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710903298758 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:32.488377Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=154 origin_ns=109730174154958
+2026-06-08T14:10:32.548276Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968111641 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:32.548342Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=155 origin_ns=109730299403041
+2026-06-08T14:10:32.672412Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968127883 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:32.672489Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=156 origin_ns=109730424734083
+2026-06-08T14:10:32.733537Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:32.798413Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967979841 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:32.798502Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=157 origin_ns=109730549747541
+2026-06-08T14:10:33.005932Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710884608583 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:33.006069Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=158 origin_ns=109730673939583
+2026-06-08T14:10:33.047016Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968053683 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:33.047122Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=159 origin_ns=109730799096083
+2026-06-08T14:10:33.126935Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=27 offset_ns=-109710928960633 path_delay_ns=0
+2026-06-08T14:10:33.172473Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968193150 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:33.172543Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=160 origin_ns=109730924731250
+2026-06-08T14:10:33.298253Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968131666 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:33.298331Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=161 origin_ns=109731049732666
+2026-06-08T14:10:33.422419Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968235458 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:33.422498Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=162 origin_ns=109731174730458
+2026-06-08T14:10:33.425261Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="30" content_type="" content_length=0
+2026-06-08T14:10:33.425369Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=POST uri=/feedback content_type="" body_len=0 body_hex=
+2026-06-08T14:10:33.425427Z  INFO shairport_rs::airplay::rtsp: received /feedback (0 bytes)
+2026-06-08T14:10:33.425511Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="30" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "30"), ("Server", "AirTunes/366.0")]
+2026-06-08T14:10:33.547995Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968164450 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:33.548057Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=163 origin_ns=109731299226250
+2026-06-08T14:10:33.672593Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968017183 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:33.672687Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=164 origin_ns=109731424561083
+2026-06-08T14:10:33.735157Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:33.797768Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968086750 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:33.797858Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=165 origin_ns=109731549740250
+2026-06-08T14:10:33.879922Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=28 offset_ns=-109710927751050 path_delay_ns=0
+2026-06-08T14:10:33.923236Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967481016 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:33.923326Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=166 origin_ns=109731674732416
+2026-06-08T14:10:34.054500Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710961703516 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:34.054580Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=167 origin_ns=109731799748916
+2026-06-08T14:10:34.173682Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968125933 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:34.173760Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=168 origin_ns=109731924737333
+2026-06-08T14:10:34.296742Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968158641 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:34.296811Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=169 origin_ns=109732048847541
+2026-06-08T14:10:34.423032Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967799000 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:34.423156Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=170 origin_ns=109732174743500
+2026-06-08T14:10:34.582569Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710932380841 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:34.582718Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=171 origin_ns=109732299085041
+2026-06-08T14:10:34.629633Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=29 offset_ns=-109710909596591 path_delay_ns=0
+2026-06-08T14:10:34.673659Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968244975 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:34.673741Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=172 origin_ns=109732424741875
+2026-06-08T14:10:34.736083Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:34.798824Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968119191 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:34.798913Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=173 origin_ns=109732549675291
+2026-06-08T14:10:34.921784Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968068841 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:34.921852Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=174 origin_ns=109732673891541
+2026-06-08T14:10:35.102706Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710913449041 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:35.102785Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=175 origin_ns=109732799375541
+2026-06-08T14:10:35.172411Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968098741 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:35.172504Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=176 origin_ns=109732924356041
+2026-06-08T14:10:35.299165Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710966506466 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:35.299267Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=177 origin_ns=109733049744166
+2026-06-08T14:10:35.367620Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=30 offset_ns=-109710933302166 path_delay_ns=0
+2026-06-08T14:10:35.422335Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968329233 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:35.422451Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=178 origin_ns=109733174740833
+2026-06-08T14:10:35.437080Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="31" content_type="" content_length=0
+2026-06-08T14:10:35.437165Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=POST uri=/feedback content_type="" body_len=0 body_hex=
+2026-06-08T14:10:35.437222Z  INFO shairport_rs::airplay::rtsp: received /feedback (0 bytes)
+2026-06-08T14:10:35.437314Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="31" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "31"), ("Server", "AirTunes/366.0")]
+2026-06-08T14:10:35.633414Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710883478866 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:35.633518Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=179 origin_ns=109733299742666
+2026-06-08T14:10:35.672340Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968329633 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:35.672419Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=180 origin_ns=109733424738333
+2026-06-08T14:10:35.736356Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:35.798428Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967414391 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:35.798496Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=181 origin_ns=109733549741791
+2026-06-08T14:10:35.922438Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968244783 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:35.922509Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=182 origin_ns=109733674764083
+2026-06-08T14:10:36.047142Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968107791 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:36.047228Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=183 origin_ns=109733799285291
+2026-06-08T14:10:36.151095Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=31 offset_ns=-109710930971591 path_delay_ns=0
+2026-06-08T14:10:36.172680Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968110158 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:36.172782Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=184 origin_ns=109733924738458
+2026-06-08T14:10:36.297006Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968303641 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:36.297077Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=185 origin_ns=109734049438541
+2026-06-08T14:10:36.423018Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967634466 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:36.423102Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=186 origin_ns=109734174736666
+2026-06-08T14:10:36.547311Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968335858 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:36.547415Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=187 origin_ns=109734299162458
+2026-06-08T14:10:36.681811Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710959822833 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:36.681947Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=188 origin_ns=109734424733833
+2026-06-08T14:10:36.739916Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:36.799254Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710966554033 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:36.799339Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=189 origin_ns=109734549739333
+2026-06-08T14:10:36.876967Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=32 offset_ns=-109710928428783 path_delay_ns=0
+2026-06-08T14:10:36.922275Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968358800 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:36.922366Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=190 origin_ns=109734674582500
+2026-06-08T14:10:37.047649Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968046475 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:37.047737Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=191 origin_ns=109734799741375
+2026-06-08T14:10:37.200786Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710941096925 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:37.200873Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=192 origin_ns=109734924760625
+2026-06-08T14:10:37.298645Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967672616 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:37.298767Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=193 origin_ns=109735049746916
+2026-06-08T14:10:37.422890Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968024100 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:37.423018Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=194 origin_ns=109735174749500
+2026-06-08T14:10:37.477049Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="32" content_type="" content_length=0
+2026-06-08T14:10:37.477160Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=POST uri=/feedback content_type="" body_len=0 body_hex=
+2026-06-08T14:10:37.477292Z  INFO shairport_rs::airplay::rtsp: received /feedback (0 bytes)
+2026-06-08T14:10:37.477395Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="32" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "32"), ("Server", "AirTunes/366.0")]
+2026-06-08T14:10:37.547502Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968232525 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:37.547596Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=195 origin_ns=109735299742625
+2026-06-08T14:10:37.631941Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=33 offset_ns=-109710927221625 path_delay_ns=0
+2026-06-08T14:10:37.730450Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710911283966 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:37.730550Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=196 origin_ns=109735424736166
+2026-06-08T14:10:37.738141Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:37.801322Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968164050 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:37.801388Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=197 origin_ns=109735549741750
+2026-06-08T14:10:37.922411Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968238591 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:37.922508Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=198 origin_ns=109735674741791
+2026-06-08T14:10:38.049592Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968271183 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:38.049664Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=199 origin_ns=109735799747583
+2026-06-08T14:10:38.248555Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710891621575 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:38.248640Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=200 origin_ns=109735923937375
+2026-06-08T14:10:38.296737Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968290891 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:38.296834Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=201 origin_ns=109736049027791
+2026-06-08T14:10:38.368113Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=34 offset_ns=-109710933474791 path_delay_ns=0
+2026-06-08T14:10:38.421765Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968115733 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:38.421863Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=202 origin_ns=109736173852833
+2026-06-08T14:10:38.548169Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967626566 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:38.548263Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=203 origin_ns=109736299757166
+2026-06-08T14:10:38.672880Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968030100 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:38.672967Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=204 origin_ns=109736424745000
+2026-06-08T14:10:38.776177Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:38.796854Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968375058 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:38.796933Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=205 origin_ns=109736549435458
+2026-06-08T14:10:38.922567Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968123891 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:38.922675Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=206 origin_ns=109736674541291
+2026-06-08T14:10:39.047801Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968026158 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:39.047937Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=207 origin_ns=109736799737458
+2026-06-08T14:10:39.118313Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=35 offset_ns=-109710933468758 path_delay_ns=0
+2026-06-08T14:10:39.172226Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968397116 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:39.172316Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=208 origin_ns=109736924414916
+2026-06-08T14:10:39.297454Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967663650 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:39.297534Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=209 origin_ns=109737049135250
+2026-06-08T14:10:39.422758Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967940325 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:39.422904Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=210 origin_ns=109737174732125
+2026-06-08T14:10:39.487918Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="33" content_type="" content_length=0
+2026-06-08T14:10:39.488040Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=POST uri=/feedback content_type="" body_len=0 body_hex=
+2026-06-08T14:10:39.488175Z  INFO shairport_rs::airplay::rtsp: received /feedback (0 bytes)
+2026-06-08T14:10:39.488316Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="33" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "33"), ("Server", "AirTunes/366.0")]
+2026-06-08T14:10:39.548392Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967971658 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:39.548553Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=211 origin_ns=109737299739458
+2026-06-08T14:10:39.672076Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968324408 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:39.672165Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=212 origin_ns=109737424740708
+2026-06-08T14:10:39.826077Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:39.828215Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710937897133 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:39.828334Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=213 origin_ns=109737549744333
+2026-06-08T14:10:39.872088Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=36 offset_ns=-109710916581033 path_delay_ns=0
+2026-06-08T14:10:39.923137Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967792008 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:39.923273Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=214 origin_ns=109737674745208
+2026-06-08T14:10:40.047528Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968252433 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:40.047638Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=215 origin_ns=109737799743333
+2026-06-08T14:10:40.173175Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967679091 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:40.173296Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=216 origin_ns=109737924739791
+2026-06-08T14:10:40.345414Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710921222991 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:40.345501Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=217 origin_ns=109738049741291
+2026-06-08T14:10:40.422482Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968346408 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:40.422575Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=218 origin_ns=109738174739708
+2026-06-08T14:10:40.547833Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968042908 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:40.547920Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=219 origin_ns=109738299734708
+2026-06-08T14:10:40.623304Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=37 offset_ns=-109710930905108 path_delay_ns=0
+2026-06-08T14:10:40.672939Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967708150 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:40.673028Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=220 origin_ns=109738424740250
+2026-06-08T14:10:40.740095Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:40.877166Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710889835966 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:40.877242Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=221 origin_ns=109738549739666
+2026-06-08T14:10:40.921817Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968371950 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:40.921903Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=222 origin_ns=109738674151750
+2026-06-08T14:10:41.047842Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968039191 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:41.047920Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=223 origin_ns=109738799733291
+2026-06-08T14:10:41.172151Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968412891 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:41.172214Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=224 origin_ns=109738924735791
+2026-06-08T14:10:41.297113Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968492900 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:41.297185Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=225 origin_ns=109739049734000
+2026-06-08T14:10:41.394260Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=38 offset_ns=-109710929739300 path_delay_ns=0
+2026-06-08T14:10:41.422072Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968503341 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:41.422147Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=226 origin_ns=109739174731041
+2026-06-08T14:10:41.497044Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="34" content_type="" content_length=0
+2026-06-08T14:10:41.497136Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=POST uri=/feedback content_type="" body_len=0 body_hex=
+2026-06-08T14:10:41.497253Z  INFO shairport_rs::airplay::rtsp: received /feedback (0 bytes)
+2026-06-08T14:10:41.497355Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="34" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "34"), ("Server", "AirTunes/366.0")]
+2026-06-08T14:10:41.547364Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968153600 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:41.547488Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=227 origin_ns=109739299561000
+2026-06-08T14:10:41.672300Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968365108 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:41.672383Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=228 origin_ns=109739424744708
+2026-06-08T14:10:41.741111Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:41.798299Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968207950 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:41.798390Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=229 origin_ns=109739549740250
+2026-06-08T14:10:41.924724Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710966069566 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:41.924822Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=230 origin_ns=109739674553666
+2026-06-08T14:10:42.047589Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968099691 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:42.047656Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=231 origin_ns=109739799748291
+2026-06-08T14:10:42.130114Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=39 offset_ns=-109710928174291 path_delay_ns=0
+2026-06-08T14:10:42.172458Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968338150 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:42.172532Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=232 origin_ns=109739924742250
+2026-06-08T14:10:42.297494Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968247200 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:42.297571Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=233 origin_ns=109740049745500
+2026-06-08T14:10:42.442678Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710948298533 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:42.442765Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=234 origin_ns=109740174022833
+2026-06-08T14:10:42.548718Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968313441 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:42.548798Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=235 origin_ns=109740299375541
+2026-06-08T14:10:42.672108Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968217200 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:42.672178Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=236 origin_ns=109740424475500
+2026-06-08T14:10:42.741532Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:42.797553Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968214058 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:42.797623Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=237 origin_ns=109740549742458
+2026-06-08T14:10:42.868174Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=40 offset_ns=-109710934206758 path_delay_ns=0
+2026-06-08T14:10:42.972633Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710918512966 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:42.972692Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=238 origin_ns=109740674736666
+2026-06-08T14:10:43.047798Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968132283 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:43.047875Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=239 origin_ns=109740799739583
+2026-06-08T14:10:43.171906Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968410708 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:43.171977Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=240 origin_ns=109740924384208
+2026-06-08T14:10:43.297550Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968106050 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:43.297626Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=241 origin_ns=109741049746250
+2026-06-08T14:10:43.490242Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710900643308 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:43.490330Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=242 origin_ns=109741174744208
+2026-06-08T14:10:43.507245Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="35" content_type="" content_length=0
+2026-06-08T14:10:43.507331Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=POST uri=/feedback content_type="" body_len=0 body_hex=
+2026-06-08T14:10:43.507377Z  INFO shairport_rs::airplay::rtsp: received /feedback (0 bytes)
+2026-06-08T14:10:43.507464Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="35" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "35"), ("Server", "AirTunes/366.0")]
+2026-06-08T14:10:43.548147Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968443191 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:43.548239Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=243 origin_ns=109741299736791
+2026-06-08T14:10:43.617170Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=41 offset_ns=-109710934466541 path_delay_ns=0
+2026-06-08T14:10:43.672242Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968408916 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:43.672310Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=244 origin_ns=109741424744916
+2026-06-08T14:10:43.742755Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:43.796762Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968286250 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:43.796894Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=245 origin_ns=109741549053250
+2026-06-08T14:10:43.922369Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968319291 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:43.922446Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=246 origin_ns=109741674738291
+2026-06-08T14:10:44.046871Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968288425 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:44.046948Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=247 origin_ns=109741798842625
+2026-06-08T14:10:44.173350Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968376400 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:44.173433Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=248 origin_ns=109741923899000
+2026-06-08T14:10:44.297603Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968121391 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:44.297684Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=249 origin_ns=109742049739291
+2026-06-08T14:10:44.368243Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=42 offset_ns=-109710933775241 path_delay_ns=0
+2026-06-08T14:10:44.422260Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968444758 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:44.422424Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=250 origin_ns=109742174740958
+2026-06-08T14:10:44.546601Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968355116 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:44.546718Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=251 origin_ns=109742299009916
+2026-06-08T14:10:44.672852Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967718858 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:44.672936Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=252 origin_ns=109742424675458
+2026-06-08T14:10:44.743799Z  INFO shairport_rs::ptp: PTP master announced clock=1c3c781292950008 domain=0
+2026-06-08T14:10:44.798228Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968338216 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:44.798295Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=253 origin_ns=109742549748416
+2026-06-08T14:10:44.922250Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968452166 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:44.922386Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=254 origin_ns=109742674742666
+2026-06-08T14:10:45.071253Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710945631050 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:45.071324Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=255 origin_ns=109742799742250
+2026-06-08T14:10:45.119643Z DEBUG shairport_rs::ptp: PTP DelayResp updated servo sequence_id=43 offset_ns=-109710922405050 path_delay_ns=0
+2026-06-08T14:10:45.171773Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968361575 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:45.171830Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=256 origin_ns=109742924199375
+2026-06-08T14:10:45.298341Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710967368716 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:45.298412Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=257 origin_ns=109743049737916
+2026-06-08T14:10:45.421395Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968667983 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:45.421466Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=258 origin_ns=109743174036083
+2026-06-08T14:10:45.585885Z DEBUG shairport_rs::airplay::rtsp: RTSP request peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="36" content_type="" content_length=0
+2026-06-08T14:10:45.585962Z DEBUG shairport_rs::airplay::rtsp: RTSP handler method=POST uri=/feedback content_type="" body_len=0 body_hex=
+2026-06-08T14:10:45.586006Z  INFO shairport_rs::airplay::rtsp: received /feedback (0 bytes)
+2026-06-08T14:10:45.586093Z DEBUG shairport_rs::airplay::rtsp: RTSP response peer=[fe80::182e:d1df:e53:b7e8%6]:54721 method=POST uri=/feedback cseq="36" status=200 reason="OK" content_length=0 response_headers=[("CSeq", "36"), ("Server", "AirTunes/366.0")]
+2026-06-08T14:10:45.588043Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710927884016 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:45.588127Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=259 origin_ns=109743299652916
+2026-06-08T14:10:45.672390Z DEBUG shairport_rs::ptp: PTP Sync offset updated offset_ns=-109710968352675 path_delay_ns=0 master=1c3c781292950008
+2026-06-08T14:10:45.672489Z DEBUG shairport_rs::ptp: PTP FollowUp received seq=260 origin_ns=109743424735875

@@ -12,7 +12,7 @@ use tokio::{
 };
 use tracing::{debug, info, warn};
 
-use crate::{audio::AudioEngine, config::AirplayConfig, decoder, state::AppState};
+use crate::{audio::AudioEngine, codec, config::AirplayConfig, decoder, state::AppState};
 
 /// SSRC constants for AP2 audio formats
 const SSRC_ALAC_44100_S16_2: u32 = 0x00000001;
@@ -81,7 +81,6 @@ pub async fn handle_buffered_stream(
     // Derive the data stream cipher
     let mut cipher = BufferedCipher::new(&session_key);
     let mut alac_decoder: Option<(u32, decoder::AlacDecoder)> = None;
-    let mut warned_unsupported_aac = false;
 
     let mut word_buf = [0u8; 4];
 
@@ -140,54 +139,76 @@ pub async fn handle_buffered_stream(
             "buffered audio block"
         );
 
-        let Some((sample_rate, sample_size)) = alac_format_for_ssrc(ssrc) else {
-            if !warned_unsupported_aac
-                && matches!(ssrc, SSRC_AAC_44100_F24_2 | SSRC_AAC_48000_F24_2)
-            {
-                warn!(ssrc, "AP2 AAC buffered audio is not decoded by this build");
-                warned_unsupported_aac = true;
-            }
-            continue;
-        };
-
-        let decoder = match alac_decoder.as_mut() {
-            Some((decoder_ssrc, decoder)) if *decoder_ssrc == ssrc => decoder,
-            _ => {
-                let cookie = alac_specific_config(sample_rate, sample_size);
-                match decoder::AlacDecoder::new(sample_size, 2, &cookie) {
-                    Ok(decoder) => {
-                        info!(
-                            ssrc,
-                            sample_rate, sample_size, "AP2 ALAC decoder initialized"
-                        );
-                        alac_decoder = Some((ssrc, decoder));
-                        &mut alac_decoder.as_mut().unwrap().1
-                    }
-                    Err(e) => {
-                        warn!(%e, ssrc, "AP2 ALAC decoder init failed");
-                        continue;
-                    }
-                }
-            }
-        };
-
-        let raw_samples = match decoder.decode_frame(&plaintext) {
-            Ok(samples) => samples,
-            Err(e) => {
-                warn!(%e, ssrc, "AP2 ALAC decode failed");
+        let format = match codec::AudioFormat::from_ssrc(ssrc) {
+            Some(f) => f,
+            None => {
+                warn!(ssrc, "unknown SSRC");
                 continue;
             }
         };
-        let float_samples: Vec<f32> = raw_samples
-            .iter()
-            .map(|&sample| (sample as f32) / 2_147_483_648.0)
-            .collect();
-        let enqueued = audio_engine.enqueue_interleaved(&float_samples);
-        if enqueued < float_samples.len() {
-            debug!(
-                "audio buffer full, dropped {}",
-                float_samples.len() - enqueued
-            );
+
+        // ALAC path
+        if matches!(format, codec::AudioFormat::Alac44100S16Stereo | codec::AudioFormat::Alac48000S24Stereo) {
+            let sample_rate = format.sample_rate();
+            let sample_size = match format {
+                codec::AudioFormat::Alac44100S16Stereo => 16,
+                _ => 24,
+            };
+
+            let decoder = match alac_decoder.as_mut() {
+                Some((decoder_ssrc, decoder)) if *decoder_ssrc == ssrc => decoder,
+                _ => {
+                    let cookie = alac_specific_config(sample_rate, sample_size);
+                    match decoder::AlacDecoder::new(sample_size, 2, &cookie) {
+                        Ok(d) => {
+                            alac_decoder = Some((ssrc, d));
+                            &mut alac_decoder.as_mut().unwrap().1
+                        }
+                        Err(e) => {
+                            warn!(%e, ssrc, "AP2 ALAC decoder init failed");
+                            continue;
+                        }
+                    }
+                }
+            };
+
+            let raw_samples = match decoder.decode_frame(&plaintext) {
+                Ok(samples) => samples,
+                Err(e) => {
+                    warn!(%e, ssrc, "AP2 ALAC decode failed");
+                    continue;
+                }
+            };
+            let float_samples: Vec<f32> = raw_samples
+                .iter()
+                .map(|&sample| (sample as f32) / 2_147_483_648.0)
+                .collect();
+            let enqueued = audio_engine.enqueue_interleaved(&float_samples);
+            if enqueued < float_samples.len() {
+                debug!("audio buffer full, dropped {}", float_samples.len() - enqueued);
+            }
+        } else {
+            // AAC path
+            #[cfg(feature = "aac")]
+            {
+                let mut dec = codec::AudioDecoder::new_aac(format);
+                match dec.decode(&plaintext, format) {
+                    Ok(decoded) => {
+                        let enqueued = audio_engine.enqueue_interleaved(&decoded.samples);
+                        if enqueued < decoded.samples.len() {
+                            debug!("audio buffer full, dropped {}", decoded.samples.len() - enqueued);
+                        }
+                    }
+                    Err(e) => {
+                        warn!(%e, ssrc, "AP2 AAC decode failed");
+                    }
+                }
+            }
+            #[cfg(not(feature = "aac"))]
+            {
+                warn!(ssrc, "AAC buffered audio requires --features aac");
+                continue;
+            }
         }
 
         state.record_rtp_packet(

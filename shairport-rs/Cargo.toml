@@ -10,6 +10,7 @@ default = []
 asio = ["cpal/asio"]
 jack = ["cpal/jack"]
 ffmpeg = ["ffmpeg-next"]
+aac = ["symphonia"]
 
 [dependencies]
 aes = "0.8"
@@ -19,6 +20,7 @@ base64 = "0.22"
 bytes = "1.10"
 cbc = "0.1"
 chacha20poly1305 = "0.10"
+chrono = "0.4"
 clap = { version = "4.5", features = ["derive", "env"] }
 cpal = "0.17"
 digest = "0.10"
@@ -40,11 +42,13 @@ sha2 = "0.10"
 sha2_011 = { package = "sha2", version = "0.11" }
 socket2 = "0.6"
 srp = "0.7.0-rc.3"
+symphonia = { version = "0.5", optional = true, default-features = false, features = ["aac"] }
 thiserror = "2.0"
 tokio = { version = "1.48", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 toml = "0.9"
 tower-http = { version = "0.6", features = ["trace"] }
 tracing = "0.1"
+tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1.18", features = ["v4", "v5", "serde"] }
 x25519-dalek = { version = "2.0", features = ["static_secrets"] }

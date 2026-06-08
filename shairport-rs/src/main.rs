@@ -41,6 +41,22 @@ struct Args {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
+
+    // Create logs directory
+    let log_dir = std::path::Path::new("logs");
+    if !log_dir.exists() {
+        std::fs::create_dir_all(log_dir).context("failed to create logs directory")?;
+    }
+
+    // Datetime-stamped log file
+    let now = chrono::Local::now();
+    let log_path = log_dir.join(now.format("%Y%m%d-%H%M%S.log").to_string());
+    let log_file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+        .with_context(|| format!("failed to open log file {}", log_path.display()))?;
+
     let env_filter = std::env::var("RUST_LOG").unwrap_or_else(|_| {
         if args.debug {
             "shairport_rs=debug,tower_http=debug".to_string()
@@ -48,9 +64,27 @@ async fn main() -> anyhow::Result<()> {
             "info".to_string()
         }
     });
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::new(env_filter))
-        .init();
+    let filter = tracing_subscriber::EnvFilter::new(env_filter);
+
+    // Console layer (stdout with colors)
+    let console_layer = tracing_subscriber::fmt::layer()
+        .with_writer(std::io::stdout);
+
+    // File layer (non-blocking, no ANSI)
+    let (file_writer, _guard) = tracing_appender::non_blocking(log_file);
+    let file_layer = tracing_subscriber::fmt::layer()
+        .with_ansi(false)
+        .with_writer(file_writer);
+
+    use tracing_subscriber::layer::SubscriberExt;
+    let subscriber = tracing_subscriber::registry()
+        .with(filter)
+        .with(console_layer)
+        .with(file_layer);
+    tracing::subscriber::set_global_default(subscriber)
+        .expect("failed to set tracing subscriber");
+
+    info!(log = %log_path.display(), "log file created");
 
     if args.debug {
         info!("debug logging enabled");

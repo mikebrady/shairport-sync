@@ -1,6 +1,7 @@
 /// Unified audio decoder interface.
 ///
 /// Supports ALAC via the integrated Hammerton decoder.
+/// When the `aac` feature is enabled, supports AAC via symphonia.
 /// When the `ffmpeg` feature is enabled, also supports AAC and resampling.
 use crate::decoder::AlacDecoder;
 
@@ -64,6 +65,8 @@ pub enum AudioDecoder {
     Alac(AlacDecoder),
     #[cfg(feature = "ffmpeg")]
     Ffmpeg(Box<FfmpegDecoder>),
+    #[cfg(feature = "aac")]
+    SymphoniaAac(SymphoniaAacDecoder),
     Unsupported,
 }
 
@@ -76,8 +79,21 @@ impl AudioDecoder {
         AlacDecoder::new(sample_size, channels, magic_cookie).map(Self::Alac)
     }
 
-    #[cfg(feature = "ffmpeg")]
+    #[cfg(feature = "aac")]
     pub fn new_aac(format: AudioFormat) -> Self {
+        match SymphoniaAacDecoder::new(format) {
+            Ok(dec) => Self::SymphoniaAac(dec),
+            Err(_) => Self::Unsupported,
+        }
+    }
+
+    #[cfg(not(any(feature = "aac", feature = "ffmpeg")))]
+    pub fn new_aac(_format: AudioFormat) -> Self {
+        Self::Unsupported
+    }
+
+    #[cfg(feature = "ffmpeg")]
+    pub fn new_aac_ffmpeg(format: AudioFormat) -> Self {
         Self::Ffmpeg(Box::new(FfmpegDecoder::new(format)))
     }
 
@@ -99,6 +115,8 @@ impl AudioDecoder {
             }
             #[cfg(feature = "ffmpeg")]
             Self::Ffmpeg(dec) => dec.decode(input, format),
+            #[cfg(feature = "aac")]
+            Self::SymphoniaAac(dec) => dec.decode(input),
             Self::Unsupported => Err("no decoder available for this format"),
         }
     }
@@ -126,6 +144,130 @@ impl FfmpegDecoder {
     ) -> Result<DecodedFrame, &'static str> {
         Err("FFmpeg decoder not yet implemented")
     }
+}
+
+/// Pure-Rust AAC decoder using symphonia (available with `aac` feature).
+#[cfg(feature = "aac")]
+pub struct SymphoniaAacDecoder {
+    sample_rate: u32,
+    channels: u16,
+}
+
+#[cfg(feature = "aac")]
+impl SymphoniaAacDecoder {
+    pub fn new(format: AudioFormat) -> Result<Self, &'static str> {
+        Ok(Self {
+            sample_rate: format.sample_rate(),
+            channels: format.channels(),
+        })
+    }
+
+    /// Decode a raw AAC elementary stream frame.
+    /// Decodes in-place: input is consumed and output is collected.
+    pub fn decode(&self, input: &[u8]) -> Result<DecodedFrame, &'static str> {
+        decode_aac_frame(input, self.sample_rate, self.channels)
+    }
+}
+
+#[cfg(feature = "aac")]
+fn decode_aac_frame(input: &[u8], sample_rate: u32, channels: u16) -> Result<DecodedFrame, &'static str> {
+    use symphonia::core::audio::AudioBufferRef;
+    use symphonia::core::codecs::DecoderOptions;
+    use symphonia::core::io::MediaSourceStream;
+    use symphonia::core::meta::MetadataOptions;
+    use symphonia::core::probe::Hint;
+
+    if input.is_empty() {
+        return Err("empty AAC frame");
+    }
+
+    // Wrap raw AAC elementary stream in an ADTS header
+    let aac_frame_len = input.len() + 7;
+    if aac_frame_len > 0x1FFF {
+        return Err("AAC frame too large for ADTS");
+    }
+    let freq_idx = match sample_rate {
+        96000 => 0, 88200 => 1, 64000 => 2, 48000 => 3,
+        44100 => 4, 32000 => 5, 24000 => 6, 22050 => 7,
+        16000 => 8, 12000 => 9, 11025 => 10, 8000 => 11,
+        7350 => 12, _ => 3,
+    };
+    let ch_conf = match channels { 1 => 1, 2 => 2, 6 => 6, 8 => 7, _ => 2 };
+
+    let mut adts = vec![0u8; aac_frame_len];
+    adts[0] = 0xFF;
+    adts[1] = 0xF1;
+    adts[2] = (1 << 6) | (freq_idx << 2) | ((ch_conf >> 2) & 0x01);
+    adts[3] = ((ch_conf & 0x03) << 6) | (((aac_frame_len >> 11) as u8) & 0x03);
+    adts[4] = ((aac_frame_len >> 3) as u8) & 0xFF;
+    adts[5] = (((aac_frame_len & 0x07) << 5) as u8) | 0x1F;
+    adts[6] = 0xFC;
+    adts[7..].copy_from_slice(input);
+
+    let source = MediaSourceStream::new(Box::new(std::io::Cursor::new(adts)), Default::default());
+    let mut hint = Hint::new();
+    hint.with_extension("aac");
+
+    let format_opts = symphonia::core::formats::FormatOptions::default();
+    let metadata_opts = MetadataOptions::default();
+    let probe_result = symphonia::default::get_probe()
+        .format(&hint, source, &format_opts, &metadata_opts)
+        .map_err(|_| "symphonia: failed to probe AAC format")?;
+
+    let track = probe_result
+        .format
+        .tracks()
+        .first()
+        .ok_or("symphonia: no tracks")?
+        .clone();
+
+    let decode_opts = DecoderOptions::default();
+    let mut decoder = symphonia::default::get_codecs()
+        .make(&track.codec_params, &decode_opts)
+        .map_err(|_| "symphonia: failed to create AAC decoder")?;
+
+    let mut format = probe_result.format;
+    let packet = match format.next_packet() {
+        Ok(p) => p,
+        Err(_) => return Err("symphonia: failed to read AAC packet"),
+    };
+
+    let decoded = decoder.decode(&packet).map_err(|_| "symphonia: AAC decode failed")?;
+
+    // Convert to interleaved f32
+    let samples = match decoded {
+        AudioBufferRef::F32(buf) => {
+            let planes = buf.planes();
+            let frames = planes.planes()[0].len();
+            let num_planes = planes.planes().len();
+            let mut out = Vec::with_capacity(frames * num_planes);
+            for f in 0..frames {
+                for ch in 0..num_planes {
+                    out.push(planes.planes()[ch][f]);
+                }
+            }
+            out
+        }
+        AudioBufferRef::S16(buf) => {
+            let planes = buf.planes();
+            let frames = planes.planes()[0].len();
+            let num_planes = planes.planes().len();
+            let mut out = Vec::with_capacity(frames * num_planes);
+            for f in 0..frames {
+                for ch in 0..num_planes {
+                    out.push(planes.planes()[ch][f] as f32 / 32768.0);
+                }
+            }
+            out
+        }
+        _ => return Err("symphonia: unsupported sample format"),
+    };
+
+    Ok(DecodedFrame {
+        samples,
+        sample_rate,
+        channels,
+    })
 }
 
 /// Convert decoded multi-channel float samples to stereo (simple mixdown).
