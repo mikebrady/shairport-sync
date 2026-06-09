@@ -60,7 +60,7 @@ ShairportSyncAdvancedRemoteControl *shairportSyncAdvancedRemoteControlSkeleton =
 
 static guint ownerID = 0;
 
-void dbus_metadata_watcher(struct metadata_bundle *argc, __attribute__((unused)) void *userdata) {
+void dbus_metadata_watcher(struct metadata_bundle *argc) {
   char response[100];
   gboolean current_status, new_status;
 
@@ -1101,7 +1101,7 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
   g_signal_connect(shairportSyncAdvancedRemoteControlSkeleton, "notify::loop-status",
                    G_CALLBACK(notify_loop_status_callback), NULL);
 
-  add_metadata_watcher(dbus_metadata_watcher, NULL);
+  add_metadata_watcher(dbus_metadata_watcher);
 
   shairport_sync_set_loudness_threshold(SHAIRPORT_SYNC(shairportSyncSkeleton),
                                         config.loudness_reference_volume_db);

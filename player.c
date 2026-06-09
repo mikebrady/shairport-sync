@@ -3401,11 +3401,11 @@ void player_thread_cleanup_handler(void *arg) {
 #else
   debug(2, "Cancelling AP1 timing, control and audio threads...");
 #endif
-    debug(3, "Cancel timing thread.");
+    debug(1, "Cancel timing thread.");
     pthread_cancel(conn->rtp_timing_thread);
-    debug(3, "Join timing thread.");
+    debug(1, "Join timing thread.");
     pthread_join(conn->rtp_timing_thread, NULL);
-    debug(3, "Timing thread terminated.");
+    debug(1, "Timing thread terminated.");
     debug(3, "Cancel control thread.");
     pthread_cancel(conn->rtp_control_thread);
     debug(3, "Join control thread.");
@@ -3667,7 +3667,7 @@ void *player_thread_func(void *arg) {
 #ifdef CONFIG_AIRPLAY_2
   if (conn->timing_type == ts_ntp) {
 #endif
-
+    debug(1,"Connection %d: creating audio/contol/timing threads.", conn->connection_number);
     // create and start the timing, control and audio receiver threads
     named_pthread_create(&conn->rtp_audio_thread, NULL, &rtp_audio_receiver, (void *)conn,
                          "ap1_audio_%d", conn->connection_number);

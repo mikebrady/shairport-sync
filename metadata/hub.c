@@ -68,6 +68,7 @@ metadata_package metadata_hub_queue_items[metadata_hub_queue_size];
 pthread_t metadata_hub_thread;
 
 struct metadata_bundle metadata_store;
+metadata_watcher metadata_watchers[number_of_watchers];
 
 int metadata_hub_initialised = 0;
 
@@ -141,12 +142,11 @@ void metadata_hub_init(void) {
 
 void metadata_hub_stop(void) {}
 
-void add_metadata_watcher(metadata_watcher fn, void *userdata) {
+void add_metadata_watcher(metadata_watcher fn) {
   int i;
   for (i = 0; i < number_of_watchers; i++) {
-    if (metadata_store.watchers[i] == NULL) {
-      metadata_store.watchers[i] = fn;
-      metadata_store.watchers_data[i] = userdata;
+    if (metadata_watchers[i] == NULL) {
+      metadata_watchers[i] = fn;
       // debug(1, "Added a metadata watcher into slot %d", i);
       break;
     }
@@ -156,8 +156,8 @@ void add_metadata_watcher(metadata_watcher fn, void *userdata) {
 void run_metadata_watchers(void) {
   int i;
   for (i = 0; i < number_of_watchers; i++) {
-    if (metadata_store.watchers[i]) {
-      metadata_store.watchers[i](&metadata_store, metadata_store.watchers_data[i]);
+    if (metadata_watchers[i]) {
+      metadata_watchers[i](&metadata_store);
     }
   }
   // turn off changed flags
@@ -563,13 +563,19 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
   } else if (type == 'ssnc') {
     switch (code) {
     // ignore the following
+    case 'pcst':
+    case 'pcen':
+      break;
+    case 'prmp': //reset all hub data
+      debug(1,"reset metadata hub data");
+      // metadata_hub_modify_prolog();
+      // memset(&metadata_store,0,sizeof(metadata_store));
+      // metadata_hub_modify_epilog(1);
+      break;
     case 'dapo':
       char *dacp_port_string = strndup(data, length);
       debug(4, "DACP port is \"%s\"", dacp_port_string);
       free(dacp_port_string);
-      break;
-    case 'pcst':
-    case 'pcen':
       break;
     case 'mdst':
       debug(4, "MH Metadata stream processing start.");
@@ -759,6 +765,7 @@ int send_metadata_to_hub_queue(const uint32_t type, const uint32_t code, const c
                                const uint32_t length, rtsp_message *carrier, int block) {
   return send_metadata_to_queue(&metadata_hub_queue, type, code, data, length, carrier, block);
 }
+
 
 // reset all now playing information
 void metadata_hub_reset_npi() {

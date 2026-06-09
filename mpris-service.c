@@ -67,7 +67,7 @@ double mpris_volume_to_airplay_volume(double sp) {
   return sp;
 }
 
-void mpris_metadata_watcher(struct metadata_bundle *argc, __attribute__((unused)) void *userdata) {
+void mpris_metadata_watcher(struct metadata_bundle *argc) {
   // debug(1, "MPRIS metadata watcher called");
   char response[100];
   media_player2_player_set_volume(mprisPlayerPlayerSkeleton,
@@ -321,7 +321,7 @@ static void on_mpris_name_acquired(GDBusConnection *connection, const gchar *nam
   g_signal_connect(mprisPlayerPlayerSkeleton, "handle-set-volume", G_CALLBACK(on_handle_set_volume),
                    NULL);
 
-  add_metadata_watcher(mpris_metadata_watcher, NULL);
+  add_metadata_watcher(mpris_metadata_watcher);
 
   debug(1, "MPRIS service started at \"%s\" on the %s bus.", name,
         (mpris_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");

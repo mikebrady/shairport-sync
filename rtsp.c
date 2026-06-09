@@ -246,7 +246,7 @@ void cleanup_threads(void) {
 }
 
 int terminate_conn(int connection_number) {
-  // this will look for a connection by number, cancel it, join it and delete it.
+  // this will look for a connection by number, cancel it, join it, delete it and send an pre-mpted metadata message.
   int found = 0;
   debug_mutex_lock(&conns_lock, 1000000, 4);
   // look for an empty slot first
@@ -261,6 +261,12 @@ int terminate_conn(int connection_number) {
       i++;
   }
   debug_mutex_unlock(&conns_lock, 4);
+#ifdef CONFIG_METADATA
+  if (found) {
+    debug(1, "Connection %d: is being terminated; terminate_conn is sending 'prmp'", connection_number);
+    send_ssnc_metadata('prmp', (const char *)&connection_number, sizeof(connection_number), 1); // PRe-eMPted 
+  }
+#endif
   return found;
 }
 
@@ -280,6 +286,7 @@ int terminate_conn(int connection_number) {
 
 // If a conn has play lock, kill the connection completely.
 
+// used by D-Bus and MPRIS
 void stop_play() {
   pthread_rwlock_wrlock(&principal_conn_lock);
   if (principal_conn != NULL) {
@@ -374,24 +381,6 @@ play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) 
 #endif
       response = play_lock_acquired_without_breaking_in;
     } else if (allow_session_interruption != 0) { // principal conn not NULL,
-      // important -- demote the principal conn before cancelling it
-      /*
-      if (principal_conn->fd > 0) {
-        debug(2,
-              "Connection %d: %s is acquiring play_lock and is forcing termination of Connection "
-              "%d %s. Closing "
-              "RTSP connection socket %d: "
-              "from %s:%u to self at "
-              "%s:%u.",
-              conn->connection_number, get_category_string(conn->airplay_stream_category),
-              principal_conn->connection_number,
-              get_category_string(principal_conn->airplay_stream_category), principal_conn->fd,
-              principal_conn->client_ip_string, principal_conn->client_rtsp_port,
-              principal_conn->self_ip_string, principal_conn->self_rtsp_port);
-        safe_socket_close(&principal_conn->fd);
-        usleep(1000000);
-      }
-      */
       debug(4, "Connection %d: about to be terminated.", principal_conn->connection_number);
       rtsp_conn_info *previous_principal_conn = principal_conn;
       principal_conn = conn; // make the conn the new principal_conn
@@ -569,7 +558,7 @@ ssize_t read_from_rtsp_connection(rtsp_conn_info *conn, void *buf, size_t count)
     if ((result <= 0) && (errno != 0)) {
       char errorstring[1024];
       strerror_r(errno, (char *)errorstring, sizeof(errorstring));
-      debug(3, "read_from_rtsp_connection error %d \"%s\" attempting to read up to %zu bytes.",
+      debug(1, "read_from_rtsp_connection error %d \"%s\" attempting to read up to %zu bytes.",
             errno, errorstring, count);
     }
   } else {
@@ -3035,7 +3024,10 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
 #endif
 
 void handle_setup(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
-  debug(3, "Connection %d: SETUP", conn->connection_number);
+  debug(1, "Connection %d: SETUP (Classic) %s Content-Length %d", conn->connection_number,
+        req->path, req->contentlength);
+  debug_log_rtsp_message_conn(conn, 1, "SETUP (Classic)", req);
+
   resp->respcode = 451; // invalid arguments -- expect them
   // check this connection has the principal_conn, obtained during a prior ANNOUNCE
   if ((conn != NULL) && (principal_conn == conn)) {
@@ -3394,7 +3386,9 @@ static void handle_set_parameter(rtsp_conn_info *conn, rtsp_message *req, rtsp_m
 }
 
 static void handle_announce(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
-  debug(2, "Connection %d: ANNOUNCE", conn->connection_number);
+  //debug(1, "Connection %d: ANNOUNCE %s Content-Length %d", conn->connection_number,
+  //      req->path, req->contentlength);
+  //debug_log_rtsp_message_conn(conn, 1, "ANNOUNCE", req);
 #ifdef CONFIG_AIRPLAY_2
   conn->airplay_stream_category = classic_airplay_stream; // already set in Classic AirPlay build
   play_lock_r get_play_status = get_play_lock(
@@ -3961,6 +3955,7 @@ void rtsp_conversation_thread_cleanup_function(void *arg) {
           conn->connection_number, get_category_string(conn->airplay_stream_category));
 
     if (conn->player_thread) {
+      debug(1, "player stop in rtsp_conversation_thread_cleanup_function");
       player_stop(conn); // this nulls the player_thread and cancels the threads...
       activity_monitor_signify_activity(0); // inactive, and should be after command_stop()
     }
@@ -4001,7 +3996,7 @@ void rtsp_conversation_thread_cleanup_function(void *arg) {
       safe_socket_close(&conn->control_socket);
     }
     if (conn->timing_socket) {
-      debug(3, "Connection %d: terminating  -- closing timing_socket %d.", conn->connection_number,
+      debug(1, "Connection %d: terminating  -- closing timing_socket %d.", conn->connection_number,
             conn->timing_socket);
       safe_socket_close(&conn->timing_socket);
     }
@@ -4083,7 +4078,6 @@ void rtsp_conversation_thread_cleanup_function(void *arg) {
 #endif
     debug(3, "Connection %d: Closed.", conn->connection_number);
     conn->running = 0; // for the garbage collector
-                       //    release_play_lock(conn);
     pthread_setcancelstate(oldState, NULL);
   }
 }
@@ -4094,9 +4088,10 @@ void msg_cleanup_function(void *arg) {
 }
 
 static void *rtsp_conversation_thread_func(void *pconn) {
-  //  #include <syscall.h>
-  //  debug(1, "rtsp_conversation_thread_func PID %d", syscall(SYS_gettid));
   rtsp_conn_info *conn = pconn;
+
+  #include <syscall.h>
+  debug(1, "Connection: %d: rtsp_conversation_thread_func PID %ld", conn->connection_number, syscall(SYS_gettid));
 
   int rc = pthread_mutex_init(&conn->flush_mutex, NULL);
   if (rc)
@@ -4290,30 +4285,12 @@ static void *rtsp_conversation_thread_func(void *pconn) {
       }
     }
   }
+  
   release_play_lock(conn);
   pthread_cleanup_pop(1);
-  debug(2, "Connection %d: exit.", conn->connection_number);
+  // debug(1, "Connection %d: exit.", conn->connection_number);
   pthread_exit(NULL);
 }
-
-/*
-// this function is not thread safe.
-static const char *format_address(struct sockaddr *fsa) {
-  static char string[INETx_ADDRSTRLEN];
-  void *addr;
-#ifdef AF_INET6
-  if (fsa->sa_family == AF_INET6) {
-    struct sockaddr_in6 *sa6 = (struct sockaddr_in6 *)(fsa);
-    addr = &(sa6->sin6_addr);
-  } else
-#endif
-  {
-    struct sockaddr_in *sa = (struct sockaddr_in *)(fsa);
-    addr = &(sa->sin_addr);
-  }
-  return inet_ntop(fsa->sa_family, addr, string, sizeof(string));
-}
-*/
 
 void rtsp_listen_loop_cleanup_handler(__attribute__((unused)) void *arg) {
   int oldState;

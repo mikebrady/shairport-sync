@@ -589,7 +589,7 @@ void *rtp_control_receiver(void *arg) {
 
 void rtp_timing_sender_cleanup_handler(void *arg) {
   rtsp_conn_info *conn = (rtsp_conn_info *)arg;
-  debug(3, "Connection %d: Timing Sender Cleanup.", conn->connection_number);
+  debug(1, "Connection %d: Timing Sender Cleanup.", conn->connection_number);
 }
 
 void *rtp_timing_sender(void *arg) {
@@ -645,7 +645,7 @@ void *rtp_timing_sender(void *arg) {
                  (struct sockaddr *)&conn->rtp_client_timing_socket, msgsize) == -1) {
         char em[1024];
         strerror_r(errno, em, sizeof(em));
-        debug(1, "Error %d using send-to to the timing socket: \"%s\".", errno, em);
+        debug(1, "Connection %d: error %d using send-to to timing socket %d: \"%s\".", conn->connection_number, errno, conn->timing_socket, em);
       }
     } else {
       debug(3, "Timing Sender Thread -- dropping outgoing packet to simulate bad network.");
@@ -665,7 +665,7 @@ void *rtp_timing_sender(void *arg) {
 
 void rtp_timing_receiver_cleanup_handler(void *arg) {
   rtsp_conn_info *conn = (rtsp_conn_info *)arg;
-  debug(3, "Timing Receiver Cleanup.");
+  debug(1, "Timing Receiver Cleanup.");
   // walk down the list of DACP / gradient pairs, if any
   nvll *gradients = config.gradients;
   if (conn->dacp_id)
@@ -690,13 +690,13 @@ void rtp_timing_receiver_cleanup_handler(void *arg) {
     }
   }
 
-  debug(3, "Cancel Timing Requester.");
+  debug(1, "Cancel Timing Requester.");
   pthread_cancel(conn->timer_requester);
   int oldState;
   pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);
-  debug(3, "Join Timing Requester.");
+  debug(1, "Join Timing Requester.");
   pthread_join(conn->timer_requester, NULL);
-  debug(3, "Timing Receiver Cleanup Successful.");
+  debug(1, "Timing Receiver Cleanup Successful.");
   pthread_setcancelstate(oldState, NULL);
 }
 

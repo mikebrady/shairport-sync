@@ -45,12 +45,10 @@ int is_valid_uint64_record(uint64_record_t *record);
 
 struct metadata_bundle;
 
-typedef void (*metadata_watcher)(struct metadata_bundle *argc, void *userdata);
+typedef void (*metadata_watcher)(struct metadata_bundle *argc);
 
 typedef struct metadata_bundle {
-
-  char *client_ip; // IP number used by the audio source (i.e. the "client"), which is also the DACP
-                   // server
+  char *client_ip; // IP number used by the audio source (i.e. the "client")
   char *client_name;                 // the name of the client device, if available
   char *server_ip;                   // IP number used by Shairport Sync
   char *stream_type;                 // Realtime or Buffered
@@ -103,14 +101,12 @@ typedef struct metadata_bundle {
   char *sort_album;
   char *sort_composer;
   uint64_record_t songtime_in_microseconds;
-
-  metadata_watcher watchers[number_of_watchers]; // functions to call if the metadata is changed.
-  void *watchers_data[number_of_watchers];       // their individual data
 } metadata_bundle;
 
 extern struct metadata_bundle metadata_store;
+extern metadata_watcher metadata_watchers[number_of_watchers]; // functions to call if the metadata is changed.
 
-void add_metadata_watcher(metadata_watcher fn, void *userdata);
+void add_metadata_watcher(metadata_watcher fn);
 
 void metadata_hub_init(void);
 void metadata_hub_stop(void);
