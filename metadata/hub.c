@@ -203,7 +203,7 @@ void _metadata_hub_modify_prolog(const char *filename, const int linenumber) {
             filename, linenumber, last_metadata_hub_modify_prolog_file,
             last_metadata_hub_modify_prolog_line);
     else
-      debug(2, "Metadata_hub write lock is already taken by unknown -- must wait.");
+      debug(3, "Metadata_hub write lock is already taken by unknown -- must wait.");
     metadata_hub_re_lock_access_is_delayed = 0;
     pthread_rwlock_wrlock(&metadata_hub_re_lock);
     debug(3, "Okay -- acquired the metadata_hub write lock at \"%s:%d\".", filename, linenumber);
@@ -566,12 +566,6 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     case 'pcst':
     case 'pcen':
       break;
-    case 'prmp': //reset all hub data
-      debug(1,"reset metadata hub data");
-      // metadata_hub_modify_prolog();
-      // memset(&metadata_store,0,sizeof(metadata_store));
-      // metadata_hub_modify_epilog(1);
-      break;
     case 'dapo':
       char *dacp_port_string = strndup(data, length);
       debug(4, "DACP port is \"%s\"", dacp_port_string);
@@ -594,12 +588,12 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     case 'clip':
       changed = update_string_record_with_data(&metadata_store.client_ip, data, length);
       if (changed)
-        debug(1, "MH Client IP set to: \"%s\"", metadata_store.client_ip);
+        debug(3, "MH Client IP set to: \"%s\"", metadata_store.client_ip);
       break;
     case 'snam':
       changed = update_string_record_with_data(&metadata_store.client_name, data, length);
       if (changed)
-        debug(1, "MH Client Name set to: \"%s\"", metadata_store.client_name);
+        debug(3, "MH Client Name set to: \"%s\"", metadata_store.client_name);
       break;
     case 'prgr':
       changed = update_string_record_with_data(&metadata_store.progress_string, data, length);

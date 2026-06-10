@@ -263,7 +263,7 @@ int terminate_conn(int connection_number) {
   debug_mutex_unlock(&conns_lock, 4);
 #ifdef CONFIG_METADATA
   if (found) {
-    debug(1, "Connection %d: is being terminated; terminate_conn is sending 'prmp'", connection_number);
+    debug(4, "Connection %d: is being terminated; terminate_conn is sending 'prmp'", connection_number);
     send_ssnc_metadata('prmp', (const char *)&connection_number, sizeof(connection_number), 1); // PRe-eMPted 
   }
 #endif
@@ -2316,13 +2316,6 @@ void handle_flush(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
   }
   debug(2, "RTSP Flush Requested: %u.", rtptime);
   if ((conn != NULL) && (conn == principal_conn)) {
-#ifdef CONFIG_METADATA
-    if (p)
-      send_metadata('ssnc', 'flsr', p + 1, strlen(p + 1), req, 1);
-    else
-      send_metadata('ssnc', 'flsr', NULL, 0, NULL, 0);
-#endif
-
     player_flush(rtptime, conn); // will not crash even it there is no player thread.
     resp->respcode = 200;
 
@@ -3024,9 +3017,9 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
 #endif
 
 void handle_setup(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
-  debug(1, "Connection %d: SETUP (Classic) %s Content-Length %d", conn->connection_number,
+  debug(4, "Connection %d: SETUP (Classic) %s Content-Length %d", conn->connection_number,
         req->path, req->contentlength);
-  debug_log_rtsp_message_conn(conn, 1, "SETUP (Classic)", req);
+  debug_log_rtsp_message_conn(conn, 4, "SETUP (Classic)", req);
 
   resp->respcode = 451; // invalid arguments -- expect them
   // check this connection has the principal_conn, obtained during a prior ANNOUNCE
@@ -3955,7 +3948,7 @@ void rtsp_conversation_thread_cleanup_function(void *arg) {
           conn->connection_number, get_category_string(conn->airplay_stream_category));
 
     if (conn->player_thread) {
-      debug(1, "player stop in rtsp_conversation_thread_cleanup_function");
+      debug(4, "player stop in rtsp_conversation_thread_cleanup_function");
       player_stop(conn); // this nulls the player_thread and cancels the threads...
       activity_monitor_signify_activity(0); // inactive, and should be after command_stop()
     }
@@ -3996,7 +3989,7 @@ void rtsp_conversation_thread_cleanup_function(void *arg) {
       safe_socket_close(&conn->control_socket);
     }
     if (conn->timing_socket) {
-      debug(1, "Connection %d: terminating  -- closing timing_socket %d.", conn->connection_number,
+      debug(3, "Connection %d: terminating  -- closing timing_socket %d.", conn->connection_number,
             conn->timing_socket);
       safe_socket_close(&conn->timing_socket);
     }
@@ -4090,8 +4083,8 @@ void msg_cleanup_function(void *arg) {
 static void *rtsp_conversation_thread_func(void *pconn) {
   rtsp_conn_info *conn = pconn;
 
-  #include <syscall.h>
-  debug(1, "Connection: %d: rtsp_conversation_thread_func PID %ld", conn->connection_number, syscall(SYS_gettid));
+  // #include <syscall.h>
+  // debug(1, "Connection: %d: rtsp_conversation_thread_func PID %ld", conn->connection_number, syscall(SYS_gettid));
 
   int rc = pthread_mutex_init(&conn->flush_mutex, NULL);
   if (rc)

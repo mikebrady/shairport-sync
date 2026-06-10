@@ -3401,21 +3401,21 @@ void player_thread_cleanup_handler(void *arg) {
 #else
   debug(2, "Cancelling AP1 timing, control and audio threads...");
 #endif
-    debug(1, "Cancel timing thread.");
+    debug(4, "Cancel timing thread.");
     pthread_cancel(conn->rtp_timing_thread);
-    debug(1, "Join timing thread.");
+    debug(4, "Join timing thread.");
     pthread_join(conn->rtp_timing_thread, NULL);
-    debug(1, "Timing thread terminated.");
-    debug(3, "Cancel control thread.");
+    debug(4, "Timing thread terminated.");
+    debug(4, "Cancel control thread.");
     pthread_cancel(conn->rtp_control_thread);
-    debug(3, "Join control thread.");
+    debug(4, "Join control thread.");
     pthread_join(conn->rtp_control_thread, NULL);
-    debug(3, "Control thread terminated.");
-    debug(3, "Cancel audio thread.");
+    debug(4, "Control thread terminated.");
+    debug(4, "Cancel audio thread.");
     pthread_cancel(conn->rtp_audio_thread);
-    debug(3, "Join audio thread.");
+    debug(4, "Join audio thread.");
     pthread_join(conn->rtp_audio_thread, NULL);
-    debug(3, "Audio thread terminated.");
+    debug(4, "Audio thread terminated.");
 
 #ifdef CONFIG_AIRPLAY_2
   }
