@@ -141,58 +141,58 @@ void mpris_metadata_watcher(struct metadata_bundle *argc) {
   GVariantBuilder *dict_builder = g_variant_builder_new(G_VARIANT_TYPE("a{sv}"));
 
   // Add in the artwork URI if it exists.
-  if (argc->cover_art_pathname) {
-    GVariant *artUrl = g_variant_new("s", argc->cover_art_pathname);
+  if (argc->npi.cover_art_pathname) {
+    GVariant *artUrl = g_variant_new("s", argc->npi.cover_art_pathname);
     g_variant_builder_add(dict_builder, "{sv}", "mpris:artUrl", artUrl);
   }
 
   // Add in the Track ID based on the 'mper' metadata if it is non-zero
-  if (is_valid_uint64_record(&argc->item_id)) {
+  if (is_valid_uint64_record(&argc->npi.item_id)) {
     char trackidstring[128];
     snprintf(trackidstring, sizeof(trackidstring), "/org/gnome/ShairportSync/%" PRIu64 "",
-             argc->item_id.item);
+             argc->npi.item_id.item);
     GVariant *trackid = g_variant_new("o", trackidstring);
     g_variant_builder_add(dict_builder, "{sv}", "mpris:trackid", trackid);
   }
 
   // Add the track name if it exists
-  if (argc->track_name) {
-    GVariant *track_name = g_variant_new("s", argc->track_name);
+  if (argc->npi.track_name) {
+    GVariant *track_name = g_variant_new("s", argc->npi.track_name);
     g_variant_builder_add(dict_builder, "{sv}", "xesam:title", track_name);
   }
 
   // Add the track number if it is valid
-  if (is_valid_uint64_record(&argc->track_number)) {
-    GVariant *tracknumber = g_variant_new("x", argc->track_number.item);
+  if (is_valid_uint64_record(&argc->npi.track_number)) {
+    GVariant *tracknumber = g_variant_new("x", argc->npi.track_number.item);
     g_variant_builder_add(dict_builder, "{sv}", "xesam:trackNumber", tracknumber);
   }
 
   // Add the album name if it exists
-  if (argc->album_name) {
-    GVariant *album_name = g_variant_new("s", argc->album_name);
+  if (argc->npi.album_name) {
+    GVariant *album_name = g_variant_new("s", argc->npi.album_name);
     g_variant_builder_add(dict_builder, "{sv}", "xesam:album", album_name);
   }
 
   // Add the artist name if it exists
-  if (argc->artist_name) {
+  if (argc->npi.artist_name) {
     GVariantBuilder *artist_as = g_variant_builder_new(G_VARIANT_TYPE("as"));
-    g_variant_builder_add(artist_as, "s", argc->artist_name);
+    g_variant_builder_add(artist_as, "s", argc->npi.artist_name);
     GVariant *artists = g_variant_builder_end(artist_as);
     g_variant_builder_unref(artist_as);
     g_variant_builder_add(dict_builder, "{sv}", "xesam:artist", artists);
   }
 
   // Add the genre if it exists
-  if (argc->genre) {
+  if (argc->npi.genre) {
     GVariantBuilder *genre_as = g_variant_builder_new(G_VARIANT_TYPE("as"));
-    g_variant_builder_add(genre_as, "s", argc->genre);
+    g_variant_builder_add(genre_as, "s", argc->npi.genre);
     GVariant *genre = g_variant_builder_end(genre_as);
     g_variant_builder_unref(genre_as);
     g_variant_builder_add(dict_builder, "{sv}", "xesam:genre", genre);
   }
 
-  if (is_valid_uint64_record(&argc->songtime_in_microseconds)) {
-    GVariant *tracklength = g_variant_new("x", argc->songtime_in_microseconds);
+  if (is_valid_uint64_record(&argc->npi.songtime_in_microseconds)) {
+    GVariant *tracklength = g_variant_new("x", argc->npi.songtime_in_microseconds);
     g_variant_builder_add(dict_builder, "{sv}", "mpris:length", tracklength);
   }
 

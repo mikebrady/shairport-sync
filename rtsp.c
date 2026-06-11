@@ -558,8 +558,8 @@ ssize_t read_from_rtsp_connection(rtsp_conn_info *conn, void *buf, size_t count)
     if ((result <= 0) && (errno != 0)) {
       char errorstring[1024];
       strerror_r(errno, (char *)errorstring, sizeof(errorstring));
-      debug(1, "read_from_rtsp_connection error %d \"%s\" attempting to read up to %zu bytes.",
-            errno, errorstring, count);
+      debug(1, "Connection %d: read_from_rtsp_connection error %d \"%s\" attempting to read up to %zu bytes.",
+            conn->connection_number, errno, errorstring, count);
     }
   } else {
     debug(1, "Connection %d: attempt to read from a closed RTSP connection.",

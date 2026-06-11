@@ -47,6 +47,31 @@ struct metadata_bundle;
 
 typedef void (*metadata_watcher)(struct metadata_bundle *argc);
 
+typedef struct metadata_npi_bundle { // now playing information
+  char *cover_art_pathname;
+  uint64_record_t item_id; // seems to be a track ID -- see itemid in DACP.c
+  unsigned char
+      item_composite_id[16]; // seems to be nowplaying 4 ids: dbid, plid, playlistItem, itemid
+  int item_composite_id_is_valid;
+  uint64_record_t song_data_kind; // 0 seems to mean a time-limited item
+  char *track_name;
+  uint64_record_t track_number;
+  char *artist_name;
+  char *album_artist_name;
+  char *album_name;
+  char *genre;
+  char *comment;
+  char *composer;
+  char *file_kind;
+  char *song_description;
+  char *song_album_artist;
+  char *sort_name;
+  char *sort_artist;
+  char *sort_album;
+  char *sort_composer;
+  uint64_record_t songtime_in_microseconds;
+} metadata_npi_bundle;
+
 typedef struct metadata_bundle {
   char *client_ip; // IP number used by the audio source (i.e. the "client")
   char *client_name;                 // the name of the client device, if available
@@ -76,31 +101,7 @@ typedef struct metadata_bundle {
   int speaker_volume; // this is the actual speaker volume, allowing for the main volume and the
                       // speaker volume control
   double airplay_volume;
-
-  // the following pertain to the track playing
-  char *cover_art_pathname;
-  uint64_record_t item_id; // seems to be a track ID -- see itemid in DACP.c
-  unsigned char
-      item_composite_id[16]; // seems to be nowplaying 4 ids: dbid, plid, playlistItem, itemid
-  int item_composite_id_changed;
-  int item_composite_id_is_valid;
-  uint64_record_t song_data_kind; // 0 seems to mean a time-limited item
-  char *track_name;
-  uint64_record_t track_number;
-  char *artist_name;
-  char *album_artist_name;
-  char *album_name;
-  char *genre;
-  char *comment;
-  char *composer;
-  char *file_kind;
-  char *song_description;
-  char *song_album_artist;
-  char *sort_name;
-  char *sort_artist;
-  char *sort_album;
-  char *sort_composer;
-  uint64_record_t songtime_in_microseconds;
+  metadata_npi_bundle npi;
 } metadata_bundle;
 
 extern struct metadata_bundle metadata_store;
@@ -112,7 +113,7 @@ void metadata_hub_init(void);
 void metadata_hub_stop(void);
 void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uint32_t length);
 int metadata_hub_process_picture(const char *data, const size_t length);
-void metadata_hub_reset_npi(); // reset "now playing" information
+void metadata_hub_reset_npi(metadata_npi_bundle *npi); // reset "now playing" information
 
 // these functions lock and unlock the read-write mutex on the metadata hub and run the watchers
 // afterwards

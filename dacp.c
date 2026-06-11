@@ -787,55 +787,54 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
                 case 'cann': // track name
                   debug(2, "DACP Track Name seen");
 
-                  if (update_string_record_with_data(&metadata_store.track_name, sp - item_size,
+                  if (update_string_record_with_data(&metadata_store.npi.track_name, sp - item_size,
                                                      item_size)) {
-                    debug(2, "DACP Track Name set to: \"%s\"", metadata_store.track_name);
+                    debug(2, "DACP Track Name set to: \"%s\"", metadata_store.npi.track_name);
                     metadata_changed |= 1;
                   }
                   break;
                 case 'cana': // artist name
                   debug(2, "DACP Artist Name seen");
-                  if (update_string_record_with_data(&metadata_store.artist_name, sp - item_size,
+                  if (update_string_record_with_data(&metadata_store.npi.artist_name, sp - item_size,
                                                      item_size)) {
-                    debug(2, "DACP Artist Name set to: \"%s\"", metadata_store.artist_name);
+                    debug(2, "DACP Artist Name set to: \"%s\"", metadata_store.npi.artist_name);
                     metadata_changed |= 1;
                   }
                   break;
                 case 'canl': // album name
                   debug(2, "DACP Album Name seen");
-                  if (update_string_record_with_data(&metadata_store.album_name, sp - item_size,
+                  if (update_string_record_with_data(&metadata_store.npi.album_name, sp - item_size,
                                                      item_size)) {
-                    debug(2, "DACP Album Name set to: \"%s\"", metadata_store.album_name);
+                    debug(2, "DACP Album Name set to: \"%s\"", metadata_store.npi.album_name);
                     metadata_changed |= 1;
                   }
                   break;
                 case 'cang': // genre
                   debug(2, "DACP Genre seen");
-                  if (update_string_record_with_data(&metadata_store.genre, sp - item_size,
+                  if (update_string_record_with_data(&metadata_store.npi.genre, sp - item_size,
                                                      item_size)) {
-                    debug(2, "DACP Genre set to: \"%s\"", metadata_store.genre);
+                    debug(2, "DACP Genre set to: \"%s\"", metadata_store.npi.genre);
                     metadata_changed |= 1;
                   }
                   break;
                 case 'canp': // nowplaying 4 ids: dbid, plid, playlistItem, itemid (from mellowware
                              // see reference above)
                   debug(2, "DACP Composite ID seen");
-                  if ((metadata_store.item_composite_id_is_valid == 0) ||
-                      (memcmp(metadata_store.item_composite_id, sp - item_size,
-                              sizeof(metadata_store.item_composite_id)) != 0)) {
-                    memcpy(metadata_store.item_composite_id, sp - item_size,
-                           sizeof(metadata_store.item_composite_id));
+                  if ((metadata_store.npi.item_composite_id_is_valid == 0) ||
+                      (memcmp(metadata_store.npi.item_composite_id, sp - item_size,
+                              sizeof(metadata_store.npi.item_composite_id)) != 0)) {
+                    memcpy(metadata_store.npi.item_composite_id, sp - item_size,
+                           sizeof(metadata_store.npi.item_composite_id));
                     char st[33];
                     char *pt = st;
                     int it;
                     for (it = 0; it < 16; it++) {
-                      snprintf(pt, 3, "%02X", metadata_store.item_composite_id[it]);
+                      snprintf(pt, 3, "%02X", metadata_store.npi.item_composite_id[it]);
                       pt += 2;
                     }
                     *pt = 0;
                     debug(2, "Item composite ID changed to 0x%s.", st);
-                    metadata_store.item_composite_id_changed = 1;
-                    metadata_store.item_composite_id_is_valid = 1;
+                    metadata_store.npi.item_composite_id_is_valid = 1;
                     metadata_changed |= 1;
                   }
                   break;
@@ -844,15 +843,15 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
                   ui = ntohl(*(uint32_t *)(t));
                   debug(1, "DACP Song Time seen: \"%u\" milliseconds, of length %u.", ui,
                         item_size);
-                  metadata_changed |= update_uint64_record(&metadata_store.songtime_in_microseconds,
+                  metadata_changed |= update_uint64_record(&metadata_store.npi.songtime_in_microseconds,
                                                            ui * 1000); // microseconds
                   /*
-                  if (ui64 != metadata_store.songtime_in_microseconds) {
-                    metadata_store.songtime_in_microseconds = ui64;
-                    metadata_store.songtime_in_microseconds_changed = 1;
-                    metadata_store.songtime_in_microseconds_is_valid = 1;
+                  if (ui64 != metadata_store.npi.songtime_in_microseconds) {
+                    metadata_store.npi.songtime_in_microseconds = ui64;
+                    metadata_store.npi.songtime_in_microseconds_changed = 1;
+                    metadata_store.npi.songtime_in_microseconds_is_valid = 1;
                     debug(2, "DACP Song Time set to: %" PRIu64 " microseconds.",
-                          metadata_store.songtime_in_microseconds);
+                          metadata_store.npi.songtime_in_microseconds);
                   }
                   */
                   break;

@@ -62,7 +62,7 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
                                          &command_params_merge_policy_string);
                     if (command_params_merge_policy_string != NULL) {
                       if (strcmp(command_params_merge_policy_string, "replace") == 0) {
-                        metadata_hub_reset_npi();
+                        metadata_hub_reset_npi(&metadata_store.npi);
                       }
                       free(command_params_merge_policy_string);
                     }
@@ -80,7 +80,9 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
                         plist_get_data_val(pict_item, &buff, &length);
                         size_t length_size = length;
                         // debug(1, "Send picture");
-                        metadata_changed |= metadata_hub_process_picture(buff, length_size);
+                        if (length_size > 0) {
+                          metadata_changed |= metadata_hub_process_picture(buff, length_size);
+                        }
                       }
                     }
                     // look for album name
@@ -91,7 +93,7 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
                       plist_get_string_val(album_item, &album_name);
                       // debug(1, "Send album name: \"%s\".", album_name);
                       metadata_changed |=
-                          update_string_record(&metadata_store.album_name, album_name);
+                          update_string_record(&metadata_store.npi.album_name, album_name);
                       free(album_name);
                     }
 
@@ -103,7 +105,7 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
                       plist_get_string_val(track_title_item, &track_title);
                       // debug(1, "Send track title: \"%s\".", track_title);
                       metadata_changed |=
-                          update_string_record(&metadata_store.track_name, track_title);
+                          update_string_record(&metadata_store.npi.track_name, track_title);
                       free(track_title);
                     }
 
@@ -115,7 +117,7 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
                       plist_get_uint_val(track_number_item, &track_number);
                       // debug(1, "Send track number: %" PRIu64 ".", track_number);
                       metadata_changed |=
-                          update_uint64_record(&metadata_store.track_number, track_number);
+                          update_uint64_record(&metadata_store.npi.track_number, track_number);
                     }
 
                     // look for track id
@@ -125,7 +127,7 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
                       uint64_t track_id;
                       plist_get_uint_val(track_id_item, &track_id);
                       // debug(1, "Send track id: %" PRIu64 "", track_id);
-                      metadata_changed |= update_uint64_record(&metadata_store.item_id, track_id);
+                      metadata_changed |= update_uint64_record(&metadata_store.npi.item_id, track_id);
                     }
 
                     // look for song data kind
@@ -136,7 +138,7 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
                       plist_get_bool_val(always_live_item, &always_live);
                       // debug(1, "Send track kind: %u", always_live);
                       metadata_changed |=
-                          update_uint64_record(&metadata_store.song_data_kind, always_live);
+                          update_uint64_record(&metadata_store.npi.song_data_kind, always_live);
                     }
 
                     // look for genre
@@ -146,7 +148,7 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
                       char *genre_name = NULL;
                       plist_get_string_val(genre_item, &genre_name);
                       // debug(1, "Send genre: \"%s\".", genre_name);
-                      metadata_changed |= update_string_record(&metadata_store.genre, genre_name);
+                      metadata_changed |= update_string_record(&metadata_store.npi.genre, genre_name);
                       free(genre_name);
                     }
 
@@ -158,7 +160,7 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
                       plist_get_string_val(artist_item, &artist_name);
                       // debug(1, "Send artist name: \"%s\".", artist_name);
                       metadata_changed |=
-                          update_string_record(&metadata_store.artist_name, artist_name);
+                          update_string_record(&metadata_store.npi.artist_name, artist_name);
                       free(artist_name);
                     }
 
@@ -170,7 +172,7 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
                       plist_get_string_val(composer_item, &composer_name);
                       // debug(1, "Send composer name: \"%s\".", composer_name);
                       metadata_changed |=
-                          update_string_record(&metadata_store.composer, composer_name);
+                          update_string_record(&metadata_store.npi.composer, composer_name);
                       free(composer_name);
                     }
 
@@ -183,7 +185,7 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
                       // debug(1, "Send duration: %f", duration);
                       duration = duration * 1000000.0; // convert to microseconds
                       metadata_changed |= update_uint64_record(
-                          &metadata_store.songtime_in_microseconds, (uint64_t)(duration));
+                          &metadata_store.npi.songtime_in_microseconds, (uint64_t)(duration));
                     }
                   }
                   metadata_hub_modify_epilog(metadata_changed);
