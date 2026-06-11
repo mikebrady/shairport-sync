@@ -80,9 +80,7 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
                         plist_get_data_val(pict_item, &buff, &length);
                         size_t length_size = length;
                         // debug(1, "Send picture");
-                        if (length_size > 0) {
-                          metadata_changed |= metadata_hub_process_picture(buff, length_size);
-                        }
+                        metadata_changed |= metadata_hub_process_picture(buff, length_size);
                       }
                     }
                     // look for album name
