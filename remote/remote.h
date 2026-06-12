@@ -19,6 +19,8 @@ typedef enum {
 } simple_command_t;
 
 void remote_set_airplay_volume(double volume);
+void remote_volumeup();
+void remote_volumedown();
 
 void remote_simple_command(simple_command_t command);
 

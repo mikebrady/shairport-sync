@@ -452,9 +452,8 @@ static gboolean on_handle_shuffle_songs(ShairportSyncRemoteControl *skeleton,
 static gboolean on_handle_volume_up(ShairportSyncRemoteControl *skeleton,
                                     GDBusMethodInvocation *invocation,
                                     __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("volumeup");
-#endif
+  debug(1, "D-Bus VolumeUp");
+  remote_volumeup();
   shairport_sync_remote_control_complete_volume_up(skeleton, invocation);
   return TRUE;
 }
@@ -462,9 +461,8 @@ static gboolean on_handle_volume_up(ShairportSyncRemoteControl *skeleton,
 static gboolean on_handle_volume_down(ShairportSyncRemoteControl *skeleton,
                                       GDBusMethodInvocation *invocation,
                                       __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("volumedown");
-#endif
+  debug(1, "D-Bus VolumeDown");
+  remote_volumedown();
   shairport_sync_remote_control_complete_volume_down(skeleton, invocation);
   return TRUE;
 }

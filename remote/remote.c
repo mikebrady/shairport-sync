@@ -308,6 +308,74 @@ ssize_t ap2_event_send_unit_volume_notification(rtsp_conn_info *conn, double vol
 }
 #endif
 
+#ifdef CONFIG_AIRPLAY_2
+void remote_increment_volume(int up) {
+  const double increment = 1.125;
+
+  debug(1, "config.volume is %f.", config.airplay_volume);
+  double desired_volume = config.airplay_volume;
+  if (desired_volume < -30.0)
+    desired_volume = -30.0;
+  
+  if (up == 0) {
+    desired_volume -= increment;
+  } else {
+    desired_volume += increment;
+  }
+
+  if (desired_volume < -30.0)
+    desired_volume = -144.0;
+  else if (desired_volume > 0.0)
+    desired_volume = 0.0;
+
+  pthread_rwlock_rdlock(&principal_conn_lock); // don't let the principal_conn be changed
+  pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
+  if ((principal_conn != NULL) && (principal_conn->airplay_type == ap_2)) {
+    debug(1, "remote_increment_volume %s", up == 0 ? "down" : "up");
+    
+    double desired_unit_volume = airplayVolumeToUnitVolume(desired_volume);
+
+    if (principal_conn != NULL) {
+      ap2_event_send_unit_volume_notification(principal_conn, desired_unit_volume);
+      debug(4, "remote_increment_volume set unit volume to %.3f.", desired_unit_volume);
+      player_volume(desired_volume, principal_conn);
+    }
+  } else {
+      config.airplay_volume = desired_volume;
+  }
+  pthread_cleanup_pop(1); // release the principal_conn lock
+}
+#endif
+
+void remote_volumeup() {
+int available = 0;
+#ifdef CONFIG_DACP_CLIENT
+  if (metadata_store.dacp_server_active) {
+    debug(1, "remote_volumeup -- DACP active.");
+    send_simple_dacp_command("volumeup");
+  }
+#endif
+#ifdef CONFIG_AIRPLAY_2
+if (available == 0)
+  remote_increment_volume(1); // increment up
+#endif
+}
+
+void remote_volumedown() {
+int available = 0;
+#ifdef CONFIG_DACP_CLIENT
+  available = metadata_store.dacp_server_active;
+  if (available) {
+    debug(1, "remote_volumedown -- DACP active.");
+    send_simple_dacp_command("volumedown");
+  }
+#endif
+#ifdef CONFIG_AIRPLAY_2
+if (available == 0)
+  remote_increment_volume(0); // increment down
+#endif
+}
+
 void remote_set_airplay_volume(double volume) {
   int available = 0;
 #ifdef CONFIG_DACP_CLIENT
