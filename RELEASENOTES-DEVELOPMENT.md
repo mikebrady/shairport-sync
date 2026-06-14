@@ -1,3 +1,8 @@
+Version 
+==
+**Bug Fix**
+* When an immediate flush is requested, reset the PTP clock anchor information _immediately_ to disable clocking until play is resumed. This prevents occasional apparent sudden jumps in the timing of frames of audio due to using an obsolete clock. It was causing no known problems.
+
 Version 5.1-dev-17-g9b16ff92
 ==
 **Bug Fixes**
@@ -7,7 +12,7 @@ Version  5.1-dev-15-g2d89d2bf
 ==
 **Bug Fixes**
 * Fix a race condition that was allowing a `TEARDOWN` request to close the *next* connection rather than the current one.
-* Fix a compilation bug when build for Classic operation only.
+* Fix a compilation bug when built for Classic operation only.
 
 Version 5.1-dev
 ==

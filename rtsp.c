@@ -1358,7 +1358,6 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
       // debug(1, "FLUSHBUFFERED calling reset_ptp_anchor_info");
       reset_ptp_anchor_info(
           conn); // stop the clock for an immediate flush until it is restarted using SETRATEANCHORI
-
     } else {
       // look for a record slot that isn't in use
       unsigned int i = 0;
