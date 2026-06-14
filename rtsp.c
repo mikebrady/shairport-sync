@@ -1353,8 +1353,12 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
             ", flushUntilSeq: %" PRIu64 ".",
             conn->connection_number, flushUntilTS, flushUntilSeq & 0x7fffff);
       conn->ap2_play_enabled = 0; // stop trying to play audio
-      ptp_send_control_message_string(
-          "P"); // "P"ause signify clock no longer valid and will be restarted by a subsequent play
+      // ptp_send_control_message_string(
+      //     "P"); // "P"ause signify clock no longer valid and will be restarted by a subsequent
+      //     play
+      // debug(1, "FLUSHBUFFERED calling reset_ptp_anchor_info");
+      reset_ptp_anchor_info(
+          conn); // stop the clock for an immediate flush until it is restarted using SETRATEANCHORI
     } else {
       // look for a record slot that isn't in use
       unsigned int i = 0;
