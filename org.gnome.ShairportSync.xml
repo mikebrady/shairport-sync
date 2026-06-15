@@ -44,6 +44,11 @@
     <property name="DeltaTime" type="b" access="readwrite" />
     <property name="FileAndLine" type="b" access="readwrite" />
   </interface>  
+  <interface name="org.gnome.ShairportSync.Client">
+    <method name="SetRepeatMode">
+      <arg name="mode" type="s" direction="in" />
+    </method>
+  </interface>
   <interface name="org.gnome.ShairportSync.RemoteControl">
 		<method name='FastForward'/>
 		<method name='Rewind'/>

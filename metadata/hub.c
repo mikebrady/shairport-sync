@@ -196,10 +196,12 @@ void _metadata_hub_modify_prolog(const char *filename, const int linenumber) {
 }
 
 void _metadata_hub_modify_epilog(int modified, const char *filename, const int linenumber) {
+#ifdef CONFIG_DACP_CLIENT
   metadata_store.dacp_server_has_been_active =
       metadata_store.dacp_server_active; // set the scanner_has_been_active now.
+#endif
   if (modified) {
-    // debug(1, "run metadata watchers");
+    debug(2, "run metadata watchers");
     run_metadata_watchers();
   }
 
@@ -219,23 +221,6 @@ void _metadata_hub_modify_epilog(int modified, const char *filename, const int l
   // debug(3, "Metadata_hub write lock unlocked.");
 }
 
-/*
-void _metadata_hub_read_prolog(const char *filename, const int linenumber) {
-  // always run this before reading an entry or a sequence of entries in the metadata_hub
-  // debug(1, "locking metadata hub for reading");
-  if (pthread_rwlock_tryrdlock(&metadata_hub_re_lock) != 0) {
-    debug(1, "Metadata_hub read lock is already taken -- must wait.");
-    pthread_rwlock_rdlock(&metadata_hub_re_lock);
-    debug(1, "Okay -- acquired the metadata_hub read lock.");
-  }
-}
-
-void _metadata_hub_read_epilog(const char *filename, const int linenumber) {
-  // always run this after reading an entry or a sequence of entries in the metadata_hub
-  // debug(1, "unlocking metadata hub for reading");
-  pthread_rwlock_unlock(&metadata_hub_re_lock);
-}
-*/
 char *metadata_write_image_file(const char *buf, int len) {
 
   // warning -- this removes all files from the directory apart from this one, if it exists
@@ -483,7 +468,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       break;
     case 'astn': {
       uint16_t ui = ntohs(*(uint16_t *)data);
-      debug(1, "MH Track Number seen: \"%u\" of length %u.", ui, length);
+      debug(3, "MH Track Number seen: \"%u\" of length %u.", ui, length);
       metadata_packet_item_changed |= update_uint64_record(&metadata_store.npi.track_number, ui);
       update_uint64_record(&new_npi.track_number, ui);
     } break;
@@ -566,11 +551,11 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       break;
     case 'dapo':
       char *dacp_port_string = strndup(data, length);
-      debug(4, "DACP port is \"%s\"", dacp_port_string);
+      debug(3, "DACP port is \"%s\"", dacp_port_string);
       free(dacp_port_string);
       break;
     case 'mdst':
-      debug(1, "MH Metadata stream processing start.");
+      debug(3, "MH Metadata stream processing start.");
       // There is a difficulty with this NPI metadata as it comes in.
       
       // As it comes in, we don't know whether it is an update to the current NPI data or whether it is for
@@ -597,15 +582,15 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       
       // if the track_id of the new npi differs from the current npi
       if ((temporary_item_id.valid != 0) && (new_npi.item_id.valid != 0) && (temporary_item_id.item != new_npi.item_id.item)) {
-        debug(1, "MH Metadata detected for a new track: %" PRIu64 ".", new_npi.item_id.item);
+        debug(3, "MH Metadata detected for a new track: %" PRIu64 ".", new_npi.item_id.item);
         metadata_store.npi = new_npi;
         metadata_packet_item_changed = 1;  
       }
     
       if (metadata_packet_item_changed != 0)
-        debug(1, "MH Metadata stream processing end with changes.");
+        debug(3, "MH Metadata stream processing end with changes.");
       else
-        debug(1, "MH Metadata stream processing end without changes.");
+        debug(3, "MH Metadata stream processing end without changes.");
       changed = metadata_packet_item_changed;
       break;
     case 'PICT':
@@ -624,7 +609,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     case 'prgr':
       changed = update_string_record_with_data(&metadata_store.progress_string, data, length);
       if (changed)
-        debug(4, "MH Progress String set to: \"%s\"", metadata_store.progress_string);
+        debug(3, "MH Progress String set to: \"%s\"", metadata_store.progress_string);
       break;
     case 'phbt':
       changed = update_string_record_with_data(&metadata_store.frame_position_string, data, length);

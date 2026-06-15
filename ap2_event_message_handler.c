@@ -30,16 +30,6 @@
 #include "utilities/generate_random_uuid.h"
 #include "utilities/structured_buffer.h"
 
-void decodeAndLogPlist(plist_t plist_to_log) {
-  if (plist_to_log != NULL) {
-    char *plist_as_string = plist_as_xml_text(plist_to_log);
-    if (plist_as_string != NULL) {
-      debug(3, "--\n%s\n--\n", plist_as_string);
-      free(plist_as_string);
-    }
-  }
-}
-
 plist_t prepareNSKeyedArchiver(const char *uid) {
   // this creates a BASE64 encoding of a bplist of an NSKeyedArchiver-encoded
   // NSMutableArray containing a single element: the Group UUID of which this

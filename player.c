@@ -3667,7 +3667,7 @@ void *player_thread_func(void *arg) {
 #ifdef CONFIG_AIRPLAY_2
   if (conn->timing_type == ts_ntp) {
 #endif
-    debug(1,"Connection %d: creating audio/contol/timing threads.", conn->connection_number);
+    debug(3,"Connection %d: creating audio/contol/timing threads.", conn->connection_number);
     // create and start the timing, control and audio receiver threads
     named_pthread_create(&conn->rtp_audio_thread, NULL, &rtp_audio_receiver, (void *)conn,
                          "ap1_audio_%d", conn->connection_number);

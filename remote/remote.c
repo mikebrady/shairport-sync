@@ -233,19 +233,26 @@ ssize_t ap2_event_send_simple_modern_media_remote_command(rtsp_conn_info *conn,
   return result;
 }
 
-ssize_t ap2_event_send_dev_mule(unsigned int command_number) {
+
+
+ssize_t ap2_event_send_dev_mule(unsigned int parameter) {
   ssize_t result = -1;
   rtsp_conn_info *conn = principal_conn;
   if (conn != NULL) {
     char command_number_string[32];
-    snprintf(command_number_string, sizeof(command_number_string), "%u", command_number);
+    snprintf(command_number_string, sizeof(command_number_string), "%u", 25);
     plist_t modernMediaCommand = plist_new_dict();
     plist_dict_set_item(modernMediaCommand, "modernMediaRemoteCommand",
                         plist_new_string(command_number_string));
-    plist_dict_set_item(modernMediaCommand, "kMRMediaRemoteCommandInfoRepeatMode",
-                        plist_new_uint(2));
     char *random_UUID = generate_random_uuid();
     completeModernMediaRemoteCommand(modernMediaCommand, random_UUID, conn->airplay_gid);
+    
+    // get the params dict...
+    plist_t params = plist_dict_get_item(modernMediaCommand,"params");
+    if (params != NULL)
+      plist_dict_set_item(params, "kMRMediaRemoteOptionRepeatMode",
+                        plist_new_uint(parameter));
+    
     free(random_UUID);
     result = ap2_event_port_post_command(conn, modernMediaCommand);
     plist_free(modernMediaCommand);
@@ -469,6 +476,61 @@ void remote_playpause() {
   pthread_cleanup_pop(1); // release the principal_conn lock
 #endif
 }
+
+void remote_set_repeat_mode(repeat_status_type mode) {  
+  pthread_rwlock_rdlock(&principal_conn_lock); // don't let the principal_conn be changed
+  pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
+  if (principal_conn != NULL) {
+    int command_handled_in_airplay_2 = 0;
+#if CONFIG_AIRPLAY_2
+    if (principal_conn->airplay_type == ap_2) {
+      command_handled_in_airplay_2 = 1; // handled even if not successful
+      unsigned int repeat_mode = 0;
+      switch (mode) {
+        case RS_OFF:
+          repeat_mode = 1;
+          break;
+        case RS_ONE:
+          repeat_mode = 2;
+          break;
+        case RS_ALL:
+          repeat_mode = 3;
+          break;
+        default:
+          debug(1, "AP2 invalid repeat mode request -- ignored.");
+          break;
+      }    
+      if (repeat_mode != 0) {
+        ap2_event_send_dev_mule(repeat_mode);
+      }    
+    }  
+#endif
+#ifdef CONFIG_DACP_CLIENT
+    if (command_handled_in_airplay_2 == 0) {
+      if (metadata_store.advanced_dacp_server_active != 0) {
+        switch (mode) {
+          case RS_OFF:
+            send_simple_dacp_command("setproperty?dacp.repeatstate=0");
+            break;
+          case RS_ONE:
+            send_simple_dacp_command("setproperty?dacp.repeatstate=1");
+            break;
+          case RS_ALL:
+            send_simple_dacp_command("setproperty?dacp.repeatstate=2");
+            break;
+          default:
+            debug(1, "DACP invalid repeat mode request -- ignored.");
+            break;
+        }    
+      }
+       else {
+        inform("Can't set loop status / repeat mode -- advanced remote control is not available for this client.");
+      }
+    }
+#endif
+  }
+  pthread_cleanup_pop(1); // release the principal_conn lock
+}  
 
 void remote_player_stop(rtsp_conn_info *conn) {
   if (conn != NULL) {

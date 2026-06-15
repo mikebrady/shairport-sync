@@ -192,7 +192,10 @@ void dbus_metadata_watcher(struct metadata_bundle *argc) {
     shairport_sync_advanced_remote_control_set_playback_status(
         shairportSyncAdvancedRemoteControlSkeleton, response);
   }
-
+  
+  
+  // loop status
+  debug(1, "metadata handler checking repeat status");
   switch (argc->repeat_status) {
   case RS_NOT_AVAILABLE:
     strcpy(response, "Not Available");
@@ -214,7 +217,7 @@ void dbus_metadata_watcher(struct metadata_bundle *argc) {
 
   // only set this if it's different
   if ((th == NULL) || (strcasecmp(th, response) != 0)) {
-    debug(3, "Loop Status should be changed");
+    debug(4, "Metadata watcher finds that the Loop Status should be changed");
     shairport_sync_advanced_remote_control_set_loop_status(
         shairportSyncAdvancedRemoteControlSkeleton, response);
   }
@@ -874,43 +877,29 @@ gboolean notify_shuffle_callback(__attribute__((unused))
 #endif
 
 #ifdef CONFIG_DACP_CLIENT
+
 gboolean notify_loop_status_callback(ShairportSyncAdvancedRemoteControl *skeleton,
                                      __attribute__((unused)) gpointer user_data) {
-
   // debug(1,"notify_loop_status_callback called");
   char *th = (char *)shairport_sync_advanced_remote_control_get_loop_status(skeleton);
-  //  enum volume_control_profile_type previous_volume_control_profile =
-  //  config.volume_control_profile;
-  // debug(1, "notify_loop_status_callback called with loop status of \"%s\".", th);
-  if (strcasecmp(th, "off") == 0)
-    send_simple_dacp_command("setproperty?dacp.repeatstate=0");
-  else if (strcasecmp(th, "one") == 0)
-    send_simple_dacp_command("setproperty?dacp.repeatstate=1");
-  else if (strcasecmp(th, "all") == 0)
-    send_simple_dacp_command("setproperty?dacp.repeatstate=2");
-  else if (strcasecmp(th, "not available") != 0) {
-    warn("Illegal Loop Request: \"%s\".", th);
-    switch (metadata_store.repeat_status) {
-    case RS_NOT_AVAILABLE:
-      shairport_sync_advanced_remote_control_set_loop_status(skeleton, "Not Available");
-      break;
-    case RS_OFF:
-      shairport_sync_advanced_remote_control_set_loop_status(skeleton, "Off");
-      break;
-    case RS_ONE:
-      shairport_sync_advanced_remote_control_set_loop_status(skeleton, "One");
-      break;
-    case RS_ALL:
-      shairport_sync_advanced_remote_control_set_loop_status(skeleton, "All");
-      break;
-    default:
-      debug(1, "This should never happen!");
-      shairport_sync_advanced_remote_control_set_loop_status(skeleton, "Off");
-      break;
-    }
+  debug(1, "notify_loop_status_callback called with loop status of \"%s\".", th);
+  repeat_status_type requested_repeat_mode = RS_NOT_AVAILABLE;
+  if (strcasecmp(th, "off") == 0) {
+    requested_repeat_mode = RS_OFF;
+  } else if (strcasecmp(th, "one") == 0) {
+    requested_repeat_mode = RS_ONE;
+  } else if (strcasecmp(th, "all") == 0) {
+    requested_repeat_mode = RS_ALL;
+  } else if (strcasecmp(th, "not available") != 0) {
+    warn("Illegal Loop Request: \"%s\" -- ignored.", th);
+    requested_repeat_mode = RS_NOT_AVAILABLE;
   }
+  // if ((requested_repeat_mode != RS_NOT_AVAILABLE) && (metadata_store.repeat_status != requested_repeat_mode)) {
+    remote_set_repeat_mode(requested_repeat_mode);
+  // }
   return TRUE;
 }
+
 #else
 gboolean notify_loop_status_callback(__attribute__((unused))
                                      ShairportSyncAdvancedRemoteControl *skeleton,
@@ -930,9 +919,9 @@ static gboolean on_handle_quit(ShairportSync *skeleton, GDBusMethodInvocation *i
 }
 
 static gboolean on_handle_mule(ShairportSync *skeleton, GDBusMethodInvocation *invocation,
-                               const gint command, __attribute__((unused)) gpointer user_data) {
-  debug(1, "Mule with command %d.", command);
-  ap2_event_send_dev_mule(command);
+                               const gint parameter, __attribute__((unused)) gpointer user_data) {
+  debug(1, "Mule with parameter %d.", parameter);
+  ap2_event_send_dev_mule(parameter);
   shairport_sync_complete_mule(skeleton, invocation);
   return TRUE;
 }

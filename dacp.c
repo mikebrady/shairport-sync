@@ -841,7 +841,7 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
                 case 'astm':
                   t = sp - item_size;
                   ui = ntohl(*(uint32_t *)(t));
-                  debug(1, "DACP Song Time seen: \"%u\" milliseconds, of length %u.", ui,
+                  debug(2, "DACP Song Time seen: \"%u\" milliseconds, of length %u.", ui,
                         item_size);
                   metadata_changed |= update_uint64_record(&metadata_store.npi.songtime_in_microseconds,
                                                            ui * 1000); // microseconds
