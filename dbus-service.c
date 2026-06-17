@@ -54,6 +54,7 @@ ShairportSync *shairportSyncSkeleton;
 static GBusType dbus_bus_type = G_BUS_TYPE_SYSTEM; // default is the dbus system message bus
 int service_is_running = 0;
 
+ShairportSyncClient *shairportSyncClientSkeleton = NULL;
 ShairportSyncDiagnostics *shairportSyncDiagnosticsSkeleton = NULL;
 ShairportSyncRemoteControl *shairportSyncRemoteControlSkeleton = NULL;
 ShairportSyncAdvancedRemoteControl *shairportSyncAdvancedRemoteControlSkeleton = NULL;
@@ -194,8 +195,7 @@ void dbus_metadata_watcher(struct metadata_bundle *argc) {
   }
   
   
-  // loop status
-  debug(1, "metadata handler checking repeat status");
+  // repeat status (was loop status)
   switch (argc->repeat_status) {
   case RS_NOT_AVAILABLE:
     strcpy(response, "Not Available");
@@ -211,17 +211,17 @@ void dbus_metadata_watcher(struct metadata_bundle *argc) {
     break;
   default:
     debug(1, "This should never happen.");
+    response[0] = '\0';
   }
-  th = shairport_sync_advanced_remote_control_get_loop_status(
-      shairportSyncAdvancedRemoteControlSkeleton);
-
-  // only set this if it's different
-  if ((th == NULL) || (strcasecmp(th, response) != 0)) {
-    debug(4, "Metadata watcher finds that the Loop Status should be changed");
+ 
+  if (strlen(response) != 0) {
+    shairport_sync_client_set_repeat_mode(
+            shairportSyncClientSkeleton, response);
     shairport_sync_advanced_remote_control_set_loop_status(
         shairportSyncAdvancedRemoteControlSkeleton, response);
   }
-
+  
+  // 
   switch (argc->shuffle_status) {
   case SS_NOT_AVAILABLE:
     new_status = FALSE;
@@ -876,38 +876,6 @@ gboolean notify_shuffle_callback(__attribute__((unused))
 }
 #endif
 
-#ifdef CONFIG_DACP_CLIENT
-
-gboolean notify_loop_status_callback(ShairportSyncAdvancedRemoteControl *skeleton,
-                                     __attribute__((unused)) gpointer user_data) {
-  // debug(1,"notify_loop_status_callback called");
-  char *th = (char *)shairport_sync_advanced_remote_control_get_loop_status(skeleton);
-  debug(1, "notify_loop_status_callback called with loop status of \"%s\".", th);
-  repeat_status_type requested_repeat_mode = RS_NOT_AVAILABLE;
-  if (strcasecmp(th, "off") == 0) {
-    requested_repeat_mode = RS_OFF;
-  } else if (strcasecmp(th, "one") == 0) {
-    requested_repeat_mode = RS_ONE;
-  } else if (strcasecmp(th, "all") == 0) {
-    requested_repeat_mode = RS_ALL;
-  } else if (strcasecmp(th, "not available") != 0) {
-    warn("Illegal Loop Request: \"%s\" -- ignored.", th);
-    requested_repeat_mode = RS_NOT_AVAILABLE;
-  }
-  // if ((requested_repeat_mode != RS_NOT_AVAILABLE) && (metadata_store.repeat_status != requested_repeat_mode)) {
-    remote_set_repeat_mode(requested_repeat_mode);
-  // }
-  return TRUE;
-}
-
-#else
-gboolean notify_loop_status_callback(__attribute__((unused))
-                                     ShairportSyncAdvancedRemoteControl *skeleton,
-                                     __attribute__((unused)) gpointer user_data) {
-  return TRUE;
-}
-#endif
-
 static gboolean on_handle_quit(ShairportSync *skeleton, GDBusMethodInvocation *invocation,
                                __attribute__((unused)) const gchar *command,
                                __attribute__((unused)) gpointer user_data) {
@@ -923,6 +891,27 @@ static gboolean on_handle_mule(ShairportSync *skeleton, GDBusMethodInvocation *i
   debug(1, "Mule with parameter %d.", parameter);
   ap2_event_send_dev_mule(parameter);
   shairport_sync_complete_mule(skeleton, invocation);
+  return TRUE;
+}
+
+static gboolean on_handle_set_repeat_mode(ShairportSyncClient *skeleton, GDBusMethodInvocation *invocation,
+                               const gchar *modeString, __attribute__((unused)) gpointer user_data) {
+  debug(1, "SetRepeatMode with mode \"%s\".", modeString);  
+  repeat_status_type requested_repeat_mode = RS_NOT_AVAILABLE;
+  if (strcasecmp(modeString, "off") == 0) {
+    requested_repeat_mode = RS_OFF;
+  } else if (strcasecmp(modeString, "one") == 0) {
+    requested_repeat_mode = RS_ONE;
+  } else if (strcasecmp(modeString, "all") == 0) {
+    requested_repeat_mode = RS_ALL;
+  } else {
+    warn("Illegal SetRepeatMode: \"%s\" -- ignored.", modeString);
+    requested_repeat_mode = RS_NOT_AVAILABLE;
+  }
+  if (requested_repeat_mode != RS_NOT_AVAILABLE) {
+    remote_set_repeat_mode(requested_repeat_mode);
+  }
+  shairport_sync_client_complete_set_repeat_mode(skeleton, invocation);
   return TRUE;
 }
 
@@ -973,12 +962,16 @@ static gboolean on_handle_set_frame_position_update_interval(
 
 static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name,
                                   __attribute__((unused)) gpointer user_data) {
-  debug(2, "Shairport Sync native D-Bus interface \"%s\" acquired on the %s bus.", name,
+  debug(1, "Shairport Sync native D-Bus interface \"%s\" acquired on the %s bus.", name,
         (dbus_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
 
   shairportSyncSkeleton = shairport_sync_skeleton_new();
   g_dbus_interface_skeleton_export(G_DBUS_INTERFACE_SKELETON(shairportSyncSkeleton), connection,
                                    "/org/gnome/ShairportSync", NULL);
+
+  shairportSyncClientSkeleton = shairport_sync_client_skeleton_new();
+  g_dbus_interface_skeleton_export(G_DBUS_INTERFACE_SKELETON(shairportSyncClientSkeleton),
+                                   connection, "/org/gnome/ShairportSync", NULL);
 
   shairportSyncDiagnosticsSkeleton = shairport_sync_diagnostics_skeleton_new();
   g_dbus_interface_skeleton_export(G_DBUS_INTERFACE_SKELETON(shairportSyncDiagnosticsSkeleton),
@@ -993,7 +986,6 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
   g_dbus_interface_skeleton_export(
       G_DBUS_INTERFACE_SKELETON(shairportSyncAdvancedRemoteControlSkeleton), connection,
       "/org/gnome/ShairportSync", NULL);
-
   g_signal_connect(shairportSyncSkeleton, "notify::interpolation",
                    G_CALLBACK(notify_interpolation_callback), NULL);
   g_signal_connect(shairportSyncSkeleton, "notify::alacdecoder",
@@ -1033,7 +1025,9 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
 
   g_signal_connect(shairportSyncSkeleton, "handle-set-frame-position-update-interval",
                    G_CALLBACK(on_handle_set_frame_position_update_interval), NULL);
-
+                     
+  g_signal_connect(shairportSyncClientSkeleton, "handle-set-repeat-mode", G_CALLBACK(on_handle_set_repeat_mode), NULL);
+  
   g_signal_connect(shairportSyncDiagnosticsSkeleton, "notify::verbosity",
                    G_CALLBACK(notify_verbosity_callback), NULL);
 
@@ -1084,9 +1078,6 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
 
   g_signal_connect(shairportSyncAdvancedRemoteControlSkeleton, "notify::shuffle",
                    G_CALLBACK(notify_shuffle_callback), NULL);
-
-  g_signal_connect(shairportSyncAdvancedRemoteControlSkeleton, "notify::loop-status",
-                   G_CALLBACK(notify_loop_status_callback), NULL);
 
   add_metadata_watcher(dbus_metadata_watcher);
 
@@ -1253,6 +1244,10 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
 
   shairport_sync_advanced_remote_control_set_loop_status(shairportSyncAdvancedRemoteControlSkeleton,
                                                          "Not Available");
+
+  shairport_sync_client_set_repeat_mode(shairportSyncClientSkeleton,
+                                                         "Not Available");
+
 
   debug(1, "Shairport Sync native D-Bus service started at \"%s\" on the %s bus.", name,
         (dbus_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");

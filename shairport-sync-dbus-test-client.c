@@ -157,7 +157,17 @@ int main(int argc, char *argv[]) {
   g_signal_connect(proxy, "notify::loudness-threshold",
                    G_CALLBACK(notify_loudness_threshold_callback), "ShairportSync");
 
-  // Now, add notification of changes in diagnostics
+  // Now, add notification of changes in client
+
+  ShairportSyncClient *proxyClient;
+  GError *errorClient = NULL;
+  proxyClient = shairport_sync_client_proxy_new_for_bus_sync(
+      gbus_type_selected, G_DBUS_PROXY_FLAGS_NONE, "org.gnome.ShairportSync",
+      "/org/gnome/ShairportSync", NULL, &errorClient);
+  g_signal_connect(proxyClient, "g-properties-changed", G_CALLBACK(on_properties_changed),
+                   "ShairportSync.Client");
+
+ // Now, add notification of changes in diagnostics
 
   ShairportSyncDiagnostics *proxy2;
   GError *error2 = NULL;
