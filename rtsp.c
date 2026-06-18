@@ -3275,7 +3275,7 @@ static void handle_set_parameter_metadata(__attribute__((unused)) rtsp_conn_info
   unsigned int off = 8;
 
   uint32_t itag, vl;
-  while (off < cl) {
+  while (off + 8 <= cl) {
     // pick up the metadata tag as an unsigned longint
     memcpy(&itag, (uint32_t *)(cp + off), sizeof(uint32_t)); /* can be misaligned, thus memcpy */
     itag = ntohl(itag);
@@ -3285,6 +3285,9 @@ static void handle_set_parameter_metadata(__attribute__((unused)) rtsp_conn_info
     memcpy(&vl, (uint32_t *)(cp + off), sizeof(uint32_t)); /* can be misaligned, thus memcpy */
     vl = ntohl(vl);
     off += sizeof(uint32_t);
+
+    if (vl > cl - off)
+      break;
 
     // pass the data over
     if (vl == 0)
