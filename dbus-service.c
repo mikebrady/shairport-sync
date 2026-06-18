@@ -63,7 +63,6 @@ static guint ownerID = 0;
 
 void dbus_metadata_watcher(struct metadata_bundle *argc) {
   char response[100];
-  gboolean current_status, new_status;
 
   const char *th;
   shairport_sync_advanced_remote_control_set_volume(shairportSyncAdvancedRemoteControlSkeleton,
@@ -215,37 +214,35 @@ void dbus_metadata_watcher(struct metadata_bundle *argc) {
   }
  
   if (strlen(response) != 0) {
-    shairport_sync_client_set_repeat_mode(
+    shairport_sync_client_set_repeat(
             shairportSyncClientSkeleton, response);
     shairport_sync_advanced_remote_control_set_loop_status(
         shairportSyncAdvancedRemoteControlSkeleton, response);
   }
   
   // 
+  gboolean shuffle_is_on = FALSE;
   switch (argc->shuffle_status) {
   case SS_NOT_AVAILABLE:
-    new_status = FALSE;
+    shuffle_is_on = FALSE;
+    shairport_sync_client_set_shuffle(shairportSyncClientSkeleton, "Not Available");
     break;
   case SS_OFF:
-    new_status = FALSE;
+    shuffle_is_on = FALSE;
+    shairport_sync_client_set_shuffle(shairportSyncClientSkeleton, "Off");
     break;
   case SS_ON:
-    new_status = TRUE;
+    shuffle_is_on = TRUE;
+    shairport_sync_client_set_shuffle(shairportSyncClientSkeleton, "On");
     break;
   default:
-    new_status = FALSE;
+    shuffle_is_on = FALSE;
+    shairport_sync_client_set_shuffle(shairportSyncClientSkeleton, "Error");
     debug(1, "Unknown shuffle status -- this should never happen.");
   }
 
-  current_status = shairport_sync_advanced_remote_control_get_shuffle(
-      shairportSyncAdvancedRemoteControlSkeleton);
-
-  // only set this if it's different
-  if (current_status != new_status) {
-    debug(3, "Shuffle State should be changed");
-    shairport_sync_advanced_remote_control_set_shuffle(shairportSyncAdvancedRemoteControlSkeleton,
-                                                       new_status);
-  }
+  shairport_sync_advanced_remote_control_set_shuffle(shairportSyncAdvancedRemoteControlSkeleton,
+                                                       shuffle_is_on);
 
   // Build the metadata array
   // debug(2, "Build metadata");
@@ -894,9 +891,9 @@ static gboolean on_handle_mule(ShairportSync *skeleton, GDBusMethodInvocation *i
   return TRUE;
 }
 
-static gboolean on_handle_set_repeat_mode(ShairportSyncClient *skeleton, GDBusMethodInvocation *invocation,
+static gboolean on_handle_set_repeat(ShairportSyncClient *skeleton, GDBusMethodInvocation *invocation,
                                const gchar *modeString, __attribute__((unused)) gpointer user_data) {
-  debug(1, "SetRepeatMode with mode \"%s\".", modeString);  
+  debug(1, "SetRepeat with mode \"%s\".", modeString);  
   repeat_status_type requested_repeat_mode = RS_NOT_AVAILABLE;
   if (strcasecmp(modeString, "off") == 0) {
     requested_repeat_mode = RS_OFF;
@@ -905,13 +902,13 @@ static gboolean on_handle_set_repeat_mode(ShairportSyncClient *skeleton, GDBusMe
   } else if (strcasecmp(modeString, "all") == 0) {
     requested_repeat_mode = RS_ALL;
   } else {
-    warn("Illegal SetRepeatMode: \"%s\" -- ignored.", modeString);
+    warn("Illegal SetRepeat: \"%s\" -- ignored.", modeString);
     requested_repeat_mode = RS_NOT_AVAILABLE;
   }
   if (requested_repeat_mode != RS_NOT_AVAILABLE) {
     remote_set_repeat_mode(requested_repeat_mode);
   }
-  shairport_sync_client_complete_set_repeat_mode(skeleton, invocation);
+  shairport_sync_client_complete_set_repeat(skeleton, invocation);
   return TRUE;
 }
 
@@ -1026,7 +1023,7 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
   g_signal_connect(shairportSyncSkeleton, "handle-set-frame-position-update-interval",
                    G_CALLBACK(on_handle_set_frame_position_update_interval), NULL);
                      
-  g_signal_connect(shairportSyncClientSkeleton, "handle-set-repeat-mode", G_CALLBACK(on_handle_set_repeat_mode), NULL);
+  g_signal_connect(shairportSyncClientSkeleton, "handle-set-repeat", G_CALLBACK(on_handle_set_repeat), NULL);
   
   g_signal_connect(shairportSyncDiagnosticsSkeleton, "notify::verbosity",
                    G_CALLBACK(notify_verbosity_callback), NULL);
@@ -1245,7 +1242,7 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
   shairport_sync_advanced_remote_control_set_loop_status(shairportSyncAdvancedRemoteControlSkeleton,
                                                          "Not Available");
 
-  shairport_sync_client_set_repeat_mode(shairportSyncClientSkeleton,
+  shairport_sync_client_set_repeat(shairportSyncClientSkeleton,
                                                          "Not Available");
 
 

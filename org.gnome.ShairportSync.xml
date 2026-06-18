@@ -45,11 +45,11 @@
     <property name="FileAndLine" type="b" access="readwrite" />
   </interface>  
   <interface name="org.gnome.ShairportSync.Client">
-    <method name="SetRepeatMode">
+    <method name="SetRepeat">
       <arg name="mode" type="s" direction="in" />
     </method>
-		<property name='RepeatMode' type='s' access='read'/>
-		<property name='Shuffle' type='b' access='read'/>
+		<property name='Repeat' type='s' access='read'/>
+		<property name='Shuffle' type='s' access='read'/>
   </interface>
   <interface name="org.gnome.ShairportSync.RemoteControl">
 		<method name='FastForward'/>

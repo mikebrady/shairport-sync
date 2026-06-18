@@ -30,6 +30,43 @@
 #include "utilities/generate_random_uuid.h"
 #include "utilities/structured_buffer.h"
 
+// will return -1 if there is an error or port is not open, 0 if the port was closed and a positive
+// number if okay
+ssize_t ap2_event_port_send_message(rtsp_conn_info *conn, char *data, size_t data_length) {
+  ssize_t result = -1; // assume a problem
+  debug_mutex_lock(&conn->event_sender_mutex, 1000000, 4);
+  pthread_cleanup_push(mutex_unlock, &conn->event_sender_mutex);
+  if (conn->event_channel_fd != 0) {
+    result = write_encrypted(conn->event_channel_fd, &conn->ap2_pairing_context.event_cipher_bundle,
+                             data, data_length);
+    if ((result != -1) && ((size_t)result == data_length)) {
+      debug(3, "Connection %d: Packet of %zu bytes successfully written on the Event Port.",
+            conn->connection_number, result);
+      uint8_t packet[4096];
+      result =
+          read_encrypted(conn->event_channel_fd, &conn->ap2_pairing_context.event_cipher_bundle,
+                         packet, sizeof(packet));
+      debug(3, "Connection %d: Packet of %zu bytes successfully read on the Event Port.",
+            conn->connection_number, result);
+      if (result > 0) {
+        packet[result] = '\0';
+        debug(3, "Connection %d: Packet Received on Event Port with contents: \n--\n%s\n--\n",
+              conn->connection_number, packet);
+      } else {
+        debug(2, "Connection %d: Event Port connection closed by client", conn->connection_number);
+      }
+    } else {
+      result = -1; // this covers a situation where the result is positive but not the same as the
+                   // data_length
+    }
+  } else {
+    debug(1, "Connection %d: attempt to send a command to the event port over a closed socket",
+          conn->connection_number);
+  }
+  pthread_cleanup_pop(1); // unlock the mutex
+  return result;
+}
+
 plist_t prepareNSKeyedArchiver(const char *uid) {
   // this creates a BASE64 encoding of a bplist of an NSKeyedArchiver-encoded
   // NSMutableArray containing a single element: the Group UUID of which this
@@ -140,43 +177,6 @@ plist_t prepareNSKeyedArchiver(const char *uid) {
   plist_dict_set_item(archive_plist, "$objects", objects_array);
 
   return archive_plist; /* caller is responsible for disposing of] this */
-}
-
-// will return -1 if there is an error or port is not open, 0 if the port was closed and a positive
-// number if okay
-ssize_t ap2_event_port_send_message(rtsp_conn_info *conn, char *data, size_t data_length) {
-  ssize_t result = -1; // assume a problem
-  debug_mutex_lock(&conn->event_sender_mutex, 1000000, 4);
-  pthread_cleanup_push(mutex_unlock, &conn->event_sender_mutex);
-  if (conn->event_channel_fd != 0) {
-    result = write_encrypted(conn->event_channel_fd, &conn->ap2_pairing_context.event_cipher_bundle,
-                             data, data_length);
-    if ((result != -1) && ((size_t)result == data_length)) {
-      debug(3, "Connection %d: Packet of %zu bytes successfully written on the Event Port.",
-            conn->connection_number, result);
-      uint8_t packet[4096];
-      result =
-          read_encrypted(conn->event_channel_fd, &conn->ap2_pairing_context.event_cipher_bundle,
-                         packet, sizeof(packet));
-      debug(3, "Connection %d: Packet of %zu bytes successfully read on the Event Port.",
-            conn->connection_number, result);
-      if (result > 0) {
-        packet[result] = '\0';
-        debug(3, "Connection %d: Packet Received on Event Port with contents: \n--\n%s\n--\n",
-              conn->connection_number, packet);
-      } else {
-        debug(2, "Connection %d: Event Port connection closed by client", conn->connection_number);
-      }
-    } else {
-      result = -1; // this covers a situation where the result is positive but not the same as the
-                   // data_length
-    }
-  } else {
-    debug(1, "Connection %d: attempt to send a command to the event port over a closed socket",
-          conn->connection_number);
-  }
-  pthread_cleanup_pop(1); // unlock the mutex
-  return result;
 }
 
 // this creates a plist will all the components of a modernMediaRemoteCommand,
