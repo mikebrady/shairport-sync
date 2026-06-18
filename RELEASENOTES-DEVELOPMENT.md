@@ -1,4 +1,22 @@
-Version 
+Version 5.1-dev-38-g3780b504
+==
+**Bug Fixes**
+* Fix two security issues reported in [#2215](https://github.com/mikebrady/shairport-sync/issues/2215) and [#2216](https://github.com/mikebrady/shairport-sync/issues/2216):
+
+  **pair_ap/pair-tlv.c** (`pair_tlv_parse`):
+  - Add bounds check before reading type and length bytes
+  - Fix off-by-one in chunked TLV scan loop
+  - Add bounds checks inside data copy loop to prevent OOB memcpy
+  - Add else branch to advance index when size == 0 (prevents infinite loop)
+
+  **rtsp.c** (`handle_set_parameter_metadata`):
+  - Require 8 bytes remaining for tag + length fields
+  - Validate value length against remaining buffer before read
+
+Many thanks to [TristanInSec](https://github.com/TristanInSec) for reporting the issues and for the [PR](https://github.com/mikebrady/shairport-sync/pull/2218) to fix the problem.
+
+
+Version 5.1-dev-36-gb4751a09
 ==
 **Bug Fix**
 * When an immediate flush is requested, reset the PTP clock anchor information _immediately_ to disable clocking until play is resumed. This prevents occasional apparent sudden jumps in the timing of frames of audio due to using an obsolete clock. It was causing no known problems.
