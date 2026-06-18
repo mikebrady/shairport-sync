@@ -176,42 +176,38 @@ plist_t prepareNSKeyedArchiver(const char *uid) {
   return archive_plist; /* caller is responsible for disposing of] this */
 }
 
-// this creates a plist will all the components of a modernMediaRemoteCommand,
-// but not the "modernMediaRemoteCommand""-keyed item itself,
-// nor the "value""-keyed item
-void completeModernMediaRemoteCommand(plist_t command_plist, const char *command_UUID,
-                                      const char *deviceUUID) {
-  plist_dict_set_item(command_plist, "type", plist_new_string("sendMediaRemoteCommand"));
-
-  plist_t params_plist = plist_new_dict();
-  plist_dict_set_item(params_plist, "kMRMediaRemoteOptionRemoteControlInterfaceIdentifier",
-                      plist_new_string("com.apple.NowPlayingCap.interfaceIdentifer"));
-  plist_dict_set_item(params_plist, "kMRMediaRemoteOptionSendOptionsNumber", plist_new_uint(0));
-  plist_dict_set_item(params_plist, "kMRMediaRemoteOptionCommandID",
-                      plist_new_string(command_UUID));
-  plist_dict_set_item(params_plist, "kMRMediaRemoteOptionIsRedirectingCommand",
-                      plist_new_bool(1)); // true
-
+plist_t destinationArchive(const char *deviceUUID) {
   plist_t archive_plist = prepareNSKeyedArchiver(deviceUUID);
 
-  // debug(1, "kMRMediaRemoteOptionDestinationDeviceUIDs archive:");
-  // decodeAndLogPlist(archive_plist);
+  debug(1, "kMRMediaRemoteOptionDestinationDeviceUIDs archive:");
+  decodeAndLogPlist(1, archive_plist);
 
   /* serialise to binary plist */
   char *bplist_buf = NULL;
   uint32_t bplist_len = 0;
   plist_to_bin(archive_plist, &bplist_buf, &bplist_len);
   plist_free(archive_plist);
+  
+  plist_t reply = plist_new_data(bplist_buf, bplist_len);
+  free(bplist_buf);
+  return reply;
+}
+
+plist_t paramsPlist(unsigned int send_options_number, const char *deviceUUID) {
+   plist_t params_plist = plist_new_dict();
+  // plist_dict_set_item(params_plist, "kMRMediaRemoteOptionRemoteControlInterfaceIdentifier",
+  //                     plist_new_string("org.gnome.ShairportSync"));
+  plist_dict_set_item(params_plist, "kMRMediaRemoteOptionSendOptionsNumber", plist_new_uint(send_options_number));
+  char *command_UUID = generate_random_uuid();
+  plist_dict_set_item(params_plist, "kMRMediaRemoteOptionCommandID",
+                      plist_new_string(command_UUID));
+  free(command_UUID);
+  plist_dict_set_item(params_plist, "kMRMediaRemoteOptionIsRedirectingCommand",
+                      plist_new_bool(1)); // true
 
   plist_dict_set_item(params_plist, "kMRMediaRemoteOptionDestinationDeviceUIDs",
-                      plist_new_data(bplist_buf, bplist_len));
-  free(bplist_buf);
-
-  plist_dict_set_item(params_plist, "kMRMediaRemoteOptionSenderID",
-                      plist_new_string("SenderDevice = <HomePod>, SenderBundleIdentifier = "
-                                       "<com.apple.NowPlayingCap>, SenderPID = <353>"));
-
-  plist_dict_set_item(command_plist, "params", params_plist);
+                      destinationArchive(deviceUUID));
+  return params_plist;
 }
 
 // send a simple command -- one with a command number an no arguments.
@@ -223,16 +219,12 @@ ssize_t ap2_event_send_simple_modern_media_remote_command(rtsp_conn_info *conn,
   plist_t modernMediaCommand = plist_new_dict();
   plist_dict_set_item(modernMediaCommand, "modernMediaRemoteCommand",
                       plist_new_string(command_number_string));
-  // plist_dict_set_item(modernMediaCommand,"value",
-  // plist_new_string(command_values[command_number]));
-  char *random_UUID = generate_random_uuid();
-  completeModernMediaRemoteCommand(modernMediaCommand, random_UUID, conn->airplay_gid);
-  free(random_UUID);
+  plist_dict_set_item(modernMediaCommand, "type", plist_new_string("sendMediaRemoteCommand"));
+  plist_dict_set_item(modernMediaCommand, "params", paramsPlist(0, conn->airplay_gid));
   result = ap2_event_port_post_command(conn, modernMediaCommand);
   plist_free(modernMediaCommand);
   return result;
 }
-
 
 
 ssize_t ap2_event_send_dev_mule(unsigned int parameter) {
@@ -244,16 +236,16 @@ ssize_t ap2_event_send_dev_mule(unsigned int parameter) {
     plist_t modernMediaCommand = plist_new_dict();
     plist_dict_set_item(modernMediaCommand, "modernMediaRemoteCommand",
                         plist_new_string(command_number_string));
-    char *random_UUID = generate_random_uuid();
-    completeModernMediaRemoteCommand(modernMediaCommand, random_UUID, conn->airplay_gid);
-    
-    // get the params dict...
-    plist_t params = plist_dict_get_item(modernMediaCommand,"params");
+
+    plist_dict_set_item(modernMediaCommand, "type", plist_new_string("sendMediaRemoteCommand"));
+
+    plist_t params = paramsPlist(0, conn->airplay_gid);
     if (params != NULL)
+      // add this parameter
       plist_dict_set_item(params, "kMRMediaRemoteOptionRepeatMode",
                         plist_new_uint(parameter));
-    
-    free(random_UUID);
+    plist_dict_set_item(modernMediaCommand, "params", params);
+        
     result = ap2_event_port_post_command(conn, modernMediaCommand);
     plist_free(modernMediaCommand);
     if (result <= 0)
@@ -264,6 +256,35 @@ ssize_t ap2_event_send_dev_mule(unsigned int parameter) {
   }
   return result;
 }
+
+ssize_t ap2_event_send_set_repeat_mode(unsigned int repeat_mode) {
+  ssize_t result = -1;
+  rtsp_conn_info *conn = principal_conn;
+  if (conn != NULL) {
+    plist_t modernMediaCommand = plist_new_dict();
+    plist_dict_set_item(modernMediaCommand, "modernMediaRemoteCommand",
+                        plist_new_string("25")); // set repeat mode
+
+    plist_dict_set_item(modernMediaCommand, "type", plist_new_string("sendMediaRemoteCommand"));
+
+    plist_t params = paramsPlist(0, conn->airplay_gid);
+    if (params != NULL)
+      // add the kMRMediaRemoteOptionRepeatMode parameter
+      plist_dict_set_item(params, "kMRMediaRemoteOptionRepeatMode",
+                        plist_new_uint(repeat_mode));
+    plist_dict_set_item(modernMediaCommand, "params", params);
+        
+    result = ap2_event_port_post_command(conn, modernMediaCommand);
+    plist_free(modernMediaCommand);
+    if (result <= 0)
+      debug(1, "Connection %d: error %zd when sending set repeat mode command.", conn->connection_number,
+            result);
+  } else {
+    debug(1, "No connection when sending set repeat mode command.");
+  }
+  return result;
+}
+
 
 ssize_t ap2_event_send_unit_volume_notification(rtsp_conn_info *conn, double volume) {
   ssize_t result = -1;
@@ -485,24 +506,20 @@ void remote_set_repeat_mode(repeat_status_type mode) {
 #if CONFIG_AIRPLAY_2
     if (principal_conn->airplay_type == ap_2) {
       command_handled_in_airplay_2 = 1; // handled even if not successful
-      unsigned int repeat_mode = 0;
       switch (mode) {
         case RS_OFF:
-          repeat_mode = 1;
+          ap2_event_send_set_repeat_mode(1);
           break;
         case RS_ONE:
-          repeat_mode = 2;
+          ap2_event_send_set_repeat_mode(2);
           break;
         case RS_ALL:
-          repeat_mode = 3;
+          ap2_event_send_set_repeat_mode(3);
           break;
         default:
           debug(1, "AP2 invalid repeat mode request -- ignored.");
           break;
-      }    
-      if (repeat_mode != 0) {
-        ap2_event_send_dev_mule(repeat_mode);
-      }    
+      }   
     }  
 #endif
 #ifdef CONFIG_DACP_CLIENT

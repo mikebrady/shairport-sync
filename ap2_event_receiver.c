@@ -25,7 +25,6 @@
  */
 
 #include "ap2_event_receiver.h"
-#include "ap2_event_message_handler.h"
 #include "common.h"
 #include "player.h"
 #include "utilities/network_utilities.h"
@@ -75,7 +74,7 @@ ssize_t ap2_event_port_send_message(rtsp_conn_info *conn, char *data, size_t dat
 
 ssize_t ap2_event_port_post_command(rtsp_conn_info *conn, plist_t command) {
   ssize_t result = 0;
-  decodeAndLogPlist(command);
+  decodeAndLogPlist(3, command);
   structured_buffer *sbuf = sbuf_new(4096);
   if (sbuf != NULL) {
     pthread_cleanup_push(sbuf_cleanup, sbuf);

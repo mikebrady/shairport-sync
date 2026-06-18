@@ -290,11 +290,11 @@ void _debug_log_rtsp_message(rtsp_conn_info *conn, const char *filename, const i
 }
 
 #ifdef CONFIG_AIRPLAY_2
-void decodeAndLogPlist(plist_t plist_to_log) {
+void decodeAndLogPlist(int level, plist_t plist_to_log) {
   if (plist_to_log != NULL) {
     char *plist_as_string = plist_as_xml_text(plist_to_log);
     if (plist_as_string != NULL) {
-      debug(3, "--\n%s\n--\n", plist_as_string);
+      debug(level, "--\n%s\n--\n", plist_as_string);
       free(plist_as_string);
     }
   }
