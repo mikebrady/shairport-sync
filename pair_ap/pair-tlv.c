@@ -162,18 +162,21 @@ pair_tlv_parse(const uint8_t *buffer, size_t length, pair_tlv_values_t *values) 
     size_t i = 0;
     int ret;
     while (i < length) {
+        if (i + 2 > length)
+            return PAIR_TLV_ERROR_INSUFFICIENT_SIZE;
+
         uint8_t type = buffer[i];
         size_t size = 0;
         uint8_t *data = NULL;
 
         // scan TLVs to accumulate total size of subsequent TLVs with same type (chunked data)
         size_t j = i;
-        while (j < length && buffer[j] == type && buffer[j+1] == 255) {
+        while (j + 1 < length && buffer[j] == type && buffer[j+1] == 255) {
             size_t chunk_size = buffer[j+1];
             size += chunk_size;
             j += chunk_size + 2;
         }
-        if (j < length && buffer[j] == type) {
+        if (j + 1 < length && buffer[j] == type) {
             size_t chunk_size = buffer[j+1];
             size += chunk_size;
         }
@@ -188,12 +191,22 @@ pair_tlv_parse(const uint8_t *buffer, size_t length, pair_tlv_values_t *values) 
 
             size_t remaining = size;
             while (remaining) {
+                if (i + 2 > length) {
+                    free(data);
+                    return PAIR_TLV_ERROR_INSUFFICIENT_SIZE;
+                }
                 size_t chunk_size = buffer[i+1];
+                if (chunk_size > length - i - 2) {
+                    free(data);
+                    return PAIR_TLV_ERROR_INSUFFICIENT_SIZE;
+                }
                 memcpy(p, &buffer[i+2], chunk_size);
                 p += chunk_size;
                 i += chunk_size + 2;
                 remaining -= chunk_size;
             }
+        } else {
+            i += 2;
         }
 
         ret = tlv_add_value_(values, type, data, size);
