@@ -180,7 +180,7 @@ plist_t destinationArchive(const char *deviceUUID) {
   plist_t archive_plist = prepareNSKeyedArchiver(deviceUUID);
 
   debug(1, "kMRMediaRemoteOptionDestinationDeviceUIDs archive:");
-  decodeAndLogPlist(1, archive_plist);
+  decodeAndLogPlist(3, archive_plist);
 
   /* serialise to binary plist */
   char *bplist_buf = NULL;
@@ -226,13 +226,13 @@ ssize_t ap2_event_send_simple_modern_media_remote_command(rtsp_conn_info *conn,
   return result;
 }
 
-
+/*
 ssize_t ap2_event_send_dev_mule(unsigned int parameter) {
   ssize_t result = -1;
   rtsp_conn_info *conn = principal_conn;
   if (conn != NULL) {
     char command_number_string[32];
-    snprintf(command_number_string, sizeof(command_number_string), "%u", 25);
+    snprintf(command_number_string, sizeof(command_number_string), "%u", 26);
     plist_t modernMediaCommand = plist_new_dict();
     plist_dict_set_item(modernMediaCommand, "modernMediaRemoteCommand",
                         plist_new_string(command_number_string));
@@ -242,7 +242,7 @@ ssize_t ap2_event_send_dev_mule(unsigned int parameter) {
     plist_t params = paramsPlist(0, conn->airplay_gid);
     if (params != NULL)
       // add this parameter
-      plist_dict_set_item(params, "kMRMediaRemoteOptionRepeatMode",
+      plist_dict_set_item(params, "kMRMediaRemoteOptionShuffleMode",
                         plist_new_uint(parameter));
     plist_dict_set_item(modernMediaCommand, "params", params);
         
@@ -256,6 +256,35 @@ ssize_t ap2_event_send_dev_mule(unsigned int parameter) {
   }
   return result;
 }
+*/
+ssize_t ap2_event_send_dev_mule(unsigned int repeat_mode) {
+  ssize_t result = -1;
+  rtsp_conn_info *conn = principal_conn;
+  if (conn != NULL) {
+    plist_t modernMediaCommand = plist_new_dict();
+    plist_dict_set_item(modernMediaCommand, "modernMediaRemoteCommand",
+                        plist_new_string("26")); // set shuffle mode
+
+    plist_dict_set_item(modernMediaCommand, "type", plist_new_string("sendMediaRemoteCommand"));
+
+    plist_t params = paramsPlist(0, conn->airplay_gid);
+    if (params != NULL)
+      plist_dict_set_item(params, "kMRMediaRemoteOptionShuffleMode",
+                        plist_new_uint(repeat_mode));
+    plist_dict_set_item(modernMediaCommand, "params", params);
+        
+    result = ap2_event_port_post_command(conn, modernMediaCommand);
+    plist_free(modernMediaCommand);
+    if (result <= 0)
+      debug(1, "Connection %d: error %zd when sending set shuffle mode command.", conn->connection_number,
+            result);
+  } else {
+    debug(1, "No connection when sending set shuffle mode command.");
+  }
+  return result;
+}
+
+
 
 ssize_t ap2_event_send_set_repeat_mode(unsigned int repeat_mode) {
   ssize_t result = -1;
@@ -269,7 +298,6 @@ ssize_t ap2_event_send_set_repeat_mode(unsigned int repeat_mode) {
 
     plist_t params = paramsPlist(0, conn->airplay_gid);
     if (params != NULL)
-      // add the kMRMediaRemoteOptionRepeatMode parameter
       plist_dict_set_item(params, "kMRMediaRemoteOptionRepeatMode",
                         plist_new_uint(repeat_mode));
     plist_dict_set_item(modernMediaCommand, "params", params);
@@ -285,6 +313,32 @@ ssize_t ap2_event_send_set_repeat_mode(unsigned int repeat_mode) {
   return result;
 }
 
+ssize_t ap2_event_send_set_shuffle_mode(unsigned int shuffle_mode) {
+  ssize_t result = -1;
+  rtsp_conn_info *conn = principal_conn;
+  if (conn != NULL) {
+    plist_t modernMediaCommand = plist_new_dict();
+    plist_dict_set_item(modernMediaCommand, "modernMediaRemoteCommand",
+                        plist_new_string("26")); // set shuffle mode
+
+    plist_dict_set_item(modernMediaCommand, "type", plist_new_string("sendMediaRemoteCommand"));
+
+    plist_t params = paramsPlist(0, conn->airplay_gid);
+    if (params != NULL)
+      plist_dict_set_item(params, "kMRMediaRemoteOptionShuffleMode",
+                        plist_new_uint(shuffle_mode));
+    plist_dict_set_item(modernMediaCommand, "params", params);
+        
+    result = ap2_event_port_post_command(conn, modernMediaCommand);
+    plist_free(modernMediaCommand);
+    if (result <= 0)
+      debug(1, "Connection %d: error %zd when sending set shuffle mode command.", conn->connection_number,
+            result);
+  } else {
+    debug(1, "No connection when sending set shuffle mode command.");
+  }
+  return result;
+}
 
 ssize_t ap2_event_send_unit_volume_notification(rtsp_conn_info *conn, double volume) {
   ssize_t result = -1;
@@ -548,6 +602,52 @@ void remote_set_repeat_mode(repeat_status_type mode) {
   }
   pthread_cleanup_pop(1); // release the principal_conn lock
 }  
+
+void remote_set_shuffle_mode(shuffle_status_type mode) {  
+  pthread_rwlock_rdlock(&principal_conn_lock); // don't let the principal_conn be changed
+  pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
+  if (principal_conn != NULL) {
+    int command_handled_in_airplay_2 = 0;
+#if CONFIG_AIRPLAY_2
+    if (principal_conn->airplay_type == ap_2) {
+      command_handled_in_airplay_2 = 1; // handled even if not successful
+      switch (mode) {
+        case SS_OFF:
+          ap2_event_send_set_shuffle_mode(1); // seems top be shuffle off
+          break;
+        case SS_ON:
+          ap2_event_send_set_shuffle_mode(3); // seems to be shuffle songs
+          break;
+        default:
+          debug(1, "AP2 invalid shuffle mode request -- ignored.");
+          break;
+      }   
+    }  
+#endif
+#ifdef CONFIG_DACP_CLIENT
+    if (command_handled_in_airplay_2 == 0) {
+      if (metadata_store.advanced_dacp_server_active != 0) {
+        switch (mode) {
+          case SS_OFF:
+            send_simple_dacp_command("setproperty?dacp.shufflestate=0");
+            break;
+          case SS_ON:
+            send_simple_dacp_command("setproperty?dacp.shufflestate=1");
+            break;
+          default:
+            debug(1, "DACP invalid shuffle mode request -- ignored.");
+            break;
+        }    
+      }
+       else {
+        inform("Can't set loop status / repeat mode -- advanced remote control is not available for this client.");
+      }
+    }
+#endif
+  }
+  pthread_cleanup_pop(1); // release the principal_conn lock
+}  
+
 
 void remote_player_stop(rtsp_conn_info *conn) {
   if (conn != NULL) {

@@ -855,24 +855,6 @@ gboolean notify_volume_control_profile_callback(ShairportSync *skeleton,
   return TRUE;
 }
 
-#ifdef CONFIG_DACP_CLIENT
-gboolean notify_shuffle_callback(ShairportSyncAdvancedRemoteControl *skeleton,
-                                 __attribute__((unused)) gpointer user_data) {
-  // debug(1,"notify_shuffle_callback called");
-  if (shairport_sync_advanced_remote_control_get_shuffle(skeleton))
-    send_simple_dacp_command("setproperty?dacp.shufflestate=1");
-  else
-    send_simple_dacp_command("setproperty?dacp.shufflestate=0");
-  return TRUE;
-}
-#else
-gboolean notify_shuffle_callback(__attribute__((unused))
-                                 ShairportSyncAdvancedRemoteControl *skeleton,
-                                 __attribute__((unused)) gpointer user_data) {
-  return TRUE;
-}
-#endif
-
 static gboolean on_handle_quit(ShairportSync *skeleton, GDBusMethodInvocation *invocation,
                                __attribute__((unused)) const gchar *command,
                                __attribute__((unused)) gpointer user_data) {
@@ -909,6 +891,25 @@ static gboolean on_handle_set_repeat(ShairportSyncClient *skeleton, GDBusMethodI
     remote_set_repeat_mode(requested_repeat_mode);
   }
   shairport_sync_client_complete_set_repeat(skeleton, invocation);
+  return TRUE;
+}
+
+static gboolean on_handle_set_shuffle(ShairportSyncClient *skeleton, GDBusMethodInvocation *invocation,
+                               const gchar *modeString, __attribute__((unused)) gpointer user_data) {
+  debug(1, "SetShuffle with mode \"%s\".", modeString);  
+  shuffle_status_type requested_shuffle_mode = SS_NOT_AVAILABLE;
+  if (strcasecmp(modeString, "off") == 0) {
+    requested_shuffle_mode = SS_OFF;
+  } else if (strcasecmp(modeString, "on") == 0) {
+    requested_shuffle_mode = SS_ON;
+  } else {
+    warn("Illegal SetShuffle: \"%s\" -- ignored.", modeString);
+    requested_shuffle_mode = SS_NOT_AVAILABLE;
+  }
+  if (requested_shuffle_mode != SS_NOT_AVAILABLE) {
+    remote_set_shuffle_mode(requested_shuffle_mode);
+  }
+  shairport_sync_client_complete_set_shuffle(skeleton, invocation);
   return TRUE;
 }
 
@@ -1024,7 +1025,8 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
                    G_CALLBACK(on_handle_set_frame_position_update_interval), NULL);
                      
   g_signal_connect(shairportSyncClientSkeleton, "handle-set-repeat", G_CALLBACK(on_handle_set_repeat), NULL);
-  
+  g_signal_connect(shairportSyncClientSkeleton, "handle-set-shuffle", G_CALLBACK(on_handle_set_shuffle), NULL);
+
   g_signal_connect(shairportSyncDiagnosticsSkeleton, "notify::verbosity",
                    G_CALLBACK(notify_verbosity_callback), NULL);
 
@@ -1072,9 +1074,6 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
 
   g_signal_connect(shairportSyncAdvancedRemoteControlSkeleton, "handle-set-volume",
                    G_CALLBACK(on_handle_set_volume), NULL);
-
-  g_signal_connect(shairportSyncAdvancedRemoteControlSkeleton, "notify::shuffle",
-                   G_CALLBACK(notify_shuffle_callback), NULL);
 
   add_metadata_watcher(dbus_metadata_watcher);
 
@@ -1243,6 +1242,8 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
                                                          "Not Available");
 
   shairport_sync_client_set_repeat(shairportSyncClientSkeleton,
+                                                         "Not Available");
+  shairport_sync_client_set_shuffle(shairportSyncClientSkeleton,
                                                          "Not Available");
 
 

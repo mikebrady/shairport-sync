@@ -49,6 +49,9 @@
       <arg name="mode" type="s" direction="in" />
     </method>
 		<property name='Repeat' type='s' access='read'/>
+    <method name="SetShuffle">
+      <arg name="mode" type="s" direction="in" />
+    </method>
 		<property name='Shuffle' type='s' access='read'/>
   </interface>
   <interface name="org.gnome.ShairportSync.RemoteControl">
@@ -82,7 +85,7 @@
   <interface name="org.gnome.ShairportSync.AdvancedRemoteControl">
 		<property name='Available' type='b' access='read'/>
 		<property name='PlaybackStatus' type='s' access='read'/>
-		<property name='Shuffle' type='b' access='readwrite'/>
+		<property name='Shuffle' type='b' access='read'/>
 		<property name='LoopStatus' type='s' access='read'/>
     <property name="Volume" type="i" access="read" />
     <method name="SetVolume">

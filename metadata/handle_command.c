@@ -254,6 +254,8 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
                           case 1:
                             metadata_store.shuffle_status = SS_OFF;
                             break;
+                          // we don't know what the difference is here...
+                          case 2:
                           case 3:
                             metadata_store.shuffle_status = SS_ON;
                             break;
