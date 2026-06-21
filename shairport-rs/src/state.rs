@@ -4,7 +4,7 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
-use crate::{audio::AudioDevice, config::Config};
+use crate::{audio::AudioDevice, codec::AudioFormat, config::Config};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -12,6 +12,7 @@ pub struct AppState {
     events: broadcast::Sender<StateSnapshot>,
     pub session_key: Arc<RwLock<Option<[u8; 16]>>>,
     pub ap2_media_key: Arc<RwLock<Option<[u8; 32]>>>,
+    pub ap2_audio_format: Arc<RwLock<Option<AudioFormat>>>,
     pub alac_magic_cookie: Arc<RwLock<Option<Vec<u8>>>>,
     pub alac_sample_rate: Arc<RwLock<Option<u32>>>,
     pub alac_channels: Arc<RwLock<Option<u16>>>,
@@ -156,6 +157,7 @@ impl AppState {
             events,
             session_key: Arc::new(RwLock::new(None)),
             ap2_media_key: Arc::new(RwLock::new(None)),
+            ap2_audio_format: Arc::new(RwLock::new(None)),
             alac_magic_cookie: Arc::new(RwLock::new(None)),
             alac_sample_rate: Arc::new(RwLock::new(None)),
             alac_channels: Arc::new(RwLock::new(None)),

@@ -42,13 +42,35 @@ impl AudioFormat {
     /// Detect format from AP2 SSRC value.
     pub fn from_ssrc(ssrc: u32) -> Option<Self> {
         match ssrc {
-            0x00000001 => Some(Self::Alac44100S16Stereo),
-            0x00000007 => Some(Self::Alac48000S24Stereo),
-            0x00000004 => Some(Self::Aac44100F24Stereo),
-            0x00000005 => Some(Self::Aac48000F24Stereo),
-            0x00000006 => Some(Self::Aac48000F24_5_1),
-            0x00000008 => Some(Self::Aac48000F24_7_1),
+            0x0000_FACE => Some(Self::Alac44100S16Stereo),
+            0x1500_0000 => Some(Self::Alac48000S24Stereo),
+            0x1600_0000 => Some(Self::Aac44100F24Stereo),
+            0x1700_0000 => Some(Self::Aac48000F24Stereo),
+            0x2700_0000 => Some(Self::Aac48000F24_5_1),
+            0x2800_0000 => Some(Self::Aac48000F24_7_1),
             _ => None,
+        }
+    }
+
+    /// Detect format from the AP2 `audioFormat` setup bitmask.
+    pub fn from_ap2_audio_format(audio_format: u64) -> Option<Self> {
+        match audio_format {
+            0x0004_0000 => Some(Self::Alac44100S16Stereo),
+            0x0020_0000 => Some(Self::Alac48000S24Stereo),
+            0x0040_0000 => Some(Self::Aac44100F24Stereo),
+            0x0080_0000 => Some(Self::Aac48000F24Stereo),
+            _ => None,
+        }
+    }
+
+    pub fn description(&self) -> &'static str {
+        match self {
+            Self::Alac44100S16Stereo => "ALAC/44100/S16_LE/2",
+            Self::Alac48000S24Stereo => "ALAC/48000/S24_LE/2",
+            Self::Aac44100F24Stereo => "AAC/44100/F24/2",
+            Self::Aac48000F24Stereo => "AAC/48000/F24/2",
+            Self::Aac48000F24_5_1 => "AAC/48000/F24/5.1",
+            Self::Aac48000F24_7_1 => "AAC/48000/F24/7.1",
         }
     }
 }
@@ -170,7 +192,11 @@ impl SymphoniaAacDecoder {
 }
 
 #[cfg(feature = "aac")]
-fn decode_aac_frame(input: &[u8], sample_rate: u32, channels: u16) -> Result<DecodedFrame, &'static str> {
+fn decode_aac_frame(
+    input: &[u8],
+    sample_rate: u32,
+    channels: u16,
+) -> Result<DecodedFrame, &'static str> {
     use symphonia::core::audio::AudioBufferRef;
     use symphonia::core::codecs::DecoderOptions;
     use symphonia::core::io::MediaSourceStream;
@@ -187,12 +213,28 @@ fn decode_aac_frame(input: &[u8], sample_rate: u32, channels: u16) -> Result<Dec
         return Err("AAC frame too large for ADTS");
     }
     let freq_idx = match sample_rate {
-        96000 => 0, 88200 => 1, 64000 => 2, 48000 => 3,
-        44100 => 4, 32000 => 5, 24000 => 6, 22050 => 7,
-        16000 => 8, 12000 => 9, 11025 => 10, 8000 => 11,
-        7350 => 12, _ => 3,
+        96000 => 0,
+        88200 => 1,
+        64000 => 2,
+        48000 => 3,
+        44100 => 4,
+        32000 => 5,
+        24000 => 6,
+        22050 => 7,
+        16000 => 8,
+        12000 => 9,
+        11025 => 10,
+        8000 => 11,
+        7350 => 12,
+        _ => 3,
     };
-    let ch_conf = match channels { 1 => 1, 2 => 2, 6 => 6, 8 => 7, _ => 2 };
+    let ch_conf = match channels {
+        1 => 1,
+        2 => 2,
+        6 => 6,
+        8 => 7,
+        _ => 2,
+    };
 
     let mut adts = vec![0u8; aac_frame_len];
     adts[0] = 0xFF;
@@ -232,7 +274,9 @@ fn decode_aac_frame(input: &[u8], sample_rate: u32, channels: u16) -> Result<Dec
         Err(_) => return Err("symphonia: failed to read AAC packet"),
     };
 
-    let decoded = decoder.decode(&packet).map_err(|_| "symphonia: AAC decode failed")?;
+    let decoded = decoder
+        .decode(&packet)
+        .map_err(|_| "symphonia: AAC decode failed")?;
 
     // Convert to interleaved f32
     let samples = match decoded {
@@ -338,22 +382,31 @@ mod tests {
     #[test]
     fn audio_format_from_ssrc() {
         assert_eq!(
-            AudioFormat::from_ssrc(0x00000001),
+            AudioFormat::from_ssrc(0x0000_FACE),
             Some(AudioFormat::Alac44100S16Stereo)
         );
         assert_eq!(
-            AudioFormat::from_ssrc(0x00000007),
+            AudioFormat::from_ssrc(0x1500_0000),
             Some(AudioFormat::Alac48000S24Stereo)
         );
         assert_eq!(
-            AudioFormat::from_ssrc(0x00000004),
+            AudioFormat::from_ssrc(0x1600_0000),
             Some(AudioFormat::Aac44100F24Stereo)
         );
         assert_eq!(
-            AudioFormat::from_ssrc(0x00000005),
+            AudioFormat::from_ssrc(0x1700_0000),
             Some(AudioFormat::Aac48000F24Stereo)
         );
         assert_eq!(AudioFormat::from_ssrc(0x99999999), None);
+    }
+
+    #[test]
+    fn audio_format_from_ap2_setup_format() {
+        assert_eq!(
+            AudioFormat::from_ap2_audio_format(0x0080_0000),
+            Some(AudioFormat::Aac48000F24Stereo)
+        );
+        assert_eq!(AudioFormat::from_ap2_audio_format(0x0000_0001), None);
     }
 
     #[test]

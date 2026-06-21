@@ -1,6 +1,6 @@
 use anyhow::Context;
 use cpal::{
-    SampleFormat, Stream,
+    SampleFormat, Stream, SupportedStreamConfig,
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 use parking_lot::Mutex;
@@ -11,6 +11,7 @@ use ringbuf::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use crate::codec;
 use crate::config::{AudioConfig, AudioHostName};
 
 #[derive(Clone)]
@@ -37,16 +38,28 @@ pub struct SelectAudioDeviceRequest {
 pub struct AudioEngine {
     producer: Arc<Mutex<ringbuf::HeapProd<f32>>>,
     consumer: Arc<Mutex<ringbuf::HeapCons<f32>>>,
+    output_format: Arc<Mutex<AudioOutputFormat>>,
 }
 
 pub struct AudioOutput {
     _stream: Stream,
+    pub sample_rate: u32,
+    pub channels: u16,
+    pub sample_format: SampleFormat,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct AudioEngineStatus {
     pub queued_samples: usize,
     pub capacity_samples: usize,
+    pub output_sample_rate: u32,
+    pub output_channels: u16,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct AudioOutputFormat {
+    sample_rate: u32,
+    channels: u16,
 }
 
 impl AudioManager {
@@ -122,8 +135,16 @@ impl AudioManager {
         }
         .context("no CPAL output device available")?;
 
-        let config = device.default_output_config()?;
+        let default_config = device.default_output_config()?;
+        let config = select_output_config(&device, default_config);
         let stream_config = config.config();
+        engine.set_output_format(stream_config.sample_rate, stream_config.channels);
+        tracing::info!(
+            sample_rate = stream_config.sample_rate,
+            channels = stream_config.channels,
+            sample_format = ?config.sample_format(),
+            "CPAL output stream format"
+        );
         let err_fn = |err| tracing::warn!(%err, "CPAL output stream error");
         let stream = match config.sample_format() {
             SampleFormat::F32 => device.build_output_stream(
@@ -134,9 +155,39 @@ impl AudioManager {
                 err_fn,
                 None,
             )?,
+            SampleFormat::F64 => device.build_output_stream(
+                &stream_config,
+                move |data: &mut [f64], _| fill_converted(data, &engine),
+                err_fn,
+                None,
+            )?,
+            SampleFormat::I8 => device.build_output_stream(
+                &stream_config,
+                move |data: &mut [i8], _| fill_converted(data, &engine),
+                err_fn,
+                None,
+            )?,
             SampleFormat::I16 => device.build_output_stream(
                 &stream_config,
                 move |data: &mut [i16], _| fill_converted(data, &engine),
+                err_fn,
+                None,
+            )?,
+            SampleFormat::I32 => device.build_output_stream(
+                &stream_config,
+                move |data: &mut [i32], _| fill_converted(data, &engine),
+                err_fn,
+                None,
+            )?,
+            SampleFormat::I64 => device.build_output_stream(
+                &stream_config,
+                move |data: &mut [i64], _| fill_converted(data, &engine),
+                err_fn,
+                None,
+            )?,
+            SampleFormat::U8 => device.build_output_stream(
+                &stream_config,
+                move |data: &mut [u8], _| fill_converted(data, &engine),
                 err_fn,
                 None,
             )?,
@@ -146,11 +197,51 @@ impl AudioManager {
                 err_fn,
                 None,
             )?,
+            SampleFormat::U32 => device.build_output_stream(
+                &stream_config,
+                move |data: &mut [u32], _| fill_converted(data, &engine),
+                err_fn,
+                None,
+            )?,
+            SampleFormat::U64 => device.build_output_stream(
+                &stream_config,
+                move |data: &mut [u64], _| fill_converted(data, &engine),
+                err_fn,
+                None,
+            )?,
             sample_format => anyhow::bail!("unsupported CPAL sample format {sample_format:?}"),
         };
         stream.play()?;
-        Ok(AudioOutput { _stream: stream })
+        Ok(AudioOutput {
+            _stream: stream,
+            sample_rate: stream_config.sample_rate,
+            channels: stream_config.channels,
+            sample_format: config.sample_format(),
+        })
     }
+}
+
+fn select_output_config(
+    device: &cpal::Device,
+    default_config: SupportedStreamConfig,
+) -> SupportedStreamConfig {
+    const PREFERRED_RATE: u32 = 48_000;
+    const PREFERRED_CHANNELS: u16 = 2;
+
+    device
+        .supported_output_configs()
+        .ok()
+        .and_then(|configs| {
+            configs
+                .filter(|config| {
+                    config.channels() == PREFERRED_CHANNELS
+                        && config.min_sample_rate() <= PREFERRED_RATE
+                        && config.max_sample_rate() >= PREFERRED_RATE
+                })
+                .map(|config| config.with_sample_rate(PREFERRED_RATE))
+                .next()
+        })
+        .unwrap_or(default_config)
 }
 
 fn fill_converted<T>(output: &mut [T], engine: &AudioEngine)
@@ -171,17 +262,73 @@ impl AudioEngine {
         Self {
             producer: Arc::new(Mutex::new(producer)),
             consumer: Arc::new(Mutex::new(consumer)),
+            output_format: Arc::new(Mutex::new(AudioOutputFormat {
+                sample_rate: 48_000,
+                channels: 2,
+            })),
         }
+    }
+
+    pub fn set_output_format(&self, sample_rate: u32, channels: u16) {
+        *self.output_format.lock() = AudioOutputFormat {
+            sample_rate: sample_rate.max(1),
+            channels: channels.max(1),
+        };
     }
 
     #[allow(dead_code)]
     pub fn enqueue_interleaved(&self, samples: &[f32]) -> usize {
+        let format = *self.output_format.lock();
+        return self
+            .enqueue_interleaved_for_output(samples, format.sample_rate, format.channels)
+            .0;
+    }
+
+    pub fn enqueue_interleaved_for_output(
+        &self,
+        samples: &[f32],
+        input_sample_rate: u32,
+        input_channels: u16,
+    ) -> (usize, usize) {
+        let converted =
+            self.convert_interleaved_for_output(samples, input_sample_rate, input_channels);
+        let total = converted.len();
+        let enqueued = self.enqueue_output_samples(&converted);
+        (enqueued, total)
+    }
+
+    pub fn convert_interleaved_for_output(
+        &self,
+        samples: &[f32],
+        input_sample_rate: u32,
+        input_channels: u16,
+    ) -> Vec<f32> {
+        let output_format = *self.output_format.lock();
+        let converted_channels = convert_channels(samples, input_channels, output_format.channels);
+        if input_sample_rate != output_format.sample_rate {
+            codec::resample(
+                &converted_channels,
+                input_sample_rate,
+                output_format.sample_rate,
+                output_format.channels,
+            )
+        } else {
+            converted_channels
+        }
+    }
+
+    pub fn enqueue_output_samples(&self, samples: &[f32]) -> usize {
         let mut producer = self.producer.lock();
         samples
             .iter()
             .copied()
             .take_while(|sample| producer.try_push(*sample).is_ok())
             .count()
+    }
+
+    pub fn available_samples(&self) -> usize {
+        let consumer = self.consumer.lock();
+        consumer.capacity().get() - consumer.occupied_len()
     }
 
     pub fn fill_output(&self, output: &mut [f32]) -> usize {
@@ -201,11 +348,43 @@ impl AudioEngine {
 
     pub fn status(&self) -> AudioEngineStatus {
         let consumer = self.consumer.lock();
+        let output_format = *self.output_format.lock();
         AudioEngineStatus {
             queued_samples: consumer.occupied_len(),
             capacity_samples: consumer.capacity().get(),
+            output_sample_rate: output_format.sample_rate,
+            output_channels: output_format.channels,
         }
     }
+}
+
+fn convert_channels(samples: &[f32], input_channels: u16, output_channels: u16) -> Vec<f32> {
+    let input_channels = input_channels.max(1) as usize;
+    let output_channels = output_channels.max(1) as usize;
+    if input_channels == output_channels {
+        return samples.to_vec();
+    }
+
+    let frames = samples.len() / input_channels;
+    let mut output = Vec::with_capacity(frames * output_channels);
+    for frame in 0..frames {
+        let input_offset = frame * input_channels;
+        let left = samples.get(input_offset).copied().unwrap_or(0.0);
+        let right = if input_channels > 1 {
+            samples.get(input_offset + 1).copied().unwrap_or(left)
+        } else {
+            left
+        };
+
+        for ch in 0..output_channels {
+            output.push(match ch {
+                0 => left,
+                1 => right,
+                _ => 0.0,
+            });
+        }
+    }
+    output
 }
 
 fn host_to_cpal(host: AudioHostName) -> Option<cpal::HostId> {
@@ -245,5 +424,28 @@ mod tests {
         let mut out = [1.0; 5];
         assert_eq!(engine.fill_output(&mut out), 3);
         assert_eq!(out, [0.1, 0.2, 0.3, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn audio_engine_resamples_to_output_rate() {
+        let engine = AudioEngine::new(256);
+        engine.set_output_format(44_100, 2);
+        let input = vec![0.0; 96];
+        let (enqueued, total) = engine.enqueue_interleaved_for_output(&input, 48_000, 2);
+        assert_eq!(enqueued, total);
+        assert!(total < input.len());
+    }
+
+    #[test]
+    fn audio_engine_expands_stereo_to_multichannel_output() {
+        let engine = AudioEngine::new(16);
+        engine.set_output_format(48_000, 4);
+        let (enqueued, total) =
+            engine.enqueue_interleaved_for_output(&[1.0, -1.0, 0.5, -0.5], 48_000, 2);
+        assert_eq!(enqueued, 8);
+        assert_eq!(total, 8);
+        let mut out = [9.0; 8];
+        engine.fill_output(&mut out);
+        assert_eq!(out, [1.0, -1.0, 0.0, 0.0, 0.5, -0.5, 0.0, 0.0]);
     }
 }

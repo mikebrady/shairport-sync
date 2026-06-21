@@ -20,6 +20,7 @@ use crate::{
     airplay::pairing::{PairingEndpoint, PairingService, PairingSession},
     airplay::sdp::parse_sdp,
     audio::AudioEngine,
+    codec::AudioFormat,
     config::{AdvertisedFormatPolicy, AirplayConfig},
     decoder,
     player::SharedPlayer,
@@ -916,6 +917,7 @@ fn route_request(
                 session.abort_ap2_stream_listener(stream_type);
                 if stream_type == Ap2StreamType::BufferedAudio {
                     *state.ap2_media_key.write() = None;
+                    *state.ap2_audio_format.write() = None;
                     session.session_key = None;
                 }
                 info!(stream_type = ?stream_type, "AP2 stream TEARDOWN");
@@ -927,6 +929,7 @@ fn route_request(
             state.set_player_state(PlayerState::Stopped);
             *state.session_key.write() = None;
             *state.ap2_media_key.write() = None;
+            *state.ap2_audio_format.write() = None;
             session.abort_ap2_listeners();
             info!("TEARDOWN");
             response(200, "OK").with_cseq(request)
@@ -1335,6 +1338,18 @@ fn handle_ap2_setup(
                     }
                     if let Some(ct) = stream.get("ct").and_then(plist_uint) {
                         state.set_diagnostic("ap2_compression_type", ct.to_string());
+                    }
+                    if let Some(audio_format) = stream.get("audioFormat").and_then(plist_uint) {
+                        state.set_diagnostic("ap2_audio_format", format!("{audio_format:#x}"));
+                        if let Some(format) = AudioFormat::from_ap2_audio_format(audio_format) {
+                            *state.ap2_audio_format.write() = Some(format);
+                            state.set_source_format(Some(format.description().to_string()));
+                        } else {
+                            warn!(
+                                audio_format = format_args!("{audio_format:#x}"),
+                                "unknown AP2 buffered audioFormat"
+                            );
+                        }
                     }
                     if let Some(sr) = stream.get("sr").and_then(plist_uint) {
                         state.alac_sample_rate.write().clone_from(&Some(sr as u32));
@@ -2220,6 +2235,7 @@ mod tests {
         let mut stream = plist::Dictionary::new();
         stream.insert("type".to_string(), plist_uint_value(103u64));
         stream.insert("shk".to_string(), plist::Value::Data(vec![7u8; 32]));
+        stream.insert("audioFormat".to_string(), plist_uint_value(0x0080_0000u64));
         stream.insert("sr".to_string(), plist_uint_value(44_100u64));
         stream.insert("spf".to_string(), plist_uint_value(352u64));
         let mut setup = plist::Dictionary::new();
@@ -2260,6 +2276,10 @@ mod tests {
         assert_ne!(data_port, control_port);
         assert_eq!(*state.session_key.read(), None);
         assert_eq!(*state.ap2_media_key.read(), Some([7u8; 32]));
+        assert_eq!(
+            *state.ap2_audio_format.read(),
+            Some(AudioFormat::Aac48000F24Stereo)
+        );
     }
 
     #[test]

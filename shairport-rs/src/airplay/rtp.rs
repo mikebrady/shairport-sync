@@ -179,11 +179,12 @@ async fn bind_audio_channel(
                                     player.push_frame(ts, float_samples.clone(), rate, 2);
 
                                     // Push directly to audio engine for now
-                                    let enqueued = audio_engine.enqueue_interleaved(&float_samples);
-                                    if enqueued < float_samples.len() {
+                                    let (enqueued, total_samples) = audio_engine
+                                        .enqueue_interleaved_for_output(&float_samples, rate, 2);
+                                    if enqueued < total_samples {
                                         debug!(
                                             "audio ring buffer full, dropped {} samples",
-                                            float_samples.len() - enqueued
+                                            total_samples - enqueued
                                         );
                                     }
                                 }

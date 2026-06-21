@@ -9,17 +9,17 @@ use tokio::{
     io::AsyncReadExt,
     net::{TcpListener, TcpStream},
     task::JoinHandle,
-    time,
+    time::{self, Instant},
 };
 use tracing::{debug, info, warn};
 
 use crate::{audio::AudioEngine, codec, config::AirplayConfig, decoder, state::AppState};
 
 /// SSRC constants for AP2 audio formats
-const SSRC_ALAC_44100_S16_2: u32 = 0x00000001;
-const SSRC_ALAC_48000_S24_2: u32 = 0x00000007;
-const SSRC_AAC_44100_F24_2: u32 = 0x00000004;
-const SSRC_AAC_48000_F24_2: u32 = 0x00000005;
+const SSRC_ALAC_44100_S16_2: u32 = 0x0000_FACE;
+const SSRC_ALAC_48000_S24_2: u32 = 0x1500_0000;
+const SSRC_AAC_44100_F24_2: u32 = 0x1600_0000;
+const SSRC_AAC_48000_F24_2: u32 = 0x1700_0000;
 
 /// Spawn a TCP listener for AP2 buffered audio on the configured audio port.
 pub async fn spawn_buffered_audio_receiver(
@@ -84,7 +84,7 @@ pub async fn handle_buffered_stream(
     // Derive the data stream cipher
     let mut cipher = BufferedCipher::new(&session_key);
     info!("buffered audio: cipher initialized, reading first block");
-    let mut alac_decoder: Option<(u32, decoder::AlacDecoder)> = None;
+    let mut alac_decoder: Option<(codec::AudioFormat, decoder::AlacDecoder)> = None;
     let mut block_count: u64 = 0;
     let mut first_block_logged = false;
 
@@ -187,13 +187,18 @@ pub async fn handle_buffered_stream(
             "buffered audio block"
         );
 
-        let format = match codec::AudioFormat::from_ssrc(ssrc) {
-            Some(f) => f,
-            None => {
-                warn!(ssrc, "unknown SSRC");
-                continue;
-            }
-        };
+        let format =
+            match codec::AudioFormat::from_ssrc(ssrc).or_else(|| *state.ap2_audio_format.read()) {
+                Some(f) => f,
+                None => {
+                    warn!(
+                        ssrc,
+                        ssrc_hex = format_args!("{ssrc:#010x}"),
+                        "unknown AP2 audio format"
+                    );
+                    continue;
+                }
+            };
 
         // ALAC path
         if matches!(
@@ -207,12 +212,12 @@ pub async fn handle_buffered_stream(
             };
 
             let decoder = match alac_decoder.as_mut() {
-                Some((decoder_ssrc, decoder)) if *decoder_ssrc == ssrc => decoder,
+                Some((decoder_format, decoder)) if *decoder_format == format => decoder,
                 _ => {
                     let cookie = alac_specific_config(sample_rate, sample_size);
                     match decoder::AlacDecoder::new(sample_size, 2, &cookie) {
                         Ok(d) => {
-                            alac_decoder = Some((ssrc, d));
+                            alac_decoder = Some((format, d));
                             &mut alac_decoder.as_mut().unwrap().1
                         }
                         Err(e) => {
@@ -244,19 +249,17 @@ pub async fn handle_buffered_stream(
                 .iter()
                 .map(|&sample| (sample as f32) / 2_147_483_648.0)
                 .collect();
-            let enqueued = audio_engine.enqueue_interleaved(&float_samples);
+            let (enqueued, total_samples) =
+                enqueue_decoded_frame(&audio_engine, &float_samples, sample_rate, 2).await;
             if block_count <= 3 {
                 info!(
                     enqueued,
-                    total = float_samples.len(),
+                    total = total_samples,
                     "ALAC samples enqueued to audio engine"
                 );
             }
-            if enqueued < float_samples.len() {
-                debug!(
-                    "audio buffer full, dropped {}",
-                    float_samples.len() - enqueued
-                );
+            if enqueued < total_samples {
+                debug!("audio buffer full, dropped {}", total_samples - enqueued);
             }
         } else {
             // AAC path
@@ -273,19 +276,22 @@ pub async fn handle_buffered_stream(
                                 "AAC decode OK (symphonia)"
                             );
                         }
-                        let enqueued = audio_engine.enqueue_interleaved(&decoded.samples);
+                        let (enqueued, total_samples) = enqueue_decoded_frame(
+                            &audio_engine,
+                            &decoded.samples,
+                            decoded.sample_rate,
+                            decoded.channels,
+                        )
+                        .await;
                         if block_count <= 3 {
                             info!(
                                 enqueued,
-                                total = decoded.samples.len(),
+                                total = total_samples,
                                 "AAC samples enqueued to audio engine"
                             );
                         }
-                        if enqueued < decoded.samples.len() {
-                            debug!(
-                                "audio buffer full, dropped {}",
-                                decoded.samples.len() - enqueued
-                            );
+                        if enqueued < total_samples {
+                            debug!("audio buffer full, dropped {}", total_samples - enqueued);
                         }
                     }
                     Err(e) => {
@@ -316,6 +322,33 @@ pub async fn handle_buffered_stream(
 
     info!(%peer, "buffered audio connection closed");
     Ok(())
+}
+
+async fn enqueue_decoded_frame(
+    audio_engine: &AudioEngine,
+    samples: &[f32],
+    sample_rate: u32,
+    channels: u16,
+) -> (usize, usize) {
+    const WAIT_TIMEOUT: time::Duration = time::Duration::from_secs(2);
+    const WAIT_STEP: time::Duration = time::Duration::from_millis(5);
+
+    let converted = audio_engine.convert_interleaved_for_output(samples, sample_rate, channels);
+    let total = converted.len();
+    let started = Instant::now();
+    while audio_engine.available_samples() < total {
+        if started.elapsed() >= WAIT_TIMEOUT {
+            warn!(
+                needed = total,
+                available = audio_engine.available_samples(),
+                "audio output did not drain in time, dropping decoded frame"
+            );
+            return (0, total);
+        }
+        time::sleep(WAIT_STEP).await;
+    }
+
+    (audio_engine.enqueue_output_samples(&converted), total)
 }
 
 fn alac_format_for_ssrc(ssrc: u32) -> Option<(u32, u32)> {
@@ -390,10 +423,10 @@ mod tests {
 
     #[test]
     fn ssrc_values_match_known_formats() {
-        assert_eq!(SSRC_ALAC_44100_S16_2, 1);
-        assert_eq!(SSRC_ALAC_48000_S24_2, 7);
-        assert_eq!(SSRC_AAC_44100_F24_2, 4);
-        assert_eq!(SSRC_AAC_48000_F24_2, 5);
+        assert_eq!(SSRC_ALAC_44100_S16_2, 0x0000_FACE);
+        assert_eq!(SSRC_ALAC_48000_S24_2, 0x1500_0000);
+        assert_eq!(SSRC_AAC_44100_F24_2, 0x1600_0000);
+        assert_eq!(SSRC_AAC_48000_F24_2, 0x1700_0000);
     }
 
     #[test]
