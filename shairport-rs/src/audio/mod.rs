@@ -1,6 +1,6 @@
 use anyhow::Context;
 use cpal::{
-    SampleFormat, Stream, SupportedStreamConfig,
+    I24, SampleFormat, Stream, U24,
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 use parking_lot::Mutex;
@@ -135,8 +135,7 @@ impl AudioManager {
         }
         .context("no CPAL output device available")?;
 
-        let default_config = device.default_output_config()?;
-        let config = select_output_config(&device, default_config);
+        let config = device.default_output_config()?;
         let stream_config = config.config();
         engine.set_output_format(stream_config.sample_rate, stream_config.channels);
         tracing::info!(
@@ -173,6 +172,12 @@ impl AudioManager {
                 err_fn,
                 None,
             )?,
+            SampleFormat::I24 => device.build_output_stream(
+                &stream_config,
+                move |data: &mut [I24], _| fill_converted(data, &engine),
+                err_fn,
+                None,
+            )?,
             SampleFormat::I32 => device.build_output_stream(
                 &stream_config,
                 move |data: &mut [i32], _| fill_converted(data, &engine),
@@ -194,6 +199,12 @@ impl AudioManager {
             SampleFormat::U16 => device.build_output_stream(
                 &stream_config,
                 move |data: &mut [u16], _| fill_converted(data, &engine),
+                err_fn,
+                None,
+            )?,
+            SampleFormat::U24 => device.build_output_stream(
+                &stream_config,
+                move |data: &mut [U24], _| fill_converted(data, &engine),
                 err_fn,
                 None,
             )?,
@@ -219,29 +230,6 @@ impl AudioManager {
             sample_format: config.sample_format(),
         })
     }
-}
-
-fn select_output_config(
-    device: &cpal::Device,
-    default_config: SupportedStreamConfig,
-) -> SupportedStreamConfig {
-    const PREFERRED_RATE: u32 = 48_000;
-    const PREFERRED_CHANNELS: u16 = 2;
-
-    device
-        .supported_output_configs()
-        .ok()
-        .and_then(|configs| {
-            configs
-                .filter(|config| {
-                    config.channels() == PREFERRED_CHANNELS
-                        && config.min_sample_rate() <= PREFERRED_RATE
-                        && config.max_sample_rate() >= PREFERRED_RATE
-                })
-                .map(|config| config.with_sample_rate(PREFERRED_RATE))
-                .next()
-        })
-        .unwrap_or(default_config)
 }
 
 fn fill_converted<T>(output: &mut [T], engine: &AudioEngine)

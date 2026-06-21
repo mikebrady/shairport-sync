@@ -67,8 +67,7 @@ async fn main() -> anyhow::Result<()> {
     let filter = tracing_subscriber::EnvFilter::new(env_filter);
 
     // Console layer (stdout with colors)
-    let console_layer = tracing_subscriber::fmt::layer()
-        .with_writer(std::io::stdout);
+    let console_layer = tracing_subscriber::fmt::layer().with_writer(std::io::stdout);
 
     // File layer (non-blocking, no ANSI)
     let (file_writer, _guard) = tracing_appender::non_blocking(log_file);
@@ -81,8 +80,7 @@ async fn main() -> anyhow::Result<()> {
         .with(filter)
         .with(console_layer)
         .with(file_layer);
-    tracing::subscriber::set_global_default(subscriber)
-        .expect("failed to set tracing subscriber");
+    tracing::subscriber::set_global_default(subscriber).expect("failed to set tracing subscriber");
 
     info!(log = %log_path.display(), "log file created");
 
