@@ -312,10 +312,7 @@ fn build_ap2_update_info_event(
     Ok(wire)
 }
 
-fn spawn_udp_drain_socket(
-    bind_addr: SocketAddr,
-    label: &'static str,
-) -> anyhow::Result<(u16, JoinHandle<()>)> {
+fn spawn_ap2_control_receiver(bind_addr: SocketAddr) -> anyhow::Result<(u16, JoinHandle<()>)> {
     let std_socket = match bind_addr {
         SocketAddr::V4(_) => Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))?,
         SocketAddr::V6(_) => {
@@ -330,19 +327,80 @@ fn spawn_udp_drain_socket(
     let udp = UdpSocket::from_std(std_socket.into())?;
     let port = udp.local_addr()?.port();
     let handle = tokio::spawn(async move {
-        let mut buf = [0u8; 2048];
+        let mut buf = [0u8; 4096];
+        let mut packet_number: u64 = 0;
         loop {
             match udp.recv_from(&mut buf).await {
-                Ok((read, peer)) => {
-                    trace!(%peer, %label, bytes_read = read, "AP2 UDP packet received")
+                Ok((len, peer)) => {
+                    if len < 28 {
+                        debug!(%peer, len, "AP2 control: packet too short");
+                        continue;
+                    }
+                    packet_number += 1;
+                    let flags = buf[0];
+                    let msg_type = buf[1];
+                    match msg_type {
+                        0xD7 => {
+                            // Type 215: Anchoring announcement
+                            let frame_1 = u32::from_be_bytes([buf[4], buf[5], buf[6], buf[7]]);
+                            let remote_time = u64::from_be_bytes([
+                                buf[8], buf[9], buf[10], buf[11], buf[12], buf[13], buf[14],
+                                buf[15],
+                            ]);
+                            let frame_2 = u32::from_be_bytes([buf[16], buf[17], buf[18], buf[19]]);
+                            let clock_id = u64::from_be_bytes([
+                                buf[20], buf[21], buf[22], buf[23], buf[24], buf[25], buf[26],
+                                buf[27],
+                            ]);
+                            let latency = frame_2.wrapping_sub(frame_1);
+                            debug!(
+                                %peer,
+                                packet_number,
+                                clock_id = format!("{clock_id:016x}"),
+                                frame_1,
+                                frame_2,
+                                latency,
+                                remote_time,
+                                "AP2 control: anchoring announcement received"
+                            );
+                        }
+                        0xD6 => {
+                            // Type 214: Encrypted audio/sync packet
+                            debug!(
+                                %peer,
+                                packet_number,
+                                len,
+                                "AP2 control: encrypted sync packet received"
+                            );
+                        }
+                        0xCE => {
+                            // Type 206: Feedback
+                            debug!(%peer, packet_number, len, "AP2 control: feedback packet");
+                        }
+                        0xCF => {
+                            // Type 207: Timing sync
+                            debug!(%peer, packet_number, len, "AP2 control: timing sync packet");
+                        }
+                        _ => {
+                            debug!(
+                                %peer,
+                                packet_number,
+                                msg_type = format!("0x{msg_type:02X}"),
+                                len,
+                                flags = format!("0x{flags:02X}"),
+                                "AP2 control: unknown packet type"
+                            );
+                        }
+                    }
                 }
                 Err(e) => {
-                    warn!(%e, %label, "AP2 UDP socket failed");
+                    warn!(%e, "AP2 control receiver socket error");
                     break;
                 }
             }
         }
     });
+    info!(port, "AP2 control receiver started");
     Ok((port, handle))
 }
 
@@ -852,10 +910,23 @@ fn route_request(
             response(200, "OK").with_cseq(request)
         }
         ("TEARDOWN", _) => {
+            if let Some(stream_type) = ap2_teardown_stream_type(&request.body) {
+                player.stop();
+                state.set_player_state(PlayerState::Stopped);
+                session.abort_ap2_stream_listener(stream_type);
+                if stream_type == Ap2StreamType::BufferedAudio {
+                    *state.ap2_media_key.write() = None;
+                    session.session_key = None;
+                }
+                info!(stream_type = ?stream_type, "AP2 stream TEARDOWN");
+                return response(200, "OK").with_cseq(request);
+            }
+
             player.stop();
             state.set_active(false);
             state.set_player_state(PlayerState::Stopped);
             *state.session_key.write() = None;
+            *state.ap2_media_key.write() = None;
             session.abort_ap2_listeners();
             info!("TEARDOWN");
             response(200, "OK").with_cseq(request)
@@ -993,7 +1064,7 @@ fn fairplay_setup_reply(body: &[u8]) -> Option<Vec<u8>> {
 }
 
 /// AP2 stream types
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Ap2StreamType {
     RealtimeAudio = 96,
     BufferedAudio = 103,
@@ -1063,12 +1134,37 @@ impl RtspSession {
         }
     }
 
+    fn abort_ap2_stream_listener(&mut self, stream_type: Ap2StreamType) {
+        match stream_type {
+            Ap2StreamType::RealtimeAudio => {
+                if let Some(handle) = self.realtime_audio_listener.take() {
+                    handle.abort();
+                }
+                self.realtime_audio_port = None;
+            }
+            Ap2StreamType::BufferedAudio => {
+                if let Some(handle) = self.buffered_audio_listener.take() {
+                    handle.abort();
+                }
+                self.buffered_audio_port = None;
+            }
+            Ap2StreamType::DataStream => {
+                if let Some(handle) = self.data_listener.take() {
+                    handle.abort();
+                }
+                self.data_port = None;
+            }
+        }
+        self.ap2_streams
+            .retain(|active_stream| *active_stream as u32 != stream_type as u32);
+    }
+
     fn ensure_ap2_control_socket(&mut self) -> anyhow::Result<u16> {
         if let Some(port) = self.ap2_control_port {
             return Ok(port);
         }
         let bind = self.receiver_bind_addr();
-        let (port, handle) = spawn_udp_drain_socket(bind, "ap2-control")?;
+        let (port, handle) = spawn_ap2_control_receiver(bind)?;
         self.ap2_control_port = Some(port);
         self.ap2_control_listener = Some(handle);
         Ok(port)
@@ -1115,7 +1211,7 @@ impl RtspSession {
             return Ok(port);
         }
         let bind = self.receiver_bind_addr();
-        let (port, handle) = spawn_udp_drain_socket(bind, "ap2-realtime-audio")?;
+        let (port, handle) = spawn_ap2_control_receiver(bind)?;
         self.realtime_audio_port = Some(port);
         self.realtime_audio_listener = Some(handle);
         Ok(port)
@@ -1226,14 +1322,16 @@ fn handle_ap2_setup(
                                 return response(503, "Service Unavailable");
                             }
                         };
-                    if let Some(plist::Value::Data(shk)) = stream.get("shk")
-                        && shk.len() >= 16
-                    {
-                        session.session_key = Some(shk.clone());
-                        let mut key = [0u8; 16];
-                        key.copy_from_slice(&shk[..16]);
-                        *state.session_key.write() = Some(key);
+                    if let Some(plist::Value::Data(shk)) = stream.get("shk") {
                         state.set_diagnostic("ap2_shk_len", shk.len().to_string());
+                        if shk.len() >= 32 {
+                            session.session_key = Some(shk.clone());
+                            let mut key = [0u8; 32];
+                            key.copy_from_slice(&shk[..32]);
+                            *state.ap2_media_key.write() = Some(key);
+                        } else {
+                            warn!(shk_len = shk.len(), "AP2 buffered SETUP shk is too short");
+                        }
                     }
                     if let Some(ct) = stream.get("ct").and_then(plist_uint) {
                         state.set_diagnostic("ap2_compression_type", ct.to_string());
@@ -1249,7 +1347,6 @@ fn handle_ap2_setup(
                     }
                     stream_dict.insert("type".to_string(), plist_uint_value(103u64));
                     stream_dict.insert("dataPort".to_string(), plist_uint_value(data_port));
-                    stream_dict.insert("controlPort".to_string(), plist_uint_value(control_port));
                     stream_dict.insert(
                         "audioBufferSize".to_string(),
                         plist_uint_value(8 * 1024 * 1024u64),
@@ -1291,6 +1388,8 @@ fn handle_ap2_setup(
                     stream_dict.insert("status".to_string(), plist_uint_value(1u64));
                 }
             }
+            // Add control port to every stream (same port for all)
+            stream_dict.insert("controlPort".to_string(), plist_uint_value(control_port));
             response_streams.push(plist::Value::Dictionary(stream_dict));
         }
         response_dict.insert("streams".to_string(), plist::Value::Array(response_streams));
@@ -1596,6 +1695,18 @@ fn apply_flushbuffered(state: &AppState, player: &SharedPlayer, request: &RtspRe
     state.set_player_state(PlayerState::Paused);
 }
 
+fn ap2_teardown_stream_type(body: &[u8]) -> Option<Ap2StreamType> {
+    let dict = plist::from_bytes::<plist::Dictionary>(body).ok()?;
+    let streams = dict.get("streams").and_then(plist::Value::as_array)?;
+    let stream = streams.first()?.as_dictionary()?;
+    match stream.get("type").and_then(plist_uint)? {
+        96 => Some(Ap2StreamType::RealtimeAudio),
+        103 => Some(Ap2StreamType::BufferedAudio),
+        130 => Some(Ap2StreamType::DataStream),
+        _ => None,
+    }
+}
+
 fn apply_audio_mode(state: &AppState, request: &RtspRequest) {
     state.set_diagnostic("ap2_phase", "audio_mode");
     state.set_diagnostic("ap2_audio_mode_len", request.body.len().to_string());
@@ -1655,6 +1766,17 @@ fn plist_uint(value: &plist::Value) -> Option<u64> {
         plist::Value::Integer(i) => i.as_unsigned(),
         _ => None,
     }
+}
+
+fn plist_int(value: &plist::Value) -> Option<i64> {
+    match value {
+        plist::Value::Integer(i) => i.as_signed(),
+        _ => None,
+    }
+}
+
+fn plist_int_value(value: impl Into<i64>) -> plist::Value {
+    plist::Value::Integer(value.into().into())
 }
 
 fn plist_bool(value: &plist::Value) -> Option<bool> {
@@ -2097,7 +2219,7 @@ mod tests {
 
         let mut stream = plist::Dictionary::new();
         stream.insert("type".to_string(), plist_uint_value(103u64));
-        stream.insert("shk".to_string(), plist::Value::Data(vec![7u8; 16]));
+        stream.insert("shk".to_string(), plist::Value::Data(vec![7u8; 32]));
         stream.insert("sr".to_string(), plist_uint_value(44_100u64));
         stream.insert("spf".to_string(), plist_uint_value(352u64));
         let mut setup = plist::Dictionary::new();
@@ -2136,7 +2258,39 @@ mod tests {
         assert!(data_port > 0);
         assert!(control_port > 0);
         assert_ne!(data_port, control_port);
-        assert_eq!(*state.session_key.read(), Some([7u8; 16]));
+        assert_eq!(*state.session_key.read(), None);
+        assert_eq!(*state.ap2_media_key.read(), Some([7u8; 32]));
+    }
+
+    #[test]
+    fn ap2_teardown_body_identifies_buffered_stream() {
+        let mut stream = plist::Dictionary::new();
+        stream.insert("streamID".to_string(), plist_uint_value(0u64));
+        stream.insert("type".to_string(), plist_uint_value(103u64));
+        let mut teardown = plist::Dictionary::new();
+        teardown.insert(
+            "streams".to_string(),
+            plist::Value::Array(vec![plist::Value::Dictionary(stream)]),
+        );
+        let mut body = Vec::new();
+        plist::to_writer_binary(&mut body, &plist::Value::Dictionary(teardown)).unwrap();
+
+        assert_eq!(
+            ap2_teardown_stream_type(&body),
+            Some(Ap2StreamType::BufferedAudio)
+        );
+    }
+
+    #[test]
+    fn ap2_session_teardown_body_is_not_stream_teardown() {
+        let mut body = Vec::new();
+        plist::to_writer_binary(
+            &mut body,
+            &plist::Value::Dictionary(plist::Dictionary::new()),
+        )
+        .unwrap();
+
+        assert_eq!(ap2_teardown_stream_type(&body), None);
     }
 
     #[test]

@@ -9,6 +9,7 @@ use tokio::{
     io::AsyncReadExt,
     net::{TcpListener, TcpStream},
     task::JoinHandle,
+    time,
 };
 use tracing::{debug, info, warn};
 
@@ -68,10 +69,12 @@ pub async fn handle_buffered_stream(
     info!(%peer, "buffered audio connection opened");
 
     // Wait until a session key is available (poll without holding guard across await)
+    info!("buffered audio: waiting for session key...");
     let session_key = loop {
         {
-            let key = state.session_key.read();
+            let key = state.ap2_media_key.read();
             if let Some(k) = *key {
+                info!("buffered audio: session key obtained");
                 break k;
             }
         }
@@ -80,53 +83,98 @@ pub async fn handle_buffered_stream(
 
     // Derive the data stream cipher
     let mut cipher = BufferedCipher::new(&session_key);
+    info!("buffered audio: cipher initialized, reading first block");
     let mut alac_decoder: Option<(u32, decoder::AlacDecoder)> = None;
+    let mut block_count: u64 = 0;
+    let mut first_block_logged = false;
 
     let mut word_buf = [0u8; 4];
 
     loop {
-        // Read block length prefix (2 bytes, big-endian)
-        let len_raw = match stream.read_u16().await {
-            Ok(len) => len,
-            Err(e) => {
-                debug!(%e, "buffered audio stream closed");
+        // Read block length prefix (2 bytes, big-endian — matches C code's ntohs)
+        // Use timeout to prevent blocking forever if client stops sending
+        let len_raw = match time::timeout(time::Duration::from_secs(5), stream.read_u16()).await {
+            Ok(Ok(len)) => {
+                if !first_block_logged {
+                    info!(
+                        block_len = len,
+                        "buffered audio: first block length received, reading header..."
+                    );
+                    first_block_logged = true;
+                }
+                len
+            }
+            Ok(Err(e)) => {
+                info!(%e, "buffered audio stream closed by client, blocks_processed={}", block_count);
+                break;
+            }
+            Err(_) => {
+                // Timeout — no data for 5 seconds, the stream may be dead
+                info!("buffered audio: read timeout (5s), stream may be idle");
                 break;
             }
         };
         let block_len = len_raw as usize;
-        if block_len < 12 || block_len > 65535 {
-            warn!(block_len, "invalid block length");
+        // C code: data_len = ntohs(raw); then reads data_len - 2 for body.
+        // read_u16() gives the same value as ntohs, so block_len includes the 2-byte prefix.
+        let body_len = block_len.saturating_sub(2);
+        if body_len < 12 || block_len > 65535 {
+            warn!(
+                block_len,
+                blocks_processed = block_count,
+                "invalid block length, breaking..."
+            );
             break;
         }
 
         // Read block header: 4-byte seq (23-bit), 4-byte timestamp, 4-byte SSRC
         if stream.read_exact(&mut word_buf).await.is_err() {
+            warn!("buffered audio: read seq failed");
             break;
         }
         let seq_23 = u32::from_be_bytes(word_buf) & 0x7FFFFF;
 
         if stream.read_exact(&mut word_buf).await.is_err() {
+            warn!("buffered audio: read timestamp failed");
             break;
         }
         let timestamp = u32::from_be_bytes(word_buf);
 
         if stream.read_exact(&mut word_buf).await.is_err() {
+            warn!("buffered audio: read SSRC failed");
             break;
         }
         let ssrc = u32::from_be_bytes(word_buf);
 
-        // Read the audio payload: block_len - 12 header bytes
-        let payload_len = block_len.saturating_sub(12);
+        // body_len - 12 header bytes = payload (ciphertext+tag+nonce)
+        let payload_len = body_len.saturating_sub(12);
         let mut payload = vec![0u8; payload_len];
         if payload_len > 0 && stream.read_exact(&mut payload).await.is_err() {
+            warn!("buffered audio: read payload failed");
             break;
         }
 
+        block_count += 1;
+        // AAD = timestamp(4) + SSRC(4) from the block header
+        let mut aad_buf = [0u8; 8];
+        aad_buf[..4].copy_from_slice(&timestamp.to_be_bytes());
+        aad_buf[4..].copy_from_slice(&ssrc.to_be_bytes());
         // Decrypt
-        let plaintext = match cipher.decrypt_block(&payload) {
-            Ok(p) => p,
+        let plaintext = match cipher.decrypt_block(&payload, &aad_buf) {
+            Ok(p) => {
+                if block_count <= 3 {
+                    let hex_first16: String = payload
+                        .iter()
+                        .take(16)
+                        .map(|b| format!("{b:02x}"))
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    info!(seq = seq_23, ssrc, blocks_processed = block_count, plaintext_len = p.len(), payload_first16 = %hex_first16, "buffered audio: block decrypted successfully");
+                }
+                p
+            }
             Err(e) => {
-                warn!(%e, "block decrypt failed");
+                warn!(%e, seq = seq_23, ssrc, blocks_processed = block_count, block_len, payload_len, "block decrypt failed");
                 continue;
             }
         };
@@ -148,7 +196,10 @@ pub async fn handle_buffered_stream(
         };
 
         // ALAC path
-        if matches!(format, codec::AudioFormat::Alac44100S16Stereo | codec::AudioFormat::Alac48000S24Stereo) {
+        if matches!(
+            format,
+            codec::AudioFormat::Alac44100S16Stereo | codec::AudioFormat::Alac48000S24Stereo
+        ) {
             let sample_rate = format.sample_rate();
             let sample_size = match format {
                 codec::AudioFormat::Alac44100S16Stereo => 16,
@@ -173,9 +224,19 @@ pub async fn handle_buffered_stream(
             };
 
             let raw_samples = match decoder.decode_frame(&plaintext) {
-                Ok(samples) => samples,
+                Ok(samples) => {
+                    if block_count <= 3 {
+                        info!(
+                            seq = seq_23,
+                            ssrc,
+                            sample_count = samples.len(),
+                            "ALAC decode OK"
+                        );
+                    }
+                    samples
+                }
                 Err(e) => {
-                    warn!(%e, ssrc, "AP2 ALAC decode failed");
+                    warn!(%e, ssrc, blocks_processed = block_count, "AP2 ALAC decode failed");
                     continue;
                 }
             };
@@ -184,8 +245,18 @@ pub async fn handle_buffered_stream(
                 .map(|&sample| (sample as f32) / 2_147_483_648.0)
                 .collect();
             let enqueued = audio_engine.enqueue_interleaved(&float_samples);
+            if block_count <= 3 {
+                info!(
+                    enqueued,
+                    total = float_samples.len(),
+                    "ALAC samples enqueued to audio engine"
+                );
+            }
             if enqueued < float_samples.len() {
-                debug!("audio buffer full, dropped {}", float_samples.len() - enqueued);
+                debug!(
+                    "audio buffer full, dropped {}",
+                    float_samples.len() - enqueued
+                );
             }
         } else {
             // AAC path
@@ -194,9 +265,27 @@ pub async fn handle_buffered_stream(
                 let mut dec = codec::AudioDecoder::new_aac(format);
                 match dec.decode(&plaintext, format) {
                     Ok(decoded) => {
+                        if block_count <= 3 {
+                            info!(
+                                seq = seq_23,
+                                ssrc,
+                                sample_count = decoded.samples.len(),
+                                "AAC decode OK (symphonia)"
+                            );
+                        }
                         let enqueued = audio_engine.enqueue_interleaved(&decoded.samples);
+                        if block_count <= 3 {
+                            info!(
+                                enqueued,
+                                total = decoded.samples.len(),
+                                "AAC samples enqueued to audio engine"
+                            );
+                        }
                         if enqueued < decoded.samples.len() {
-                            debug!("audio buffer full, dropped {}", decoded.samples.len() - enqueued);
+                            debug!(
+                                "audio buffer full, dropped {}",
+                                decoded.samples.len() - enqueued
+                            );
                         }
                     }
                     Err(e) => {
@@ -255,29 +344,28 @@ fn alac_specific_config(sample_rate: u32, sample_size: u32) -> [u8; 24] {
 
 /// Chacha20-Poly1305 cipher for buffered audio decryption.
 struct BufferedCipher {
-    key: [u8; 16],
+    key: [u8; 32],
     counter: u64,
 }
 
 impl BufferedCipher {
-    fn new(session_key: &[u8; 16]) -> Self {
+    fn new(session_key: &[u8; 32]) -> Self {
         Self {
             key: *session_key,
             counter: 0,
         }
     }
 
-    fn decrypt_block(&mut self, ciphertext: &[u8]) -> Result<Vec<u8>, &'static str> {
+    fn decrypt_block(&mut self, ciphertext: &[u8], aad: &[u8]) -> Result<Vec<u8>, &'static str> {
         // AP2 buffered audio: last 8 bytes of packet are the nonce (front-padded to 12)
-        // AAD: first 8 bytes of the block (seq + timestamp)
-        if ciphertext.len() < 8 + 16 + 8 {
+        // AAD: timestamp(4) + SSRC(4) from the block header, passed in from caller
+        if ciphertext.len() < 16 + 8 {
             return Err("block too short");
         }
 
-        let payload_len = ciphertext.len() - 8; // last 8 = nonce
-        let aad = &ciphertext[..8]; // first 8 bytes are AAD
-        let encrypted = &ciphertext[8..payload_len];
-        let nonce_raw = &ciphertext[payload_len..];
+        let nonce_len = 8;
+        let clen = ciphertext.len() - nonce_len; // ciphertext + tag
+        let nonce_raw = &ciphertext[clen..]; // last 8 bytes
 
         let mut nonce = [0u8; 12];
         nonce[4..].copy_from_slice(nonce_raw);
@@ -286,7 +374,7 @@ impl BufferedCipher {
         let cipher = ChaCha20Poly1305::new(key);
 
         let payload = Payload {
-            msg: encrypted,
+            msg: &ciphertext[..clen], // ciphertext + 16-byte tag
             aad,
         };
 
@@ -310,8 +398,8 @@ mod tests {
 
     #[test]
     fn cipher_decrypt_fails_on_short_input() {
-        let key = [0u8; 16];
+        let key = [0u8; 32];
         let mut cipher = BufferedCipher::new(&key);
-        assert!(cipher.decrypt_block(&[0u8; 10]).is_err());
+        assert!(cipher.decrypt_block(&[0u8; 10], &[0u8; 8]).is_err());
     }
 }
