@@ -72,14 +72,14 @@ Metadata such as track name, artist name, album name, cover art and more can be 
 | ----- |
 | `--with-metadata-pipe` |
 
-- `--with-metadata-pipe` Adds support for Shairport Sync to send metadata into a Unix `pipe` that can be read by another application. See https://github.com/mikebrady/shairport-sync-metadata-reader for a sample metadata reader.
+Adds support for Shairport Sync to send metadata into a Unix `pipe` that can be read by another application. See https://github.com/mikebrady/shairport-sync-metadata-reader for a sample metadata reader.
 
 ## Metadata Multicast
 | Flags |
 | ----- |
 | `--with-metadata-multicast` |
 
-- `--with-metadata-multicast` Adds support for Shairport Sync to multicast metadata. Specify the multicast socket address and port in the `metadata` section of the configuration file.
+Adds support for Shairport Sync to multicast metadata. Specify the multicast socket address and port in the `metadata` section of the configuration file.
 
 ## Inter Process Communication
 
