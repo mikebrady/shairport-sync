@@ -1,6 +1,6 @@
 /*
  * This file is part of Shairport Sync.
- * Copyright (c) Mike Brady 2019--2025
+ * Copyright (c) Mike Brady 2019--2026
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <locale.h>
 
 GMainLoop *loop;
 
@@ -75,6 +76,7 @@ void *dbus_thread_func(__attribute__((unused)) void *arg) {
 }
 
 int main(int argc, char *argv[]) {
+  setlocale(LC_ALL, "");
   GBusType gbus_type_selected = G_BUS_TYPE_SYSTEM; // set default
   // get the options --system or --session for system bus or session bus
   signed char c;      /* used for argument parsing */

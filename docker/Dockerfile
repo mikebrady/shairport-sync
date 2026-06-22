@@ -1,7 +1,7 @@
 ARG NQPTP_BRANCH=main
-ARG FFMPEG_BRANCH=release/7.1
+ARG FFMPEG_BRANCH=release/8.1
 ARG SHAIRPORT_SYNC_BRANCH=.
-ARG ALPINE_VERSION=20250108
+ARG ALPINE_VERSION=3.23.4
 
 ##### FFMPEGLITE #####
 FROM alpine:$ALPINE_VERSION AS ffmpeglite
@@ -28,10 +28,9 @@ RUN ./configure \
   --disable-network \
   --disable-iamf \
   --disable-pixelutils \
-  --disable-postproc \
   --enable-decoder=alac \
   --enable-decoder=aac
-RUN make -j $(nproc)
+RUN make
 RUN make install
 ##### FFMPEGLITE END #####
 
@@ -51,7 +50,7 @@ RUN git clone --depth=1 -b "$NQPTP_BRANCH" https://github.com/mikebrady/nqptp
 WORKDIR /nqptp
 RUN autoreconf -i
 RUN ./configure
-RUN make -j $(nproc)
+RUN make
 WORKDIR /
 ##### NQPTP END #####
 
@@ -102,10 +101,37 @@ RUN ../configure --sysconfdir=/etc --with-alsa --with-pulseaudio --with-soxr --w
         --with-airplay-2 --with-metadata --with-dummy --with-pipe --with-dbus-interface \
         --with-stdout --with-mpris-interface --with-mqtt-client \
         --with-convolution --with-pipewire
-RUN make -j $(nproc)
+RUN make
 RUN DESTDIR=install make install
 WORKDIR /
 ##### SPS END #####
+
+# Shairport Sync Development Environment
+# This (large) image contains the custom-built FFmpeg library and NQPTP, Avahi, D-Bus, etc., Shairport Sync source and all tools.
+# When started, D-Bus, Avahi and NQPTP are set to run in the background.
+# To build it, here is a sample local build instruction:
+# $ docker build --build-arg SHAIRPORT_SYNC_BRANCH=development --build-arg NQPTP_BRANCH=main --target dev -t shairport-sync-dev -f docker/Dockerfile .
+# Sample local use (remember to save your changes):
+# $ docker run -it \
+#   --cap-add=SYS_NICE --net host --device /dev/snd \
+#   -v /etc/shairport-sync.conf:/etc/shairport-sync.conf \
+#   shairport-sync-dev
+
+##### DEV #####
+FROM shairport-sync AS dev
+RUN apk add bash
+
+RUN addgroup shairport-sync && \
+        adduser -D shairport-sync -G shairport-sync && \
+        addgroup -g 29 docker_audio && \
+        addgroup shairport-sync docker_audio && \
+        addgroup shairport-sync audio && \
+        mkdir -p /run/dbus
+
+COPY --from=nqptp /nqptp/nqptp /usr/local/bin/nqptp
+COPY --chmod=755 ./docker/devrun.sh ./devrun.sh
+ENTRYPOINT ["./devrun.sh"]
+##### DEV END #####
 
 ##### STATIC FILES #####
 FROM scratch AS files

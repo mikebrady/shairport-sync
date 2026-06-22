@@ -1,7 +1,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.50])
-AC_INIT([shairport-sync], [5.0.4], [4265913+mikebrady@users.noreply.github.com])
+AC_INIT([shairport-sync], [5.1], [4265913+mikebrady@users.noreply.github.com])
 : ${CFLAGS="-O3"}
 : ${CXXFLAGS="-O3"}
 AM_INIT_AUTOMAKE([subdir-objects])
@@ -219,6 +219,12 @@ fi
 # Look for metadata flag and resolve it further down the script
 AC_ARG_WITH(metadata,[AS_HELP_STRING([--with-metadata],[include support for a metadata feed])])
 
+# Look for metadata_pipe flag and resolve it further down the script
+AC_ARG_WITH(metadata_pipe,[AS_HELP_STRING([--with-metadata-pipe],[include support for piping metadata out through a unix pipe])])
+
+# Look for metadata_multicast flag and resolve it further down the script
+AC_ARG_WITH(metadata_multicast,[AS_HELP_STRING([--with-metadata-multicast],[include support for metadata multicasting])])
+
 # What follows is a bit messy, because if the relevant library is requested, a compiler flag is defined, a file is included in the compilation
 # and the relevant link files are added.
 
@@ -404,10 +410,28 @@ fi
 AM_CONDITIONAL([USE_METADATA_HUB], [test "x$REQUESTED_EXTENDED_METADATA_SUPPORT" = "x1"])
 AM_CONDITIONAL([USE_DACP_CLIENT], [test "x$REQUESTED_EXTENDED_METADATA_SUPPORT" = "x1"])
 
-if test "x$REQUESTED_EXTENDED_METADATA_SUPPORT" = "x1" || test "x$with_metadata" = "xyes" ; then
+if test "x$REQUESTED_EXTENDED_METADATA_SUPPORT" = "x1" || test "x$with_metadata" = "xyes" || test "x$with_metadata_pipe" = "xyes" || test "x$with_metadata_multicast" = "xyes" ; then
+  REQUESTED_METADATA_SUPPORT=1
+fi
+
+if test "x$REQUESTED_METADATA_SUPPORT" = "x1" ; then
   AC_DEFINE([CONFIG_METADATA], 1, [Needed by the compiler.])
 fi
-AM_CONDITIONAL([USE_METADATA], [test "x$with_metadata" = "xyes"])
+AM_CONDITIONAL([USE_METADATA], [test "x$REQUESTED_METADATA_SUPPORT" = "x1"])
+
+if test "x$with_metadata" = "xyes" ; then
+  DEFAULT_INCLUDE_PIPE_METADATA=1
+fi
+
+if test "x$DEFAULT_INCLUDE_PIPE_METADATA" = "x1" || test "x$with_metadata_pipe" = "xyes" ; then
+  AC_DEFINE([CONFIG_METADATA_PIPE], 1, [Needed by the compiler.])
+fi
+AM_CONDITIONAL([USE_METADATA_PIPE], [test "x$DEFAULT_INCLUDE_PIPE_METADATA" = "x1" || test "x$with_metadata_pipe" = "xyes"])
+
+if test "x$with_metadata_multicast" = "xyes" ; then
+  AC_DEFINE([CONFIG_METADATA_MULTICAST], 1, [Needed by the compiler.])
+fi
+AM_CONDITIONAL([USE_METADATA_MULTICAST], [test "x$with_metadata_multicast" = "xyes"])
 
 # Look for AirPlay 2 flag
 AC_ARG_WITH(airplay-2, [AS_HELP_STRING([--with-airplay-2],[Build for AirPlay 2])])
@@ -445,7 +469,7 @@ if test "x$with_airplay_2" = "xyes" ; then
   ])
   AC_CHECK_LIB([uuid],[uuid_generate], [], [AC_MSG_ERROR([AirPlay 2 support requires the uuid library -- uuid-dev suggested])])
   systemd_after_args="${systemd_after_args}${systemd_after_args:+ }nqptp.service"
-  systemd_requires_args="${systemd_requires_args}${systemd_requires_args:+ }nqptp.service"
+  systemd_wants_args="${systemd_wants_args}${systemd_wants_args:+ }nqptp.service"
 fi
 AM_CONDITIONAL([USE_AIRPLAY_2], [test "x$with_airplay_2" = "xyes"])
 
@@ -562,8 +586,13 @@ if test "x${systemd_requires_args}" != x ; then
   systemd_requires_args="Requires=${systemd_requires_args}"
 fi
 
+if test "x${systemd_wants_args}" != x ; then
+  systemd_wants_args="Wants=${systemd_wants_args}"
+fi
+
 AC_SUBST([SYSTEMD_AFTER_ARGS], [${systemd_after_args}])
 AC_SUBST([SYSTEMD_REQUIRES_ARGS], [${systemd_requires_args}])
+AC_SUBST([SYSTEMD_WANTS_ARGS], [${systemd_wants_args}])
 
 # The man directory will not be recursively made unless you set the SUBDIR in Makefile.am.
 # But leave this as is to enable a distclean to be done.

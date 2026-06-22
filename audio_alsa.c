@@ -40,6 +40,7 @@
 #include "activity_monitor.h"
 #include "audio.h"
 #include "common.h"
+#include "utilities/string_utilities.h"
 
 enum alsa_backend_mode {
   abm_disconnected,
@@ -306,7 +307,7 @@ static int get_permissible_configuration_settings() {
               debug(3, "\"%s\" can handle %u channels.", alsa_out_dev, c);
             } else {
               // the device can't handle this number of channels
-              debug(3, "\"%s\" can not handle %u channels.", alsa_out_dev, c);
+              debug(4, "\"%s\" can not handle %u channels.", alsa_out_dev, c);
               config.channel_set &=
                   ~(1 << c); // the alsa device can't accommodate this number of channels
             }
@@ -332,7 +333,7 @@ static int get_permissible_configuration_settings() {
               debug(3, "\"%s\" can handle a rate of %u fps.", alsa_out_dev,
                     sps_rate_actual_rate(r));
             } else {
-              debug(3, "\"%s\" can not handle a rate of %u fps.", alsa_out_dev,
+              debug(4, "\"%s\" can not handle a rate of %u fps.", alsa_out_dev,
                     sps_rate_actual_rate(r));
               config.rate_set &= ~(1 << r); // the alsa device doesn't do this rate
             }
@@ -357,7 +358,7 @@ static int get_permissible_configuration_settings() {
               debug(3, "\"%s\" can handle the %s format.", alsa_out_dev,
                     sps_format_description_string(f));
             } else {
-              debug(3, "\"%s\" can not handle the %s format.", alsa_out_dev,
+              debug(4, "\"%s\" can not handle the %s format.", alsa_out_dev,
                     sps_format_description_string(f));
               config.format_set &= ~(1 << f); // the alsa device doesn't do this format
             }
@@ -951,8 +952,8 @@ static int actual_open_alsa_device() {
 
       if ((snd_pcm_hw_params_get_rate_numden(alsa_params, &uval, &uval2) == 0) && (uval2 != 0))
         // watch for a divide by zero too!
-        debug(log_level, "  precise (rational) rate = %.3f frames per second (i.e. %u/%u).", (1.0 * uval) / uval2, uval,
-              uval2);
+        debug(log_level, "  precise (rational) rate = %.3f frames per second (i.e. %u/%u).",
+              (1.0 * uval) / uval2, uval, uval2);
       else
         debug(log_level, "  precise (rational) rate information unavailable.");
 
@@ -1260,7 +1261,8 @@ static int init(int argc, char **argv) {
       else {
         warn("Invalid disable_synchronization option choice \"%s\". It should "
              "be \"yes\" or "
-             "\"no\". It is set to \"no\".", str);
+             "\"no\". It is set to \"no\".",
+             str);
         config.no_sync = 0;
       }
     }
@@ -1276,7 +1278,8 @@ static int init(int argc, char **argv) {
       else {
         warn("Invalid mute_using_playback_switch option choice \"%s\". It "
              "should be \"yes\" or "
-             "\"no\". It is set to \"no\".", str);
+             "\"no\". It is set to \"no\".",
+             str);
         config.alsa_use_hardware_mute = 0;
       }
     }
@@ -1290,7 +1293,8 @@ static int init(int argc, char **argv) {
       else {
         warn("Invalid use_hardware_mute_if_available option choice \"%s\". It "
              "should be \"yes\" or "
-             "\"no\". It is set to \"no\".", str);
+             "\"no\". It is set to \"no\".",
+             str);
         config.alsa_use_hardware_mute = 0;
       }
     }
@@ -1304,7 +1308,8 @@ static int init(int argc, char **argv) {
       else {
         warn("Invalid use_mmap_if_available option choice \"%s\". It should be "
              "\"yes\" or \"no\". "
-             "It remains set to \"yes\".", str);
+             "It remains set to \"yes\".",
+             str);
         config.no_mmap = 0;
       }
     }
@@ -1424,7 +1429,8 @@ static int init(int argc, char **argv) {
       else {
         warn("Invalid use_precision_timing option choice \"%s\". It should be "
              "\"yes\", \"auto\" or \"no\". "
-             "It remains set to \"%s\".", str,
+             "It remains set to \"%s\".",
+             str,
              config.use_precision_timing == YNA_NO     ? "no"
              : config.use_precision_timing == YNA_AUTO ? "auto"
                                                        : "yes");
@@ -2177,14 +2183,14 @@ static void flush(void) {
 }
 
 static void stop(void) {
-  pthread_cleanup_debug_mutex_lock(&alsa_mutex, 10000, 1);
+  pthread_cleanup_debug_mutex_lock(&alsa_mutex, 10000, 4);
   if (alsa_backend_state != abm_disconnected) { // must be playing or connected...
     if (config.keep_dac_busy == 0) {
       do_close();
     }
   } else
     debug(3, "alsa: stop() -- called on a disconnected alsa backend");
-  debug_mutex_unlock(&alsa_mutex, 3);
+  debug_mutex_unlock(&alsa_mutex, 4);
   pthread_cleanup_pop(0); // release the mutex
 }
 
@@ -2252,7 +2258,7 @@ static void *alsa_buffer_monitor_thread_code(__attribute__((unused)) void *arg) 
   //  #include <syscall.h>
   //  debug(1, "alsa_buffer_monitor_thread_code PID %d", syscall(SYS_gettid));
   // Wait until the output configuration has been set by the main program
-  debug(2, "alsa: alsa_buffer_monitor_thread_code started.");
+  debug(1, "alsa: alsa_buffer_monitor_thread_code started.");
   int frame_count = 0;
   int error_count = 0;
   int error_detected = 0;

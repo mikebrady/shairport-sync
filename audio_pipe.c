@@ -39,6 +39,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "utilities/network_utilities.h"
+
 static int fd = -1;
 static int warned = 0;
 static unsigned int bytes_per_frame = 0;
@@ -146,10 +148,7 @@ static int init(int argc, char **argv) {
   return 0;
 }
 
-static void deinit(void) {
-  if (fd > 0)
-    close(fd);
-}
+static void deinit(void) { safe_socket_close(&fd); }
 
 static void help(void) {
   printf("    Provide the pipe's pathname. The default is \"%s\".\n", default_pipe_name);

@@ -34,6 +34,7 @@
 
 #include "tinysvcmdns.h"
 #include "common.h"
+#include "utilities/network_utilities.h"
 
 #define DEBUG_PRINTF(...) debug(3, __VA_ARGS__)
 #define log_message(level, ...)                                                                    \
@@ -1457,11 +1458,11 @@ int write_pipe(int s, char *buf, int len) {
 #endif
 }
 
-int close_pipe(int s) {
+int close_pipe(int *s) {
 #ifdef _WIN32
-  return closesocket(s);
+  return closesocket(*s);
 #else
-  return close(s);
+  return safe_socket_close(s);
 #endif
 }
 
@@ -1566,7 +1567,7 @@ void *main_loop(struct mdnsd *svr) {
 
   free(pkt_buffer);
 
-  close_pipe(svr->sockfd);
+  close_pipe(&svr->sockfd);
 
   svr->stop_flag = 2;
   return NULL;
@@ -1749,8 +1750,8 @@ void mdnsd_stop(struct mdnsd *s) {
   while (s->stop_flag != 2)
     select(0, NULL, NULL, NULL, &tv);
 
-  close_pipe(s->notify_pipe[0]);
-  close_pipe(s->notify_pipe[1]);
+  close_pipe(&s->notify_pipe[0]);
+  close_pipe(&s->notify_pipe[1]);
 
   pthread_mutex_destroy(&s->data_lock);
   rr_group_destroy(s->group);

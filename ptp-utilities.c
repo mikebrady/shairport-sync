@@ -42,6 +42,7 @@
 #define __STDC_FORMAT_MACROS
 #include "common.h"
 #include "ptp-utilities.h"
+#include "utilities/network_utilities.h"
 #include <inttypes.h>
 #include <unistd.h>
 
@@ -253,7 +254,7 @@ void ptp_send_control_message_string(const char *msg) {
       die("error sending timing_peer_list to NQPTP");
     }
     /* Deallocate the socket */
-    close(s);
+    safe_socket_close(&s);
     freeaddrinfo(info);
 
     /* deallocate the message string */

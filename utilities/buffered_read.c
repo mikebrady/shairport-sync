@@ -26,10 +26,11 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
- 
- #include <sys/types.h>
- #include "buffered_read.h"
- #include "common.h"
+
+#include "buffered_read.h"
+#include "common.h"
+#include <pthread.h>
+#include <sys/types.h>
 
 ssize_t buffered_read(buffered_tcp_desc *descriptor, void *buf, size_t count,
                       size_t *bytes_remaining) {
@@ -110,8 +111,8 @@ void *buffered_tcp_reader(void *arg) {
   int finished = 0;
   int fd = accept(descriptor->sock_fd, (struct sockaddr *)&remote_addr, &addr_size);
   // debug(1, "buffered_tcp_reader: the client has opened a buffered audio link.");
-  intptr_t pfd = fd;
-  pthread_cleanup_push(socket_cleanup, (void *)pfd);
+  // intptr_t pfd = fd;
+  pthread_cleanup_push(socket_cleanup, (void *)&fd);
 
   do {
     int have_time_to_sleep = 0;
@@ -126,7 +127,7 @@ void *buffered_tcp_reader(void *arg) {
 
     // now we know it is not full, so go ahead and try to read some more into it
 
-    // wrap
+    // wrap if we're up at the end of the buffer
     if ((size_t)(descriptor->eoq - descriptor->buffer) == descriptor->buffer_max_size)
       descriptor->eoq = descriptor->buffer;
 
@@ -136,6 +137,7 @@ void *buffered_tcp_reader(void *arg) {
     if (bytes_to_request > free_space)
       bytes_to_request = free_space; // don't ask for more than will fit
 
+    // we know that this can't be zero.
     size_t gap_to_end_of_buffer =
         descriptor->buffer + descriptor->buffer_max_size - descriptor->eoq;
     if (gap_to_end_of_buffer < bytes_to_request)
@@ -161,7 +163,7 @@ void *buffered_tcp_reader(void *arg) {
       descriptor->closed = 1;
       debug(
           2,
-          "buffered audio port closed by remote end. Terminating the buffered_tcp_reader thread.");
+          "buffered audio port closed by remote end when asking for %zu bytes. Terminating the buffered_tcp_reader thread.", bytes_to_request);
       finished = 1;
     } else if (nread > 0) {
       descriptor->eoq += nread;
@@ -188,7 +190,7 @@ void *buffered_tcp_reader(void *arg) {
 // this will read a block of the size specified to the buffer
 // and will return either with the block or on error
 ssize_t read_sized_block(buffered_tcp_desc *descriptor, void *buf, size_t count,
-                          size_t *bytes_remaining) {
+                         size_t *bytes_remaining) {
   ssize_t response, nread;
   size_t inbuf = 0; // bytes already in the buffer
   int keep_trying = 1;

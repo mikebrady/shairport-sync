@@ -72,8 +72,12 @@
 #include <FFTConvolver/convolver.h>
 #endif
 
+#ifdef CONFIG_METADATA
+#include "metadata/core.h"
+#endif
+
 #ifdef CONFIG_METADATA_HUB
-#include "metadata_hub.h"
+#include "metadata/hub.h"
 #endif
 
 #ifdef CONFIG_DACP_CLIENT
@@ -383,18 +387,6 @@ const char *get_category_string(airplay_stream_c cat) {
 
 #ifdef CONFIG_FFMPEG
 
-static void avcodec_alloc_context3_cleanup_handler(void *arg) {
-  debug(3, "avcodec_alloc_context3_cleanup_handler");
-  AVCodecContext *codec_context = arg;
-  av_free(codec_context);
-}
-
-static void avcodec_open2_cleanup_handler(__attribute__((unused)) void *arg) {
-  debug(3, "avcodec_open2_cleanup_handler");
-  // AVCodecContext *codec_context = arg;
-  // avcodec_close(codec_context);
-}
-
 static void swr_alloc_cleanup_handler(void *arg) {
   debug(3, "swr_alloc_cleanup_handler");
   SwrContext **swr = arg;
@@ -407,25 +399,9 @@ static void av_packet_alloc_cleanup_handler(void *arg) {
   av_packet_free(pkt);
 }
 
-/*
-static void av_frame_alloc_cleanup_handler(void *arg) {
-  debug(3, "av_frame_alloc_cleanup_handler");
-  AVFrame **frame = arg;
-  av_frame_free(frame);
-}
-*/
-
 void clear_decoding_chain(rtsp_conn_info *conn) {
   if (conn->incoming_ssrc != 0) {
-    //    debug_mutex_lock(&conn->ab_mutex, 30000, 0);
-    //    ab_resync(conn);
-    //    debug_mutex_unlock(&conn->ab_mutex, 0);
-    pthread_cleanup_push(avcodec_alloc_context3_cleanup_handler, conn->codec_context);
-    pthread_cleanup_push(malloc_cleanup, &conn->codec_context->extradata);
-    pthread_cleanup_push(avcodec_open2_cleanup_handler, conn->codec_context);
-    pthread_cleanup_pop(1); // avcodec_open2_cleanup_handler
-    pthread_cleanup_pop(1); // deallocate the malloc
-    pthread_cleanup_pop(1); // avcodec_alloc_context3_cleanup_handler
+    avcodec_free_context(&conn->codec_context);
     conn->incoming_ssrc = SSRC_NONE;
   }
 }
@@ -676,28 +652,52 @@ int setup_software_resampler(rtsp_conn_info *conn, ssrc_t ssrc) {
 
     av_opt_set_sample_fmt(swr, "in_sample_fmt", input_format, 0);
 
-    // remember that if mixdown is enabled,
-    // set the resampler's channel layout either automatically or use the
-    // setting that has been given
+    // If mixdown is enabled, set the resampler's channel layout,
+    // either automatically based on the number of ooutput channels,
+    // or by using the setting that has been given.
+
+    // Upmixing will not be done if the setting is "auto".
+
+    // Similarly, on the "auto" setting, downmixing will be done
+    // only if the number of output channels available
+    // is strictly less than the number of input channels.
+
+    // If the number of output channels equals the number of input channels,
+    // no mixing is done on the "auto" setting.
+
+    // To do an upmix or a custom downmix, specify
+    // the target format, e.g. "7.1" in the mixdown setting.
+
+    // NOTE: upmixing, by default, simply copies the input channels to their
+    // equivalents in the output channels. All other channels are
+    // left silent.
 
 #if LIBAVUTIL_VERSION_MAJOR >= 57
     {
       AVChannelLayout input_channel_layout;
       av_channel_layout_from_mask(&input_channel_layout, input_layout);
+      int input_channel_count = input_channel_layout.nb_channels;
       av_opt_set_chlayout(swr, "in_chlayout", &input_channel_layout, 0);
       av_channel_layout_uninit(&input_channel_layout);
 
       AVChannelLayout output_channel_layout;
       if (config.mixdown_enable != 0) {
         if (config.mixdown_channel_layout == 0) {
-          av_channel_layout_default(&output_channel_layout,
-                                    CHANNELS_FROM_ENCODED_FORMAT(output_configuration));
+          if (CHANNELS_FROM_ENCODED_FORMAT(output_configuration) < (unsigned)input_channel_count) {
+            av_channel_layout_default(&output_channel_layout,
+                                      CHANNELS_FROM_ENCODED_FORMAT(output_configuration));
+          } else {
+            av_channel_layout_from_mask(&output_channel_layout, input_layout);
+          }
         } else {
           av_channel_layout_from_mask(&output_channel_layout, config.mixdown_channel_layout);
         }
       } else {
         av_channel_layout_from_mask(&output_channel_layout, output_layout);
       }
+      char layout_desc[2048];
+      av_channel_layout_describe(&output_channel_layout, layout_desc, sizeof(layout_desc));
+      // debug(1,"output channel layout: \"%s\"", layout_desc);
       av_opt_set_chlayout(swr, "out_chlayout", &output_channel_layout, 0);
       av_channel_layout_uninit(&output_channel_layout);
     }
@@ -705,8 +705,11 @@ int setup_software_resampler(rtsp_conn_info *conn, ssrc_t ssrc) {
     av_opt_set_int(swr, "in_channel_layout", input_layout, 0);
     if (config.mixdown_enable != 0) {
       if (config.mixdown_channel_layout == 0) {
-        output_layout =
-            av_get_default_channel_layout(CHANNELS_FROM_ENCODED_FORMAT(output_configuration));
+        if ((signed)CHANNELS_FROM_ENCODED_FORMAT(output_configuration) <
+            (av_get_channel_layout_nb_channels(input_layout))) {
+          output_layout =
+              av_get_default_channel_layout(CHANNELS_FROM_ENCODED_FORMAT(output_configuration));
+        } // else leave output_layout as it was: the sames as the input_layout.
       } else {
         output_layout = config.mixdown_channel_layout;
       }
@@ -776,6 +779,9 @@ int setup_software_resampler(rtsp_conn_info *conn, ssrc_t ssrc) {
     // get information about the output from the resampler
     int64_t resampler_output_format = 0;
     int resampler_channels_found = 0;
+
+    int oldState;
+    pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);
 
 #if LIBAVUTIL_VERSION_MAJOR >= 57
 
@@ -887,6 +893,8 @@ int setup_software_resampler(rtsp_conn_info *conn, ssrc_t ssrc) {
         }
       }
 
+      pthread_setcancelstate(oldState, NULL);
+
       if (output_channel_map_faulty != 0) {
         once(inform("The output device's %u-channel map is incomplete or faulty: \"%s\".",
                     CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration),
@@ -981,7 +989,7 @@ int setup_software_resampler(rtsp_conn_info *conn, ssrc_t ssrc) {
 
       if (output_configuration_changed != 0) {
         char channel_mapping_list[256] = "";
-        for (c = 0; c < 8; c++) {
+        for (c = 0; c < SPS_GREATEST_CHANNEL_COUNT; c++) {
           if ((output_channels[c].allocated != 0) &&
               (conn->output_channel_to_resampler_channel_map[c] != silent_channel_index)) {
             char channel_mapping[32] = "";
@@ -1028,17 +1036,26 @@ int setup_software_resampler(rtsp_conn_info *conn, ssrc_t ssrc) {
   return response; // 0 if everything is okay
 }
 void prepare_decoding_chain(rtsp_conn_info *conn, ssrc_t ssrc) {
+  if ((ssrc != SSRC_NONE) && (ssrc != conn->incoming_ssrc) && (ssrc_is_recognised(ssrc) != 0)) {
+    // conn->incoming_ssrc will be SSRC_NONE only before the first valid encoding is found
+    if ((config.statistics_requested) && (conn->incoming_ssrc != SSRC_NONE))
+      inform("Connection %d: Incoming Audio Encoding is switching to: \"%s\".",
+             conn->connection_number, get_ssrc_name(ssrc));
+    // conn->incoming_ssrc = payload_ssrc;
+#ifdef CONFIG_METADATA
+    send_ssnc_metadata('sdsc', get_ssrc_name(ssrc), strlen(get_ssrc_name(ssrc)), 1);
+#endif
+  }
+
   if ((ssrc_is_recognised(ssrc)) && (ssrc != conn->incoming_ssrc)) {
 
-    if ((config.statistics_requested != 0) && (ssrc != SSRC_NONE) &&
-        (conn->incoming_ssrc != SSRC_NONE)) {
-      debug(2, "Connection %d: incoming audio switching to \"%s\".", conn->connection_number,
-            get_ssrc_name(ssrc));
-#ifdef CONFIG_METADATA
-      send_ssnc_metadata('sdsc', get_ssrc_name(ssrc), strlen(get_ssrc_name(ssrc)), 1);
-#endif
-    }
-
+    /*
+        if ((config.statistics_requested != 0) && (ssrc != SSRC_NONE) &&
+            (conn->incoming_ssrc != SSRC_NONE)) {
+          debug(2, "Connection %d: incoming audio switching to \"%s\".", conn->connection_number,
+                get_ssrc_name(ssrc));
+        }
+    */
     // the ssrc of the incoming packet is different to the ssrc of the decoding chain
     // so the decoding chain must be rebuilt
 
@@ -1064,70 +1081,73 @@ void prepare_decoding_chain(rtsp_conn_info *conn, ssrc_t ssrc) {
         conn->codec = avcodec_find_decoder(AV_CODEC_ID_AAC);
         break;
       default:
-        die("Can't find a suitable codec for SSRC: %s", get_ssrc_name(ssrc));
+        die("Connection %d: can't find a suitable codec for SSRC: %s", conn->connection_number,
+            get_ssrc_name(ssrc));
         break;
       }
 
+      int oldState;
+      pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);
+
       // Get a decoder-dependent codec context
       conn->codec_context = avcodec_alloc_context3(conn->codec);
-      if (conn->codec_context == NULL) {
-        debug(1, "Could not allocate a codec context!");
-      }
-      // push a deallocator -- av_free(codec_context)
-      pthread_cleanup_push(avcodec_alloc_context3_cleanup_handler, conn->codec_context);
+      if (conn->codec_context != NULL) {
+        // push a deallocator -- av_free(codec_context)
+        // pthread_cleanup_push(avcodec_alloc_context3_cleanup_handler, &conn->codec_context);
 
-      // prepare to open the codec context with that codec
-      // but first, if it's the ALAC decoder, prepare a magic cookie
-      if ((ssrc == ALAC_48000_S24_2) || (ssrc == ALAC_44100_S16_2)) {
-        alac_ffmpeg_magic_cookie *extradata =
-            malloc(sizeof(alac_ffmpeg_magic_cookie)); // might not use it
-        if (extradata == NULL)
-          die("Could not allocate memory for a magic cookie.");
-        // creata a magic cookie preceded by the 12-byte "atom" (?) expected by FFMPEG (?)
-        memset(extradata, 0, sizeof(alac_ffmpeg_magic_cookie));
-        extradata->cookie_size = htonl(sizeof(alac_ffmpeg_magic_cookie));
-        extradata->cookie_tag = htonl('alac');
-        extradata->alac_config.frameLength = htonl(352);
-        if (ssrc == ALAC_48000_S24_2) {
-          extradata->alac_config.bitDepth = 24; // Seems to be S24
-          extradata->alac_config.sampleRate = htonl(48000);
+        // prepare to open the codec context with that codec
+        // but first, if it's the ALAC decoder, prepare a magic cookie
+        if ((ssrc == ALAC_48000_S24_2) || (ssrc == ALAC_44100_S16_2)) {
+          alac_ffmpeg_magic_cookie *extradata =
+              malloc(sizeof(alac_ffmpeg_magic_cookie)); // might not use it
+          if (extradata == NULL)
+            die("connection %d: could not allocate memory for a magic cookie.",
+                conn->connection_number);
+          // creata a magic cookie preceded by the 12-byte "atom" (?) expected by FFMPEG (?)
+          memset(extradata, 0, sizeof(alac_ffmpeg_magic_cookie));
+          extradata->cookie_size = htonl(sizeof(alac_ffmpeg_magic_cookie));
+          extradata->cookie_tag = htonl('alac');
+          extradata->alac_config.frameLength = htonl(352);
+          if (ssrc == ALAC_48000_S24_2) {
+            extradata->alac_config.bitDepth = 24; // Seems to be S24
+            extradata->alac_config.sampleRate = htonl(48000);
+          } else {
+            extradata->alac_config.bitDepth = 16; // Seems to be S16
+            extradata->alac_config.sampleRate = htonl(44100);
+          }
+          extradata->alac_config.pb = 40;
+          extradata->alac_config.mb = 10;
+          extradata->alac_config.kb = 14;
+          extradata->alac_config.numChannels = 2;
+          extradata->alac_config.maxRun = htons(255);
+          conn->codec_context->extradata = (uint8_t *)extradata;
+          conn->codec_context->extradata_size = sizeof(alac_ffmpeg_magic_cookie);
         } else {
-          extradata->alac_config.bitDepth = 16; // Seems to be S16
-          extradata->alac_config.sampleRate = htonl(44100);
+          conn->codec_context->extradata = NULL;
         }
-        extradata->alac_config.pb = 40;
-        extradata->alac_config.mb = 10;
-        extradata->alac_config.kb = 14;
-        extradata->alac_config.numChannels = 2;
-        extradata->alac_config.maxRun = htons(255);
-        conn->codec_context->extradata = (uint8_t *)extradata;
-        conn->codec_context->extradata_size = sizeof(alac_ffmpeg_magic_cookie);
+        // pthread_cleanup_push(malloc_cleanup, &conn->codec_context->extradata);
+        // avcodec_free_context() will free extradata
+
+        if (avcodec_open2(conn->codec_context, conn->codec, NULL) < 0) {
+          pthread_setcancelstate(oldState, NULL);
+          die("connection %d: could not initialise the codec context", conn->connection_number);
+        }
       } else {
-        conn->codec_context->extradata = NULL;
+        die("connection %d: could not allocate a codec context!", conn->connection_number);
       }
-      pthread_cleanup_push(malloc_cleanup, &conn->codec_context->extradata);
-
-      if (avcodec_open2(conn->codec_context, conn->codec, NULL) < 0) {
-        die("Could not initialise the codec context");
-      }
-
-      // push a closer -- avcodec_close(codec_context);
-      pthread_cleanup_push(avcodec_open2_cleanup_handler, conn->codec_context);
+      pthread_setcancelstate(oldState, NULL);
 
       conn->input_rate = get_ssrc_rate(ssrc);
+      debug(2, "Connection %d: set conn->input_rate: %u.", conn->connection_number,
+            conn->input_rate);
       if ((ssrc == ALAC_48000_S24_2) || (ssrc == ALAC_44100_S16_2)) {
         conn->frames_per_packet = 352;
       } else {
         conn->frames_per_packet = 1024;
       }
-
       conn->codec_context->sample_rate = conn->input_rate;
-
       conn->ffmpeg_decoding_chain_initialised = 1;
-      pthread_cleanup_pop(0); // successful exit -- don't run the avcodec_open2_cleanup_handler
-      pthread_cleanup_pop(0); // successful exit -- don't deallocate the malloc
-      pthread_cleanup_pop(
-          0); // successful exit -- don't run the avcodec_alloc_context3_cleanup_handler
+      conn->input_format_is_valid = 1;
     }
   }
 }
@@ -1141,6 +1161,9 @@ int64_t avframe_to_audio(rtsp_conn_info *conn, AVFrame *decoded_frame, uint8_t *
                          size_t *decoded_audio_data_length, size_t *decoded_audio_samples_count) {
   uint8_t *pcm_audio = NULL;
   int dst_linesize;
+
+  int oldState;
+  pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
 
   int number_of_output_samples_expected = swr_get_out_samples(conn->swr, decoded_frame->nb_samples);
 
@@ -1243,10 +1266,12 @@ int64_t avframe_to_audio(rtsp_conn_info *conn, AVFrame *decoded_frame, uint8_t *
     *decoded_audio_samples_count = 0;
   }
   av_freep(&pcm_audio);
-  return swr_get_delay(
+  int64_t response = swr_get_delay(
       conn->swr,
       RATE_FROM_ENCODED_FORMAT(
           config.current_output_configuration)); // number of frames left in the resampler
+  pthread_setcancelstate(oldState, NULL);
+  return response;
 }
 
 // take a block of incoming data and decode it.
@@ -1254,8 +1279,11 @@ int64_t avframe_to_audio(rtsp_conn_info *conn, AVFrame *decoded_frame, uint8_t *
 // transcoded and maybe resampled later
 AVFrame *block_to_avframe(rtsp_conn_info *conn, uint8_t *incoming_data,
                           size_t incoming_data_length) {
+
   AVFrame *decoded_frame = NULL;
   if (incoming_data_length > 8) {
+    int oldState;
+    pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
     AVPacket *pkt = av_packet_alloc();
     if (pkt) {
       // push a deallocator -- av_packet_free(pkt);
@@ -1314,6 +1342,7 @@ AVFrame *block_to_avframe(rtsp_conn_info *conn, uint8_t *incoming_data,
     } else {
       debug(1, "Can't allocate an AVPacket!");
     }
+    pthread_setcancelstate(oldState, NULL);
   }
   return decoded_frame;
 }
@@ -1567,28 +1596,26 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
         } else if (config.decoder_in_use == 1 << decoder_ffmpeg_alac) {
 #ifdef CONFIG_FFMPEG
           prepare_decoding_chain(conn, ALAC_44100_S16_2);
-          // if (len > 8) {
-            abuf->avframe = block_to_avframe(conn, data_to_use, len);
-            abuf->ssrc = ALAC_44100_S16_2;
-            if (abuf->avframe) {
-              input_packets_used = abuf->avframe->nb_samples;
-            }
-            if (mute) {
-              // it's important to have already run it through the decoder before dropping it
-              // especially if it an AAC decoder
-              debug(2, "ap1 muting frame %u.", actual_timestamp);
-              abuf->length = abuf->avframe->nb_samples;
-              av_frame_free(&abuf->avframe);
-              abuf->avframe = NULL;
-            }
-          // } else {
-        if (len <= 8) {
-          debug(1,
-                "Using the FFMPEG ALAC_44100_S16_2 decoder, a short audio packet %u, rtptime %u, of length %zu has been decoded but not discarded. Contents follow:", seqno,
-                actual_timestamp, len);
-          debug_print_buffer(1, data, len);
-            // abuf->length = conn->frames_per_packet;
-            // abuf->avframe = NULL;
+          abuf->avframe = block_to_avframe(conn, data_to_use, len);
+          abuf->ssrc = ALAC_44100_S16_2;
+          if (abuf->avframe) {
+            input_packets_used = abuf->avframe->nb_samples;
+          }
+          if (mute) {
+            // it's important to have already run it through the decoder before dropping it
+            // especially if it an AAC decoder
+            debug(2, "ap1 muting frame %u.", actual_timestamp);
+            abuf->length = abuf->avframe->nb_samples;
+            av_frame_free(&abuf->avframe);
+            abuf->avframe = NULL;
+          }
+          if (len <= 8) {
+            debug(2,
+                  "Connection %d, using FFMPEG on an ALAC_44100_S16_2 stream, a short audio packet "
+                  "%u, rtptime %u, of length %zu has been decoded but not discarded. Contents "
+                  "follow:",
+                  conn->connection_number, seqno, actual_timestamp, len);
+            debug_print_buffer(2, data, len);
           }
 #else
           debug(1, "FFMPEG support has not been built into this version Shairport Sync!");
@@ -1620,27 +1647,25 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
 
         prepare_decoding_chain(conn, ssrc); // dynamically set the decoding environment
 
-        // if (len > 8) {
-          abuf->avframe = block_to_avframe(conn, data, len);
-          abuf->ssrc = ssrc; // tag the avframe with its specific SSRC
-          if (abuf->avframe) {
-            input_packets_used = abuf->avframe->nb_samples;
-          }
-          if (mute) {
-            // it's important to have already run it through the decoder before dropping it
-            debug(2, "ap2 muting frame %u.", actual_timestamp);
-            abuf->length = abuf->avframe->nb_samples;
-            av_frame_free(&abuf->avframe);
-            abuf->avframe = NULL;
-          }
-        //} else {
+        abuf->avframe = block_to_avframe(conn, data, len);
+        abuf->ssrc = ssrc; // tag the avframe with its specific SSRC
+        if (abuf->avframe) {
+          input_packets_used = abuf->avframe->nb_samples;
+        }
+        if (mute) {
+          // it's important to have already run it through the decoder before dropping it
+          debug(2, "ap2 muting frame %u.", actual_timestamp);
+          abuf->length = abuf->avframe->nb_samples;
+          av_frame_free(&abuf->avframe);
+          abuf->avframe = NULL;
+        }
+
         if (len <= 8) {
-          debug(1,
-                "Using an FFMPEG decoder, a short audio packet %u, rtptime %u, of length %zu has been decoded but not discarded. Contents follow:", seqno,
-                actual_timestamp, len);
-          debug_print_buffer(1, data, len);
-          // abuf->length = 0;
-          // abuf->avframe = NULL;
+          debug(2,
+                "Connection %d: using FFMPEG on a %s stream, a short audio packet %u, rtptime %u, "
+                "of length %zu has been decoded but not discarded. Contents follow:",
+                conn->connection_number, get_ssrc_name(ssrc), seqno, actual_timestamp, len);
+          debug_print_buffer(2, data, len);
         }
         abuf->ready = 1;
         abuf->status = 0; // signifying that it was received
@@ -2032,7 +2057,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
   do {
     // debug(3, "buffer_get_frame is iterating");
     // we must have timing information before we can do anything here
-    if (have_timestamp_timing_information(conn)) {
+    if ((have_timestamp_timing_information(conn)) && (conn->input_format_is_valid != 0)) {
 
       int rco = get_requested_connection_state_to_output();
 
@@ -2481,10 +2506,12 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
                              RATE_FROM_ENCODED_FORMAT(config.current_output_configuration)) /
                             1000000000;
                         int64_t exact_frame_gap = gross_frame_gap - dac_delay;
-                        debug(3,
-                              "Exact frame gap: %" PRId64
-                              ". DAC delay: %ld. First packet timestamp: %u.",
-                              exact_frame_gap, dac_delay, conn->first_packet_timestamp);
+
+                        debug(4,
+                              "Exact frame gap: %" PRId64 ". DAC delay: %ld. Total: %" PRId64
+                              ". First packet timestamp: %u. ",
+                              exact_frame_gap, dac_delay, gross_frame_gap,
+                              conn->first_packet_timestamp);
                         // int64_t frames_needed_to_maintain_desired_buffer =
                         //     (int64_t)(config.audio_backend_buffer_desired_length *
                         //               config.current_output_configuration->rate) -
@@ -2701,14 +2728,12 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
       wait = 1; // keep waiting until the timing information becomes available
     }
     if (wait) {
-      if (conn->frames_per_packet == 0)
-        debug(1, "frames_per_packet is zero!");
-
-      uint64_t time_to_wait_for_wakeup_ns = 20000000; // default if no input rate is set
-      if (conn->input_rate != 0) {
+      uint64_t time_to_wait_for_wakeup_ns = 10000000; // default
+      if (conn->input_format_is_valid != 0) {
         time_to_wait_for_wakeup_ns =
             1000000000 / conn->input_rate; // this is time period of one frame
-        time_to_wait_for_wakeup_ns *= 4 * conn->frames_per_packet;
+        time_to_wait_for_wakeup_ns *=
+            4 * conn->frames_per_packet; // about 4 * 7 mS for 352 frames per second
       }
 
 #ifdef COMPILE_FOR_LINUX_AND_FREEBSD_AND_CYGWIN_AND_OPENBSD
@@ -2719,12 +2744,14 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
       struct timespec time_of_wakeup;
       time_of_wakeup.tv_sec = sec;
       time_of_wakeup.tv_nsec = nsec;
-
+      // debug(1, "wait for up to %f mS or for the next packet...", time_to_wait_for_wakeup_ns *
+      // 1E-6);
       int rc = pthread_cond_timedwait(&conn->flowcontrol, &conn->ab_mutex,
                                       &time_of_wakeup); // this is a pthread cancellation point
       if ((rc != 0) && (rc != ETIMEDOUT))
         // if (rc)
         debug(3, "pthread_cond_timedwait returned error code %d.", rc);
+      // debug(1, "waited");
 #endif
 #ifdef COMPILE_FOR_OSX
       uint64_t sec = time_to_wait_for_wakeup_ns / 1000000000;
@@ -2774,8 +2801,8 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
           debug(2, "setting up software resampler for %s for the first time.",
                 get_ssrc_name(curframe->ssrc));
         } else {
-          debug(1, "Connection %d: queued audio buffers switching to \"%s\".", conn->connection_number,
-                get_ssrc_name(curframe->ssrc));
+          debug(2, "Connection %d: queued audio buffers switching to \"%s\".",
+                conn->connection_number, get_ssrc_name(curframe->ssrc));
           clear_software_resampler(conn);
           // ask the backend if it can give us its best choice for an ffmpeg configuration:
         }
@@ -2804,12 +2831,15 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
           debug(1, "error %d", ret);
         // We need to get those frames of silence out of the resampler
         // so we'll pass in an empty AVFrame to flush them through
-        AVFrame *avf = av_frame_alloc(); // empty frame
+        int oldState;
+        pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);
+        AVFrame *avf = av_frame_alloc();
         conn->frames_retained_in_the_resampler =
             avframe_to_audio(conn, avf, &pp, &pl, &number_of_output_frames);
+        av_frame_free(&avf);
+        pthread_setcancelstate(oldState, NULL);
         curframe->data = (short *)pp;
         curframe->length = number_of_output_frames;
-        av_frame_free(&avf);
       }
     }
 #ifndef CONFIG_AIRPLAY_2
@@ -3011,8 +3041,8 @@ static int stuff_buffer_vernier(int32_t *inptr, int length, sps_format_t l_outpu
           debug(1,
                 "Can't see how this could ever happen, but "
                 "current_input_sample_floor_index %" PRId64
-                " has just stepped outside the frame of %d samples, with stuff %d and current_input_sample_index_fp at %" PRId64 ".%05" PRId64
-                ".",
+                " has just stepped outside the frame of %d samples, with stuff %d and "
+                "current_input_sample_index_fp at %" PRId64 ".%05" PRId64 ".",
                 current_input_sample_floor_index, length, stuff, current_input_sample_index_int,
                 current_input_sample_index_low);
           current_input_sample_floor_index = length - 1; // hack
@@ -3034,8 +3064,8 @@ static int stuff_buffer_vernier(int32_t *inptr, int length, sps_format_t l_outpu
             debug(1,
                   "Can't see how this could ever happen, but "
                   "current_input_sample_ceil_index %" PRId64
-                  " has just stepped outside the frame of %d samples, with stuff %d and current_input_sample_index_fp at %" PRId64
-                  ".%05" PRId64 ".",
+                  " has just stepped outside the frame of %d samples, with stuff %d and "
+                  "current_input_sample_index_fp at %" PRId64 ".%05" PRId64 ".",
                   current_input_sample_floor_index, length, stuff, current_input_sample_index_int,
                   current_input_sample_index_low);
           }
@@ -3296,17 +3326,10 @@ void player_thread_cleanup_handler(void *arg) {
   rtsp_conn_info *conn = (rtsp_conn_info *)arg;
   // debug(1, "Connection %d: player_thread_cleanup_handler start.", conn->connection_number);
 
-#ifdef CONFIG_FFMPEG
-  // debug(1, "FFmpeg clearup");
-  clear_software_resampler(conn);
-  clear_decoding_chain(conn);
-  // debug(1, "FFmpeg clearup done");
-#endif
-
   if (config.output->stop) {
 #ifdef CONFIG_FFMPEG
-    if (avflush(conn) > 1)
-      debug(3, "ffmpeg flush at stop!");
+    if ((config.decoder_in_use == 1 << decoder_ffmpeg_alac) && (avflush(conn) > 1))
+      debug(1, "ffmpeg flush at stop!");
 #endif
     debug(2, "Connection %d: player: stop the output backend.", conn->connection_number);
     config.output->stop();
@@ -3398,6 +3421,15 @@ void player_thread_cleanup_handler(void *arg) {
 #ifdef CONFIG_AIRPLAY_2
   }
   ptp_send_control_message_string("E");
+#endif
+
+#ifdef CONFIG_FFMPEG
+  if (config.decoder_in_use == 1 << decoder_ffmpeg_alac) {
+    // debug(1, "FFmpeg clearup");
+    clear_software_resampler(conn);
+    clear_decoding_chain(conn);
+    // debug(1, "FFmpeg clearup done");
+  }
 #endif
 
   if (conn->outbuf) {
@@ -3494,11 +3526,17 @@ void *player_thread_func(void *arg) {
       init_alac_decoder((int32_t *)&conn->stream.fmtp,
                         conn); // this sets up incoming rate, bit depth, channels.
                                // No pthread cancellation point in here
+#ifdef CONFIG_METADATA
+      send_ssnc_metadata('sdsc', "ALAC/44100/S16_LE/2", strlen("ALAC/44100/S16_LE/2"), 1);
+#endif
     }
 #endif
 #ifdef CONFIG_APPLE_ALAC
     if (config.decoder_in_use == 1 << decoder_apple_alac) {
       apple_alac_init(conn->stream.fmtp); // no pthread cancellation point in here
+#ifdef CONFIG_METADATA
+      send_ssnc_metadata('sdsc', "ALAC/44100/S16_LE/2", strlen("ALAC/44100/S16_LE/2"), 1);
+#endif
     }
 #endif
   }
@@ -4127,7 +4165,7 @@ void *player_thread_func(void *arg) {
                   send_ssnc_stream_description("Classic", get_ssrc_name(conn->incoming_ssrc));
 #endif
                   if (config.statistics_requested)
-                    inform("Connection %d: Classic AirPlay (\"AirPlay 1\") Compatible playback. "
+                    inform("Connection %d: Classic AirPlay (\"AirPlay 1\") playback. "
                            "Input format: %s. Output format: %s.",
                            conn->connection_number, get_ssrc_name(conn->incoming_ssrc),
                            short_description);
@@ -4351,10 +4389,14 @@ void *player_thread_func(void *arg) {
                     if (inframe->timestamp_gap < 0) {
                       gap_to_fix = -inframe->timestamp_gap; // this is frames at the input rate
                       int64_t gap_to_fix_ns = (gap_to_fix * 1000000000) / conn->input_rate;
-                      gap_to_fix = (gap_to_fix_ns *
-                                    RATE_FROM_ENCODED_FORMAT(config.current_output_configuration) + 1000000000/2) /
+                      gap_to_fix = (gap_to_fix_ns * RATE_FROM_ENCODED_FORMAT(
+                                                        config.current_output_configuration) +
+                                    1000000000 / 2) /
                                    1000000000; // this is frames at the output rate
-                      debug(4, "gap_to_fix: %u frames at input rate, %" PRId64 " frames at output rate.", -inframe->timestamp_gap, gap_to_fix);
+                      debug(4,
+                            "gap_to_fix: %u frames at input rate, %" PRId64
+                            " frames at output rate.",
+                            -inframe->timestamp_gap, gap_to_fix);
                       // debug(3, "due to timstamp gap of %d frames, skip %" PRId64 " output
                       // frames.", inframe->timestamp_gap, gap_to_fix);
                     }
@@ -4562,7 +4604,7 @@ void *player_thread_func(void *arg) {
 #endif
                 ) {
 
-                  float(*fbufs)[1024] = malloc(conn->input_num_channels * sizeof(*fbufs));
+                  float (*fbufs)[1024] = malloc(conn->input_num_channels * sizeof(*fbufs));
                   // debug(1, "size of array allocated is %d bytes.", conn->input_num_channels *
                   // sizeof(*fbufs));
                   int32_t *tbuf32 = conn->tbuf;
@@ -4776,15 +4818,14 @@ void *player_thread_func(void *arg) {
                         frames_to_skip -= play_samples;
                       } else {
 
-                        
-
-                        size_t bytes_to_skip = frames_to_skip *
+                        size_t bytes_to_skip =
+                            frames_to_skip *
                             CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration) *
                             sps_format_sample_size(
                                 FORMAT_FROM_ENCODED_FORMAT(config.current_output_configuration));
 
                         char *play_starting_point = conn->outbuf + bytes_to_skip;
-                          
+
                         config.output->play(play_starting_point, play_samples - frames_to_skip,
                                             play_samples_are_timed, inframe->timestamp,
                                             should_be_time);
@@ -5262,7 +5303,7 @@ int player_stop(rtsp_conn_info *conn) {
   // note -- this may be called from another connection thread.
   debug(2, "Connection %d: player_stop.", conn->connection_number);
   int response = 0; // okay
-  pthread_cleanup_debug_mutex_lock(&conn->player_create_delete_mutex, 5000, 1);
+  pthread_cleanup_debug_mutex_lock(&conn->player_create_delete_mutex, 5000, 4);
   pthread_t *pt = conn->player_thread;
   if (pt) {
     debug(3, "player_thread cancel...");

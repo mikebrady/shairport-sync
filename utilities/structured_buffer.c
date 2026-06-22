@@ -1,9 +1,6 @@
 /*
  * Structured Buffer. This file is part of Shairport Sync
  * Copyright (c) Mike Brady 2025
-
- * Modifications, including those associated with audio synchronization, multithreading and
- * metadata handling copyright (c) Mike Brady 2014--2025
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -27,12 +24,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <stdarg.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdint.h>
-
 
 typedef struct {
   char *buf;

@@ -506,7 +506,8 @@ static int init(__attribute__((unused)) int argc, __attribute__((unused)) char *
 
     // get the default channel mapping setting basis -- "alsa" or "pulseaudio".
 
-    if (config_lookup_non_empty_string(config.cfg, "pulseaudio.default_channel_layouts", &default_channel_layouts)) {
+    if (config_lookup_non_empty_string(config.cfg, "pulseaudio.default_channel_layouts",
+                                       &default_channel_layouts)) {
       if ((strcasecmp(default_channel_layouts, "alsa") == 0) ||
           (strcasecmp(default_channel_layouts, "pulseaudio") == 0)) {
         debug(1, "pulseaudio default_channel_layouts setting: \"%s\".", default_channel_layouts);
@@ -767,8 +768,6 @@ void stream_write_cb(pa_stream *local_stream, size_t requested_bytes,
   pthread_cleanup_pop(1); // release the mutex
   if (ret != 0)
     debug(1, "error writing to pa buffer");
-  // debug(1,"<<<Frames requested %d, written to pa: %d, corked status:
-  // %d.",requested_bytes/4,bytes_transferred/4,pa_stream_is_corked(local_stream));
 }
 
 void stream_success_cb(__attribute__((unused)) pa_stream *local_stream,

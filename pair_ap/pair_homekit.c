@@ -822,7 +822,7 @@ static void
 hexread(uint8_t *out, size_t out_len, const char *in)
 {
   char hex[] = { 0, 0, 0 };
-  int i;
+  unsigned int i;
 
   for (i = 0; i < out_len; i++, in+=2)
     {
@@ -1668,7 +1668,7 @@ static int
 client_setup_result(struct pair_setup_context *handle)
 {
   char *ptr;
-  int i;
+  unsigned int i;
 
   assert(sizeof(handle->result_str) >= 2 * sizeof(handle->result.client_private_key) + 2 * sizeof(handle->result.server_public_key) + 1);
 
@@ -1686,7 +1686,7 @@ client_setup_result(struct pair_setup_context *handle)
 }
 
 static int
-client_verify_new(struct pair_verify_context *handle, const char *client_setup_keys, pair_cb cb, void *cb_arg, const char *device_id)
+client_verify_new(struct pair_verify_context *handle, const char *client_setup_keys, __attribute__((unused)) pair_cb cb, __attribute__((unused)) void *cb_arg, __attribute__((unused)) const char *device_id)
 {
   struct pair_client_verify_context *vctx = &handle->vctx.client;
   size_t hexkey_len;
@@ -2888,7 +2888,7 @@ server_list_response(size_t *len, pair_list_cb cb, void *cb_arg)
 }
 
 static int
-server_list(uint8_t **out, size_t *out_len, pair_list_cb cb, void *cb_arg, const uint8_t *in, size_t in_len)
+server_list(uint8_t **out, size_t *out_len, pair_list_cb cb, void *cb_arg, __attribute__((unused)) const uint8_t *in, __attribute__((unused)) size_t in_len)
 {
   // Skip reading the request, it just has state = 1 and pair method =
   // PairingMethodListPairings
