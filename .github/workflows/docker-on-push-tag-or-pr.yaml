@@ -38,7 +38,7 @@ jobs:
               NQPTP_BRANCH=${{ needs.docker-vars.outputs.nqptp_branch }}
     steps:
       - name: Checkout shairport sync repo
-        uses: actions/checkout@v6.0.3
+        uses: actions/checkout@v7.0.0
         with:
           fetch-depth: 0
       
