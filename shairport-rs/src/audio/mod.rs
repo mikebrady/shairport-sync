@@ -11,7 +11,7 @@ use ringbuf::{
 use serde::{Deserialize, Serialize};
 use std::sync::{
     Arc,
-    atomic::{AtomicUsize, Ordering},
+    atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering},
 };
 
 use crate::codec;
@@ -45,6 +45,8 @@ pub struct AudioEngine {
     capacity: usize,
     output_format: Arc<Mutex<AudioOutputFormat>>,
     resampler_cache: Arc<Mutex<codec::ResamplerCache>>,
+    volume_gain_bits: Arc<AtomicU32>,
+    playback_enabled: Arc<AtomicBool>,
 }
 
 pub struct AudioOutput {
@@ -258,6 +260,8 @@ impl AudioEngine {
                 channels: 2,
             })),
             resampler_cache: Arc::new(Mutex::new(codec::ResamplerCache::new())),
+            volume_gain_bits: Arc::new(AtomicU32::new(1.0f32.to_bits())),
+            playback_enabled: Arc::new(AtomicBool::new(true)),
         }
     }
 
@@ -266,6 +270,23 @@ impl AudioEngine {
             sample_rate: sample_rate.max(1),
             channels: channels.max(1),
         };
+    }
+
+    pub fn set_volume_db(&self, db: f64) {
+        let gain = if db <= -144.0 {
+            0.0
+        } else {
+            10.0f64.powf(db.clamp(-144.0, 0.0) / 20.0) as f32
+        };
+        self.volume_gain_bits
+            .store(gain.to_bits(), Ordering::Release);
+    }
+
+    pub fn set_playback_enabled(&self, enabled: bool) {
+        self.playback_enabled.store(enabled, Ordering::Release);
+        if !enabled {
+            self.clear_output_samples();
+        }
     }
 
     #[allow(dead_code)]
@@ -311,6 +332,9 @@ impl AudioEngine {
     }
 
     pub fn enqueue_output_samples(&self, samples: &[f32]) -> usize {
+        if !self.playback_enabled.load(Ordering::Acquire) {
+            return 0;
+        }
         let mut producer = self.producer.lock();
         let pushed = samples
             .iter()
@@ -326,12 +350,17 @@ impl AudioEngine {
     }
 
     pub fn fill_output(&self, output: &mut [f32]) -> usize {
+        if !self.playback_enabled.load(Ordering::Acquire) {
+            output.fill(0.0);
+            return 0;
+        }
+        let gain = f32::from_bits(self.volume_gain_bits.load(Ordering::Acquire));
         let mut consumer = self.consumer.lock();
         let mut filled = 0;
         for sample in output.iter_mut() {
             match consumer.try_pop() {
                 Some(value) => {
-                    *sample = value;
+                    *sample = value * gain;
                     filled += 1;
                 }
                 None => *sample = 0.0,
@@ -347,12 +376,19 @@ impl AudioEngine {
     where
         T: cpal::Sample + cpal::FromSample<f32>,
     {
+        if !self.playback_enabled.load(Ordering::Acquire) {
+            for sample in output.iter_mut() {
+                *sample = T::from_sample(0.0);
+            }
+            return 0;
+        }
+        let gain = f32::from_bits(self.volume_gain_bits.load(Ordering::Acquire));
         let mut consumer = self.consumer.lock();
         let mut filled = 0;
         for sample in output.iter_mut() {
             match consumer.try_pop() {
                 Some(value) => {
-                    *sample = T::from_sample(value);
+                    *sample = T::from_sample(value * gain);
                     filled += 1;
                 }
                 None => *sample = T::from_sample(0.0),
@@ -362,6 +398,12 @@ impl AudioEngine {
             self.queued_samples.fetch_sub(filled, Ordering::Release);
         }
         filled
+    }
+
+    pub fn clear_output_samples(&self) {
+        let mut consumer = self.consumer.lock();
+        while consumer.try_pop().is_some() {}
+        self.queued_samples.store(0, Ordering::Release);
     }
 
     pub fn status(&self) -> AudioEngineStatus {
@@ -459,6 +501,26 @@ mod tests {
         let mut out = [1.0; 5];
         assert_eq!(engine.fill_output(&mut out), 3);
         assert_eq!(out, [0.1, 0.2, 0.3, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn audio_engine_applies_volume_gain() {
+        let engine = AudioEngine::new(4);
+        engine.set_volume_db(-6.0);
+        assert_eq!(engine.enqueue_interleaved(&[1.0]), 1);
+        let mut out = [0.0; 1];
+        engine.fill_output(&mut out);
+        assert!((out[0] - 0.501_187_2).abs() < 0.000_01);
+    }
+
+    #[test]
+    fn audio_engine_drops_samples_when_playback_disabled() {
+        let engine = AudioEngine::new(4);
+        engine.set_playback_enabled(false);
+        assert_eq!(engine.enqueue_interleaved(&[0.1, 0.2]), 0);
+        let mut out = [1.0; 2];
+        assert_eq!(engine.fill_output(&mut out), 0);
+        assert_eq!(out, [0.0, 0.0]);
     }
 
     #[test]

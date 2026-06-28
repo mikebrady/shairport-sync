@@ -16,9 +16,12 @@ use tokio::{
 use tracing::{debug, info, trace, warn};
 
 use crate::{
-    airplay::crypto::{IdentityKey, PairCipher},
     airplay::pairing::{PairingEndpoint, PairingService, PairingSession},
     airplay::sdp::parse_sdp,
+    airplay::{
+        crypto::{IdentityKey, PairCipher},
+        dacp::{DacpController, dacp_command_for_alias, is_navigation_alias},
+    },
     audio::AudioEngine,
     codec::AudioFormat,
     config::{AdvertisedFormatPolicy, AirplayConfig},
@@ -50,6 +53,7 @@ pub async fn spawn_rtsp_server(
     state: AppState,
     audio_engine: AudioEngine,
     player: SharedPlayer,
+    dacp: DacpController,
 ) -> anyhow::Result<JoinHandle<()>> {
     let bind: SocketAddr = config
         .bind
@@ -81,6 +85,7 @@ pub async fn spawn_rtsp_server(
                     let pairing = pairing.clone();
                     let audio_engine = audio_engine.clone();
                     let player = player.clone();
+                    let dacp = dacp.clone();
                     tokio::spawn(async move {
                         if let Err(err) = handle_connection(
                             stream,
@@ -90,6 +95,7 @@ pub async fn spawn_rtsp_server(
                             pairing,
                             audio_engine,
                             player,
+                            dacp,
                         )
                         .await
                         {
@@ -533,6 +539,7 @@ async fn handle_connection(
     pairing: Arc<PairingService>,
     audio_engine: AudioEngine,
     player: SharedPlayer,
+    dacp: DacpController,
 ) -> anyhow::Result<()> {
     debug!(%peer, "RTSP connection opened");
     let mut buf = Vec::with_capacity(8192);
@@ -597,6 +604,7 @@ async fn handle_connection(
                 &request,
                 &audio_engine,
                 &player,
+                &dacp,
             );
 
             log_response(peer, &request, &response);
@@ -639,10 +647,12 @@ fn route_request(
     request: &RtspRequest,
     audio_engine: &AudioEngine,
     player: &SharedPlayer,
+    dacp: &DacpController,
 ) -> RtspResponse {
     if let Some(client_name) = request.headers.get("X-Apple-Client-Name") {
         state.set_client_name(client_name.clone());
     }
+    update_dacp_session_from_headers(dacp, session, request);
 
     // Log any request body at debug level for non-OPTIONS methods
     if request.method != "OPTIONS" && request.method != "GET_PARAMETER" {
@@ -797,7 +807,7 @@ fn route_request(
         }
         ("POST", "/command") => {
             // Command endpoint receives encrypted plist commands
-            apply_ap2_command(state, request);
+            apply_ap2_command(state, audio_engine, player, dacp, request);
             info!("received /command ({} bytes)", request.body.len());
             response(200, "OK")
                 .header("Content-Type", "application/octet-stream")
@@ -823,12 +833,12 @@ fn route_request(
             response(200, "OK").with_cseq(request)
         }
         ("SETRATEANCHORTI", _) | ("SETRATEANCHORTIME", _) => {
-            apply_setrateanchortime(state, player, request);
+            apply_setrateanchortime(state, audio_engine, player, request);
             response(200, "OK").with_cseq(request)
         }
         ("GET_PARAMETER", _) => response(200, "OK").with_cseq(request),
         ("SET_PARAMETER", _) => {
-            apply_set_parameter(state, request);
+            apply_set_parameter(state, audio_engine, dacp, session.peer_addr, request);
             response(200, "OK").with_cseq(request)
         }
         ("SETUP", _) => {
@@ -843,7 +853,8 @@ fn route_request(
                 .unwrap_or(false);
 
             if is_ap2 && config.airplay2_enabled {
-                handle_ap2_setup(config, state, session, request, audio_engine).with_cseq(request)
+                handle_ap2_setup(config, state, session, request, audio_engine, dacp)
+                    .with_cseq(request)
             } else if is_ap2 {
                 // AP2 plist but AP2 is disabled - respond with error
                 warn!("AP2 SETUP received but airplay2_enabled is false");
@@ -894,6 +905,7 @@ fn route_request(
             let rate = state.alac_sample_rate.read().unwrap_or(44100);
             player.set_sample_rate(rate);
             player.start(latency);
+            audio_engine.set_playback_enabled(true);
             state.set_player_state(PlayerState::Playing);
             state.set_diagnostic("ap1_latency", latency.to_string());
             info!(latency, "AP1 RECORD");
@@ -905,8 +917,14 @@ fn route_request(
         }
         ("FLUSH", _) => {
             player.flush();
+            audio_engine.set_playback_enabled(false);
             state.set_player_state(PlayerState::Paused);
             info!("AP1 FLUSH");
+            response(200, "OK").with_cseq(request)
+        }
+        ("PAUSE", _) => {
+            pause_playback(state, audio_engine, player);
+            info!("PAUSE");
             response(200, "OK").with_cseq(request)
         }
         ("FLUSHBUFFERED", _) => {
@@ -916,6 +934,7 @@ fn route_request(
         ("TEARDOWN", _) => {
             if let Some(stream_type) = ap2_teardown_stream_type(&request.body) {
                 player.stop();
+                audio_engine.set_playback_enabled(false);
                 state.set_player_state(PlayerState::Stopped);
                 session.abort_ap2_stream_listener(stream_type);
                 if stream_type == Ap2StreamType::BufferedAudio {
@@ -928,11 +947,13 @@ fn route_request(
             }
 
             player.stop();
+            audio_engine.set_playback_enabled(false);
             state.set_active(false);
             state.set_player_state(PlayerState::Stopped);
             *state.session_key.write() = None;
             *state.ap2_media_key.write() = None;
             *state.ap2_audio_format.write() = None;
+            dacp.clear_session();
             session.abort_ap2_listeners();
             info!("TEARDOWN");
             response(200, "OK").with_cseq(request)
@@ -980,6 +1001,33 @@ fn log_raw_request(peer: SocketAddr, raw: &[u8], consumed: usize) {
             "RTSP raw request consumed"
         );
     }
+}
+
+fn update_dacp_session_from_headers(
+    dacp: &DacpController,
+    session: &mut RtspSession,
+    request: &RtspRequest,
+) {
+    let active_remote = header_value(request, "Active-Remote").map(str::to_string);
+    let dacp_id = header_value(request, "DACP-ID").map(str::to_string);
+    if active_remote.is_none() && dacp_id.is_none() {
+        return;
+    }
+    if active_remote.is_some() {
+        session.active_remote = active_remote.clone();
+    }
+    if dacp_id.is_some() {
+        session.dacp_id = dacp_id.clone();
+    }
+    dacp.update_session(dacp_id, active_remote, session.peer_addr);
+}
+
+fn header_value<'a>(request: &'a RtspRequest, name: &str) -> Option<&'a str> {
+    request
+        .headers
+        .iter()
+        .find(|(key, _)| key.eq_ignore_ascii_case(name))
+        .map(|(_, value)| value.as_str())
 }
 
 fn log_response(peer: SocketAddr, request: &RtspRequest, response: &RtspResponse) {
@@ -1248,6 +1296,7 @@ fn handle_ap2_setup(
     session: &mut RtspSession,
     request: &RtspRequest,
     audio_engine: &AudioEngine,
+    dacp: &DacpController,
 ) -> RtspResponse {
     let plist_body = &request.body;
     let setup = match plist::from_bytes::<plist::Dictionary>(plist_body) {
@@ -1268,12 +1317,15 @@ fn handle_ap2_setup(
         state.set_diagnostic("ap2_phase", "stream-setup");
         if let Some(plist::Value::String(active_remote)) = setup.get("activeRemote") {
             session.active_remote = Some(active_remote.clone());
-            state.set_diagnostic("active_remote", active_remote.clone());
         }
         if let Some(plist::Value::String(dacp_id)) = setup.get("dacpID") {
             session.dacp_id = Some(dacp_id.clone());
-            state.set_diagnostic("dacp_id", dacp_id.clone());
         }
+        dacp.update_session(
+            session.dacp_id.clone(),
+            session.active_remote.clone(),
+            session.peer_addr,
+        );
         let control_port = match session.ensure_ap2_control_socket() {
             Ok(port) => {
                 state.set_diagnostic("ap2_control_port", port.to_string());
@@ -1310,6 +1362,7 @@ fn handle_ap2_setup(
                     stream_dict.insert("dataPort".to_string(), plist_uint_value(data_port));
                     stream_dict.insert("controlPort".to_string(), plist_uint_value(control_port));
                     state.set_active(true);
+                    audio_engine.set_playback_enabled(true);
                     state.set_player_state(PlayerState::Playing);
                     state.set_diagnostic("ap2_stream_type", "realtime");
                     state.set_diagnostic("ap2_realtime_audio_port", data_port.to_string());
@@ -1386,6 +1439,7 @@ fn handle_ap2_setup(
                         plist_uint_value(8 * 1024 * 1024u64),
                     );
                     state.set_active(true);
+                    audio_engine.set_playback_enabled(true);
                     state.set_player_state(PlayerState::Playing);
                     state.set_diagnostic("ap2_stream_type", "buffered");
                     state.set_diagnostic("ap2_buffered_audio_port", data_port.to_string());
@@ -1563,7 +1617,13 @@ fn handle_ap2_setup(
     response(200, "OK").with_cseq(request)
 }
 
-fn apply_set_parameter(state: &AppState, request: &RtspRequest) {
+fn apply_set_parameter(
+    state: &AppState,
+    audio_engine: &AudioEngine,
+    dacp: &DacpController,
+    peer_addr: Option<SocketAddr>,
+    request: &RtspRequest,
+) {
     let content_type = request
         .headers
         .get("Content-Type")
@@ -1573,30 +1633,28 @@ fn apply_set_parameter(state: &AppState, request: &RtspRequest) {
     if content_type.contains("application/x-apple-binary-plist") {
         // AP2 metadata as binary plist
         if let Ok(dict) = plist::from_bytes::<plist::Dictionary>(&request.body) {
-            if let Some(plist::Value::String(title)) = dict.get("title") {
-                state.set_track_metadata(Some(title.clone()), None, None);
-            }
-            if let Some(plist::Value::String(artist)) = dict.get("artist") {
-                state.set_track_metadata(None, Some(artist.clone()), None);
-            }
-            if let Some(plist::Value::String(album)) = dict.get("album") {
-                state.set_track_metadata(None, None, Some(album.clone()));
-            }
+            apply_media_update(
+                state,
+                audio_engine,
+                None,
+                &extract_media_update(&plist::Value::Dictionary(dict.clone())),
+            );
             if let Some(plist::Value::Data(artwork)) = dict.get("artwork") {
                 state.set_diagnostic("artwork_size", artwork.len().to_string());
             }
-            if let Some(plist::Value::Real(progress)) = dict.get("progress") {
-                state.set_progress_ms((progress * 1000.0) as u64);
-            }
-            if let Some(plist::Value::Real(duration)) = dict.get("duration") {
-                state.set_duration_ms((duration * 1000.0) as u64);
+            if let Some(db) = dict.get("volume").and_then(plist_real) {
+                state.set_airplay_volume(db);
+                audio_engine.set_volume_db(db);
             }
             // DACP / remote control identifiers
-            if let Some(plist::Value::String(dacp_id)) = dict.get("dacpID") {
-                state.set_diagnostic("dacp_id", dacp_id.clone());
-            }
-            if let Some(plist::Value::String(active_remote)) = dict.get("activeRemote") {
-                state.set_diagnostic("active_remote", active_remote.clone());
+            let dacp_id = dict.get("dacpID").and_then(plist::Value::as_string);
+            let active_remote = dict.get("activeRemote").and_then(plist::Value::as_string);
+            if dacp_id.is_some() || active_remote.is_some() || peer_addr.is_some() {
+                dacp.update_session(
+                    dacp_id.map(str::to_string),
+                    active_remote.map(str::to_string),
+                    peer_addr,
+                );
             }
         }
     } else if content_type.contains("text/parameters") {
@@ -1608,6 +1666,7 @@ fn apply_set_parameter(state: &AppState, request: &RtspRequest) {
             if let Some(value) = line.strip_prefix("volume:") {
                 if let Ok(db) = value.trim().parse::<f64>() {
                     state.set_airplay_volume(db);
+                    audio_engine.set_volume_db(db);
                 }
             } else if let Some(value) = line.strip_prefix("title:") {
                 title = Some(value.trim().to_string());
@@ -1617,9 +1676,10 @@ fn apply_set_parameter(state: &AppState, request: &RtspRequest) {
                 album = Some(value.trim().to_string());
             } else if let Some(value) = line.strip_prefix("Progress:") {
                 // Format: "Progress: position/duration"
-                if let Some(progress_str) = value.split('/').next() {
-                    if let Ok(pos) = progress_str.trim().parse::<f64>() {
-                        state.set_progress_ms((pos * 1000.0) as u64);
+                if let Some((progress, duration)) = parse_progress_parameter(value.trim()) {
+                    state.set_progress_ms(progress);
+                    if let Some(duration) = duration {
+                        state.set_duration_ms(duration);
                     }
                 }
             }
@@ -1628,7 +1688,13 @@ fn apply_set_parameter(state: &AppState, request: &RtspRequest) {
     }
 }
 
-fn apply_ap2_command(state: &AppState, request: &RtspRequest) {
+fn apply_ap2_command(
+    state: &AppState,
+    audio_engine: &AudioEngine,
+    player: &SharedPlayer,
+    dacp: &DacpController,
+    request: &RtspRequest,
+) {
     state.set_diagnostic("ap2_last_command_len", request.body.len().to_string());
     if let Ok(dict) = plist::from_bytes::<plist::Dictionary>(&request.body) {
         let keys = dict.keys().cloned().collect::<Vec<_>>().join(",");
@@ -1639,6 +1705,26 @@ fn apply_ap2_command(state: &AppState, request: &RtspRequest) {
             .or_else(|| dict.get("type").and_then(plist::Value::as_string));
         if let Some(command) = command {
             state.set_diagnostic("ap2_last_command", command.to_string());
+            apply_playback_command(state, audio_engine, player, command);
+            if is_navigation_alias(command) {
+                player.flush();
+                audio_engine.clear_output_samples();
+                state.clear_track_for_transition();
+            }
+            if let Some(dacp_command) = dacp_command_for_alias(command) {
+                spawn_dacp_source_command(dacp.clone(), dacp_command);
+            }
+        }
+        apply_media_update(
+            state,
+            audio_engine,
+            Some(player),
+            &extract_media_update(&plist::Value::Dictionary(dict.clone())),
+        );
+        if let Some(db) = find_volume_db(&plist::Value::Dictionary(dict.clone())) {
+            state.set_airplay_volume(db);
+            audio_engine.set_volume_db(db);
+            state.set_diagnostic("ap2_last_volume", db.to_string());
         }
         let params_keys = dict
             .get("params")
@@ -1654,6 +1740,17 @@ fn apply_ap2_command(state: &AppState, request: &RtspRequest) {
         );
         debug_ap2_mr_supported_commands(&dict);
     }
+}
+
+fn spawn_dacp_source_command(dacp: DacpController, dacp_command: &'static str) {
+    let Ok(handle) = tokio::runtime::Handle::try_current() else {
+        return;
+    };
+    handle.spawn(async move {
+        if let Err(err) = dacp.send(dacp_command).await {
+            warn!(%err, command = dacp_command, "DACP source command failed");
+        }
+    });
 }
 
 fn debug_ap2_mr_supported_commands(dict: &plist::Dictionary) {
@@ -1687,6 +1784,173 @@ fn debug_ap2_mr_supported_commands(dict: &plist::Dictionary) {
         first = ?summaries,
         "AP2 MR supported commands from sender"
     );
+}
+
+#[derive(Default)]
+struct MediaUpdate {
+    title: Option<String>,
+    artist: Option<String>,
+    album: Option<String>,
+    progress_ms: Option<u64>,
+    duration_ms: Option<u64>,
+}
+
+fn apply_media_update(
+    state: &AppState,
+    audio_engine: &AudioEngine,
+    player: Option<&SharedPlayer>,
+    update: &MediaUpdate,
+) {
+    let title_changed = update
+        .title
+        .as_ref()
+        .is_some_and(|title| state.snapshot().track.title.as_ref() != Some(title));
+    if title_changed {
+        audio_engine.clear_output_samples();
+        if let Some(player) = player {
+            player.flush();
+        }
+    }
+    if update.title.is_some() || update.artist.is_some() || update.album.is_some() {
+        state.set_track_metadata(
+            update.title.clone(),
+            update.artist.clone(),
+            update.album.clone(),
+        );
+    }
+    if let Some(duration_ms) = update.duration_ms {
+        state.set_duration_ms(duration_ms);
+    }
+    if let Some(progress_ms) = update.progress_ms {
+        state.set_progress_ms(progress_ms);
+    }
+}
+
+fn extract_media_update(value: &plist::Value) -> MediaUpdate {
+    let mut update = MediaUpdate::default();
+    collect_media_update(value, None, &mut update);
+    update
+}
+
+fn collect_media_update(value: &plist::Value, key: Option<&str>, update: &mut MediaUpdate) {
+    match value {
+        plist::Value::Dictionary(dict) => {
+            for (child_key, child_value) in dict {
+                collect_media_update(child_value, Some(child_key), update);
+            }
+        }
+        plist::Value::Array(values) => {
+            for child_value in values {
+                collect_media_update(child_value, key, update);
+            }
+        }
+        plist::Value::String(text) => {
+            let Some(key) = key else {
+                return;
+            };
+            let normalized = key.to_ascii_lowercase();
+            let text = text.trim();
+            if text.is_empty() {
+                return;
+            }
+            match normalized.as_str() {
+                "title" | "tracktitle" | "minm" | "itemtitle" => {
+                    update.title = Some(text.to_string());
+                }
+                "artist" | "trackartist" | "asar" | "itemartist" => {
+                    update.artist = Some(text.to_string());
+                }
+                "album" | "trackalbum" | "asal" | "itemalbum" => {
+                    update.album = Some(text.to_string());
+                }
+                "progress" | "prgr" => {
+                    if let Some((progress_ms, duration_ms)) = parse_progress_parameter(text) {
+                        update.progress_ms = Some(progress_ms);
+                        update.duration_ms = duration_ms.or(update.duration_ms);
+                    }
+                }
+                _ => {}
+            }
+        }
+        plist::Value::Real(value) => {
+            collect_numeric_media_update(key, *value, update);
+        }
+        plist::Value::Integer(value) => {
+            if let Some(value) = value.as_signed() {
+                collect_numeric_media_update(key, value as f64, update);
+            } else if let Some(value) = value.as_unsigned() {
+                collect_numeric_media_update(key, value as f64, update);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn collect_numeric_media_update(key: Option<&str>, value: f64, update: &mut MediaUpdate) {
+    let Some(key) = key else {
+        return;
+    };
+    if !value.is_finite() || value < 0.0 {
+        return;
+    }
+    let normalized = key.to_ascii_lowercase();
+    let ms = numeric_time_to_ms(value);
+    if normalized.contains("duration") || normalized == "total" || normalized == "endtime" {
+        update.duration_ms = Some(ms);
+    } else if normalized.contains("progress")
+        || normalized.contains("elapsed")
+        || normalized.contains("position")
+        || normalized == "time"
+        || normalized == "currenttime"
+    {
+        update.progress_ms = Some(ms);
+    }
+}
+
+fn numeric_time_to_ms(value: f64) -> u64 {
+    if value > 10_000.0 {
+        value.round() as u64
+    } else {
+        (value * 1000.0).round() as u64
+    }
+}
+
+fn parse_progress_parameter(value: &str) -> Option<(u64, Option<u64>)> {
+    let parts = value
+        .split('/')
+        .filter_map(|part| part.trim().parse::<u64>().ok())
+        .collect::<Vec<_>>();
+    match parts.as_slice() {
+        [start, current, end, ..] => {
+            let progress = current.saturating_sub(*start) * 1000 / 44_100;
+            let duration = end.checked_sub(*start).map(|frames| frames * 1000 / 44_100);
+            Some((progress, duration))
+        }
+        [current, end] => Some((current * 1000 / 44_100, Some(end * 1000 / 44_100))),
+        [current] => Some((*current * 1000 / 44_100, None)),
+        _ => None,
+    }
+}
+
+fn find_volume_db(value: &plist::Value) -> Option<f64> {
+    match value {
+        plist::Value::Dictionary(dict) => {
+            for (key, value) in dict {
+                let key = key.to_ascii_lowercase();
+                if key.contains("volume")
+                    && let Some(db) = plist_real(value)
+                {
+                    return Some(db);
+                }
+                if let Some(db) = find_volume_db(value) {
+                    return Some(db);
+                }
+            }
+            None
+        }
+        plist::Value::Array(values) => values.iter().find_map(find_volume_db),
+        _ => None,
+    }
 }
 
 fn debug_ap2_embedded_command_summary(idx: usize, data: &[u8]) -> String {
@@ -1760,7 +2024,12 @@ fn apply_audio_mode(state: &AppState, request: &RtspRequest) {
     }
 }
 
-fn apply_setrateanchortime(state: &AppState, player: &SharedPlayer, request: &RtspRequest) {
+fn apply_setrateanchortime(
+    state: &AppState,
+    audio_engine: &AudioEngine,
+    player: &SharedPlayer,
+    request: &RtspRequest,
+) {
     state.set_diagnostic("ap2_phase", "setrateanchortime");
     let Ok(dict) = plist::from_bytes::<plist::Dictionary>(&request.body) else {
         warn!("SETRATEANCHORTIME missing or invalid plist body");
@@ -1786,18 +2055,77 @@ fn apply_setrateanchortime(state: &AppState, player: &SharedPlayer, request: &Rt
         let sample_rate = state.alac_sample_rate.read().unwrap_or(44_100);
         player.set_sample_rate(sample_rate);
         player.start(0);
+        audio_engine.set_playback_enabled(true);
         state.set_player_state(PlayerState::Playing);
         state.set_diagnostic("ap2_play_enabled", "true");
     } else {
         player.flush();
+        audio_engine.set_playback_enabled(false);
         state.set_player_state(PlayerState::Paused);
         state.set_diagnostic("ap2_play_enabled", "false");
     }
 }
 
+fn apply_playback_command(
+    state: &AppState,
+    audio_engine: &AudioEngine,
+    player: &SharedPlayer,
+    command: &str,
+) -> bool {
+    let normalized = command.to_ascii_lowercase();
+    if normalized.contains("toggle") {
+        return match state.snapshot().player_state {
+            PlayerState::Playing => pause_playback(state, audio_engine, player),
+            _ => play_playback(state, audio_engine, player),
+        };
+    }
+    if normalized.contains("pause") {
+        return pause_playback(state, audio_engine, player);
+    }
+    if normalized.contains("stop") {
+        return stop_playback(state, audio_engine, player);
+    }
+    if normalized.contains("play") || normalized.contains("resume") {
+        return play_playback(state, audio_engine, player);
+    }
+    false
+}
+
+fn play_playback(state: &AppState, audio_engine: &AudioEngine, player: &SharedPlayer) -> bool {
+    let sample_rate = state.alac_sample_rate.read().unwrap_or(44_100);
+    player.set_sample_rate(sample_rate);
+    player.start(0);
+    audio_engine.set_playback_enabled(true);
+    state.set_player_state(PlayerState::Playing);
+    true
+}
+
+fn pause_playback(state: &AppState, audio_engine: &AudioEngine, player: &SharedPlayer) -> bool {
+    player.flush();
+    audio_engine.set_playback_enabled(false);
+    state.set_player_state(PlayerState::Paused);
+    true
+}
+
+fn stop_playback(state: &AppState, audio_engine: &AudioEngine, player: &SharedPlayer) -> bool {
+    player.stop();
+    audio_engine.set_playback_enabled(false);
+    state.set_player_state(PlayerState::Stopped);
+    true
+}
+
 fn plist_uint(value: &plist::Value) -> Option<u64> {
     match value {
         plist::Value::Integer(i) => i.as_unsigned(),
+        _ => None,
+    }
+}
+
+fn plist_real(value: &plist::Value) -> Option<f64> {
+    match value {
+        plist::Value::Real(v) => Some(*v),
+        plist::Value::Integer(i) => i.as_signed().map(|v| v as f64),
+        plist::Value::String(v) => v.parse().ok(),
         _ => None,
     }
 }
@@ -2194,12 +2522,177 @@ mod tests {
     }
 
     #[test]
+    fn set_parameter_volume_updates_state_and_audio_gain() {
+        let config = crate::config::Config::default();
+        let state = AppState::new(config);
+        let audio_engine = AudioEngine::new(8);
+        let mut headers = BTreeMap::new();
+        headers.insert("Content-Type".to_string(), "text/parameters".to_string());
+        let request = RtspRequest {
+            method: "SET_PARAMETER".to_string(),
+            uri: "rtsp://x".to_string(),
+            version: "RTSP/1.0".to_string(),
+            headers,
+            body: b"volume: -6.0\r\n".to_vec(),
+        };
+
+        let dacp = DacpController::disabled(state.clone());
+        apply_set_parameter(&state, &audio_engine, &dacp, None, &request);
+
+        assert_eq!(state.snapshot().volume.airplay_db, -6.0);
+        assert_eq!(audio_engine.enqueue_interleaved(&[1.0]), 1);
+        let mut out = [0.0];
+        audio_engine.fill_output(&mut out);
+        assert!((out[0] - 0.501_187_2).abs() < 0.000_01);
+    }
+
+    #[test]
+    fn text_progress_uses_airplay_rtp_timestamps() {
+        let config = crate::config::Config::default();
+        let state = AppState::new(config);
+        let audio_engine = AudioEngine::new(8);
+        let dacp = DacpController::disabled(state.clone());
+        let mut headers = BTreeMap::new();
+        headers.insert("Content-Type".to_string(), "text/parameters".to_string());
+        let request = RtspRequest {
+            method: "SET_PARAMETER".to_string(),
+            uri: "rtsp://x".to_string(),
+            version: "RTSP/1.0".to_string(),
+            headers,
+            body: b"Progress: 44100/88200/176400\r\n".to_vec(),
+        };
+
+        apply_set_parameter(&state, &audio_engine, &dacp, None, &request);
+
+        assert_eq!(state.snapshot().track.progress_ms, Some(1_000));
+        assert_eq!(state.snapshot().track.duration_ms, Some(3_000));
+    }
+
+    #[test]
+    fn ap2_command_pause_and_play_gate_audio_engine() {
+        let config = crate::config::Config::default();
+        let state = AppState::new(config);
+        let audio_engine = AudioEngine::new(8);
+        let player = SharedPlayer::new();
+        let dacp = DacpController::disabled(state.clone());
+
+        let pause = ap2_command_request("pause");
+        apply_ap2_command(&state, &audio_engine, &player, &dacp, &pause);
+
+        assert!(matches!(state.snapshot().player_state, PlayerState::Paused));
+        assert_eq!(audio_engine.enqueue_interleaved(&[1.0]), 0);
+
+        let play = ap2_command_request("play");
+        apply_ap2_command(&state, &audio_engine, &player, &dacp, &play);
+
+        assert!(matches!(
+            state.snapshot().player_state,
+            PlayerState::Playing
+        ));
+        assert_eq!(audio_engine.enqueue_interleaved(&[1.0]), 1);
+    }
+
+    #[test]
+    fn navigation_command_flushes_stale_track_and_audio() {
+        let config = crate::config::Config::default();
+        let state = AppState::new(config);
+        state.set_track_metadata(Some("Old song".to_string()), None, None);
+        state.set_progress_ms(42_000);
+        let audio_engine = AudioEngine::new(8);
+        assert_eq!(audio_engine.enqueue_interleaved(&[1.0, 1.0, 1.0]), 3);
+        let player = SharedPlayer::new();
+        let dacp = DacpController::disabled(state.clone());
+
+        let next = ap2_command_request("next");
+        apply_ap2_command(&state, &audio_engine, &player, &dacp, &next);
+
+        let snapshot = state.snapshot();
+        assert_eq!(snapshot.track.title, None);
+        assert_eq!(snapshot.track.progress_ms, Some(0));
+        assert_eq!(audio_engine.status().queued_samples, 0);
+    }
+
+    #[test]
+    fn ap2_command_recursively_updates_now_playing_metadata() {
+        let config = crate::config::Config::default();
+        let state = AppState::new(config);
+        state.set_track_metadata(Some("Old song".to_string()), None, None);
+        let audio_engine = AudioEngine::new(8);
+        assert_eq!(audio_engine.enqueue_interleaved(&[1.0, 1.0, 1.0]), 3);
+        let player = SharedPlayer::new();
+        let dacp = DacpController::disabled(state.clone());
+
+        let mut item = plist::Dictionary::new();
+        item.insert(
+            "title".to_string(),
+            plist::Value::String("New song".to_string()),
+        );
+        item.insert(
+            "artist".to_string(),
+            plist::Value::String("Singer".to_string()),
+        );
+        item.insert(
+            "album".to_string(),
+            plist::Value::String("Record".to_string()),
+        );
+        item.insert("elapsedTime".to_string(), plist::Value::Real(12.5));
+        item.insert("duration".to_string(), plist::Value::Real(240.0));
+        let mut params = plist::Dictionary::new();
+        params.insert(
+            "contentItems".to_string(),
+            plist::Value::Array(vec![plist::Value::Dictionary(item)]),
+        );
+        let mut command = plist::Dictionary::new();
+        command.insert(
+            "type".to_string(),
+            plist::Value::String("updateContentItem".to_string()),
+        );
+        command.insert("params".to_string(), plist::Value::Dictionary(params));
+        let mut body = Vec::new();
+        plist::to_writer_binary(&mut body, &plist::Value::Dictionary(command)).unwrap();
+        let request = RtspRequest {
+            method: "POST".to_string(),
+            uri: "/command".to_string(),
+            version: "RTSP/1.0".to_string(),
+            headers: BTreeMap::new(),
+            body,
+        };
+
+        apply_ap2_command(&state, &audio_engine, &player, &dacp, &request);
+
+        let track = state.snapshot().track;
+        assert_eq!(track.title.as_deref(), Some("New song"));
+        assert_eq!(track.artist.as_deref(), Some("Singer"));
+        assert_eq!(track.album.as_deref(), Some("Record"));
+        assert_eq!(track.progress_ms, Some(12_500));
+        assert_eq!(track.duration_ms, Some(240_000));
+        assert_eq!(audio_engine.status().queued_samples, 0);
+    }
+
+    #[test]
     fn serializes_cseq_response() {
         let (request, _) = parse_request(b"OPTIONS * RTSP/1.0\r\nCSeq: 1\r\n\r\n").unwrap();
         let bytes = response(200, "OK").with_cseq(&request).to_bytes();
         let text = String::from_utf8(bytes).unwrap();
         assert!(text.contains("RTSP/1.0 200 OK"));
         assert!(text.contains("CSeq: 1"));
+    }
+
+    fn ap2_command_request(command: &str) -> RtspRequest {
+        let mut dict = plist::Dictionary::new();
+        dict.insert(
+            "command".to_string(),
+            plist::Value::String(command.to_string()),
+        );
+        let mut body = Vec::new();
+        plist::to_writer_binary(&mut body, &plist::Value::Dictionary(dict)).unwrap();
+        RtspRequest {
+            method: "POST".to_string(),
+            uri: "/command".to_string(),
+            version: "RTSP/1.0".to_string(),
+            headers: BTreeMap::new(),
+            body,
+        }
     }
 
     #[test]
@@ -2265,12 +2758,14 @@ mod tests {
         };
 
         let audio_engine = AudioEngine::new(1024);
+        let dacp = DacpController::disabled(state.clone());
         let response = handle_ap2_setup(
             &config.airplay,
             &state,
             &mut session,
             &request,
             &audio_engine,
+            &dacp,
         );
         let parsed: plist::Dictionary = plist::from_bytes(&response.body).unwrap();
         let streams = parsed

@@ -1,5 +1,6 @@
 pub mod buffered_audio;
 pub mod crypto;
+pub mod dacp;
 pub mod metadata;
 pub mod pairing;
 pub mod rtp;

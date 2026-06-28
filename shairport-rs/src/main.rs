@@ -94,6 +94,7 @@ async fn main() -> anyhow::Result<()> {
     let audio_manager = audio::AudioManager::new(config.audio.clone());
     let audio_engine = audio::AudioEngine::new(48_000 * 2 * 4);
     let player = player::SharedPlayer::new();
+    let dacp = airplay::dacp::DacpController::new(app_state.clone());
     app_state.update_audio_devices(audio_manager.list_devices());
     let audio_output = match audio_manager.start_output(audio_engine.clone()) {
         Ok(output) => Some(output),
@@ -135,6 +136,7 @@ async fn main() -> anyhow::Result<()> {
                 app_state.clone(),
                 audio_engine.clone(),
                 player.clone(),
+                dacp.clone(),
             )
             .await?,
         )
@@ -176,6 +178,7 @@ async fn main() -> anyhow::Result<()> {
         audio_manager,
         audio_engine,
         mdns_advertiser,
+        dacp,
     );
     let router = Router::new()
         .merge(api::router(api_context))

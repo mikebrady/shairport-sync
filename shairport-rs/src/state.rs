@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, sync::Arc, time::SystemTime};
+use std::{collections::BTreeMap, net::SocketAddr, sync::Arc, time::SystemTime};
 
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -29,12 +29,13 @@ pub struct StateSnapshot {
     pub volume: VolumeState,
     pub audio: AudioState,
     pub rtp: RtpState,
+    pub remote_control: RemoteControlState,
     pub mdns: MdnsState,
     pub ptp: PtpState,
     pub diagnostics: BTreeMap<String, String>,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum PlayerState {
     Stopped,
@@ -51,6 +52,7 @@ pub struct TrackInfo {
     pub progress_ms: Option<u64>,
     pub duration_ms: Option<u64>,
     pub client_name: Option<String>,
+    pub progress_updated_at: Option<SystemTime>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -82,6 +84,16 @@ pub struct RtpState {
     pub last_audio_sequence: Option<u16>,
     pub last_audio_timestamp: Option<u32>,
     pub last_audio_ssrc: Option<u32>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct RemoteControlState {
+    pub dacp_id: Option<String>,
+    pub active_remote: Option<String>,
+    pub peer_addr: Option<String>,
+    pub dacp_addr: Option<String>,
+    pub last_status: Option<String>,
+    pub last_error: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -138,6 +150,7 @@ impl AppState {
                 timing_port: config.airplay.timing_port,
                 ..RtpState::default()
             },
+            remote_control: RemoteControlState::default(),
             mdns: MdnsState {
                 backend: config.mdns.backend.to_string(),
                 ..MdnsState::default()
@@ -219,7 +232,10 @@ impl AppState {
     }
 
     pub fn set_progress_ms(&self, progress_ms: u64) {
-        self.mutate(|state| state.track.progress_ms = Some(progress_ms));
+        self.mutate(|state| {
+            state.track.progress_ms = Some(progress_ms);
+            state.track.progress_updated_at = Some(SystemTime::now());
+        });
     }
 
     pub fn set_duration_ms(&self, duration_ms: u64) {
@@ -233,6 +249,14 @@ impl AppState {
         album: Option<String>,
     ) {
         self.mutate(|state| {
+            let title_changed = title
+                .as_ref()
+                .is_some_and(|title| state.track.title.as_ref() != Some(title));
+            if title_changed {
+                state.track.progress_ms = None;
+                state.track.duration_ms = None;
+                state.track.progress_updated_at = None;
+            }
             if title.is_some() {
                 state.track.title = title;
             }
@@ -242,6 +266,18 @@ impl AppState {
             if album.is_some() {
                 state.track.album = album;
             }
+        });
+    }
+
+    pub fn clear_track_for_transition(&self) {
+        self.mutate(|state| {
+            let client_name = state.track.client_name.clone();
+            state.track = TrackInfo {
+                client_name,
+                progress_ms: Some(0),
+                progress_updated_at: Some(SystemTime::now()),
+                ..TrackInfo::default()
+            };
         });
     }
 
@@ -299,6 +335,62 @@ impl AppState {
     pub fn set_diagnostic(&self, key: impl Into<String>, value: impl Into<String>) {
         self.mutate(|state| {
             state.diagnostics.insert(key.into(), value.into());
+        });
+    }
+
+    pub fn set_remote_control_session(
+        &self,
+        dacp_id: Option<String>,
+        active_remote: Option<String>,
+        peer_addr: Option<SocketAddr>,
+    ) {
+        self.mutate(|state| {
+            if let Some(dacp_id) = dacp_id {
+                state.diagnostics.insert("dacp_id".into(), dacp_id.clone());
+                if state.remote_control.dacp_id.as_deref() != Some(dacp_id.as_str()) {
+                    state.remote_control.dacp_addr = None;
+                }
+                state.remote_control.dacp_id = Some(dacp_id);
+            }
+            if let Some(active_remote) = active_remote {
+                state
+                    .diagnostics
+                    .insert("active_remote".into(), active_remote.clone());
+                state.remote_control.active_remote = Some(active_remote);
+            }
+            if let Some(peer_addr) = peer_addr {
+                state.remote_control.peer_addr = Some(peer_addr.to_string());
+            }
+            state.remote_control.last_error = None;
+        });
+    }
+
+    pub fn clear_remote_control_session(&self) {
+        self.mutate(|state| {
+            state.remote_control = RemoteControlState::default();
+            state.diagnostics.remove("dacp_id");
+            state.diagnostics.remove("active_remote");
+        });
+    }
+
+    pub fn set_dacp_endpoint(&self, endpoint: Option<SocketAddr>) {
+        self.mutate(|state| {
+            state.remote_control.dacp_addr = endpoint.map(|addr| addr.to_string());
+        });
+    }
+
+    pub fn set_dacp_status(&self, status: String) {
+        self.mutate(|state| {
+            state.remote_control.last_status = Some(status.clone());
+            state.remote_control.last_error = None;
+            state.diagnostics.insert("dacp_status".into(), status);
+        });
+    }
+
+    pub fn set_dacp_error(&self, error: String) {
+        self.mutate(|state| {
+            state.remote_control.last_error = Some(error.clone());
+            state.diagnostics.insert("dacp_error".into(), error);
         });
     }
 
