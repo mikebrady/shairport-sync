@@ -905,7 +905,7 @@ fn route_request(
             let rate = state.alac_sample_rate.read().unwrap_or(44100);
             player.set_sample_rate(rate);
             player.start(latency);
-            audio_engine.set_playback_enabled(true);
+            enable_audio_when_track_ready(state, audio_engine);
             state.set_player_state(PlayerState::Playing);
             state.set_diagnostic("ap1_latency", latency.to_string());
             info!(latency, "AP1 RECORD");
@@ -1362,7 +1362,7 @@ fn handle_ap2_setup(
                     stream_dict.insert("dataPort".to_string(), plist_uint_value(data_port));
                     stream_dict.insert("controlPort".to_string(), plist_uint_value(control_port));
                     state.set_active(true);
-                    audio_engine.set_playback_enabled(true);
+                    enable_audio_when_track_ready(state, audio_engine);
                     state.set_player_state(PlayerState::Playing);
                     state.set_diagnostic("ap2_stream_type", "realtime");
                     state.set_diagnostic("ap2_realtime_audio_port", data_port.to_string());
@@ -1439,7 +1439,7 @@ fn handle_ap2_setup(
                         plist_uint_value(8 * 1024 * 1024u64),
                     );
                     state.set_active(true);
-                    audio_engine.set_playback_enabled(true);
+                    enable_audio_when_track_ready(state, audio_engine);
                     state.set_player_state(PlayerState::Playing);
                     state.set_diagnostic("ap2_stream_type", "buffered");
                     state.set_diagnostic("ap2_buffered_audio_port", data_port.to_string());
@@ -1708,7 +1708,7 @@ fn apply_ap2_command(
             apply_playback_command(state, audio_engine, player, command);
             if is_navigation_alias(command) {
                 player.flush();
-                audio_engine.clear_output_samples();
+                audio_engine.set_playback_enabled(false);
                 state.clear_track_for_transition();
             }
             if let Some(dacp_command) = dacp_command_for_alias(command) {
@@ -1806,10 +1806,15 @@ fn apply_media_update(
         .as_ref()
         .is_some_and(|title| state.snapshot().track.title.as_ref() != Some(title));
     if title_changed {
+        let was_waiting_for_title = state.is_waiting_for_track_title();
         audio_engine.clear_output_samples();
         if let Some(player) = player {
             player.flush();
         }
+        state.set_diagnostic(
+            "track_title_released_playback",
+            (was_waiting_for_title && update.title.is_some()).to_string(),
+        );
     }
     if update.title.is_some() || update.artist.is_some() || update.album.is_some() {
         state.set_track_metadata(
@@ -1817,6 +1822,9 @@ fn apply_media_update(
             update.artist.clone(),
             update.album.clone(),
         );
+    }
+    if title_changed && update.title.is_some() {
+        enable_audio_when_track_ready(state, audio_engine);
     }
     if let Some(duration_ms) = update.duration_ms {
         state.set_duration_ms(duration_ms);
@@ -2055,7 +2063,7 @@ fn apply_setrateanchortime(
         let sample_rate = state.alac_sample_rate.read().unwrap_or(44_100);
         player.set_sample_rate(sample_rate);
         player.start(0);
-        audio_engine.set_playback_enabled(true);
+        enable_audio_when_track_ready(state, audio_engine);
         state.set_player_state(PlayerState::Playing);
         state.set_diagnostic("ap2_play_enabled", "true");
     } else {
@@ -2095,8 +2103,19 @@ fn play_playback(state: &AppState, audio_engine: &AudioEngine, player: &SharedPl
     let sample_rate = state.alac_sample_rate.read().unwrap_or(44_100);
     player.set_sample_rate(sample_rate);
     player.start(0);
-    audio_engine.set_playback_enabled(true);
+    enable_audio_when_track_ready(state, audio_engine);
     state.set_player_state(PlayerState::Playing);
+    true
+}
+
+fn enable_audio_when_track_ready(state: &AppState, audio_engine: &AudioEngine) -> bool {
+    if state.is_waiting_for_track_title() {
+        state.set_diagnostic("audio_waiting_for_track_title", "true");
+        audio_engine.clear_output_samples();
+        return false;
+    }
+    state.set_diagnostic("audio_waiting_for_track_title", "false");
+    audio_engine.set_playback_enabled(true);
     true
 }
 
@@ -2598,6 +2617,12 @@ mod tests {
         let state = AppState::new(config);
         state.set_track_metadata(Some("Old song".to_string()), None, None);
         state.set_progress_ms(42_000);
+        *state.ap2_audio_format.write() = Some(AudioFormat::Aac44100F24Stereo);
+        *state.alac_sample_rate.write() = Some(44_100);
+        *state.alac_sample_size.write() = Some(16);
+        *state.alac_channels.write() = Some(2);
+        *state.frames_per_packet.write() = Some(352);
+        let epoch = state.track_transition_epoch();
         let audio_engine = AudioEngine::new(8);
         assert_eq!(audio_engine.enqueue_interleaved(&[1.0, 1.0, 1.0]), 3);
         let player = SharedPlayer::new();
@@ -2609,7 +2634,48 @@ mod tests {
         let snapshot = state.snapshot();
         assert_eq!(snapshot.track.title, None);
         assert_eq!(snapshot.track.progress_ms, Some(0));
+        assert!(snapshot.track.awaiting_title);
         assert_eq!(audio_engine.status().queued_samples, 0);
+        assert_eq!(audio_engine.enqueue_interleaved(&[0.5]), 0);
+        assert!(state.ap2_audio_format.read().is_none());
+        assert!(state.alac_sample_rate.read().is_none());
+        assert!(state.alac_sample_size.read().is_none());
+        assert!(state.alac_channels.read().is_none());
+        assert!(state.frames_per_packet.read().is_none());
+        assert!(state.track_transition_epoch() > epoch);
+    }
+
+    #[test]
+    fn track_transition_blocks_rate_start_until_new_title_arrives() {
+        let config = crate::config::Config::default();
+        let state = AppState::new(config);
+        state.set_track_metadata(Some("Old song".to_string()), None, None);
+        let audio_engine = AudioEngine::new(8);
+        let player = SharedPlayer::new();
+        let dacp = DacpController::disabled(state.clone());
+
+        apply_ap2_command(
+            &state,
+            &audio_engine,
+            &player,
+            &dacp,
+            &ap2_command_request("next"),
+        );
+        apply_setrateanchortime(
+            &state,
+            &audio_engine,
+            &player,
+            &setrateanchortime_request(1),
+        );
+
+        assert!(state.snapshot().track.awaiting_title);
+        assert_eq!(audio_engine.enqueue_interleaved(&[0.5]), 0);
+
+        let metadata = ap2_now_playing_request("New song", "Singer", "Record");
+        apply_ap2_command(&state, &audio_engine, &player, &dacp, &metadata);
+
+        assert!(!state.snapshot().track.awaiting_title);
+        assert_eq!(audio_engine.enqueue_interleaved(&[0.5]), 1);
     }
 
     #[test]
@@ -2622,41 +2688,7 @@ mod tests {
         let player = SharedPlayer::new();
         let dacp = DacpController::disabled(state.clone());
 
-        let mut item = plist::Dictionary::new();
-        item.insert(
-            "title".to_string(),
-            plist::Value::String("New song".to_string()),
-        );
-        item.insert(
-            "artist".to_string(),
-            plist::Value::String("Singer".to_string()),
-        );
-        item.insert(
-            "album".to_string(),
-            plist::Value::String("Record".to_string()),
-        );
-        item.insert("elapsedTime".to_string(), plist::Value::Real(12.5));
-        item.insert("duration".to_string(), plist::Value::Real(240.0));
-        let mut params = plist::Dictionary::new();
-        params.insert(
-            "contentItems".to_string(),
-            plist::Value::Array(vec![plist::Value::Dictionary(item)]),
-        );
-        let mut command = plist::Dictionary::new();
-        command.insert(
-            "type".to_string(),
-            plist::Value::String("updateContentItem".to_string()),
-        );
-        command.insert("params".to_string(), plist::Value::Dictionary(params));
-        let mut body = Vec::new();
-        plist::to_writer_binary(&mut body, &plist::Value::Dictionary(command)).unwrap();
-        let request = RtspRequest {
-            method: "POST".to_string(),
-            uri: "/command".to_string(),
-            version: "RTSP/1.0".to_string(),
-            headers: BTreeMap::new(),
-            body,
-        };
+        let request = ap2_now_playing_request("New song", "Singer", "Record");
 
         apply_ap2_command(&state, &audio_engine, &player, &dacp, &request);
 
@@ -2689,6 +2721,52 @@ mod tests {
         RtspRequest {
             method: "POST".to_string(),
             uri: "/command".to_string(),
+            version: "RTSP/1.0".to_string(),
+            headers: BTreeMap::new(),
+            body,
+        }
+    }
+
+    fn ap2_now_playing_request(title: &str, artist: &str, album: &str) -> RtspRequest {
+        let mut item = plist::Dictionary::new();
+        item.insert("title".to_string(), plist::Value::String(title.to_string()));
+        item.insert(
+            "artist".to_string(),
+            plist::Value::String(artist.to_string()),
+        );
+        item.insert("album".to_string(), plist::Value::String(album.to_string()));
+        item.insert("elapsedTime".to_string(), plist::Value::Real(12.5));
+        item.insert("duration".to_string(), plist::Value::Real(240.0));
+        let mut params = plist::Dictionary::new();
+        params.insert(
+            "contentItems".to_string(),
+            plist::Value::Array(vec![plist::Value::Dictionary(item)]),
+        );
+        let mut command = plist::Dictionary::new();
+        command.insert(
+            "type".to_string(),
+            plist::Value::String("updateContentItem".to_string()),
+        );
+        command.insert("params".to_string(), plist::Value::Dictionary(params));
+        let mut body = Vec::new();
+        plist::to_writer_binary(&mut body, &plist::Value::Dictionary(command)).unwrap();
+        RtspRequest {
+            method: "POST".to_string(),
+            uri: "/command".to_string(),
+            version: "RTSP/1.0".to_string(),
+            headers: BTreeMap::new(),
+            body,
+        }
+    }
+
+    fn setrateanchortime_request(rate: u64) -> RtspRequest {
+        let mut dict = plist::Dictionary::new();
+        dict.insert("rate".to_string(), plist_uint_value(rate));
+        let mut body = Vec::new();
+        plist::to_writer_binary(&mut body, &plist::Value::Dictionary(dict)).unwrap();
+        RtspRequest {
+            method: "SETRATEANCHORTIME".to_string(),
+            uri: "rtsp://example/session".to_string(),
             version: "RTSP/1.0".to_string(),
             headers: BTreeMap::new(),
             body,

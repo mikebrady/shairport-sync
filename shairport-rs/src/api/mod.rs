@@ -196,7 +196,7 @@ async fn apply_remote_command(context: &ApiContext, command: String) -> CommandR
         match context.dacp.send(dacp_command).await {
             Ok(result) => {
                 if is_navigation_alias(&command) {
-                    context.audio_engine.clear_output_samples();
+                    context.audio_engine.set_playback_enabled(false);
                     context.state.clear_track_for_transition();
                 }
                 return CommandResponse {
@@ -279,7 +279,7 @@ fn estimated_progress_ms(snapshot: &StateSnapshot) -> Option<u64> {
 fn apply_local_remote_command(context: &ApiContext, command: &str) -> bool {
     match command.to_ascii_lowercase().as_str() {
         "play" | "resume" => {
-            context.audio_engine.set_playback_enabled(true);
+            enable_local_playback_when_track_ready(context);
             context
                 .state
                 .set_player_state(crate::state::PlayerState::Playing);
@@ -308,7 +308,7 @@ fn apply_local_remote_command(context: &ApiContext, command: &str) -> bool {
                 true
             }
             _ => {
-                context.audio_engine.set_playback_enabled(true);
+                enable_local_playback_when_track_ready(context);
                 context
                     .state
                     .set_player_state(crate::state::PlayerState::Playing);
@@ -317,6 +317,21 @@ fn apply_local_remote_command(context: &ApiContext, command: &str) -> bool {
         },
         _ => false,
     }
+}
+
+fn enable_local_playback_when_track_ready(context: &ApiContext) -> bool {
+    if context.state.is_waiting_for_track_title() {
+        context
+            .state
+            .set_diagnostic("audio_waiting_for_track_title", "true");
+        context.audio_engine.clear_output_samples();
+        return false;
+    }
+    context
+        .state
+        .set_diagnostic("audio_waiting_for_track_title", "false");
+    context.audio_engine.set_playback_enabled(true);
+    true
 }
 
 async fn events(State(context): State<ApiContext>, ws: WebSocketUpgrade) -> Response {

@@ -62,6 +62,7 @@ async fn bind_audio_channel(
         // AES-CBC uses chaining IV: start with aesiv from SDP, update per packet
         let iv: Arc<RwLock<Option<[u8; 16]>>> = Arc::new(RwLock::new(None));
         let mut audio_decoder: Option<codec::AudioDecoder> = None;
+        let mut decoder_epoch = state.track_transition_epoch();
 
         loop {
             match socket.recv_from(&mut buf).await {
@@ -73,6 +74,16 @@ async fn bind_audio_channel(
                     // Classic AP1 audio type: 0x60 (audio data) or 0x56 (resend)
                     if payload_type != 0x60 && payload_type != 0x56 {
                         continue;
+                    }
+                    let current_epoch = state.track_transition_epoch();
+                    if current_epoch != decoder_epoch {
+                        audio_decoder = None;
+                        *iv.write() = None;
+                        decoder_epoch = current_epoch;
+                        info!(
+                            epoch = decoder_epoch,
+                            "RTP audio decoder reset for track transition"
+                        );
                     }
 
                     let rtp_payload_len = len - 12;

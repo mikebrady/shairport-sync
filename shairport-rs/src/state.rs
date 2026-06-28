@@ -1,4 +1,12 @@
-use std::{collections::BTreeMap, net::SocketAddr, sync::Arc, time::SystemTime};
+use std::{
+    collections::BTreeMap,
+    net::SocketAddr,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::SystemTime,
+};
 
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -18,6 +26,7 @@ pub struct AppState {
     pub alac_sample_size: Arc<RwLock<Option<u32>>>,
     pub alac_channels: Arc<RwLock<Option<u16>>>,
     pub frames_per_packet: Arc<RwLock<Option<u32>>>,
+    pub track_transition_epoch: Arc<AtomicU64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -53,6 +62,7 @@ pub struct TrackInfo {
     pub duration_ms: Option<u64>,
     pub client_name: Option<String>,
     pub progress_updated_at: Option<SystemTime>,
+    pub awaiting_title: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -177,6 +187,7 @@ impl AppState {
             alac_sample_size: Arc::new(RwLock::new(None)),
             alac_channels: Arc::new(RwLock::new(None)),
             frames_per_packet: Arc::new(RwLock::new(None)),
+            track_transition_epoch: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -259,6 +270,10 @@ impl AppState {
             }
             if title.is_some() {
                 state.track.title = title;
+                state.track.awaiting_title = false;
+                state
+                    .diagnostics
+                    .insert("track_transition_waiting_title".into(), "false".into());
             }
             if artist.is_some() {
                 state.track.artist = artist;
@@ -270,15 +285,44 @@ impl AppState {
     }
 
     pub fn clear_track_for_transition(&self) {
+        self.reset_stream_format_for_transition();
         self.mutate(|state| {
             let client_name = state.track.client_name.clone();
             state.track = TrackInfo {
                 client_name,
                 progress_ms: Some(0),
                 progress_updated_at: Some(SystemTime::now()),
+                awaiting_title: true,
                 ..TrackInfo::default()
             };
+            state
+                .diagnostics
+                .insert("track_transition_waiting_title".into(), "true".into());
         });
+    }
+
+    pub fn track_transition_epoch(&self) -> u64 {
+        self.track_transition_epoch.load(Ordering::Acquire)
+    }
+
+    fn reset_stream_format_for_transition(&self) {
+        *self.ap2_audio_format.write() = None;
+        *self.alac_magic_cookie.write() = None;
+        *self.alac_sample_rate.write() = None;
+        *self.alac_sample_size.write() = None;
+        *self.alac_channels.write() = None;
+        *self.frames_per_packet.write() = None;
+        self.track_transition_epoch.fetch_add(1, Ordering::AcqRel);
+        self.mutate(|state| {
+            state.audio.source_format = None;
+            state
+                .diagnostics
+                .insert("stream_format_reset_for_track".into(), "true".into());
+        });
+    }
+
+    pub fn is_waiting_for_track_title(&self) -> bool {
+        self.inner.read().track.awaiting_title
     }
 
     pub fn set_mdns_running(&self, backend: String, service_types: Vec<String>) {

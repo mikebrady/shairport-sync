@@ -85,6 +85,7 @@ pub async fn handle_buffered_stream(
     let mut cipher = BufferedCipher::new(&session_key);
     info!("buffered audio: cipher initialized, reading first block");
     let mut audio_decoder: Option<(codec::AudioFormat, codec::AudioDecoder)> = None;
+    let mut decoder_epoch = state.track_transition_epoch();
     let mut block_count: u64 = 0;
     let mut first_block_logged = false;
 
@@ -155,6 +156,15 @@ pub async fn handle_buffered_stream(
         }
 
         block_count += 1;
+        let current_epoch = state.track_transition_epoch();
+        if current_epoch != decoder_epoch {
+            audio_decoder = None;
+            decoder_epoch = current_epoch;
+            info!(
+                epoch = decoder_epoch,
+                "buffered audio decoder reset for track transition"
+            );
+        }
         // AAD = timestamp(4) + SSRC(4) from the block header
         let mut aad_buf = [0u8; 8];
         aad_buf[..4].copy_from_slice(&timestamp.to_be_bytes());
