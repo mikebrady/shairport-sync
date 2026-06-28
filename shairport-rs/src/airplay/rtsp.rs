@@ -816,7 +816,7 @@ fn route_request(
         }
         ("POST", "/feedback") => {
             // Feedback endpoint for AP2 event/status updates
-            info!("received /feedback ({} bytes)", request.body.len());
+            debug!("received /feedback ({} bytes)", request.body.len());
             response(200, "OK").with_cseq(request)
         }
         ("POST", "/audioMode") => {
@@ -938,6 +938,9 @@ fn route_request(
                 state.set_player_state(PlayerState::Stopped);
                 session.abort_ap2_stream_listener(stream_type);
                 if stream_type == Ap2StreamType::BufferedAudio {
+                    player.flush();
+                    state.clear_track_for_transition();
+                    state.set_diagnostic("audio_waiting_for_track_title", "true");
                     *state.ap2_media_key.write() = None;
                     *state.ap2_audio_format.write() = None;
                     session.session_key = None;
@@ -1807,9 +1810,11 @@ fn apply_media_update(
         .is_some_and(|title| state.snapshot().track.title.as_ref() != Some(title));
     if title_changed {
         let was_waiting_for_title = state.is_waiting_for_track_title();
-        audio_engine.clear_output_samples();
-        if let Some(player) = player {
-            player.flush();
+        if !was_waiting_for_title {
+            audio_engine.clear_output_samples();
+            if let Some(player) = player {
+                player.flush();
+            }
         }
         state.set_diagnostic(
             "track_title_released_playback",

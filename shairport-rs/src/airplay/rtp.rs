@@ -155,6 +155,10 @@ async fn bind_audio_channel(
                         new_iv.copy_from_slice(&payload[last_block_start..last_block_start + 16]);
                         *iv.write() = Some(new_iv);
                     }
+                    if state.is_waiting_for_track_title() {
+                        debug!("RTP audio packet drained while waiting for new title");
+                        continue;
+                    }
 
                     if audio_decoder.is_none() {
                         let cookie = state.alac_magic_cookie.read().clone();

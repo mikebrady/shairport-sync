@@ -10,7 +10,7 @@ use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
 use socket2::{Domain, Protocol, Socket, Type};
 use tokio::{net::UdpSocket, task::JoinHandle};
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, trace, warn};
 
 use crate::{config::PtpConfig, state::AppState};
 
@@ -528,7 +528,7 @@ async fn run_general_socket(
                             }
                         }
                         PtpMessageType::Announce => {
-                            info!(
+                            debug!(
                                 clock = format_args!("{:016x}", message.clock_identity),
                                 domain = message.domain,
                                 "PTP master announced"

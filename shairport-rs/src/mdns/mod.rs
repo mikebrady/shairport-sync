@@ -1,11 +1,14 @@
 use std::{
+    env,
+    path::Path,
     process::{Child, Command},
     sync::Arc,
 };
 
-use anyhow::{Context, bail};
+use anyhow::{Context, anyhow, bail};
 use mdns_sd::{IfKind, ServiceDaemon, ServiceInfo};
 use parking_lot::Mutex;
+use tracing::{debug, warn};
 
 use crate::{
     airplay::txt_records::AirplayService,
@@ -14,6 +17,7 @@ use crate::{
 
 #[derive(Clone, Debug)]
 pub enum MdnsBackend {
+    Auto,
     Builtin,
     Avahi,
     DnsSd,
@@ -28,11 +32,13 @@ pub struct MdnsAdvertiser {
     builtin_daemons: Arc<Mutex<Vec<ServiceDaemon>>>,
     external_children: Arc<Mutex<Vec<Child>>>,
     published_services: Arc<Mutex<Vec<AirplayService>>>,
+    active_backend: Arc<Mutex<Option<MdnsBackend>>>,
 }
 
 impl MdnsBackend {
     pub fn from_config(config: &MdnsConfig) -> Self {
         match config.backend {
+            MdnsBackendName::Auto => Self::Auto,
             MdnsBackendName::Builtin => Self::Builtin,
             MdnsBackendName::Avahi => Self::Avahi,
             MdnsBackendName::DnsSd => Self::DnsSd,
@@ -50,22 +56,40 @@ impl MdnsAdvertiser {
             builtin_daemons: Arc::new(Mutex::new(Vec::new())),
             external_children: Arc::new(Mutex::new(Vec::new())),
             published_services: Arc::new(Mutex::new(Vec::new())),
+            active_backend: Arc::new(Mutex::new(None)),
         }
     }
 
     pub async fn publish(&self, services: Vec<AirplayService>) -> anyhow::Result<()> {
         // Store for later republish
         *self.published_services.lock() = services.clone();
-        match self.backend {
-            MdnsBackend::Builtin => self.publish_builtin(services).await,
+        let backend = match self.backend {
+            MdnsBackend::Auto => self.publish_auto(services).await?,
+            MdnsBackend::Builtin => {
+                self.publish_builtin(services).await?;
+                MdnsBackend::Builtin
+            }
             MdnsBackend::Avahi => {
                 self.publish_external_program("avahi-publish-service", services)
-                    .await
+                    .await?;
+                MdnsBackend::Avahi
             }
-            MdnsBackend::DnsSd => self.publish_external_program("dns-sd", services).await,
-            MdnsBackend::External => self.publish_configured_external(services).await,
-            MdnsBackend::Off => Ok(()),
-        }
+            MdnsBackend::DnsSd => {
+                self.publish_external_program("dns-sd", services).await?;
+                MdnsBackend::DnsSd
+            }
+            MdnsBackend::External => {
+                self.publish_configured_external(services).await?;
+                MdnsBackend::External
+            }
+            MdnsBackend::Off => MdnsBackend::Off,
+        };
+        *self.active_backend.lock() = Some(backend);
+        Ok(())
+    }
+
+    pub fn active_backend_name(&self) -> Option<String> {
+        self.active_backend.lock().as_ref().map(MdnsBackend::name)
     }
 
     /// Republish with the same services (e.g. after TXT record changes).
@@ -113,6 +137,43 @@ impl MdnsAdvertiser {
         }
         self.builtin_daemons.lock().push(daemon);
         Ok(())
+    }
+
+    async fn publish_auto(&self, services: Vec<AirplayService>) -> anyhow::Result<MdnsBackend> {
+        let mut errors = Vec::new();
+        for backend in auto_backend_candidates() {
+            if !backend.is_available(&self.config) {
+                debug!(
+                    backend = backend.name(),
+                    "mDNS backend unavailable, trying fallback"
+                );
+                continue;
+            }
+            let result = match backend {
+                MdnsBackend::Builtin => self.publish_builtin(services.clone()).await,
+                MdnsBackend::Avahi => {
+                    self.publish_external_program("avahi-publish-service", services.clone())
+                        .await
+                }
+                MdnsBackend::DnsSd => {
+                    self.publish_external_program("dns-sd", services.clone())
+                        .await
+                }
+                MdnsBackend::External => self.publish_configured_external(services.clone()).await,
+                MdnsBackend::Off | MdnsBackend::Auto => unreachable!(),
+            };
+            match result {
+                Ok(()) => return Ok(backend),
+                Err(err) => {
+                    warn!(backend = backend.name(), %err, "mDNS backend failed, trying fallback");
+                    errors.push(format!("{}: {err}", backend.name()));
+                }
+            }
+        }
+        Err(anyhow!(
+            "no mDNS backend could publish services: {}",
+            errors.join("; ")
+        ))
     }
 
     async fn publish_configured_external(
@@ -181,6 +242,80 @@ impl MdnsAdvertiser {
     }
 }
 
+impl MdnsBackend {
+    fn is_available(&self, config: &MdnsConfig) -> bool {
+        match self {
+            Self::Auto => false,
+            Self::Builtin => true,
+            Self::Avahi => command_exists("avahi-publish-service"),
+            Self::DnsSd => command_exists("dns-sd"),
+            Self::External => config
+                .external_command
+                .as_deref()
+                .is_some_and(command_exists),
+            Self::Off => true,
+        }
+    }
+
+    pub fn name(&self) -> String {
+        match self {
+            Self::Auto => "auto",
+            Self::Builtin => "builtin",
+            Self::Avahi => "avahi",
+            Self::DnsSd => "dns-sd",
+            Self::External => "external",
+            Self::Off => "off",
+        }
+        .to_string()
+    }
+}
+
+fn auto_backend_candidates() -> Vec<MdnsBackend> {
+    if cfg!(target_os = "linux") {
+        vec![MdnsBackend::Avahi, MdnsBackend::DnsSd, MdnsBackend::Builtin]
+    } else if cfg!(target_os = "macos") || cfg!(target_os = "windows") {
+        vec![MdnsBackend::DnsSd, MdnsBackend::Avahi, MdnsBackend::Builtin]
+    } else {
+        vec![MdnsBackend::DnsSd, MdnsBackend::Avahi, MdnsBackend::Builtin]
+    }
+}
+
+fn command_exists(command: &str) -> bool {
+    let command_path = Path::new(command);
+    if command_path.components().count() > 1 {
+        return command_path.is_file();
+    }
+    let Some(path_var) = env::var_os("PATH") else {
+        return false;
+    };
+    let extensions = executable_extensions();
+    env::split_paths(&path_var).any(|dir| {
+        extensions
+            .iter()
+            .any(|ext| dir.join(format!("{command}{ext}")).is_file())
+    })
+}
+
+#[cfg(windows)]
+fn executable_extensions() -> Vec<String> {
+    let mut extensions = vec![String::new()];
+    if let Some(pathext) = env::var_os("PATHEXT") {
+        extensions.extend(
+            pathext
+                .to_string_lossy()
+                .split(';')
+                .filter(|ext| !ext.is_empty())
+                .map(|ext| ext.to_string()),
+        );
+    }
+    extensions
+}
+
+#[cfg(not(windows))]
+fn executable_extensions() -> Vec<String> {
+    vec![String::new()]
+}
+
 impl Drop for MdnsAdvertiser {
     fn drop(&mut self) {
         if Arc::strong_count(&self.external_children) == 1 {
@@ -205,5 +340,26 @@ mod tests {
         assert_eq!(trim_local_domain("_airplay._tcp.local."), "_airplay._tcp");
         assert_eq!(trim_local_domain("_raop._tcp.local"), "_raop._tcp");
         assert_eq!(trim_local_domain("_raop._tcp"), "_raop._tcp");
+    }
+
+    #[test]
+    fn auto_backend_prefers_native_provider_before_builtin() {
+        let candidates = auto_backend_candidates();
+        assert_eq!(
+            candidates.last().map(MdnsBackend::name).as_deref(),
+            Some("builtin")
+        );
+        if cfg!(target_os = "linux") {
+            assert_eq!(
+                candidates.first().map(MdnsBackend::name).as_deref(),
+                Some("avahi")
+            );
+        }
+        if cfg!(target_os = "macos") || cfg!(target_os = "windows") {
+            assert_eq!(
+                candidates.first().map(MdnsBackend::name).as_deref(),
+                Some("dns-sd")
+            );
+        }
     }
 }

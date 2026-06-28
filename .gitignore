@@ -51,6 +51,8 @@ shairport-sync.xcodeproj
 # separate build directories
 build
 shairport-rs/target/
+shairport-rs/logs/
+shairport-rs/*.local.toml
 
 # vscode
 .vscode

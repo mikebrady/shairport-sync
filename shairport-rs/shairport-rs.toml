@@ -12,7 +12,7 @@ control_port = 6001
 timing_port = 6002
 
 [mdns]
-backend = "dns-sd"
+backend = "auto"
 service_name = "Shairport RS"
 hostname = "shairport-rs"
 

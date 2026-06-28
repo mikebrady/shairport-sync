@@ -170,7 +170,10 @@ async fn main() -> anyhow::Result<()> {
         warn!(%err, "mDNS publication failed");
         app_state.set_mdns_error(err.to_string());
     } else {
-        app_state.set_mdns_running(config.mdns.backend.to_string(), service_types);
+        let backend = mdns_advertiser
+            .active_backend_name()
+            .unwrap_or_else(|| config.mdns.backend.to_string());
+        app_state.set_mdns_running(backend, service_types);
     }
 
     let api_context = ApiContext::new(

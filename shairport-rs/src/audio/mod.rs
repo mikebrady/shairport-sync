@@ -289,6 +289,10 @@ impl AudioEngine {
         }
     }
 
+    pub fn is_playback_enabled(&self) -> bool {
+        self.playback_enabled.load(Ordering::Acquire)
+    }
+
     #[allow(dead_code)]
     pub fn enqueue_interleaved(&self, samples: &[f32]) -> usize {
         let format = *self.output_format.lock();
@@ -335,6 +339,10 @@ impl AudioEngine {
         if !self.playback_enabled.load(Ordering::Acquire) {
             return 0;
         }
+        self.enqueue_output_samples_unchecked(samples)
+    }
+
+    pub fn enqueue_output_samples_unchecked(&self, samples: &[f32]) -> usize {
         let mut producer = self.producer.lock();
         let pushed = samples
             .iter()

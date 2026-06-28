@@ -56,6 +56,7 @@ pub struct MdnsConfig {
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum MdnsBackendName {
+    Auto,
     Builtin,
     Avahi,
     DnsSd,
@@ -158,7 +159,7 @@ impl Default for ServerConfig {
 impl Default for MdnsConfig {
     fn default() -> Self {
         Self {
-            backend: MdnsBackendName::Builtin,
+            backend: MdnsBackendName::Auto,
             interface: None,
             hostname: "shairport-rs".to_string(),
             service_name: "Shairport RS".to_string(),
@@ -202,6 +203,7 @@ impl fmt::Display for PtpBackendName {
 impl fmt::Display for MdnsBackendName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let value = match self {
+            Self::Auto => "auto",
             Self::Builtin => "builtin",
             Self::Avahi => "avahi",
             Self::DnsSd => "dns-sd",
@@ -245,7 +247,7 @@ mod tests {
         let config: Config = toml::from_str(
             r#"
             [mdns]
-            backend = "dns-sd"
+            backend = "auto"
             interface = "eth0"
             hostname = "living-room"
             service_name = "Living Room"
@@ -263,7 +265,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(config.mdns.backend, MdnsBackendName::DnsSd);
+        assert_eq!(config.mdns.backend, MdnsBackendName::Auto);
         assert_eq!(config.audio.host, AudioHostName::Asio);
         assert_eq!(config.ptp.backend, PtpBackendName::Nqptp);
         assert_eq!(

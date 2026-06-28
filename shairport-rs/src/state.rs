@@ -325,6 +325,18 @@ impl AppState {
         self.inner.read().track.awaiting_title
     }
 
+    pub fn release_track_transition_wait(&self) {
+        self.mutate(|state| {
+            state.track.awaiting_title = false;
+            state
+                .diagnostics
+                .insert("track_transition_waiting_title".into(), "false".into());
+            state
+                .diagnostics
+                .insert("track_transition_released_by_audio".into(), "true".into());
+        });
+    }
+
     pub fn set_mdns_running(&self, backend: String, service_types: Vec<String>) {
         self.mutate(|state| {
             state.mdns.backend = backend;

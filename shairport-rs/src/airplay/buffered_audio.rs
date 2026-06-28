@@ -86,6 +86,7 @@ pub async fn handle_buffered_stream(
     info!("buffered audio: cipher initialized, reading first block");
     let mut audio_decoder: Option<(codec::AudioFormat, codec::AudioDecoder)> = None;
     let mut decoder_epoch = state.track_transition_epoch();
+    let mut stale_for_transition = false;
     let mut block_count: u64 = 0;
     let mut first_block_logged = false;
 
@@ -160,10 +161,20 @@ pub async fn handle_buffered_stream(
         if current_epoch != decoder_epoch {
             audio_decoder = None;
             decoder_epoch = current_epoch;
+            stale_for_transition = true;
             info!(
                 epoch = decoder_epoch,
                 "buffered audio decoder reset for track transition"
             );
+        }
+        if stale_for_transition {
+            debug!(
+                seq = seq_23,
+                ssrc,
+                epoch = decoder_epoch,
+                "stale buffered audio packet drained after track transition"
+            );
+            continue;
         }
         // AAD = timestamp(4) + SSRC(4) from the block header
         let mut aad_buf = [0u8; 8];
@@ -257,17 +268,39 @@ pub async fn handle_buffered_stream(
                         "audio decode OK"
                     );
                 }
-                let (enqueued, total_samples) = enqueue_decoded_frame(
-                    &audio_engine,
-                    &decoded.samples,
-                    decoded.sample_rate,
-                    decoded.channels,
-                )
-                .await;
+                let waiting_for_title = state.is_waiting_for_track_title();
+                let (enqueued, total_samples) = if waiting_for_title {
+                    let result = enqueue_decoded_frame_for_later(
+                        &audio_engine,
+                        &decoded.samples,
+                        decoded.sample_rate,
+                        decoded.channels,
+                    )
+                    .await;
+                    if result.0 > 0 {
+                        state.release_track_transition_wait();
+                        state.set_diagnostic("audio_waiting_for_track_title", "false");
+                        audio_engine.set_playback_enabled(true);
+                        info!(
+                            seq = seq_23,
+                            ssrc, "track transition released by decoded audio"
+                        );
+                    }
+                    result
+                } else {
+                    enqueue_decoded_frame(
+                        &audio_engine,
+                        &decoded.samples,
+                        decoded.sample_rate,
+                        decoded.channels,
+                    )
+                    .await
+                };
                 if block_count <= 3 {
                     info!(
                         enqueued,
                         total = total_samples,
+                        waiting_for_title,
                         "samples enqueued to audio engine"
                     );
                 }
@@ -307,6 +340,18 @@ pub async fn handle_buffered_stream(
     Ok(())
 }
 
+async fn enqueue_decoded_frame_for_later(
+    audio_engine: &AudioEngine,
+    samples: &[f32],
+    sample_rate: u32,
+    channels: u16,
+) -> (usize, usize) {
+    let converted = audio_engine.convert_interleaved_for_output(samples, sample_rate, channels);
+    let total = converted.len();
+    let pushed = audio_engine.enqueue_output_samples_unchecked(&converted);
+    (pushed, total)
+}
+
 async fn enqueue_decoded_frame(
     audio_engine: &AudioEngine,
     samples: &[f32],
@@ -315,6 +360,9 @@ async fn enqueue_decoded_frame(
 ) -> (usize, usize) {
     let converted = audio_engine.convert_interleaved_for_output(samples, sample_rate, channels);
     let total = converted.len();
+    if !audio_engine.is_playback_enabled() {
+        return (0, total);
+    }
     let mut pushed = audio_engine.enqueue_output_samples(&converted);
 
     if pushed < total {
@@ -426,5 +474,22 @@ mod tests {
         let key = [0u8; 32];
         let mut cipher = BufferedCipher::new(&key);
         assert!(cipher.decrypt_block(&[0u8; 10], &[0u8; 8]).is_err());
+    }
+
+    #[tokio::test]
+    async fn enqueue_decoded_frame_does_not_wait_when_playback_disabled() {
+        let audio_engine = AudioEngine::new(8);
+        audio_engine.set_playback_enabled(false);
+        let samples = vec![0.25; 4096];
+
+        let result = time::timeout(
+            time::Duration::from_millis(50),
+            enqueue_decoded_frame(&audio_engine, &samples, 44_100, 2),
+        )
+        .await
+        .expect("enqueue should return immediately while playback is disabled");
+
+        assert_eq!(result.0, 0);
+        assert!(result.1 > 0);
     }
 }
