@@ -1,3 +1,13 @@
+Version 5.1-dev-52-g6db0ba16
+==
+**Bug Fixes**
+* Fix a condition that could cause a stack frame overflow under rare conditions. The problem was fixed by increased use of `malloc` in place of stack-based allocation. Thanks to [Arthur Loureiro](https://github.com/ARLBR10) for reporting the [issue](https://github.com/mikebrady/shairport-sync/issues/2221).
+
+**Minor Improvements**
+* Add a `sys-nice` request to the sample Docker compose file.
+* Add a few tools and do a recompile for more comfortable troubleshooting.
+* If the minimum DAC queue size is not changed from `UINT64_MAX`, assume it has never been set and indicate that it is not available (`"n/a"`) in the statistics log.
+
 Version 5.1-dev-38-g3780b504
 ==
 **Bug Fixes**
