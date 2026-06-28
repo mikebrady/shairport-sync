@@ -4093,7 +4093,11 @@ void *player_thread_func(void *arg) {
                     statistics_item("  Late", "%*" PRIu64 "", 6, conn->late_packets);
                     statistics_item("Too Late", "%*" PRIu64 "", 8, conn->too_late_packets);
                     statistics_item("Resend Reqs", "%*" PRIu64 "", 11, conn->resend_requests);
-                    statistics_item("Min DAC Queue", "%*" PRIu64 "", 13, minimum_dac_queue_size);
+                    if (minimum_dac_queue_size == UINT64_MAX) {
+                      statistics_item("Min DAC Queue", "          n/a"); // same size as below, right justified                 
+                    } else {
+                      statistics_item("Min DAC Queue", "%*" PRIu64 "", 13, minimum_dac_queue_size);
+                    }
                     statistics_item("Min Buffers", "%*" PRIu32 "", 11, minimum_buffer_occupancy);
                     statistics_item("Max Buffers", "%*" PRIu32 "", 11, maximum_buffer_occupancy);
 #ifdef CONFIG_AIRPLAY_2
