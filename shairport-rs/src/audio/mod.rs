@@ -6,10 +6,13 @@ use cpal::{
 use parking_lot::Mutex;
 use ringbuf::{
     HeapRb,
-    traits::{Consumer, Observer, Producer, Split},
+    traits::{Consumer, Producer, Split},
 };
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
 
 use crate::codec;
 use crate::config::{AudioConfig, AudioHostName};
@@ -38,7 +41,10 @@ pub struct SelectAudioDeviceRequest {
 pub struct AudioEngine {
     producer: Arc<Mutex<ringbuf::HeapProd<f32>>>,
     consumer: Arc<Mutex<ringbuf::HeapCons<f32>>>,
+    queued_samples: Arc<AtomicUsize>,
+    capacity: usize,
     output_format: Arc<Mutex<AudioOutputFormat>>,
+    resampler_cache: Arc<Mutex<codec::ResamplerCache>>,
 }
 
 pub struct AudioOutput {
@@ -135,17 +141,16 @@ impl AudioManager {
         }
         .context("no CPAL output device available")?;
 
-        let config = device.default_output_config()?;
-        let stream_config = config.config();
+        let (stream_config, sample_format) = choose_stream_config(&device)?;
         engine.set_output_format(stream_config.sample_rate, stream_config.channels);
         tracing::info!(
             sample_rate = stream_config.sample_rate,
             channels = stream_config.channels,
-            sample_format = ?config.sample_format(),
+            sample_format = ?sample_format,
             "CPAL output stream format"
         );
         let err_fn = |err| tracing::warn!(%err, "CPAL output stream error");
-        let stream = match config.sample_format() {
+        let stream = match sample_format {
             SampleFormat::F32 => device.build_output_stream(
                 &stream_config,
                 move |data: &mut [f32], _| {
@@ -227,7 +232,7 @@ impl AudioManager {
             _stream: stream,
             sample_rate: stream_config.sample_rate,
             channels: stream_config.channels,
-            sample_format: config.sample_format(),
+            sample_format,
         })
     }
 }
@@ -236,11 +241,7 @@ fn fill_converted<T>(output: &mut [T], engine: &AudioEngine)
 where
     T: cpal::Sample + cpal::FromSample<f32>,
 {
-    let mut scratch = vec![0.0; output.len()];
-    engine.fill_output(&mut scratch);
-    for (target, source) in output.iter_mut().zip(scratch) {
-        *target = T::from_sample(source);
-    }
+    engine.fill_output_converted(output);
 }
 
 impl AudioEngine {
@@ -250,10 +251,13 @@ impl AudioEngine {
         Self {
             producer: Arc::new(Mutex::new(producer)),
             consumer: Arc::new(Mutex::new(consumer)),
+            queued_samples: Arc::new(AtomicUsize::new(0)),
+            capacity: capacity_samples,
             output_format: Arc::new(Mutex::new(AudioOutputFormat {
                 sample_rate: 48_000,
                 channels: 2,
             })),
+            resampler_cache: Arc::new(Mutex::new(codec::ResamplerCache::new())),
         }
     }
 
@@ -294,7 +298,8 @@ impl AudioEngine {
         let output_format = *self.output_format.lock();
         let converted_channels = convert_channels(samples, input_channels, output_format.channels);
         if input_sample_rate != output_format.sample_rate {
-            codec::resample(
+            let mut cache = self.resampler_cache.lock();
+            cache.resample(
                 &converted_channels,
                 input_sample_rate,
                 output_format.sample_rate,
@@ -307,16 +312,17 @@ impl AudioEngine {
 
     pub fn enqueue_output_samples(&self, samples: &[f32]) -> usize {
         let mut producer = self.producer.lock();
-        samples
+        let pushed = samples
             .iter()
             .copied()
             .take_while(|sample| producer.try_push(*sample).is_ok())
-            .count()
+            .count();
+        self.queued_samples.fetch_add(pushed, Ordering::Release);
+        pushed
     }
 
     pub fn available_samples(&self) -> usize {
-        let consumer = self.consumer.lock();
-        consumer.capacity().get() - consumer.occupied_len()
+        self.capacity - self.queued_samples.load(Ordering::Acquire)
     }
 
     pub fn fill_output(&self, output: &mut [f32]) -> usize {
@@ -331,15 +337,38 @@ impl AudioEngine {
                 None => *sample = 0.0,
             }
         }
+        if filled > 0 {
+            self.queued_samples.fetch_sub(filled, Ordering::Release);
+        }
+        filled
+    }
+
+    fn fill_output_converted<T>(&self, output: &mut [T]) -> usize
+    where
+        T: cpal::Sample + cpal::FromSample<f32>,
+    {
+        let mut consumer = self.consumer.lock();
+        let mut filled = 0;
+        for sample in output.iter_mut() {
+            match consumer.try_pop() {
+                Some(value) => {
+                    *sample = T::from_sample(value);
+                    filled += 1;
+                }
+                None => *sample = T::from_sample(0.0),
+            }
+        }
+        if filled > 0 {
+            self.queued_samples.fetch_sub(filled, Ordering::Release);
+        }
         filled
     }
 
     pub fn status(&self) -> AudioEngineStatus {
-        let consumer = self.consumer.lock();
         let output_format = *self.output_format.lock();
         AudioEngineStatus {
-            queued_samples: consumer.occupied_len(),
-            capacity_samples: consumer.capacity().get(),
+            queued_samples: self.queued_samples.load(Ordering::Acquire),
+            capacity_samples: self.capacity,
             output_sample_rate: output_format.sample_rate,
             output_channels: output_format.channels,
         }
@@ -351,6 +380,10 @@ fn convert_channels(samples: &[f32], input_channels: u16, output_channels: u16) 
     let output_channels = output_channels.max(1) as usize;
     if input_channels == output_channels {
         return samples.to_vec();
+    }
+
+    if input_channels > 2 && output_channels == 2 {
+        return codec::mixdown_to_stereo(samples, input_channels as u16);
     }
 
     let frames = samples.len() / input_channels;
@@ -373,6 +406,20 @@ fn convert_channels(samples: &[f32], input_channels: u16, output_channels: u16) 
         }
     }
     output
+}
+
+fn choose_stream_config(
+    device: &cpal::Device,
+) -> anyhow::Result<(cpal::StreamConfig, SampleFormat)> {
+    let default_config = device.default_output_config()?;
+    let stream_config = default_config.config();
+    tracing::info!(
+        sample_rate = stream_config.sample_rate,
+        channels = stream_config.channels,
+        sample_format = ?default_config.sample_format(),
+        "using device default output config"
+    );
+    Ok((default_config.config(), default_config.sample_format()))
 }
 
 fn host_to_cpal(host: AudioHostName) -> Option<cpal::HostId> {

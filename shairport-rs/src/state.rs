@@ -15,6 +15,7 @@ pub struct AppState {
     pub ap2_audio_format: Arc<RwLock<Option<AudioFormat>>>,
     pub alac_magic_cookie: Arc<RwLock<Option<Vec<u8>>>>,
     pub alac_sample_rate: Arc<RwLock<Option<u32>>>,
+    pub alac_sample_size: Arc<RwLock<Option<u32>>>,
     pub alac_channels: Arc<RwLock<Option<u16>>>,
     pub frames_per_packet: Arc<RwLock<Option<u32>>>,
 }
@@ -160,6 +161,7 @@ impl AppState {
             ap2_audio_format: Arc::new(RwLock::new(None)),
             alac_magic_cookie: Arc::new(RwLock::new(None)),
             alac_sample_rate: Arc::new(RwLock::new(None)),
+            alac_sample_size: Arc::new(RwLock::new(None)),
             alac_channels: Arc::new(RwLock::new(None)),
             frames_per_packet: Arc::new(RwLock::new(None)),
         }

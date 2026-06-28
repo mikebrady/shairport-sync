@@ -7,7 +7,8 @@ use tokio::{net::UdpSocket, task::JoinHandle};
 use tracing::{debug, info, warn};
 
 use crate::{
-    audio::AudioEngine, config::AirplayConfig, decoder, player::SharedPlayer, state::AppState,
+    audio::AudioEngine, codec, config::AirplayConfig, decoder, player::SharedPlayer,
+    state::AppState,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -60,8 +61,7 @@ async fn bind_audio_channel(
         let mut buf = [0u8; 2048];
         // AES-CBC uses chaining IV: start with aesiv from SDP, update per packet
         let iv: Arc<RwLock<Option<[u8; 16]>>> = Arc::new(RwLock::new(None));
-        // ALAC decoder, created lazily
-        let mut decoder: Option<decoder::AlacDecoder> = None;
+        let mut audio_decoder: Option<codec::AudioDecoder> = None;
 
         loop {
             match socket.recv_from(&mut buf).await {
@@ -145,14 +145,24 @@ async fn bind_audio_channel(
                         *iv.write() = Some(new_iv);
                     }
 
-                    // Initialize ALAC decoder lazily
-                    if decoder.is_none() {
+                    if audio_decoder.is_none() {
                         let cookie = state.alac_magic_cookie.read().clone();
                         if let Some(ref cookie) = cookie {
-                            match decoder::AlacDecoder::new(16, 2, cookie) {
+                            let sample_size = state.alac_sample_size.read().unwrap_or(16);
+                            let channels = state.alac_channels.read().unwrap_or(2);
+                            let rate = state.alac_sample_rate.read().unwrap_or(44_100);
+                            let frames_per_packet =
+                                state.frames_per_packet.read().unwrap_or(352) as usize;
+                            match codec::AudioDecoder::new_alac(
+                                sample_size,
+                                channels,
+                                rate,
+                                frames_per_packet,
+                                cookie,
+                            ) {
                                 Ok(d) => {
-                                    decoder = Some(d);
-                                    info!("ALAC decoder initialized");
+                                    audio_decoder = Some(d);
+                                    info!(sample_size, channels, rate, "ALAC decoder initialized");
                                 }
                                 Err(e) => {
                                     warn!(%e, "ALAC decoder init failed");
@@ -162,25 +172,25 @@ async fn bind_audio_channel(
                         }
                     }
 
-                    // Decode ALAC
-                    if let Some(ref mut dec) = decoder {
-                        match dec.decode_frame(&decrypted) {
-                            Ok(samples) => {
-                                if !samples.is_empty() {
+                    if let Some(ref mut dec) = audio_decoder {
+                        match dec.decode(&decrypted) {
+                            Ok(decoded) => {
+                                if !decoded.samples.is_empty() {
                                     let ts = u32::from_be_bytes([buf[4], buf[5], buf[6], buf[7]]);
-                                    // Convert i32 samples to f32 for the audio engine
-                                    let float_samples: Vec<f32> = samples
-                                        .iter()
-                                        .map(|&s| (s as f32) / 2147483648.0)
-                                        .collect();
 
-                                    // Track via player for timing/flush management
-                                    let rate = state.alac_sample_rate.read().unwrap_or(44100);
-                                    player.push_frame(ts, float_samples.clone(), rate, 2);
+                                    player.push_frame(
+                                        ts,
+                                        decoded.samples.clone(),
+                                        decoded.sample_rate,
+                                        decoded.channels,
+                                    );
 
-                                    // Push directly to audio engine for now
                                     let (enqueued, total_samples) = audio_engine
-                                        .enqueue_interleaved_for_output(&float_samples, rate, 2);
+                                        .enqueue_interleaved_for_output(
+                                            &decoded.samples,
+                                            decoded.sample_rate,
+                                            decoded.channels,
+                                        );
                                     if enqueued < total_samples {
                                         debug!(
                                             "audio ring buffer full, dropped {} samples",

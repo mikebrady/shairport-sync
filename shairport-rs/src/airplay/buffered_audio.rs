@@ -13,7 +13,7 @@ use tokio::{
 };
 use tracing::{debug, info, warn};
 
-use crate::{audio::AudioEngine, codec, config::AirplayConfig, decoder, state::AppState};
+use crate::{audio::AudioEngine, codec, config::AirplayConfig, state::AppState};
 
 /// SSRC constants for AP2 audio formats
 const SSRC_ALAC_44100_S16_2: u32 = 0x0000_FACE;
@@ -84,7 +84,7 @@ pub async fn handle_buffered_stream(
     // Derive the data stream cipher
     let mut cipher = BufferedCipher::new(&session_key);
     info!("buffered audio: cipher initialized, reading first block");
-    let mut alac_decoder: Option<(codec::AudioFormat, decoder::AlacDecoder)> = None;
+    let mut audio_decoder: Option<(codec::AudioFormat, codec::AudioDecoder)> = None;
     let mut block_count: u64 = 0;
     let mut first_block_logged = false;
 
@@ -200,108 +200,81 @@ pub async fn handle_buffered_stream(
                 }
             };
 
-        // ALAC path
-        if matches!(
-            format,
-            codec::AudioFormat::Alac44100S16Stereo | codec::AudioFormat::Alac48000S24Stereo
-        ) {
-            let sample_rate = format.sample_rate();
-            let sample_size = match format {
-                codec::AudioFormat::Alac44100S16Stereo => 16,
-                _ => 24,
-            };
+        if !format.is_playable() {
+            warn!(
+                format = format.description(),
+                "unsupported AP2 audio format"
+            );
+            continue;
+        }
 
-            let decoder = match alac_decoder.as_mut() {
-                Some((decoder_format, decoder)) if *decoder_format == format => decoder,
-                _ => {
-                    let cookie = alac_specific_config(sample_rate, sample_size);
-                    match decoder::AlacDecoder::new(sample_size, 2, &cookie) {
-                        Ok(d) => {
-                            alac_decoder = Some((format, d));
-                            &mut alac_decoder.as_mut().unwrap().1
-                        }
-                        Err(e) => {
-                            warn!(%e, ssrc, "AP2 ALAC decoder init failed");
-                            continue;
-                        }
-                    }
-                }
-            };
-
-            let raw_samples = match decoder.decode_frame(&plaintext) {
-                Ok(samples) => {
-                    if block_count <= 3 {
-                        info!(
-                            seq = seq_23,
-                            ssrc,
-                            sample_count = samples.len(),
-                            "ALAC decode OK"
-                        );
-                    }
-                    samples
-                }
-                Err(e) => {
-                    warn!(%e, ssrc, blocks_processed = block_count, "AP2 ALAC decode failed");
-                    continue;
-                }
-            };
-            let float_samples: Vec<f32> = raw_samples
-                .iter()
-                .map(|&sample| (sample as f32) / 2_147_483_648.0)
-                .collect();
-            let (enqueued, total_samples) =
-                enqueue_decoded_frame(&audio_engine, &float_samples, sample_rate, 2).await;
-            if block_count <= 3 {
-                info!(
-                    enqueued,
-                    total = total_samples,
-                    "ALAC samples enqueued to audio engine"
-                );
-            }
-            if enqueued < total_samples {
-                debug!("audio buffer full, dropped {}", total_samples - enqueued);
-            }
-        } else {
-            // AAC path
-            #[cfg(feature = "aac")]
-            {
-                let mut dec = codec::AudioDecoder::new_aac(format);
-                match dec.decode(&plaintext, format) {
-                    Ok(decoded) => {
-                        if block_count <= 3 {
-                            info!(
-                                seq = seq_23,
-                                ssrc,
-                                sample_count = decoded.samples.len(),
-                                "AAC decode OK (symphonia)"
-                            );
-                        }
-                        let (enqueued, total_samples) = enqueue_decoded_frame(
-                            &audio_engine,
-                            &decoded.samples,
-                            decoded.sample_rate,
-                            decoded.channels,
-                        )
-                        .await;
-                        if block_count <= 3 {
-                            info!(
-                                enqueued,
-                                total = total_samples,
-                                "AAC samples enqueued to audio engine"
-                            );
-                        }
-                        if enqueued < total_samples {
-                            debug!("audio buffer full, dropped {}", total_samples - enqueued);
-                        }
+        let decoder = match audio_decoder.as_mut() {
+            Some((decoder_format, decoder)) if *decoder_format == format => decoder,
+            _ => {
+                let cookie = if format.is_alac() {
+                    Some(alac_specific_config(
+                        format.sample_rate(),
+                        format.bits_per_sample(),
+                    ))
+                } else {
+                    None
+                };
+                match codec::AudioDecoder::new_for_format(
+                    format,
+                    cookie.as_ref().map(|cookie| cookie.as_slice()),
+                ) {
+                    Ok(d) => {
+                        info!(format = format.description(), "audio decoder initialized");
+                        audio_decoder = Some((format, d));
+                        &mut audio_decoder.as_mut().unwrap().1
                     }
                     Err(e) => {
-                        warn!(%e, ssrc, "AP2 AAC decode failed");
+                        warn!(%e, ssrc, format = format.description(), "AP2 decoder init failed");
+                        continue;
                     }
                 }
             }
-            #[cfg(not(feature = "aac"))]
-            {
-                warn!(ssrc, "AAC buffered audio requires --features aac");
+        };
+
+        match decoder.decode(&plaintext) {
+            Ok(decoded) => {
+                if block_count <= 3 {
+                    info!(
+                        seq = seq_23,
+                        ssrc,
+                        sample_count = decoded.samples.len(),
+                        format = format.description(),
+                        "audio decode OK"
+                    );
+                }
+                let (enqueued, total_samples) = enqueue_decoded_frame(
+                    &audio_engine,
+                    &decoded.samples,
+                    decoded.sample_rate,
+                    decoded.channels,
+                )
+                .await;
+                if block_count <= 3 {
+                    info!(
+                        enqueued,
+                        total = total_samples,
+                        "samples enqueued to audio engine"
+                    );
+                }
+                if enqueued < total_samples {
+                    debug!("audio buffer full, dropped {}", total_samples - enqueued);
+                }
+            }
+            Err(e) => {
+                warn!(%e, ssrc, blocks_processed = block_count, format = format.description(), "AP2 audio decode failed");
+                let spf = format.frames_per_packet() as usize * format.channels() as usize;
+                enqueue_decoded_frame(
+                    &audio_engine,
+                    &vec![0.0f32; spf],
+                    format.sample_rate(),
+                    format.channels(),
+                )
+                .await;
                 continue;
             }
         }
@@ -330,25 +303,34 @@ async fn enqueue_decoded_frame(
     sample_rate: u32,
     channels: u16,
 ) -> (usize, usize) {
-    const WAIT_TIMEOUT: time::Duration = time::Duration::from_secs(2);
-    const WAIT_STEP: time::Duration = time::Duration::from_millis(5);
-
     let converted = audio_engine.convert_interleaved_for_output(samples, sample_rate, channels);
     let total = converted.len();
-    let started = Instant::now();
-    while audio_engine.available_samples() < total {
-        if started.elapsed() >= WAIT_TIMEOUT {
-            warn!(
-                needed = total,
-                available = audio_engine.available_samples(),
-                "audio output did not drain in time, dropping decoded frame"
-            );
-            return (0, total);
+    let mut pushed = audio_engine.enqueue_output_samples(&converted);
+
+    if pushed < total {
+        let deadline = Instant::now() + time::Duration::from_secs(2);
+        let remaining = &converted[pushed..];
+        let mut offset = 0;
+        while offset < remaining.len() {
+            if Instant::now() >= deadline {
+                warn!(
+                    needed = remaining.len() - offset,
+                    total, pushed, "buffered audio ring buffer full, dropping remaining samples"
+                );
+                break;
+            }
+            time::sleep(time::Duration::from_millis(5)).await;
+            let batch = &remaining[offset..];
+            let n = audio_engine.enqueue_output_samples(batch);
+            pushed += n;
+            offset += n;
+            if n > 0 {
+                continue;
+            }
         }
-        time::sleep(WAIT_STEP).await;
     }
 
-    (audio_engine.enqueue_output_samples(&converted), total)
+    (pushed, total)
 }
 
 fn alac_format_for_ssrc(ssrc: u32) -> Option<(u32, u32)> {

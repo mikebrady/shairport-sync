@@ -711,6 +711,9 @@ fn route_request(
             if let Some(rate) = params.alac_sample_rate {
                 state.alac_sample_rate.write().clone_from(&Some(rate));
             }
+            if let Some(bits) = params.alac_bit_depth {
+                state.alac_sample_size.write().clone_from(&Some(bits));
+            }
             if let Some(fpp) = params.frames_per_packet {
                 state.frames_per_packet.write().clone_from(&Some(fpp));
             }
@@ -1344,6 +1347,22 @@ fn handle_ap2_setup(
                         if let Some(format) = AudioFormat::from_ap2_audio_format(audio_format) {
                             *state.ap2_audio_format.write() = Some(format);
                             state.set_source_format(Some(format.description().to_string()));
+                            let sample_size: u32 = match format {
+                                AudioFormat::Alac44100S16Stereo => 16,
+                                AudioFormat::Alac48000S24Stereo => 24,
+                                AudioFormat::Aac44100F24Stereo
+                                | AudioFormat::Aac48000F24Stereo
+                                | AudioFormat::Aac48000F24_5_1
+                                | AudioFormat::Aac48000F24_7_1 => 24,
+                            };
+                            state
+                                .alac_sample_size
+                                .write()
+                                .clone_from(&Some(sample_size));
+                            state
+                                .alac_channels
+                                .write()
+                                .clone_from(&Some(format.channels()));
                         } else {
                             warn!(
                                 audio_format = format_args!("{audio_format:#x}"),
@@ -1997,21 +2016,13 @@ fn advertised_ap2_formats(policy: AdvertisedFormatPolicy) -> AdvertisedAp2Format
 
     let mut buffer_stream = BUFFER_ALAC_44100_S16_2 | BUFFER_ALAC_48000_F24_2;
     if policy == AdvertisedFormatPolicy::AacIfAvailable {
-        if aac_decoder_available() {
-            buffer_stream |= BUFFER_AAC_44100_F24_2 | BUFFER_AAC_48000_F24_2;
-        } else {
-            debug!("not advertising AP2 AAC buffer formats because no AAC decoder is available");
-        }
+        buffer_stream |= BUFFER_AAC_44100_F24_2 | BUFFER_AAC_48000_F24_2;
     }
 
     AdvertisedAp2Formats {
         audio_stream: AUDIO_STREAM_PARENT_MASK,
         buffer_stream,
     }
-}
-
-fn aac_decoder_available() -> bool {
-    cfg!(feature = "aac") || cfg!(feature = "ffmpeg")
 }
 
 fn build_txt_airplay_data(
@@ -2321,5 +2332,17 @@ mod tests {
         assert_ne!(formats.buffer_stream & 0x0020_0000, 0);
         assert_eq!(formats.buffer_stream & 0x0040_0000, 0);
         assert_eq!(formats.buffer_stream & 0x0080_0000, 0);
+    }
+
+    #[test]
+    fn ap2_aac_policy_advertises_only_stereo_aac_buffer_formats() {
+        let formats = advertised_ap2_formats(AdvertisedFormatPolicy::AacIfAvailable);
+
+        assert_ne!(formats.buffer_stream & 0x0004_0000, 0);
+        assert_ne!(formats.buffer_stream & 0x0020_0000, 0);
+        assert_ne!(formats.buffer_stream & 0x0040_0000, 0);
+        assert_ne!(formats.buffer_stream & 0x0080_0000, 0);
+        assert_eq!(formats.buffer_stream & 0x2700_0000, 0);
+        assert_eq!(formats.buffer_stream & 0x2800_0000, 0);
     }
 }
