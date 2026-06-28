@@ -151,7 +151,6 @@ void *rtp_buffered_audio_processor(void *arg) {
     debug(1, "cannot allocate an audio buffer of %zu bytes!", buffered_audio->buffer_max_size);
   pthread_cleanup_push(malloc_cleanup, &buffered_audio->buffer);
 
-  // pthread_mutex_lock(&conn->buffered_audio_mutex);
   buffered_audio->toq = buffered_audio->buffer;
   buffered_audio->eoq = buffered_audio->buffer;
 
@@ -161,10 +160,20 @@ void *rtp_buffered_audio_processor(void *arg) {
                        "ap2_buf_rdr_%d", conn->connection_number);
   pthread_cleanup_push(thread_cleanup, buffered_reader_thread);
 
+  const size_t buffer_packet_size = 16 * 1024; // it looks as if 4096 is the largest size (?)
+  uint8_t *packet = malloc(buffer_packet_size);
+  if (packet == NULL)
+    debug(1, "cannot allocate an audio packet buffer of %zu bytes!", buffer_packet_size);
+  pthread_cleanup_push(malloc_cleanup, &packet);
+
   const size_t leading_free_space_length =
       256; // leave this many bytes free to make room for prefixes that might be added later
-  uint8_t packet[32 * 1024];
-  unsigned char m[32 * 1024 + leading_free_space_length];
+      
+  unsigned char *m = malloc(buffer_packet_size + leading_free_space_length);
+  if (m == NULL)
+    debug(1, "cannot allocate an audio m buffer of %zu bytes!", buffer_packet_size + leading_free_space_length);
+  pthread_cleanup_push(malloc_cleanup, &m);
+  // unsigned char m[32 * 1024 + leading_free_space_length];
 
   unsigned char *payload_pointer = NULL;
   unsigned long long payload_length = 0;
@@ -365,7 +374,7 @@ void *rtp_buffered_audio_processor(void *arg) {
             unsigned int f = 0;
             for (f = 0; f < MAX_DEFERRED_FLUSH_REQUESTS; f++) {
               if ((conn->ap2_deferred_flush_requests[f].inUse != 0) &&
-                  (conn->ap2_deferred_flush_requests[f].active = 0)) {
+                  (conn->ap2_deferred_flush_requests[f].active == 0)) {
                 debug(1,
                       "deferred flush cancelled by an immediate flush:  flushFromTS: %12u, "
                       "flushFromSeq: %12u, "
@@ -690,6 +699,8 @@ void *rtp_buffered_audio_processor(void *arg) {
   } while (finished == 0);
   // debug(1, "Connection %d: rtp_buffered_audio_processor PID %d exiting", conn->connection_number,
   //       syscall(SYS_gettid));
+  pthread_cleanup_pop(1); // m
+  pthread_cleanup_pop(1); // packet
   pthread_cleanup_pop(1); // buffered_tcp_reader thread creation
   pthread_cleanup_pop(1); // buffer malloc
   pthread_cleanup_pop(1); // not_full_cv
