@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -70,7 +71,8 @@ void on_message(__attribute__((unused)) struct mosquitto *mosq,
   char *commands[] = {"command",    "beginff",  "beginrew",   "mutetoggle",
                       "nextitem",   "previtem", "pause",      "playpause",
                       "play",       "stop",     "playresume", "shuffle_songs",
-                      "volumedown", "volumeup", "disconnect", NULL};
+                      "volumedown", "volumeup", "disconnect", "queue_next",
+                      NULL};
 
   int it = 0;
 
@@ -81,7 +83,26 @@ void on_message(__attribute__((unused)) struct mosquitto *mosq,
       debug(2, "[MQTT]: Received Recognized Command: %s\n", commands[it]);
       if (strcmp(commands[it], "disconnect") == 0) {
         debug(2, "[MQTT]: Disconnect Command: %s\n", commands[it]);
-        stop_play(); // stop any current session and don't replace it
+        release_play_lock(NULL); // stop any current session and don't replace it
+      } else if (strcmp(commands[it], "queue_next") == 0) {
+        // payload is "queue_next <track_id>", where <track_id> is the hex track_id
+        // string as published by shairport-sync itself (see the "mper"/"track_id" handling
+        // above), e.g. "queue_next 1A2B3C4D5E6F7"
+        char *track_id = payload + strlen(commands[it]);
+        while (*track_id == ' ' || *track_id == '\t')
+          track_id++;
+        size_t track_id_len = strlen(track_id);
+        while (track_id_len > 0 && isspace((unsigned char)track_id[track_id_len - 1]))
+          track_id[--track_id_len] = '\0';
+        if (track_id_len == 0) {
+          warn("[MQTT]: queue_next command received with no track_id -- ignoring.");
+        } else {
+          char dacp_command[256];
+          snprintf(dacp_command, sizeof(dacp_command),
+                   "cue?command=add&query='dmap.persistentid:0x%s'&mode=3", track_id);
+          debug(2, "[MQTT]: Queue Next Command: %s\n", dacp_command);
+          send_simple_dacp_command(dacp_command);
+        }
       } else {
         debug(2, "[MQTT]: DACP Command: %s\n", commands[it]);
 #ifdef CONFIG_DACP_CLIENT
