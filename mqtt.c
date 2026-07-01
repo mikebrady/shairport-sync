@@ -99,7 +99,7 @@ void on_message(__attribute__((unused)) struct mosquitto *mosq,
         } else {
           char dacp_command[256];
           snprintf(dacp_command, sizeof(dacp_command),
-                   "ctrl-int/1/cue?command=add&query='dmap.persistentid:0x%s'&mode=3", track_id);
+                   "cue?command=add&query='dmap.persistentid:0x%s'&mode=3", track_id);
           debug(2, "[MQTT]: Queue Next Command: %s\n", dacp_command);
           send_simple_dacp_command(dacp_command);
         }
