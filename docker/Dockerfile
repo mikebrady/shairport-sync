@@ -120,6 +120,25 @@ WORKDIR /
 ##### DEV #####
 FROM shairport-sync AS dev
 RUN apk add bash
+RUN apk add gdb
+RUN apk add valgrind
+RUN ulimit -c unlimited
+
+
+WORKDIR /shairport-sync/build
+
+# Rebuild with no optimisation and debug symbols in place
+
+RUN CFLAGS="-O0 -g" CXXFLAGS="-O0 -g" ../configure --sysconfdir=/etc --with-alsa --with-pulseaudio --with-soxr --with-avahi --with-ssl=openssl \
+        --with-airplay-2 --with-metadata --with-dummy --with-pipe --with-dbus-interface \
+        --with-stdout --with-mpris-interface --with-mqtt-client \
+        --with-convolution --with-pipewire
+RUN make clean
+RUN make
+RUN DESTDIR=install make install
+WORKDIR /
+
+
 
 RUN addgroup shairport-sync && \
         adduser -D shairport-sync -G shairport-sync && \
