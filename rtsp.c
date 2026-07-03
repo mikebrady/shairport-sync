@@ -253,6 +253,9 @@ int terminate_conn(int connection_number) {
   while ((i < nconns) && (found == 0)) {
     if ((conns[i] != NULL) && (conns[i]->connection_number == connection_number)) {
       pthread_cancel(conns[i]->thread);
+#ifdef CONFIG_FOR_MINGW
+      safe_socket_close(&conns[i]->fd);
+#endif
       pthread_join(conns[i]->thread, NULL);
       conns[i] = NULL;
       found = 1;
@@ -394,7 +397,12 @@ play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) 
       debug(4, "Connection %d: about to be terminated.", principal_conn->connection_number);
       rtsp_conn_info *previous_principal_conn = principal_conn;
       principal_conn = conn; // make the conn the new principal_conn
+      int old_cancel_state;
+      pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &old_cancel_state);
+      pthread_rwlock_unlock(&principal_conn_lock);
       terminate_conn(previous_principal_conn->connection_number);
+      pthread_rwlock_wrlock(&principal_conn_lock);
+      pthread_setcancelstate(old_cancel_state, NULL);
       debug(4, "Connection successfully terminated.");
       if (principal_conn == NULL) {
 #ifdef CONFIG_AIRPLAY_2

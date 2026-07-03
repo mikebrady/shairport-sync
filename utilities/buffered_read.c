@@ -40,7 +40,6 @@ ssize_t buffered_read(buffered_tcp_desc *descriptor, void *buf, size_t count,
   pthread_cleanup_push(mutex_unlock, (void *)&descriptor->mutex);
   // wipe the slate dlean before reading...
   descriptor->error_code = 0;
-  descriptor->closed = 0;
 
   if (descriptor->buffer_occupancy == 0) {
     debug(2, "buffered_read: buffer empty -- waiting for %zu bytes.", count);

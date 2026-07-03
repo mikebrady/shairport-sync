@@ -81,6 +81,7 @@ void *ap2_event_receiver(void *arg) {
 
     while (1) {
       usleep(100000);
+      pthread_testcancel();
     };
 
     debug(3, "Connection %d: AP2 Event Receiver RTP thread starting \"normal\" exit.",
