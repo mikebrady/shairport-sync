@@ -1,10 +1,12 @@
-Installing Shairport Sync into Cygwin [Airplay 2 Not Supported]
+Installing Shairport Sync into Cygwin
 ====
 
 This guide is based on installing onto a fresh installation of Cygwin 2.895 (64-bit installation) running in Windows 10
 inside VMWare Fusion on a Mac.
 
 The end result is a new Windows Service called `CYGWIN Shairport Sync`, providing an AirPlay service by which iOS devices or other AirPlay sources on the network can play audio through the Windows device.
+
+Classic AirPlay is the known-good Cygwin path. AirPlay 2 on Cygwin is experimental and requires a matching Cygwin build of [NQPTP](https://github.com/DOCaCola/nqptp).
 
 Windows Firewall
 ----

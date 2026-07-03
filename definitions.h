@@ -25,6 +25,10 @@
 #define COMPILE_FOR_LINUX 1
 #endif
 
+#if defined(__CYGWIN__)
+#define COMPILE_FOR_CYGWIN 1
+#endif
+
 #if defined(__FreeBSD__) || defined(__OpenBSD__)
 #define COMPILE_FOR_BSD 1
 #endif

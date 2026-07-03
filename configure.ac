@@ -112,7 +112,8 @@ AC_ARG_WITH([freebsd-startup],[AS_HELP_STRING([--with-freebsd-startup],[install 
 AM_CONDITIONAL([INSTALL_FREEBSD_STARTUP], [test "x$with_freebsd_startup" = "xyes"])
 
 AC_ARG_WITH([cygwin-startup],[AS_HELP_STRING([--with-cygwin-startup],[install a CYGWIN startup script to start Shairport Sync after startup])])
-AM_CONDITIONAL([INSTALL_CYGWIN_STARTUP], [test "x$with_cygwin_startup" = "xyes"])
+AC_ARG_WITH([cygwin-service],[AS_HELP_STRING([--with-cygwin-service],[alias for --with-cygwin-startup])])
+AM_CONDITIONAL([INSTALL_CYGWIN_STARTUP], [test "x$with_cygwin_startup" = "xyes" || test "x$with_cygwin_service" = "xyes"])
 
 AC_ARG_WITH([external-mdns],[AS_HELP_STRING([--with-external-mdns],[support the use of 'avahi-publish-service' or 'mDNSPublish' to advertise the service on Bonjour/ZeroConf])])
 if  test "x$with_external_mdns" = xyes ; then
