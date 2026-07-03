@@ -39,9 +39,8 @@
 
 static struct mdnsd *svr = NULL;
 
-static int mdns_tinysvcmdns_register(char *ap1name, __attribute__((unused)) char *ap2name, int port,
-                                     __attribute__((unused)) char **txt_records,
-                                     __attribute__((unused)) char **secondary_txt_records) {
+static int mdns_tinysvcmdns_register(char *ap1name, char *ap2name, int port, char **txt_records,
+                                     char **secondary_txt_records) {
   struct ifaddrs *ifalist;
   struct ifaddrs *ifa;
 
@@ -130,21 +129,7 @@ static int mdns_tinysvcmdns_register(char *ap1name, __attribute__((unused)) char
     }
   }
 
-  freeifaddrs(ifa);
-
-  char *txtwithoutmetadata[] = {MDNS_RECORD_WITHOUT_METADATA, NULL};
-#ifdef CONFIG_METADATA
-  char *txtwithmetadata[] = {MDNS_RECORD_WITH_METADATA, NULL};
-#endif
-  char **txt;
-
-#ifdef CONFIG_METADATA
-  if (config.metadata_enabled)
-    txt = txtwithmetadata;
-  else
-#endif
-
-    txt = txtwithoutmetadata;
+  freeifaddrs(ifalist);
 
   if (config.regtype == NULL)
     die("tinysvcmdns: regtype is null");
@@ -159,10 +144,29 @@ static int mdns_tinysvcmdns_register(char *ap1name, __attribute__((unused)) char
 
   struct mdns_service *svc =
       mdnsd_register_svc(svr, ap1name, extendedregtype, port, NULL,
-                         (const char **)txt); // TTL should be 75 minutes, i.e. 4500 seconds
+                         (const char **)txt_records); // TTL should be 75 minutes, i.e. 4500 seconds
   mdns_service_destroy(svc);
 
   free(extendedregtype);
+
+  if ((ap2name != NULL) && (secondary_txt_records != NULL)) {
+    if (config.regtype2 == NULL)
+      die("tinysvcmdns: regtype2 is null");
+
+    extendedregtype = malloc(strlen(config.regtype2) + strlen(".local") + 1);
+
+    if (extendedregtype == NULL)
+      die("tinysvcmdns: could not allocated memory to request a secondary Zeroconf service");
+
+    strcpy(extendedregtype, config.regtype2);
+    strcat(extendedregtype, ".local");
+
+    svc = mdnsd_register_svc(svr, ap2name, extendedregtype, port, NULL,
+                            (const char **)secondary_txt_records);
+    mdns_service_destroy(svc);
+
+    free(extendedregtype);
+  }
 
   return 0;
 }

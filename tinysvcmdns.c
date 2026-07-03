@@ -209,6 +209,27 @@ uint8_t *create_label(const char *txt) {
   return s;
 }
 
+static uint8_t *create_txt(const char *txt) {
+  size_t len;
+  uint8_t *s;
+
+  if (txt == NULL)
+    return NULL;
+  len = strlen(txt);
+  if (len > UINT8_MAX)
+    die("can not create an oversized TXT item in tinysvcmdns.");
+
+  s = malloc(len + 2);
+  if (s) {
+    s[0] = (uint8_t)len;
+    memcpy((char *)s + 1, txt, len);
+    s[len + 1] = '\0';
+  } else {
+    die("can not allocate memory for \"s\" in tinysvcmdns.");
+  }
+  return s;
+}
+
 // creates a uncompressed name label given a DNS name like "apple.b.com"
 // free() after use
 uint8_t *create_nlabel(const char *name) {
@@ -524,7 +545,7 @@ void rr_add_txt(struct rr_entry *rr_txt, const char *txt) {
 
   // is current data filled?
   if (txt_rec->txt == NULL) {
-    txt_rec->txt = create_label(txt);
+    txt_rec->txt = create_txt(txt);
     return;
   }
 
@@ -536,7 +557,7 @@ void rr_add_txt(struct rr_entry *rr_txt, const char *txt) {
   txt_rec->next = malloc(sizeof(struct rr_data_txt));
 
   txt_rec = txt_rec->next;
-  txt_rec->txt = create_label(txt);
+  txt_rec->txt = create_txt(txt);
   txt_rec->next = NULL;
 }
 
