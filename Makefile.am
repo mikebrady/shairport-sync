@@ -107,6 +107,10 @@ if USE_PIPE
 shairport_sync_SOURCES += audio_pipe.c
 endif
 
+if USE_VBAN
+shairport_sync_SOURCES += audio_vban.c
+endif
+
 if USE_DUMMY
 shairport_sync_SOURCES += audio_dummy.c
 endif

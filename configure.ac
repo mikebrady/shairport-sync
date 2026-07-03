@@ -98,6 +98,12 @@ if test "x$with_pipe" = "xyes" ; then
 fi
 AM_CONDITIONAL([USE_PIPE], [test "x$with_pipe" = "xyes" ])
 
+AC_ARG_WITH([vban],[AS_HELP_STRING([--with-vban],[build the VBAN UDP audio backend into Shairport Sync])])
+if test "x$with_vban" = "xyes" ; then
+  AC_DEFINE([CONFIG_VBAN], 1, [Include an audio backend to output to a VBAN receiver.])
+fi
+AM_CONDITIONAL([USE_VBAN], [test "x$with_vban" = "xyes" ])
+
 # Check to see if we should include the System V initscript
 
 AC_ARG_WITH([systemv-startup],[AS_HELP_STRING([--with-systemv-startup],[install a System V startup script during a make install])])
