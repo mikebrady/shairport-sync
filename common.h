@@ -583,7 +583,9 @@ int mkpath(const char *path, mode_t mode);
 
 void sps_shutdown(type_of_exit_type shutdown_type); // TOE_normal, TOE_emergency, TOE_dbus
 
+#ifndef CONFIG_FOR_MINGW
 extern sigset_t pselect_sigset;
+#endif
 
 extern pthread_mutex_t the_conn_lock;
 

@@ -39,7 +39,9 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#ifndef CONFIG_FOR_MINGW
 #include <sys/wait.h>
+#endif
 #include <unistd.h>
 
 #include "config.h"
@@ -55,7 +57,11 @@
 #include <gcrypt.h>
 #include <libavcodec/avcodec.h>
 #include <sodium.h>
+#ifdef CONFIG_FOR_MINGW
+#include "utilities/uuid_compat.h"
+#else
 #include <uuid/uuid.h>
+#endif
 
 #endif
 
@@ -2060,10 +2066,14 @@ void exit_function() {
 // used with thanks.
 
 void handle_sigchld(__attribute__((unused)) int sig) {
+#ifndef CONFIG_FOR_MINGW
   int saved_errno = errno;
   while (waitpid((pid_t)(-1), 0, WNOHANG) > 0) {
   }
   errno = saved_errno;
+#else
+  (void)sig;
+#endif
 }
 
 // for clean exits
@@ -2399,6 +2409,11 @@ int main(int argc, char **argv) {
   openlog(NULL, 0, LOG_DAEMON);
 #endif
   type_of_exit_cleanup = TOE_normal; // what kind of exit cleanup needed
+#ifdef CONFIG_FOR_MINGW
+  if (shairport_mingw_winsock_init() != 0)
+    die("Could not initialise Winsock.");
+  atexit(shairport_mingw_winsock_cleanup);
+#endif
   debug(1, "adding the exit function");
   atexit(exit_function);
 
@@ -2681,6 +2696,10 @@ int main(int argc, char **argv) {
 #endif
 
   // control-c (SIGINT) cleanly
+#ifdef CONFIG_FOR_MINGW
+  signal(SIGINT, intHandler);
+  signal(SIGTERM, termHandler);
+#else
   struct sigaction act;
   memset(&act, 0, sizeof(struct sigaction));
   act.sa_handler = intHandler;
@@ -2705,6 +2724,7 @@ int main(int argc, char **argv) {
     perror(0);
     exit(1);
   }
+#endif
 
   // make sure the program can create files that group and world can read
   umask(S_IWGRP | S_IWOTH);

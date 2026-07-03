@@ -33,6 +33,10 @@ shairport_sync_SOURCES = shairport.c bonjour_strings.c mdns.c common.c rtp.c \
   utilities/debug.c utilities/network_utilities.c utilities/rtsp_message_utilities.c \
   utilities/string_utilities.c
 
+if BUILD_FOR_MINGW
+shairport_sync_SOURCES += utilities/mingw_ifaddrs.c
+endif
+
 if BUILD_FOR_DARWIN
   AM_CXXFLAGS = -I/usr/local/include -Wno-multichar -Wall -Wextra -Wno-deprecated-declarations -pthread -DSYSCONFDIR=\"$(sysconfdir)\"
   AM_CFLAGS = --include=utilities/debug.h -Wno-multichar -Wall -Wextra -Wno-deprecated-declarations -pthread -DSYSCONFDIR=\"$(sysconfdir)\"
@@ -168,13 +172,13 @@ shairport_sync_SOURCES += ap2_buffered_audio_processor.c ap2_event_receiver.c \
   ap2_event_message_handler.c ptp-utilities.c \
   utilities/buffered_read.c utilities/structured_buffer.c utilities/mod23.c \
   utilities/generate_random_uuid.c utilities/generate_device_uuid.c \
-  plists/get_info_response.c
+  utilities/uuid_compat.c plists/get_info_response.c
 shairport_sync_LDADD += lib_pair_ap.a
 lib_pair_ap_a_SOURCES = pair_ap/pair.c pair_ap/pair_fruit.c pair_ap/pair_homekit.c pair_ap/pair-tlv.c
 noinst_LIBRARIES += lib_pair_ap.a
 
 plists/get_info_response.h: plists/get_info_response.xml
-	sh $(top_srcdir)/xml_plist_codegen.sh $(top_srcdir)/plists/get_info_response.xml $(abs_builddir)/plists
+	sh "$(top_srcdir)/xml_plist_codegen.sh" "$(top_srcdir)/plists/get_info_response.xml" "$(abs_builddir)/plists"
 plists/get_info_response.c: plists/get_info_response.h
 	touch plists/get_info_response.c
 

@@ -1,0 +1,4 @@
+#ifndef SHAIRPORT_COMPAT_SYS_WAIT_H
+#define SHAIRPORT_COMPAT_SYS_WAIT_H
+
+#endif

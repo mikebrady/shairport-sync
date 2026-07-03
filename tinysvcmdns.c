@@ -1413,7 +1413,7 @@ int create_pipe(int handles[2]) {
     return -1;
   }
   int len = sizeof(serv_addr);
-  if (getsockname(sock, (SOCKADDR *)&serv_addr, &len) == SOCKET_ERROR) {
+  if (getsockname(sock, (struct sockaddr *)&serv_addr, &len) == SOCKET_ERROR) {
     closesocket(sock);
     return -1;
   }

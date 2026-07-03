@@ -5,6 +5,10 @@
 
 #include "config.h"
 
+#ifdef CONFIG_FOR_MINGW
+#include "utilities/mingw_compat.h"
+#endif
+
 // for generating our own UUIDs
 #define SHAIRPORT_SYNC_DEVICE_NAMESPACE "01d7c137-6316-455d-a52f-dfb529f26adf"
 
@@ -17,7 +21,8 @@
 #endif
 #endif
 
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__CYGWIN__)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__CYGWIN__) ||  \
+    defined(__MINGW32__) || defined(__MINGW64__)
 #define COMPILE_FOR_LINUX_AND_FREEBSD_AND_CYGWIN_AND_OPENBSD 1
 #endif
 
@@ -27,6 +32,10 @@
 
 #if defined(__CYGWIN__)
 #define COMPILE_FOR_CYGWIN 1
+#endif
+
+#if defined(__MINGW32__) || defined(__MINGW64__)
+#define COMPILE_FOR_MINGW 1
 #endif
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__)

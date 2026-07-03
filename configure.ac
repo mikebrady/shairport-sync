@@ -5,10 +5,18 @@ AC_INIT([shairport-sync], [5.1-dev], [4265913+mikebrady@users.noreply.github.com
 : ${CFLAGS="-O3"}
 : ${CXXFLAGS="-O3"}
 AM_INIT_AUTOMAKE([subdir-objects])
+AC_CANONICAL_HOST
 AC_CONFIG_SRCDIR([shairport.c])
 AC_CONFIG_HEADERS([config.h])
 AC_PROG_RANLIB
 AC_SUBST([HOME], [$HOME])
+
+case "${host_os}" in
+  mingw*)
+    AC_DEFINE([CONFIG_FOR_MINGW], 1, [Build for MinGW.])
+    LIBS="-lrpcrt4 -lws2_32 -liphlpapi ${LIBS}"
+    ;;
+esac
 
 # Derived from the Avahi configure.ac file
 # Specifying the OS type, defaulting to linux.
@@ -47,7 +55,7 @@ PKG_PROG_PKG_CONFIG([0.9.0])
 
 # Checks for libraries.
 if test "x${with_os}" = xlinux -o "x${with_os}" = xfreebsd ; then
- AC_CHECK_LIB([rt],[clock_gettime], , AC_MSG_ERROR(librt needed))
+ AC_SEARCH_LIBS([clock_gettime], [rt], , AC_MSG_ERROR(clock_gettime needed))
 fi
 
 if test "x${with_os}" = xopenbsd ; then
@@ -59,6 +67,7 @@ AM_CONDITIONAL([BUILD_FOR_LINUX], [test "x${with_os}" = xlinux ])
 AM_CONDITIONAL([BUILD_FOR_FREEBSD], [test "x${with_os}" = xfreebsd ])
 AM_CONDITIONAL([BUILD_FOR_OPENBSD], [test "x${with_os}" = xopenbsd ])
 AM_CONDITIONAL([BUILD_FOR_DARWIN], [test "x${with_os}" = xdarwin ])
+AM_CONDITIONAL([BUILD_FOR_MINGW], [test "x${host_os#mingw}" != "x${host_os}" ])
 
 ##### Some build systems are not fully using pkg-config, so we can use the flag ${with_pkg_config} on a case-by-case basis
 ##### to control how to deal with them
@@ -468,7 +477,13 @@ if test "x$with_airplay_2" = "xyes" ; then
       [AC_MSG_ERROR([Airplay 2 support requires libgcrypt -- libgcrypt-dev suggested])]
     )
   ])
-  AC_CHECK_LIB([uuid],[uuid_generate], [], [AC_MSG_ERROR([AirPlay 2 support requires the uuid library -- uuid-dev suggested])])
+  case "${host_os}" in
+    mingw*)
+      ;;
+    *)
+      AC_CHECK_LIB([uuid],[uuid_generate], [], [AC_MSG_ERROR([AirPlay 2 support requires the uuid library -- uuid-dev suggested])])
+      ;;
+  esac
   systemd_after_args="${systemd_after_args}${systemd_after_args:+ }nqptp.service"
   systemd_wants_args="${systemd_wants_args}${systemd_wants_args:+ }nqptp.service"
 fi

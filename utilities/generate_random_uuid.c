@@ -24,8 +24,13 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "config.h"
 #include <stdlib.h>
+#ifdef CONFIG_FOR_MINGW
+#include "uuid_compat.h"
+#else
 #include <uuid/uuid.h>
+#endif
 
 #include "generate_random_uuid.h"
 

@@ -32,7 +32,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef CONFIG_FOR_MINGW
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#ifndef MAP_FAILED
+#define MAP_FAILED ((void *)-1)
+#endif
+#else
 #include <sys/mman.h>
+#endif
 #ifdef COMPILE_FOR_FREEBSD
 #include <netinet/in.h>
 #endif
@@ -48,6 +58,16 @@
 
 int shm_fd;
 void *mapped_addr = NULL;
+#ifdef CONFIG_FOR_MINGW
+static HANDLE ptp_mapping = NULL;
+
+static void windows_shm_name(const char *name, char *buffer, size_t buffer_size) {
+  const char *source = name;
+  if ((source != NULL) && (*source == '/'))
+    source++;
+  snprintf(buffer, buffer_size, "Local\\%s", source != NULL ? source : "nqptp");
+}
+#endif
 
 // returns a copy of the shared memory data from the nqptp
 // shared memory interface, so long as it's open.
@@ -173,6 +193,23 @@ int ptp_shm_interface_open() {
 
     if (strcmp(config.nqptp_shared_memory_interface_name, "") != 0) {
       response = 0;
+#ifdef CONFIG_FOR_MINGW
+      char mapped_name[MAX_PATH];
+      windows_shm_name(config.nqptp_shared_memory_interface_name, mapped_name,
+                       sizeof(mapped_name));
+      ptp_mapping = OpenFileMappingA(FILE_MAP_READ, FALSE, mapped_name);
+      if (ptp_mapping != NULL) {
+        mapped_addr = MapViewOfFile(ptp_mapping, FILE_MAP_READ, 0, 0, sizeof(struct shm_structure));
+        if (mapped_addr == NULL) {
+          CloseHandle(ptp_mapping);
+          ptp_mapping = NULL;
+          mapped_addr = MAP_FAILED;
+          response = -1;
+        }
+      } else {
+        response = -1;
+      }
+#else
       int shared_memory_file_descriptor =
           shm_open(config.nqptp_shared_memory_interface_name, O_RDONLY, 0);
       if (shared_memory_file_descriptor >= 0) {
@@ -190,6 +227,7 @@ int ptp_shm_interface_open() {
       } else {
         response = -1;
       }
+#endif
     } else {
       debug(1, "No config.nqptp_shared_memory_interface_name");
     }
@@ -207,7 +245,15 @@ int ptp_shm_interface_close() {
   int response = -1;
   if ((mapped_addr != MAP_FAILED) && (mapped_addr != NULL)) {
     debug(2, "ptp_shm_interface_close");
+#ifdef CONFIG_FOR_MINGW
+    response = UnmapViewOfFile(mapped_addr) == 0 ? -1 : 0;
+    if (ptp_mapping != NULL) {
+      CloseHandle(ptp_mapping);
+      ptp_mapping = NULL;
+    }
+#else
     response = munmap(mapped_addr, sizeof(struct shm_structure));
+#endif
     if (response != 0)
       debug(1, "error unmapping shared memory.");
   }
