@@ -7,6 +7,7 @@ typedef struct {
   int closed;
   int error_code;
   int sock_fd;
+  int connection_fd;
   char *buffer;
   char *toq;
   char *eoq;
@@ -18,6 +19,7 @@ typedef struct {
 } buffered_tcp_desc;
 
 void *buffered_tcp_reader(void *arg);
+void buffered_tcp_desc_socket_cleanup(void *arg);
 
 // read the number of bytes specified by "count".
 ssize_t read_sized_block(buffered_tcp_desc *descriptor, void *buf, size_t count,

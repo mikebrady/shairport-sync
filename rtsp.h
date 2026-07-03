@@ -25,6 +25,7 @@ void msg_retain(rtsp_message *msg);
 void msg_free(rtsp_message **msgh);
 
 void *rtsp_listen_loop(__attribute((unused)) void *arg);
+void rtsp_request_listen_loop_exit(void);
 
 // this can be used to [try to] forcibly stop a play session
 // play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption);

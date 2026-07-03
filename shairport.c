@@ -1902,8 +1902,12 @@ const char *pid_file_proc(void) {
 void exit_rtsp_listener() {
   debug(3, "exit_rtsp_listener begins");
   if (type_of_exit_cleanup != TOE_emergency) {
+    rtsp_request_listen_loop_exit();
     pthread_cancel(rtsp_listener_thread);
-    pthread_join(rtsp_listener_thread, NULL); // not sure you need this
+    if (pthread_equal(pthread_self(), rtsp_listener_thread) == 0)
+      pthread_join(rtsp_listener_thread, NULL); // not sure you need this
+    else
+      debug(2, "exit_rtsp_listener skipping join of current thread.");
   }
   debug(2, "exit_rtsp_listener ends");
 }

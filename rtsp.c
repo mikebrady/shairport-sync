@@ -128,6 +128,8 @@ enum rtsp_read_request_response {
 
 rtsp_conn_info *principal_conn = NULL;
 rtsp_conn_info **conns = NULL;
+static pthread_mutex_t rtsp_listener_sockets_mutex = PTHREAD_MUTEX_INITIALIZER;
+static int *rtsp_listener_sockets = NULL;
 
 // always lock this when accessing the principal conn value
 // use a read lock when consulting and holding it
@@ -4358,6 +4360,11 @@ void rtsp_listen_loop_cleanup_handler(__attribute__((unused)) void *arg) {
   }
   int *sockfd = (int *)arg;
   if (sockfd) {
+    pthread_mutex_lock(&rtsp_listener_sockets_mutex);
+    if (rtsp_listener_sockets == sockfd)
+      rtsp_listener_sockets = NULL;
+    pthread_mutex_unlock(&rtsp_listener_sockets_mutex);
+
     int i;
     for (i = 1; i <= sockfd[0]; i++) {
       safe_socket_close(&sockfd[i]);
@@ -4365,6 +4372,17 @@ void rtsp_listen_loop_cleanup_handler(__attribute__((unused)) void *arg) {
     free(sockfd);
   }
   pthread_setcancelstate(oldState, NULL);
+}
+
+void rtsp_request_listen_loop_exit(void) {
+  pthread_mutex_lock(&rtsp_listener_sockets_mutex);
+  int *sockfd = rtsp_listener_sockets;
+  if (sockfd) {
+    int i;
+    for (i = 1; i <= sockfd[0]; i++)
+      safe_socket_close(&sockfd[i]);
+  }
+  pthread_mutex_unlock(&rtsp_listener_sockets_mutex);
 }
 
 void *rtsp_listen_loop(__attribute((unused)) void *arg) {
@@ -4476,6 +4494,9 @@ void *rtsp_listen_loop(__attribute((unused)) void *arg) {
     mdns_register(t1, t2); // note that the dacp thread could still be using the mdns stuff after
                            // all player threads have been terminated, so mdns_unregister can't be
                            // in the rtsp_listen_loop cleanup.
+    pthread_mutex_lock(&rtsp_listener_sockets_mutex);
+    rtsp_listener_sockets = sockfd;
+    pthread_mutex_unlock(&rtsp_listener_sockets_mutex);
     pthread_setcancelstate(oldState, NULL);
     int acceptfd;
     struct timeval tv;

@@ -29,6 +29,7 @@
 
 #include "buffered_read.h"
 #include "common.h"
+#include "network_utilities.h"
 #include <pthread.h>
 #include <sys/types.h>
 
@@ -95,6 +96,14 @@ void buffered_tcp_reader_cleanup_handler(__attribute__((unused)) void *arg) {
   debug(2, "Buffered TCP Reader Thread Exit via Cleanup.");
 }
 
+void buffered_tcp_desc_socket_cleanup(void *arg) {
+  buffered_tcp_desc *descriptor = (buffered_tcp_desc *)arg;
+  if (descriptor->connection_fd > 0)
+    safe_socket_close(&descriptor->connection_fd);
+  if (descriptor->sock_fd > 0)
+    safe_socket_close(&descriptor->sock_fd);
+}
+
 void *buffered_tcp_reader(void *arg) {
   //  #include <syscall.h>
   //  debug(1, "buffered_tcp_reader PID %d", syscall(SYS_gettid));
@@ -108,10 +117,10 @@ void *buffered_tcp_reader(void *arg) {
   memset(&remote_addr, 0, sizeof(remote_addr));
   socklen_t addr_size = sizeof(remote_addr);
   int finished = 0;
-  int fd = accept(descriptor->sock_fd, (struct sockaddr *)&remote_addr, &addr_size);
+  descriptor->connection_fd = accept(descriptor->sock_fd, (struct sockaddr *)&remote_addr, &addr_size);
   // debug(1, "buffered_tcp_reader: the client has opened a buffered audio link.");
   // intptr_t pfd = fd;
-  pthread_cleanup_push(socket_cleanup, (void *)&fd);
+  pthread_cleanup_push(socket_cleanup, (void *)&descriptor->connection_fd);
 
   do {
     int have_time_to_sleep = 0;
@@ -146,18 +155,24 @@ void *buffered_tcp_reader(void *arg) {
     // do the read
     if (descriptor->buffer_occupancy == 0)
       debug(2, "recv of up to %zd bytes with an buffer empty.", bytes_to_request);
-    nread = recv(fd, descriptor->eoq, bytes_to_request, 0);
+    nread = socket_read(descriptor->connection_fd, descriptor->eoq, bytes_to_request);
     // debug(1, "Received %d bytes for a buffer size of %d bytes.",nread,
     // descriptor->buffer_occupancy + nread);
     if (debug_mutex_lock(&descriptor->mutex, 50000, 4) != 0)
       debug(1, "problem with not empty mutex");
     pthread_cleanup_push(mutex_unlock, (void *)&descriptor->mutex);
     if (nread < 0) {
-      char errorstring[1024];
-      strerror_r(errno, (char *)errorstring, sizeof(errorstring));
-      debug(1, "error in buffered_tcp_reader %d: \"%s\". Could not recv a packet.", errno,
-            errorstring);
-      descriptor->error_code = errno;
+      if ((descriptor->connection_fd == -1) || (descriptor->sock_fd == -1)) {
+        descriptor->closed = 1;
+        debug(2, "buffered audio socket closed. Terminating the buffered_tcp_reader thread.");
+      } else {
+        char errorstring[1024];
+        strerror_r(errno, (char *)errorstring, sizeof(errorstring));
+        debug(1, "error in buffered_tcp_reader %d: \"%s\". Could not recv a packet.", errno,
+              errorstring);
+        descriptor->error_code = errno;
+      }
+      finished = 1;
     } else if (nread == 0) {
       descriptor->closed = 1;
       debug(
