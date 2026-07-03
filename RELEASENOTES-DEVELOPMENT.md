@@ -183,7 +183,7 @@ Version 5.0.1+-23-g7fb3506e
 Version 5.0.1+-13-ga14517d7
 ==
 **Change**
-* When built for AirPlay 2, add `pw=true` to the Bonjour raop properties if the classic AirPlay password is set. This might help with Owntone compatibility.
+* When built for AirPlay 2, add `pw=true` to the Bonjour `raop` properties if the classic AirPlay password is set. This might help with Owntone compatibility.
 
 Version 5.0.1+-11-g07546c35
 ==
