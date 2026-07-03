@@ -30,11 +30,6 @@ pc_queue metadata_mqtt_queue;
 metadata_package metadata_mqtt_queue_items[metadata_mqtt_queue_size];
 pthread_t metadata_mqtt_thread;
 
-/*
-CDA9038D27ABF88 Kiss me
-710E8D864C9E2392 Elizabeth
-*/
-
 // this holds the mosquitto client
 struct mosquitto *global_mosq = NULL;
 int connected = 0;
