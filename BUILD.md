@@ -60,6 +60,11 @@ You should also remove any of the following service files that may be present:
   
 New service files will be installed if necessary at the `# make install` stage.
 
+When you have finished removing the service files, perform the following command:
+```
+# systemctl daemon-reload
+```
+
 (In FreeBSD, there is no need to remove the file at `/usr/local/etc/rc.d/shairport-sync` – it's always replaced in the `make install` step.)
 #### Reboot after Cleaning Up
 If you removed any installations of Shairport Sync or any of its service or configuration files in the last three steps, you should reboot.
