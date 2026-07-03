@@ -3398,6 +3398,9 @@ void player_thread_cleanup_handler(void *arg) {
 
     debug(2, "Connection %d: Delete AirPlay 2 Control thread", conn->connection_number);
     pthread_cancel(conn->rtp_ap2_control_thread);
+#ifdef CONFIG_FOR_MINGW
+    safe_socket_close(&conn->ap2_control_socket);
+#endif
     pthread_join(conn->rtp_ap2_control_thread, NULL);
   } else {
     debug(2, "Cancelling AP1-compatible timing, control and audio threads...");

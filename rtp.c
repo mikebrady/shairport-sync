@@ -1647,6 +1647,7 @@ void *rtp_ap2_control_receiver(void *arg) {
 
     nread = recvfrom(conn->ap2_control_socket, packet, sizeof(packet), 0,
                      (struct sockaddr *)&from_sock_addr, &from_sock_addr_length);
+    pthread_testcancel();
     uint64_t time_now = get_absolute_time_in_ns();
     int64_t time_since_start = time_now - start_time;
 
