@@ -59,6 +59,50 @@ static unsigned int adapter_flags(const IP_ADAPTER_ADDRESSES *adapter) {
   return flags;
 }
 
+static char *adapter_if_name(const IP_ADAPTER_ADDRESSES *adapter) {
+  char name[512];
+  int length =
+      WideCharToMultiByte(CP_UTF8, 0, adapter->FriendlyName, -1, name, sizeof(name), NULL, NULL);
+  if (length > 0)
+    return strdup(name);
+  return strdup(adapter->AdapterName);
+}
+
+unsigned long if_nametoindex(const char *ifname) {
+  if (ifname == NULL)
+    return 0;
+
+  ULONG size = 15000;
+  IP_ADAPTER_ADDRESSES *adapters = NULL;
+  ULONG rc;
+  do {
+    IP_ADAPTER_ADDRESSES *new_adapters = realloc(adapters, size);
+    if (new_adapters == NULL) {
+      free(adapters);
+      return 0;
+    }
+    adapters = new_adapters;
+    rc = GetAdaptersAddresses(AF_UNSPEC, 0, NULL, adapters, &size);
+  } while (rc == ERROR_BUFFER_OVERFLOW);
+
+  unsigned long index = 0;
+  if (rc == NO_ERROR) {
+    for (IP_ADAPTER_ADDRESSES *adapter = adapters; adapter != NULL; adapter = adapter->Next) {
+      char *name = adapter_if_name(adapter);
+      if (name) {
+        if ((strcmp(ifname, name) == 0) || (strcmp(ifname, adapter->AdapterName) == 0))
+          index = adapter->IfIndex;
+        free(name);
+      }
+      if (index != 0)
+        break;
+    }
+  }
+
+  free(adapters);
+  return index;
+}
+
 int getifaddrs(struct ifaddrs **ifap) {
   if (ifap == NULL)
     return -1;
@@ -96,7 +140,7 @@ int getifaddrs(struct ifaddrs **ifap) {
         return -1;
       }
 
-      entry->ifa_name = strdup(adapter->AdapterName);
+      entry->ifa_name = adapter_if_name(adapter);
       entry->ifa_flags = adapter_flags(adapter);
       entry->ifa_addr = copy_sockaddr(&addr->Address);
       if (entry->ifa_addr)

@@ -89,6 +89,7 @@
 #include "player.h"
 #include "rtp.h"
 #include "rtsp.h"
+#include "utilities/network_utilities.h"
 
 #include "alac.h"
 
@@ -101,6 +102,7 @@
 #endif
 
 #ifdef CONFIG_FFMPEG
+#include <libavutil/mem.h>
 #include <libavutil/version.h>
 #endif
 
@@ -1098,8 +1100,8 @@ void prepare_decoding_chain(rtsp_conn_info *conn, ssrc_t ssrc) {
         // prepare to open the codec context with that codec
         // but first, if it's the ALAC decoder, prepare a magic cookie
         if ((ssrc == ALAC_48000_S24_2) || (ssrc == ALAC_44100_S16_2)) {
-          alac_ffmpeg_magic_cookie *extradata =
-              malloc(sizeof(alac_ffmpeg_magic_cookie)); // might not use it
+          alac_ffmpeg_magic_cookie *extradata = av_mallocz(
+              sizeof(alac_ffmpeg_magic_cookie) + AV_INPUT_BUFFER_PADDING_SIZE); // might not use it
           if (extradata == NULL)
             die("connection %d: could not allocate memory for a magic cookie.",
                 conn->connection_number);
@@ -3404,16 +3406,25 @@ void player_thread_cleanup_handler(void *arg) {
 #endif
     debug(3, "Cancel timing thread.");
     pthread_cancel(conn->rtp_timing_thread);
+#ifdef CONFIG_FOR_MINGW
+    safe_socket_close(&conn->timing_socket);
+#endif
     debug(3, "Join timing thread.");
     pthread_join(conn->rtp_timing_thread, NULL);
     debug(3, "Timing thread terminated.");
     debug(3, "Cancel control thread.");
     pthread_cancel(conn->rtp_control_thread);
+#ifdef CONFIG_FOR_MINGW
+    safe_socket_close(&conn->control_socket);
+#endif
     debug(3, "Join control thread.");
     pthread_join(conn->rtp_control_thread, NULL);
     debug(3, "Control thread terminated.");
     debug(3, "Cancel audio thread.");
     pthread_cancel(conn->rtp_audio_thread);
+#ifdef CONFIG_FOR_MINGW
+    safe_socket_close(&conn->audio_socket);
+#endif
     debug(3, "Join audio thread.");
     pthread_join(conn->rtp_audio_thread, NULL);
     debug(3, "Audio thread terminated.");

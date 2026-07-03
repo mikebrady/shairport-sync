@@ -1234,6 +1234,20 @@ static ssize_t send_packet(int fd, const void *data, size_t len) {
   return sendto(fd, data, len, 0, (struct sockaddr *)&toaddr, sizeof(struct sockaddr_in));
 }
 
+int mdnsd_set_ipv4_interface(struct mdnsd *s, uint32_t interface_addr) {
+  struct in_addr iface;
+  iface.s_addr = interface_addr;
+
+  if (setsockopt(s->sockfd, IPPROTO_IP, IP_MULTICAST_IF, (char *)&iface, sizeof(iface)) < 0)
+    return -1;
+
+  struct ip_mreq mreq;
+  memset(&mreq, 0, sizeof(mreq));
+  mreq.imr_interface = iface;
+  mreq.imr_multiaddr.s_addr = inet_addr(MDNS_ADDR);
+  return setsockopt(s->sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&mreq, sizeof(mreq));
+}
+
 // populate the specified list which matches the RR name and type
 // type can be RR_ANY, which populates all entries EXCEPT RR_NSEC
 static int populate_answers(struct mdnsd *svr, struct rr_list **rr_head, uint8_t *name,

@@ -29,6 +29,11 @@
 #include <errno.h>
 #include <pthread.h>
 #include <string.h>
+#include <unistd.h>
+
+#ifdef CONFIG_FOR_MINGW
+#include <winsock2.h>
+#endif
 
 int eintr_checked_accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
   int response;
@@ -48,6 +53,28 @@ int eintr_checked_accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen) 
 
 pthread_mutex_t safe_socket_lock = PTHREAD_MUTEX_INITIALIZER;
 
+ssize_t socket_read(int sockfd, void *buf, size_t count) {
+#ifdef CONFIG_FOR_MINGW
+  int response = recv(sockfd, buf, count, 0);
+  if (response == SOCKET_ERROR)
+    errno = WSAGetLastError();
+  return response;
+#else
+  return read(sockfd, buf, count);
+#endif
+}
+
+ssize_t socket_write(int sockfd, const void *buf, size_t count) {
+#ifdef CONFIG_FOR_MINGW
+  int response = send(sockfd, buf, count, 0);
+  if (response == SOCKET_ERROR)
+    errno = WSAGetLastError();
+  return response;
+#else
+  return write(sockfd, buf, count);
+#endif
+}
+
 int _safe_socket_close(const char *filename, const int linenumber, int *sockfd) {
   int result = 0;
   int oldstate;
@@ -58,7 +85,11 @@ int _safe_socket_close(const char *filename, const int linenumber, int *sockfd) 
   }
   if ((*sockfd != -1) && (*sockfd != 0)) {
     _debug(filename, linenumber, 4, "_safe_socket_close: closing socket %d.", *sockfd);
+#ifdef CONFIG_FOR_MINGW
+    result = closesocket(*sockfd);
+#else
     result = close(*sockfd);
+#endif
     if (result == 0)
       *sockfd = -1;
   } else {

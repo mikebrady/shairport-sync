@@ -71,23 +71,33 @@ static int mdns_tinysvcmdns_register(char *ap1name, __attribute__((unused)) char
 
   ifa = ifalist;
 
-  // Look for an ipv4/ipv6 non-loopback interface to use as the main one.
+  // Look for an ipv4 non-loopback interface to use as the main one.
   for (ifa = ifalist; ifa != NULL; ifa = ifa->ifa_next) {
     // only check for the named interface, if specified
     if ((config.interface == NULL) || (strcmp(config.interface, ifa->ifa_name) == 0)) {
-
       if (!(ifa->ifa_flags & IFF_LOOPBACK) && ifa->ifa_addr &&
           ifa->ifa_addr->sa_family == AF_INET) {
         uint32_t main_ip = ((struct sockaddr_in *)ifa->ifa_addr)->sin_addr.s_addr;
 
         mdnsd_set_hostname(svr, hostname, main_ip); // TTL should be 120 seconds
+        if (config.interface != NULL)
+          mdnsd_set_ipv4_interface(svr, main_ip);
         break;
-      } else if (!(ifa->ifa_flags & IFF_LOOPBACK) && ifa->ifa_addr &&
-                 ifa->ifa_addr->sa_family == AF_INET6) {
+      }
+    }
+  }
+
+  // If no ipv4 address was found, try ipv6.
+  if (ifa == NULL) {
+    for (ifa = ifalist; ifa != NULL; ifa = ifa->ifa_next) {
+      if ((config.interface == NULL) || (strcmp(config.interface, ifa->ifa_name) == 0)) {
+        if (!(ifa->ifa_flags & IFF_LOOPBACK) && ifa->ifa_addr &&
+            ifa->ifa_addr->sa_family == AF_INET6) {
         struct in6_addr *addr = &((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr;
 
         mdnsd_set_hostname_v6(svr, hostname, addr); // TTL should be 120 seconds
         break;
+        }
       }
     }
   }

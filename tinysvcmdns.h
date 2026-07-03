@@ -214,6 +214,8 @@ struct mdns_service;
 // returns NULL if unsuccessful
 struct mdnsd *mdnsd_start();
 
+int mdnsd_set_ipv4_interface(struct mdnsd *s, uint32_t interface_addr);
+
 // stops the given MDNS responder instance
 void mdnsd_stop(struct mdnsd *s);
 

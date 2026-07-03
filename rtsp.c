@@ -493,7 +493,7 @@ ssize_t read_encrypted(int fd, pair_cipher_bundle *ctx, void *buf, size_t count)
     pthread_cleanup_push(malloc_cleanup, &plain);
     size_t plain_len = 0;
     do {
-      response = read(fd, in, sizeof(in));
+      response = socket_read(fd, in, sizeof(in));
       if (response > 0) {
         buf_add(&ctx->encrypted_read_buffer, in, response);
         ssize_t consumed = pair_decrypt(&plain, &plain_len, ctx->encrypted_read_buffer.data,
@@ -533,7 +533,7 @@ ssize_t write_encrypted(int fd, pair_cipher_bundle *ctx, const void *buf, size_t
   // debug(1, "write encrypted:");
   // debug_print_buffer(1, encrypted, encrypted_len);
   while (remain > 0) {
-    ssize_t wrote = write(fd, encrypted + (encrypted_len - remain), remain);
+    ssize_t wrote = socket_write(fd, encrypted + (encrypted_len - remain), remain);
     if (wrote <= 0) {
       free(encrypted);
       return wrote;
@@ -559,10 +559,10 @@ ssize_t read_from_rtsp_connection(rtsp_conn_info *conn, void *buf, size_t count)
           read_encrypted(conn->fd, &conn->ap2_pairing_context.control_cipher_bundle, buf, count);
 
     } else {
-      result = read(conn->fd, buf, count);
+      result = socket_read(conn->fd, buf, count);
     }
 #else
-    result = read(conn->fd, buf, count);
+    result = socket_read(conn->fd, buf, count);
     // In AP1, the RTSP connection is closed in this way, so it's not unexpected
 #endif
     if ((result <= 0) && (errno != 0)) {
@@ -879,10 +879,10 @@ int msg_write_response(rtsp_conn_info *conn, rtsp_message *resp) {
     reply =
         write_encrypted(conn->fd, &conn->ap2_pairing_context.control_cipher_bundle, pkt, p - pkt);
   } else {
-    reply = write(conn->fd, pkt, p - pkt);
+    reply = socket_write(conn->fd, pkt, p - pkt);
   }
 #else
-  ssize_t reply = write(conn->fd, pkt, p - pkt);
+  ssize_t reply = socket_write(conn->fd, pkt, p - pkt);
 #endif
 
   if (reply == -1) {
@@ -4300,7 +4300,7 @@ static void *rtsp_conversation_thread_func(void *pconn) {
       } else if (reply == rtsp_read_request_response_bad_packet) {
         conn->stop = 0; // don't stop for a bad packet
         char *response_text = "RTSP/1.0 400 Bad Request\r\nServer: AirTunes/105.1\r\n\r\n";
-        ssize_t lreply = write(conn->fd, response_text, strlen(response_text));
+        ssize_t lreply = socket_write(conn->fd, response_text, strlen(response_text));
         if (lreply == -1) {
           char errorstring[1024];
           strerror_r(errno, (char *)errorstring, sizeof(errorstring));
