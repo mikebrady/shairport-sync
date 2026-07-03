@@ -27,9 +27,16 @@
 
 #include "mdns.h"
 #include "common.h"
+#ifdef CONFIG_DACP_CLIENT
+#include "dacp.h"
+#endif
+#ifdef CONFIG_METADATA
+#include "metadata/core.h"
+#endif
 #include <ifaddrs.h>
 #include <net/if.h>
 #include <netinet/in.h>
+#include <pthread.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -38,6 +45,103 @@
 #include "tinysvcmdns.h"
 
 static struct mdnsd *svr = NULL;
+
+#ifdef CONFIG_DACP_CLIENT
+static pthread_mutex_t dacp_monitor_lock = PTHREAD_MUTEX_INITIALIZER;
+static char *dacp_monitor_id = NULL;
+
+static char *nlabel_to_str_no_trailing_dot(const uint8_t *name) {
+  char *name_string = nlabel_to_str(name);
+  if (name_string != NULL) {
+    size_t len = strlen(name_string);
+    if ((len > 0) && (name_string[len - 1] == '.'))
+      name_string[len - 1] = '\0';
+  }
+  return name_string;
+}
+
+static int service_name_matches_dacp_id(const char *service_name, const char *dacp_id) {
+  const char prefix[] = "iTunes_Ctrl_";
+  const char suffix[] = "._dacp._tcp.local";
+  size_t service_name_len = strlen(service_name);
+  size_t prefix_len = strlen(prefix);
+  size_t suffix_len = strlen(suffix);
+
+  if ((dacp_id == NULL) || (service_name_len <= prefix_len + suffix_len) ||
+      (strncmp(service_name, prefix, prefix_len) != 0) ||
+      (strcmp(service_name + service_name_len - suffix_len, suffix) != 0))
+    return 0;
+
+  const char *service_dacp_id = service_name + prefix_len;
+  size_t service_dacp_id_len = service_name_len - prefix_len - suffix_len;
+  while ((service_dacp_id_len > 0) && (*service_dacp_id == '0')) {
+    service_dacp_id++;
+    service_dacp_id_len--;
+  }
+
+  return (strlen(dacp_id) == service_dacp_id_len) &&
+         (strncmp(service_dacp_id, dacp_id, service_dacp_id_len) == 0);
+}
+
+static void mdns_tinysvcmdns_note_dacp_port(const char *dacp_id, uint16_t port) {
+  dacp_monitor_port_update_callback(dacp_id, port);
+#ifdef CONFIG_METADATA
+  char port_in_chars[16];
+  snprintf(port_in_chars, sizeof(port_in_chars), "%u", port);
+  send_ssnc_metadata('dapo', port_in_chars, strlen(port_in_chars), 0);
+#endif
+}
+
+static void process_dacp_record(struct rr_entry *rr, const char *dacp_id) {
+  if (rr == NULL)
+    return;
+
+  if (rr->type == RR_PTR) {
+    char *name = nlabel_to_str_no_trailing_dot(rr->name);
+    if ((name != NULL) && (strcmp(name, "_dacp._tcp.local") == 0)) {
+      char *service_name = nlabel_to_str_no_trailing_dot(MDNS_RR_GET_PTR_NAME(rr));
+      if ((service_name != NULL) && service_name_matches_dacp_id(service_name, dacp_id)) {
+        if (rr->ttl == 0) {
+          mdns_tinysvcmdns_note_dacp_port(dacp_id, 0);
+        } else if (svr != NULL) {
+          mdnsd_send_query(svr, service_name, RR_SRV);
+        }
+      }
+      free(service_name);
+    }
+    free(name);
+  } else if (rr->type == RR_SRV) {
+    char *service_name = nlabel_to_str_no_trailing_dot(rr->name);
+    if ((service_name != NULL) && service_name_matches_dacp_id(service_name, dacp_id)) {
+      mdns_tinysvcmdns_note_dacp_port(dacp_id, rr->ttl == 0 ? 0 : rr->data.SRV.port);
+    }
+    free(service_name);
+  }
+}
+
+static void process_dacp_record_list(struct rr_list *records, const char *dacp_id) {
+  for (; records != NULL; records = records->next)
+    process_dacp_record(records->e, dacp_id);
+}
+
+static void mdns_tinysvcmdns_packet_callback(struct mdns_pkt *pkt,
+                                             __attribute__((unused)) void *userdata) {
+  char *dacp_id = NULL;
+  pthread_mutex_lock(&dacp_monitor_lock);
+  if (dacp_monitor_id != NULL)
+    dacp_id = strdup(dacp_monitor_id);
+  pthread_mutex_unlock(&dacp_monitor_lock);
+
+  if (dacp_id == NULL)
+    return;
+
+  process_dacp_record_list(pkt->rr_ans, dacp_id);
+  process_dacp_record_list(pkt->rr_auth, dacp_id);
+  process_dacp_record_list(pkt->rr_add, dacp_id);
+
+  free(dacp_id);
+}
+#endif
 
 static int mdns_tinysvcmdns_register(char *ap1name, char *ap2name, int port, char **txt_records,
                                      char **secondary_txt_records) {
@@ -173,14 +277,51 @@ static int mdns_tinysvcmdns_register(char *ap1name, char *ap2name, int port, cha
 
 static void mdns_tinysvcmdns_unregister(void) {
   if (svr) {
+    mdnsd_set_packet_callback(svr, NULL, NULL);
     mdnsd_stop(svr);
     svr = NULL;
   }
 }
 
+#ifdef CONFIG_DACP_CLIENT
+static void mdns_tinysvcmdns_dacp_monitor_start(void) {
+  if (svr != NULL)
+    mdnsd_set_packet_callback(svr, mdns_tinysvcmdns_packet_callback, NULL);
+}
+
+static void mdns_tinysvcmdns_dacp_monitor_set_id(const char *dacp_id) {
+  pthread_mutex_lock(&dacp_monitor_lock);
+  free(dacp_monitor_id);
+  dacp_monitor_id = dacp_id == NULL ? NULL : strdup(dacp_id);
+  pthread_mutex_unlock(&dacp_monitor_lock);
+
+  if ((svr != NULL) && (dacp_id != NULL) && (strlen(dacp_id) > 0))
+    mdnsd_send_query(svr, "_dacp._tcp.local", RR_PTR);
+}
+
+static void mdns_tinysvcmdns_dacp_monitor_stop(void) {
+  if (svr != NULL)
+    mdnsd_set_packet_callback(svr, NULL, NULL);
+
+  pthread_mutex_lock(&dacp_monitor_lock);
+  free(dacp_monitor_id);
+  dacp_monitor_id = NULL;
+  pthread_mutex_unlock(&dacp_monitor_lock);
+}
+#endif
+
 mdns_backend mdns_tinysvcmdns = {.name = "tinysvcmdns",
                                  .mdns_register = mdns_tinysvcmdns_register,
                                  .mdns_unregister = mdns_tinysvcmdns_unregister,
+#ifdef CONFIG_DACP_CLIENT
+                                 .mdns_dacp_monitor_start =
+                                     mdns_tinysvcmdns_dacp_monitor_start,
+                                 .mdns_dacp_monitor_set_id =
+                                     mdns_tinysvcmdns_dacp_monitor_set_id,
+                                 .mdns_dacp_monitor_stop =
+                                     mdns_tinysvcmdns_dacp_monitor_stop};
+#else
                                  .mdns_dacp_monitor_start = NULL,
                                  .mdns_dacp_monitor_set_id = NULL,
                                  .mdns_dacp_monitor_stop = NULL};
+#endif

@@ -732,8 +732,9 @@ err:
 }
 
 // parse the MDNS RR section
-// stores the parsed data in the given mdns_pkt struct
-static size_t mdns_parse_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off, struct mdns_pkt *pkt) {
+// stores the parsed data in the given RR list
+static size_t mdns_parse_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off,
+                            struct rr_list **rr_list) {
   const uint8_t *p = pkt_buf + off;
   const uint8_t *e = pkt_buf + pkt_len;
   struct rr_entry *rr;
@@ -742,7 +743,7 @@ static size_t mdns_parse_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off, struct
   struct rr_data_txt *txt_rec;
   int parse_error = 0;
 
-  assert(pkt != NULL);
+  assert(rr_list != NULL);
 
   if (off > pkt_len)
     return 0;
@@ -847,6 +848,27 @@ static size_t mdns_parse_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off, struct
     }
     break;
 
+  case RR_SRV:
+    if (rr_data_len < (3 * sizeof(uint16_t))) {
+      DEBUG_PRINTF("invalid rr_data_len=%lu for SRV record\n", rr_data_len);
+      parse_error = 1;
+      break;
+    }
+    rr->data.SRV.priority = mdns_read_u16(p);
+    p += sizeof(uint16_t);
+    rr->data.SRV.weight = mdns_read_u16(p);
+    p += sizeof(uint16_t);
+    rr->data.SRV.port = mdns_read_u16(p);
+    p += sizeof(uint16_t);
+    rr->data.SRV.target = uncompress_nlabel(pkt_buf, pkt_len, p - pkt_buf);
+    if (rr->data.SRV.target == NULL) {
+      DEBUG_PRINTF("unable to parse/uncompress label for SRV target\n");
+      parse_error = 1;
+      break;
+    }
+    p = e;
+    break;
+
   default:
     // skip to end of RR data
     p = e;
@@ -858,7 +880,7 @@ static size_t mdns_parse_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off, struct
     return 0;
   }
 
-  rr_list_append(&pkt->rr_ans, rr);
+  rr_list_append(rr_list, rr);
 
   return p - (pkt_buf + off);
 
@@ -912,7 +934,7 @@ struct mdns_pkt *mdns_parse_pkt(uint8_t *pkt_buf, size_t pkt_len) {
 
   // parse answer RRs
   for (i = 0; i < pkt->num_ans_rr; i++) {
-    size_t l = mdns_parse_rr(pkt_buf, pkt_len, off, pkt);
+    size_t l = mdns_parse_rr(pkt_buf, pkt_len, off, &pkt->rr_ans);
     if (!l) {
       DEBUG_PRINTF("error parsing answer #%d\n", i);
       mdns_pkt_destroy(pkt);
@@ -922,7 +944,27 @@ struct mdns_pkt *mdns_parse_pkt(uint8_t *pkt_buf, size_t pkt_len) {
     off += l;
   }
 
-  // TODO: parse the authority and additional RR sections
+  for (i = 0; i < pkt->num_auth_rr; i++) {
+    size_t l = mdns_parse_rr(pkt_buf, pkt_len, off, &pkt->rr_auth);
+    if (!l) {
+      DEBUG_PRINTF("error parsing authority record #%d\n", i);
+      mdns_pkt_destroy(pkt);
+      return NULL;
+    }
+
+    off += l;
+  }
+
+  for (i = 0; i < pkt->num_add_rr; i++) {
+    size_t l = mdns_parse_rr(pkt_buf, pkt_len, off, &pkt->rr_add);
+    if (!l) {
+      DEBUG_PRINTF("error parsing additional record #%d\n", i);
+      mdns_pkt_destroy(pkt);
+      return NULL;
+    }
+
+    off += l;
+  }
 
   return pkt;
 }
@@ -1184,6 +1226,8 @@ struct mdnsd {
   struct rr_list *announce;
   struct rr_list *services;
   uint8_t *hostname;
+  mdnsd_packet_callback packet_callback;
+  void *packet_callback_userdata;
 };
 
 struct mdns_service {
@@ -1541,6 +1585,15 @@ void *main_loop(struct mdnsd *svr) {
       DEBUG_PRINTF("data from=%s size=%ld\n", inet_ntoa(fromaddr.sin_addr), (long)recvsize);
       struct mdns_pkt *mdns = mdns_parse_pkt(pkt_buffer, recvsize);
       if (mdns != NULL) {
+        mdnsd_packet_callback packet_callback = NULL;
+        void *packet_callback_userdata = NULL;
+        pthread_mutex_lock(&svr->data_lock);
+        packet_callback = svr->packet_callback;
+        packet_callback_userdata = svr->packet_callback_userdata;
+        pthread_mutex_unlock(&svr->data_lock);
+        if (packet_callback)
+          packet_callback(mdns, packet_callback_userdata);
+
         if (process_mdns_pkt(svr, mdns, mdns_reply)) {
           size_t replylen = mdns_encode_pkt(mdns_reply, pkt_buffer, PACKET_SIZE);
           send_packet(svr->sockfd, pkt_buffer, replylen);
@@ -1654,6 +1707,42 @@ void mdnsd_add_rr(struct mdnsd *svr, struct rr_entry *rr) {
   pthread_mutex_lock(&svr->data_lock);
   rr_group_add(&svr->group, rr);
   pthread_mutex_unlock(&svr->data_lock);
+}
+
+void mdnsd_set_packet_callback(struct mdnsd *svr, mdnsd_packet_callback callback, void *userdata) {
+  pthread_mutex_lock(&svr->data_lock);
+  svr->packet_callback = callback;
+  svr->packet_callback_userdata = userdata;
+  pthread_mutex_unlock(&svr->data_lock);
+}
+
+int mdnsd_send_query(struct mdnsd *svr, const char *name, uint16_t type) {
+  uint8_t packet[PACKET_SIZE];
+  uint8_t *p = packet;
+  uint8_t *nlabel = create_nlabel(name);
+  if (nlabel == NULL)
+    return -1;
+
+  p = mdns_write_u16(p, 0);    // transaction ID
+  p = mdns_write_u16(p, 0);    // query flags
+  p = mdns_write_u16(p, 1);    // one question
+  p = mdns_write_u16(p, 0);    // no answers
+  p = mdns_write_u16(p, 0);    // no authority records
+  p = mdns_write_u16(p, 0);    // no additional records
+
+  size_t name_len = strlen((char *)nlabel) + 1;
+  if ((size_t)(p - packet) + name_len + (2 * sizeof(uint16_t)) > sizeof(packet)) {
+    free(nlabel);
+    return -1;
+  }
+
+  memcpy(p, nlabel, name_len);
+  p += name_len;
+  p = mdns_write_u16(p, type);
+  p = mdns_write_u16(p, 1); // class IN
+
+  free(nlabel);
+  return send_packet(svr->sockfd, packet, p - packet) < 0 ? -1 : 0;
 }
 
 struct mdns_service *mdnsd_register_svc(struct mdnsd *svr, const char *instance_name,

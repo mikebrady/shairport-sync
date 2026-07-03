@@ -408,8 +408,8 @@ if test "x$with_mqtt_client" = "xyes" ; then
 fi
 AM_CONDITIONAL([USE_MQTT], [test "x$with_mqtt_client" = "xyes"])
 
-if test "x$with_mqtt_client" = "xyes" && test "x$with_avahi" != "xyes" ; then
-  AC_MSG_WARN([MQTT needs Avahi for remote control functionality. With the current configuration settings, only metadata publishing will be supported.])
+if test "x$with_mqtt_client" = "xyes" && test "x$with_avahi" != "xyes" && test "x$with_tinysvcmdns" != "xyes" ; then
+  AC_MSG_WARN([MQTT remote control needs a DACP-capable mDNS backend. With the current configuration settings, only metadata publishing will be supported.])
 fi
 
 if test "x$with_mpris_interface" = "xyes" || test "x$with_dbus_interface" = "xyes" || test "x$with_mqtt_client" = "xyes" ; then

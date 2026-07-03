@@ -1412,11 +1412,11 @@ int parse_options(int argc, char **argv) {
       } else {
         config.mqtt_empty_payload_substitute = strdup("--");
       }
-#ifndef CONFIG_AVAHI
+#if !defined(CONFIG_AVAHI) && !defined(CONFIG_TINYSVCMDNS)
       if (config.mqtt_enable_remote) {
         die("You have enabled MQTT remote control which requires shairport-sync to be built with "
-            "Avahi, but your installation is not using avahi. Please reinstall/recompile with "
-            "avahi enabled, or disable remote control.");
+            "a DACP-capable mDNS backend, but your installation is not using one. Please "
+            "reinstall/recompile with avahi or tinysvcmdns enabled, or disable remote control.");
       }
 #endif
 #endif

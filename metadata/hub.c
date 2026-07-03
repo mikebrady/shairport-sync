@@ -301,22 +301,25 @@ char *metadata_write_image_file(const char *buf, int len) {
               die("Can't allocate memory at metadata_write_image_file.");
             memset(full_filename, 0, fnl);
             snprintf(full_filename, fnl, "%s%s.%s", prefix, img_md5_str, ext);
-            int dir_fd = open(config.cover_art_cache_dir, O_DIRECTORY);
-            if (dir_fd > 0) {
-              while ((dir = readdir(d)) != NULL) {
-                if (dir->d_type == DT_REG) {
-                  if (strcmp(full_filename, dir->d_name) != 0) {
-                    if (unlinkat(dir_fd, dir->d_name, 0) != 0) {
-                      debug(1, "Error %d deleting cover art file \"%s\".", errno, dir->d_name);
-                    }
+            while ((dir = readdir(d)) != NULL) {
+              if (strcmp(full_filename, dir->d_name) != 0) {
+                size_t dir_entry_path_len =
+                    strlen(config.cover_art_cache_dir) + 1 + strlen(dir->d_name);
+                char *dir_entry_path = malloc(dir_entry_path_len + 1);
+                if (dir_entry_path == NULL)
+                  die("Can't allocate memory at metadata_write_image_file.");
+                snprintf(dir_entry_path, dir_entry_path_len + 1, "%s/%s",
+                         config.cover_art_cache_dir, dir->d_name);
+
+                struct stat dir_entry_stat;
+                if ((stat(dir_entry_path, &dir_entry_stat) == 0) &&
+                    (S_ISREG(dir_entry_stat.st_mode))) {
+                  if (unlink(dir_entry_path) != 0) {
+                    debug(1, "Error %d deleting cover art file \"%s\".", errno, dir_entry_path);
                   }
                 }
+                free(dir_entry_path);
               }
-              if (close(dir_fd) < 0)
-                debug(1, "Error %d closing directory \"%s\"", errno, config.cover_art_cache_dir);
-            } else {
-              debug(1, "Can't open the directory \"%s\" for deletion -- error %d.",
-                    config.cover_art_cache_dir, errno);
             }
             free(full_filename);
             closedir(d);
