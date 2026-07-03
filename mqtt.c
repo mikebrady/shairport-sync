@@ -347,7 +347,9 @@ void mqtt_process_metadata(uint32_t type, uint32_t code, char *data, uint32_t le
         mqtt_publish("title", data, length);
         break;
       case 'mper':
-        trackid = *(uint64_t *)(data);
+        trackid = ntohl(*(uint32_t *)data);
+        trackid = trackid << 32;
+        trackid += ntohl(*(uint32_t *)(data + sizeof(uint32_t)));
         r = snprintf(trackidstring, sizeof(trackidstring), "%" PRIX64 "", trackid);
         mqtt_publish("track_id", trackidstring, r);
       }
