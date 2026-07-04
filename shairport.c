@@ -574,9 +574,6 @@ int parse_options(int argc, char **argv) {
 #endif
     config.firmware_version = strdup(PACKAGE_VERSION);
 
-  free(config.firmware_version);
-  config.firmware_version = strdup("5.2");
-
 #ifdef CONFIG_METADATA
   /* Get the metadata setting. */
   config.metadata_enabled = 1; // if metadata support is included, then enable it by default
