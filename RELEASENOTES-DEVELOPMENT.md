@@ -1,6 +1,6 @@
 Version 5.2-dev
 ==
-* This is essentially the release version 5.1.
+* This is essentially release 5.1.
 * The Apple Home app should report its version correctly ("5.2-dev" just now).
   
 Version 5.1-dev-52-g6db0ba16
