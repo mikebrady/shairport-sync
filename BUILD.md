@@ -50,6 +50,7 @@ The configuration file is typically at `/etc/shairport-sync.conf` or `/usr/local
 You should also remove any of the following service files that may be present:
 * `/etc/systemd/system/shairport-sync.service`
 * `/etc/systemd/user/shairport-sync.service`
+* `/usr/lib/systemd/system/shairport-sync.service`
 * `/lib/systemd/system/shairport-sync.service`
 * `/lib/systemd/user/shairport-sync.service`
 * `/etc/dbus-1/system.d/shairport-sync-dbus.conf`
@@ -58,6 +59,11 @@ You should also remove any of the following service files that may be present:
 * `~/.config/systemd/user/shairport-sync.service`
   
 New service files will be installed if necessary at the `# make install` stage.
+
+When you have finished removing the service files, perform the following command:
+```
+# systemctl daemon-reload
+```
 
 (In FreeBSD, there is no need to remove the file at `/usr/local/etc/rc.d/shairport-sync` – it's always replaced in the `make install` step.)
 #### Reboot after Cleaning Up
@@ -180,12 +186,22 @@ Download Shairport Sync and configure, compile and install it. Before executing 
   * You can actually omit `--with-ffmpeg` when building classic Shairport Sync, but it is not recommended. While you'll save space (you can omit the FFMpeg libraries in the build and run-time environments), transcoding, e.g. from 44,100 to 48,000 frames per second, will not be available and less well-maintained and less secure decoders will be used.
 * **Extra Features:** If you wish to add extra features, for example an extra audio backend, take a look at the [configuration flags](CONFIGURATION%20FLAGS.md). For this walkthrough, though, please do not change too much!
 
+If you are building Shairport Sync for the first time, clone its git repository and move into it:
 ```
 $ git clone https://github.com/mikebrady/shairport-sync.git
 $ cd shairport-sync
+```
+Otherwise, if you have previously cloned the Shairport Sync git repository to the local directory `shairport-sync`, move into that directory and pull the updates:
+```
+$ cd shairport-sync
+$ git pull
+```
+Next, perform the following steps:
+```
 $ autoreconf -fi # about 1.5 minutes on a Raspberry Pi B
 $ ./configure --sysconfdir=/etc --with-alsa \
     --with-soxr --with-avahi --with-ssl=openssl --with-systemd-startup --with-airplay-2
+$ make clean # only necessary when updating, to remove outdated older object files
 $ make # just over 7 minutes on a Raspberry Pi B
 # make install
 ```

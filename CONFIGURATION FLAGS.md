@@ -37,7 +37,7 @@ Here are the audio backend configuration options:
 - `--with-sndio` Output to the FreeBSD-native [sndio](https://sndio.org) system.
 - `--with-pipewire` Output to the [PipeWire](https://pipewire.org) sound server.
 - `--with-pulseaudio` Include the [PulseAudio](https://www.freedesktop.org/wiki/Software/PulseAudio) sound server.
-- `--with-jack` Output to the [Jack Audio](https://jackaudio.org) system.
+- `--with-jack` Output to the [Jack Audio](https://jackaudio.org) system. This is now deprecated.
 - `--with-ao` Output to the [libao](https://xiph.org/ao/) system. No synchronisation.
 - `--with-stdout` Include an optional backend module to enable raw audio to be output through standard output (`STDOUT`).
 - `--with-pipe` Include an optional backend module to enable raw audio to be output through a unix pipe.
@@ -65,9 +65,21 @@ PipeWire and PulseAudio provide a default ALSA pseudo device, so that Shairport 
 | ----- |
 | `--with-metadata` |
 
-Metadata such as track name, artist name, album name, cover art and more can be requested from the player and passed to other applications.
+Metadata such as track name, artist name, album name, cover art and more can be requested from the player and passed to other applications through a Unix pipe, multicast, a D-Bus interface or an MPRIS interface.
 
-- `--with-metadata` Adds support for Shairport Sync to request metadata and to pipe it to a compatible application. See https://github.com/mikebrady/shairport-sync-metadata-reader for a sample metadata reader.
+## Metadata Pipe
+| Flags |
+| ----- |
+| `--with-metadata-pipe` |
+
+Adds support for Shairport Sync to send metadata into a Unix `pipe` that can be read by another application. See https://github.com/mikebrady/shairport-sync-metadata-reader for a sample metadata reader.
+
+## Metadata Multicast
+| Flags |
+| ----- |
+| `--with-metadata-multicast` |
+
+Adds support for Shairport Sync to multicast metadata. Specify the multicast socket address and port in the `metadata` section of the configuration file.
 
 ## Inter Process Communication
 

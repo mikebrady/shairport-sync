@@ -1,3 +1,18 @@
+Version 5.2-dev
+==
+* This is essentially release 5.1.
+* The Apple Home app should report its version correctly ("5.2-dev" just now).
+  
+Version 5.1-dev-52-g6db0ba16
+==
+**Bug Fixes**
+* Fix a condition that could cause a stack frame overflow under rare conditions. The problem was fixed by increased use of `malloc` in place of stack-based allocation. Thanks to [Arthur Loureiro](https://github.com/ARLBR10) for reporting the [issue](https://github.com/mikebrady/shairport-sync/issues/2221).
+
+**Minor Improvements**
+* Add a `sys-nice` request to the sample Docker compose file.
+* Add a few tools and do a recompile for more comfortable troubleshooting.
+* If the minimum DAC queue size is not changed from `UINT64_MAX`, assume it has never been set and indicate that it is not available (`"n/a"`) in the statistics log.
+
 Version 5.1-dev-38-g3780b504
 ==
 **Bug Fixes**
@@ -173,7 +188,7 @@ Version 5.0.1+-23-g7fb3506e
 Version 5.0.1+-13-ga14517d7
 ==
 **Change**
-* When built for AirPlay 2, add `pw=true` to the Bonjour raop properties if the classic AirPlay password is set. This might help with Owntone compatibility.
+* When built for AirPlay 2, add `pw=true` to the Bonjour `raop` properties if the classic AirPlay password is set. This might help with Owntone compatibility.
 
 Version 5.0.1+-11-g07546c35
 ==
