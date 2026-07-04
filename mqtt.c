@@ -85,9 +85,9 @@ void on_message(__attribute__((unused)) struct mosquitto *mosq,
         debug(2, "[MQTT]: Disconnect Command: %s\n", commands[it]);
         stop_play(); // stop any current session and don't replace it
       } else if (strcmp(commands[it], "queue_next") == 0) {
-        // payload is "queue_next <track_id>", where <track_id> is the hex track_id
+        // payload is "queue_next <track_id>", where <track_id> is the decimal track_id
         // string as published by shairport-sync itself (see the "mper"/"track_id" handling
-        // above), e.g. "queue_next 1A2B3C4D5E6F7"
+        // above), e.g. "queue_next 123456789012345"
         char *track_id = payload + strlen(commands[it]);
         while (*track_id == ' ' || *track_id == '\t')
           track_id++;
@@ -99,7 +99,7 @@ void on_message(__attribute__((unused)) struct mosquitto *mosq,
         } else {
           char dacp_command[256];
           snprintf(dacp_command, sizeof(dacp_command),
-                   "cue?command=add&query='dmap.persistentid:0x%s'&mode=3", track_id);
+                   "cue?command=add&query='dmap.persistentid:%s'&mode=3", track_id);
           debug(2, "[MQTT]: Queue Next Command: %s\n", dacp_command);
           send_simple_dacp_command(dacp_command);
         }
@@ -345,7 +345,7 @@ void mqtt_process_metadata(uint32_t type, uint32_t code, char *data, uint32_t le
         trackid = ntohl(*(uint32_t *)data);
         trackid = trackid << 32;
         trackid += ntohl(*(uint32_t *)(data + sizeof(uint32_t)));
-        r = snprintf(trackidstring, sizeof(trackidstring), "%" PRIX64 "", trackid);
+        r = snprintf(trackidstring, sizeof(trackidstring), "%" PRIu64 "", trackid);
         mqtt_publish("track_id", trackidstring, r);
       }
     } else if (type == 'ssnc') {
