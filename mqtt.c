@@ -83,7 +83,7 @@ void on_message(__attribute__((unused)) struct mosquitto *mosq,
       debug(2, "[MQTT]: Received Recognized Command: %s\n", commands[it]);
       if (strcmp(commands[it], "disconnect") == 0) {
         debug(2, "[MQTT]: Disconnect Command: %s\n", commands[it]);
-        release_play_lock(NULL); // stop any current session and don't replace it
+        stop_play(); // stop any current session and don't replace it
       } else if (strcmp(commands[it], "queue_next") == 0) {
         // payload is "queue_next <track_id>", where <track_id> is the hex track_id
         // string as published by shairport-sync itself (see the "mper"/"track_id" handling
