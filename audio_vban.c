@@ -2,6 +2,7 @@
  * VBAN output driver. This file is part of Shairport Sync.
  *
  * Copyright (c) Mike Brady 2014--2025
+ * Copyright (c) DOCa Cola 2026
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person

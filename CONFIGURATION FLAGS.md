@@ -41,6 +41,7 @@ Here are the audio backend configuration options:
 - `--with-ao` Output to the [libao](https://xiph.org/ao/) system. No synchronisation.
 - `--with-stdout` Include an optional backend module to enable raw audio to be output through standard output (`STDOUT`).
 - `--with-pipe` Include an optional backend module to enable raw audio to be output through a unix pipe.
+- `--with-vban` Include an optional backend module to send raw PCM audio to a VBAN receiver over UDP.
 
 ### PulseAudio and PipeWire
 If your system uses either PipeWire or PulseAudio as sound servers, Shairport Sync must be started as a user service. This is because the PipeWire or PulseAudio services -- needed by Shairport Sync -- are user services themselves, and they must be running before Shairport Sync starts. That implies that Shairport Sync must be started as a user service.
@@ -185,4 +186,3 @@ The Zeroconf-related options are as follows:
 | `--with-os=<OSType>`   | Specifies the Operating System to target: One of `linux` (default), `freebsd`, `openbsd` or `darwin`. |
 | `--with-configfiles` | Installs configuration files (including a sample configuration file) during `make install`. |
 | `--with-pkg-config`  | Specifies the use of `pkg-config` to find libraries. (Obselete for AirPlay 2. Special purpose use only.) |
-
