@@ -1,3 +1,18 @@
+Version 5.2-dev-10-gc302c4c4
+==
+**New Feature**
+* A new MQTT command, `queue_next`, has been added -- thanks to [Scott Simon](https://github.com/zutroy97) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2226):
+
+  Add a new `queue_next` MQTT command that enqueues a track by its Persistent ID (hexadecimal `track_id`), for example: `queue_next 316a7653186B6917`. The command is sent as a remote control command via `DACP` to the player.
+
+  Please note that, like all other remote control commands, this works for Classic AirPlay only.
+
+**Bug Fix**
+* Fix byte order of the `track_id` published over `MQTT`.
+
+**Dependabot Updates**
+* A number of CI-related Dependabot updates were merged.
+
 Version 5.2-dev
 ==
 * This is essentially release 5.1.
