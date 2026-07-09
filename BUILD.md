@@ -161,7 +161,7 @@ Next, install the packages that are needed for Shairport Sync and NQPTP. If you 
 If you are building Shairport Sync for AirPlay 2, install the following packages:
 ```
 # pkg install git autotools pkgconf popt libconfig openssl alsa-utils libsoxr \
-      libplist libsodium ffmpeg libuuid vim
+      libplist libsodium libgcrypt ffmpeg libuuid vim
 ```
 
 If you are building classic Shairport Sync, the list of packages is shorter:
