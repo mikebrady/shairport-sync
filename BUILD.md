@@ -132,15 +132,13 @@ Enable and start the `avahi-daemon` service.
 # systemctl start avahi-daemon
 ```
 ### FreeBSD
-This is for FreeBSD 14.3. First, update everything:
+This is for FreeBSD 15.1. First, update everything:
 ```
-# freebsd-update fetch
-# freebsd-update install
 # pkg update
 # pkg upgrade
 ```
 Next, install the Avahi subsystem.
-FYI, `avahi-app` is chosen because it doesn’t require X11. If you are using a GUI with your FreeBSD system, select `avahi` rather than `avahi-app`. 
+If you are using a GUI with your FreeBSD system, select `avahi` rather than `avahi-app`. 
 `nss_mdns` is included to allow FreeBSD to resolve mDNS-originated addresses – it's not actually needed by Shairport Sync. Thanks to [reidransom](https://gist.github.com/reidransom/6033227) for this.
 ```
 # pkg install avahi-app nss_mdns
@@ -161,7 +159,7 @@ Next, install the packages that are needed for Shairport Sync and NQPTP. If you 
 If you are building Shairport Sync for AirPlay 2, install the following packages:
 ```
 # pkg install git autotools pkgconf popt libconfig openssl alsa-utils libsoxr \
-      libplist libsodium ffmpeg libuuid vim
+      libplist libsodium libgcrypt ffmpeg libuuid vim
 ```
 
 If you are building classic Shairport Sync, the list of packages is shorter:

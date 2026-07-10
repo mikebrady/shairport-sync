@@ -1,3 +1,8 @@
+Version 5.2-dev-23-ge1c9ef7e
+==
+**Documentation Update**
+* Update the [BUILD]([BUILD.md](BUILD.md#freebsd)) guide to include `gcrypt` in the list of packages needed when building for FreeBSD / AirPlay 2.
+
 Version 5.2-dev-10-gc302c4c4
 ==
 **New Feature**
@@ -8,7 +13,7 @@ Version 5.2-dev-10-gc302c4c4
   Please note that, like all other remote control commands, this works for Classic AirPlay only.
 
 **Bug Fix**
-* Fix byte order of the `track_id` published over `MQTT`.
+* Fix byte order of the `track_id` published over MQTT.
 
 **Dependabot Updates**
 * A number of CI-related Dependabot updates were merged.
