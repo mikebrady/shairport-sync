@@ -1,3 +1,8 @@
+Version 5.2-dev-26-gbe6d9d0a
+==
+**Documentation Fix**
+* Fix a broken link to [`CONFIGURATION FLAGS.md`](CONFIGURATION%20FLAGS.md) from [`ADVANCED TOPICS`](ADVANCED%20TOPICS/README.md). Thanks to [Adrián Reyes](https://github.com/int3rrupt) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2235).
+
 Version 5.2-dev-23-ge1c9ef7e
 ==
 **Documentation Update**
