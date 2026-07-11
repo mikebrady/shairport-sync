@@ -94,7 +94,7 @@
 #ifdef CONFIG_AIRPLAY_2
 #include "ap2_buffered_audio_processor.h"
 #include "ap2_event_receiver.h"
-#include "metadata/handle_command.h"
+#include "metadata/metadata_hub_handle_command_plist.h"
 #include "pair_ap/pair.h"
 #include "plists/get_info_response.h"
 #include "ptp-utilities.h"

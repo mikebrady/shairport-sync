@@ -403,14 +403,15 @@ if test "x$with_mqtt_client" = "xyes" && test "x$with_avahi" != "xyes" ; then
 fi
 
 if test "x$with_mpris_interface" = "xyes" || test "x$with_dbus_interface" = "xyes" || test "x$with_mqtt_client" = "xyes" ; then
-  REQUESTED_EXTENDED_METADATA_SUPPORT=1
+  REQUESTED_EXTENDED_METADATA_AND_REMOTE_CONTROL_SUPPORT=1
   AC_DEFINE([CONFIG_METADATA_HUB], 1, [Needed by the compiler.])
   AC_DEFINE([CONFIG_DACP_CLIENT], 1, [DACP client needed for extended metadata support.])
 fi
-AM_CONDITIONAL([USE_METADATA_HUB], [test "x$REQUESTED_EXTENDED_METADATA_SUPPORT" = "x1"])
-AM_CONDITIONAL([USE_DACP_CLIENT], [test "x$REQUESTED_EXTENDED_METADATA_SUPPORT" = "x1"])
+AM_CONDITIONAL([USE_METADATA_HUB], [test "x$REQUESTED_EXTENDED_METADATA_AND_REMOTE_CONTROL_SUPPORT" = "x1"])
+AM_CONDITIONAL([USE_DACP_CLIENT], [test "x$REQUESTED_EXTENDED_METADATA_AND_REMOTE_CONTROL_SUPPORT" = "x1"])
+AM_CONDITIONAL([USE_REMOTE_CONTROL], [test "x$REQUESTED_EXTENDED_METADATA_AND_REMOTE_CONTROL_SUPPORT" = "x1"])
 
-if test "x$REQUESTED_EXTENDED_METADATA_SUPPORT" = "x1" || test "x$with_metadata" = "xyes" || test "x$with_metadata_pipe" = "xyes" || test "x$with_metadata_multicast" = "xyes" ; then
+if test "x$REQUESTED_EXTENDED_METADATA_AND_REMOTE_CONTROL_SUPPORT" = "x1" || test "x$with_metadata" = "xyes" || test "x$with_metadata_pipe" = "xyes" || test "x$with_metadata_multicast" = "xyes" ; then
   REQUESTED_METADATA_SUPPORT=1
 fi
 
@@ -554,6 +555,8 @@ if  test "x${with_systemd_startup}" = xyes ; then
   AS_IF([test "x$with_systemdsystemunitdir" != "xno"],
         [AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])])
 fi
+
+
 
 # Checks for header files.
 AC_CHECK_HEADERS([getopt_long.h])

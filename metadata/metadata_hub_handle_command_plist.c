@@ -25,7 +25,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "handle_command.h"
+#include "metadata_hub_handle_command_plist.h"
 #include "common.h"
 #include "core.h"
 #include "hub.h"

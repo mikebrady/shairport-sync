@@ -549,10 +549,11 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     case 'pcst':
     case 'pcen':
       break;
-    case 'dapo':
-      char *dacp_port_string = strndup(data, length);
-      debug(3, "DACP port is \"%s\"", dacp_port_string);
-      free(dacp_port_string);
+    case 'dapo': {
+        char *dacp_port_string = strndup(data, length);
+        debug(3, "DACP port is \"%s\"", dacp_port_string);
+        free(dacp_port_string);
+      }
       break;
     case 'mdst':
       debug(3, "MH Metadata stream processing start.");
