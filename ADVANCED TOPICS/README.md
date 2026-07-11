@@ -14,4 +14,4 @@ The configuration file – which contains lots of documentation – is on your s
 placed at `/etc/shairport-sync.conf.sample` (`/usr/local/etc/shairport-sync.conf.sample` on FreeBSD).
 You can also view an online version [here](../scripts/shairport-sync.conf).
 
-Build configuration flags are discussed [here](CONFIGURATION%20FLAGS.md).
+Build configuration flags are discussed [here](../CONFIGURATION%20FLAGS.md).
