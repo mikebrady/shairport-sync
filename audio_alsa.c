@@ -212,10 +212,11 @@ void handle_unfixable_error(int errorCode) {
     if (config.cmd_unfixable) {
       command_execute(config.cmd_unfixable, messageString, 1);
     } else {
-      die("An unrecoverable error, \"output_device_error_%d\", has been "
+      warn("An unrecoverable error, \"output_device_error_%d\", has been "
           "detected. Doing an emergency exit, as no run_this_if_an_unfixable_error_is_detected "
           "program.",
           errorCode);
+      _Exit(EXIT_FAILURE);
     }
   }
 }

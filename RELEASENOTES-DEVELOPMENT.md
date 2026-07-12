@@ -1,3 +1,8 @@
+Version 5.2-dev-31-gb1a9f645
+==
+**Bug Fix**
+* Fixed a bug whereby Shairport Sync was hanging up when an "unfixable" error was detected with no recovery routine. The hang-up was because it was trying to clean up the environment before terminating and was getting stuck. Thanks to [timg7](https://github.com/timg7) for the [report](https://github.com/mikebrady/shairport-sync/issues/2234).
+
 Version 5.2-dev-26-gbe6d9d0a
 ==
 **Documentation Fix**
