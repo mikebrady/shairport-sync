@@ -1890,17 +1890,15 @@ const char *pid_file_proc(void) {
 }
 #endif
 
+
 void exit_rtsp_listener() {
   debug(3, "exit_rtsp_listener begins");
-  if (type_of_exit_cleanup != TOE_emergency) {
-    pthread_cancel(rtsp_listener_thread);
-    pthread_join(rtsp_listener_thread, NULL); // not sure you need this
-  }
+  pthread_cancel(rtsp_listener_thread);
+  pthread_join(rtsp_listener_thread, NULL); // not sure you need this
   debug(2, "exit_rtsp_listener ends");
 }
 
 void exit_function() {
-  if (type_of_exit_cleanup != TOE_emergency) {
     // the following is to ensure that if libdaemon has been included
     // that most of this code will be skipped when the parent process is exiting
     // exec
@@ -2035,6 +2033,8 @@ void exit_function() {
 
 #ifdef CONFIG_LIBDAEMON
     if (this_is_the_daemon_process) { // this is the daemon that is exiting
+      mdns_unregister(); // once the dacp handler is done and all player threrads are done it should
+                       // be safe
       debug(1, "libdaemon daemon process exit");
     } else {
       if (config.daemonise)
@@ -2043,13 +2043,10 @@ void exit_function() {
         debug(1, "normal exit");
     }
 #else
-    mdns_unregister(); // once the dacp handler is done and all player threrads are done it should
+    mdns_unregister(); // once the dacp handler is done and all player threads are done it should
                        // be safe
     debug(2, "normal exit");
 #endif
-  } else {
-    debug(1, "emergency exit");
-  }
 }
 
 // for removing zombie script processes
@@ -2395,7 +2392,6 @@ int main(int argc, char **argv) {
   setlogmask(LOG_UPTO(LOG_DEBUG));
   openlog(NULL, 0, LOG_DAEMON);
 #endif
-  type_of_exit_cleanup = TOE_normal; // what kind of exit cleanup needed
   debug(1, "adding the exit function");
   atexit(exit_function);
 

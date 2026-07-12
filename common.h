@@ -52,11 +52,6 @@ typedef enum {
 } dbus_message_bus_t;
 #endif
 
-typedef enum {
-  TOE_normal,
-  TOE_emergency,
-} type_of_exit_type;
-
 #define sps_extra_code_output_stalled 32768
 #define sps_extra_code_output_state_cannot_make_ready 32769
 
@@ -558,7 +553,6 @@ uint32_t uatoi(const char *nptr);
 
 extern shairport_cfg config;
 extern config_t config_file_stuff;
-extern int type_of_exit_cleanup; // normal, emergency, dbus requested...
 
 extern uint64_t minimum_dac_queue_size;
 
@@ -580,8 +574,6 @@ void command_execute(const char *command, const char *extra_argument, const int 
 void command_set_volume(double volume);
 
 int mkpath(const char *path, mode_t mode);
-
-void sps_shutdown(type_of_exit_type shutdown_type); // TOE_normal, TOE_emergency, TOE_dbus
 
 extern sigset_t pselect_sigset;
 

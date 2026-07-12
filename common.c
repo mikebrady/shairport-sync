@@ -131,7 +131,6 @@ void set_alsa_out_dev(char *);
 #endif
 
 config_t config_file_stuff;
-int type_of_exit_cleanup;
 uint64_t minimum_dac_queue_size;
 
 pthread_mutex_t the_conn_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -342,27 +341,6 @@ void log_to_syslog() {
 shairport_cfg config;
 
 sigset_t pselect_sigset;
-
-// note -- don't use this to shutdown from dbus -- see its own code in dbus-service.c
-void sps_shutdown(type_of_exit_type shutdown_type) { // TOE_normal, TOE_emergency
-  type_of_exit_cleanup = shutdown_type;
-  if (type_of_exit_cleanup == TOE_emergency) {
-    debug(1, "emergency shutdown requested");
-    exit(EXIT_FAILURE);
-  } else {
-    debug(1, "normal shutdown requested");
-    exit(EXIT_SUCCESS);
-  }
-}
-
-int usleep_uncancellable(useconds_t usec) {
-  int response;
-  int oldState;
-  pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);
-  response = usleep(usec);
-  pthread_setcancelstate(oldState, NULL);
-  return response;
-}
 
 static uint16_t UDPPortIndex = 0;
 

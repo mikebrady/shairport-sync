@@ -143,7 +143,7 @@ void _die(const char *filename, const int linenumber, const char *format, ...) {
   // syslog(LOG_ERR, "%s", b);
   fprintf(stderr, "%s\n", b);
   pthread_setcancelstate(oldState, NULL);
-  exit(EXIT_FAILURE);
+  _Exit(EXIT_FAILURE);
 }
 
 void _warn(const char *filename, const int linenumber, const char *format, ...) {
