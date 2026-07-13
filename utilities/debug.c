@@ -24,6 +24,7 @@ SOFTWARE.
 
 #include "debug.h"
 #include <ctype.h> // for isprint()
+#include <unistd.h> // for usleep()
 #include <inttypes.h>
 #include <pthread.h>
 #include <stdarg.h>
@@ -143,6 +144,7 @@ void _die(const char *filename, const int linenumber, const char *format, ...) {
   // syslog(LOG_ERR, "%s", b);
   fprintf(stderr, "%s\n", b);
   pthread_setcancelstate(oldState, NULL);
+  usleep(2000000); //allow some time for printing of message
   _Exit(EXIT_FAILURE);
 }
 
