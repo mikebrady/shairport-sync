@@ -7,6 +7,9 @@ Version 5.2-dev-35-g83ae1d28
 
   The new exit handler is used for normal exit, abnormal exit after fatal errors and for quit requests from the D-Bus and MPRIS interfaces.
 
+**Deprecations**
+* The `log-to-syslog` command line option and the `log_output_to` setting in the `diagnostics` part of the configuration are obsolete and are now ignored (documentation update pending).
+
 **Bug Fixes**
 * When an unfixable error occurs without an unfixable error handler installed, the mutex protecting Shairport Sync’s `alsa` backend is now unlocked to permit a clean exit. Thanks to [timg7](https://github.com/timg7) for the [report](https://github.com/mikebrady/shairport-sync/issues/2234).
 
