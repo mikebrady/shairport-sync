@@ -1,7 +1,18 @@
-Version 5.2-dev-31-gb1a9f645
+Version 5.2-dev-35-g83ae1d28
 ==
-**Bug Fix**
-* Fixed a bug whereby Shairport Sync was hanging up when an "unfixable" error was detected with no recovery routine. The hang-up was because it was trying to clean up the environment before terminating and was getting stuck. Thanks to [timg7](https://github.com/timg7) for the [report](https://github.com/mikebrady/shairport-sync/issues/2234).
+**New Feature**
+* Added a long-overdue exit handler to enable Shairport Sync to exit cleanly — that is, to clean everything up, e.g. open files, sockets, devices, threads, etc. before exit.
+
+  If cleanup isn’t finished after one second, exit will occur unconditionally.
+
+  The new exit handler is used for normal exit, abnormal exit after fatal errors and for quit requests from the D-Bus and MPRIS interfaces.
+
+**Bug Fixes**
+* When an unfixable error occurs without an unfixable error handler installed, the mutex protecting Shairport Sync’s `alsa` backend is now unlocked to permit a clean exit. Thanks to [timg7](https://github.com/timg7) for the [report](https://github.com/mikebrady/shairport-sync/issues/2234).
+
+* Updated `audio_sndio.c` to remove some harmless compiler warnings.
+
+* Fixed a very low-level mutex-locking error that interfered with debugging.
 
 Version 5.2-dev-26-gbe6d9d0a
 ==
