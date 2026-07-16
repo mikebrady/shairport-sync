@@ -148,7 +148,7 @@ int RTSP_connection_index = 1;
 // keep track of the threads we have spawned so we can join() them
 static int nconns = 0;
 static void track_thread(rtsp_conn_info *conn) {
-  debug_mutex_lock(&conns_lock, 1000000, 4);
+  pthread_mutex_lock(&conns_lock);
   // look for an empty slot first
   int i = 0;
   int found = 0;
@@ -170,7 +170,7 @@ static void track_thread(rtsp_conn_info *conn) {
       die("could not reallocate memory for conns");
     }
   }
-  debug_mutex_unlock(&conns_lock, 4);
+  pthread_mutex_unlock(&conns_lock);
 }
 
 // note: connection numbers start at 1, so an except_this_one value of zero means "all threads"
@@ -178,7 +178,7 @@ void cancel_all_RTSP_threads(airplay_stream_c stream_category, int except_this_o
   // if the stream category is unspecified_stream_category
   // all categories are elegible for cancellation
   // otherwise just the category itself
-  debug_mutex_lock(&conns_lock, 1000000, 3);
+  pthread_mutex_lock(&conns_lock);
   int i;
   for (i = 0; i < nconns; i++) {
     if ((conns[i] != NULL) && (conns[i]->running != 0) &&
@@ -203,7 +203,7 @@ void cancel_all_RTSP_threads(airplay_stream_c stream_category, int except_this_o
       conns[i] = NULL;
     }
   }
-  debug_mutex_unlock(&conns_lock, 3);
+  pthread_mutex_unlock(&conns_lock);
 }
 
 int old_connection_count = -1;
@@ -214,7 +214,7 @@ void cleanup_threads(void) {
   int i;
   int connection_count = 0;
   // debug(2, "culling threads.");
-  debug_mutex_lock(&conns_lock, 1000000, 4);
+  pthread_mutex_lock(&conns_lock);
   for (i = 0; i < nconns; i++) {
     if ((conns[i] != NULL) && (conns[i]->running == 0)) {
       debug(4, "found RTSP connection thread %d in a non-running state.",
@@ -230,7 +230,7 @@ void cleanup_threads(void) {
       connection_count++;
     }
   }
-  debug_mutex_unlock(&conns_lock, 4);
+  pthread_mutex_unlock(&conns_lock);
 
   if (old_connection_count != connection_count) {
     if (connection_count == 0) {
@@ -247,7 +247,7 @@ void cleanup_threads(void) {
 int terminate_conn(int connection_number) {
   // this will look for a connection by number, cancel it, join it and delete it.
   int found = 0;
-  debug_mutex_lock(&conns_lock, 1000000, 4);
+  pthread_mutex_lock(&conns_lock);
   // look for an empty slot first
   int i = 0;
   while ((i < nconns) && (found == 0)) {
@@ -259,7 +259,7 @@ int terminate_conn(int connection_number) {
     } else
       i++;
   }
-  debug_mutex_unlock(&conns_lock, 4);
+  pthread_mutex_unlock(&conns_lock);
   return found;
 }
 
@@ -1341,7 +1341,7 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
       debug(4, "flushUntilTS is %" PRId64 ".", flushUntilTS);
     }
 
-    debug_mutex_lock(&conn->flush_mutex, 1000, 4);
+    pthread_mutex_lock(&conn->flush_mutex);
 
     if (flushFromValid == 0) {
       // an immediate flush is requested
@@ -1387,7 +1387,7 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
       }
     }
 
-    debug_mutex_unlock(&conn->flush_mutex, 4);
+    pthread_mutex_unlock(&conn->flush_mutex);
     plist_free(messagePlist);
   }
 
@@ -1465,7 +1465,7 @@ void handle_setrateanchori(rtsp_conn_info *conn, rtsp_message *req, rtsp_message
       uint64_t rate;
       plist_get_uint_val(item, &rate);
       debug(3, "anchor rate 0x%016" PRIx64 ".", rate);
-      pthread_cleanup_debug_mutex_lock(&conn->flush_mutex, 1000, 4);
+      pthread_mutex_lock_and_cleanup_push(&conn->flush_mutex);
       conn->ap2_rate = rate;
       if ((rate & 1) != 0) {
         ptp_send_control_message_string(
@@ -4168,14 +4168,14 @@ static void *rtsp_conversation_thread_func(void *pconn) {
 
     // check to see if a conn has been zeroed
 
-    debug_mutex_lock(&conns_lock, 1000000, 4);
+    pthread_mutex_lock(&conns_lock);
     int i;
     for (i = 0; i < nconns; i++) {
       if ((conns[i] != NULL) && (conns[i]->connection_number == 0)) {
         debug(1, "conns[%d] has a Connection Number of 0!", i);
       }
     }
-    debug_mutex_unlock(&conns_lock, 4);
+    pthread_mutex_unlock(&conns_lock);
 
     reply = rtsp_read_request(conn, &req);
     if (reply == rtsp_read_request_response_ok) {

@@ -322,7 +322,7 @@ typedef struct {
   alac_file *decoder_info;
   uint64_t packet_count;
   uint64_t packet_count_since_flush;
-  int connection_state_to_output;
+  // int connection_state_to_output;
   uint64_t first_packet_time_to_play;
   int64_t time_since_play_started; // nanoseconds
                                    // stats

@@ -41,6 +41,7 @@
 
 #include "metadata/hub.h"
 #include "mpris-service.h"
+#include "utilities/exit.h"
 
 static guint ownerID = 0;
 static GBusType mpris_bus_type = G_BUS_TYPE_SYSTEM; // default is the dbus system message bus
@@ -234,9 +235,8 @@ void mpris_metadata_watcher(struct metadata_bundle *argc, __attribute__((unused)
 static gboolean on_handle_quit(MediaPlayer2 *skeleton, GDBusMethodInvocation *invocation,
                                __attribute__((unused)) gpointer user_data) {
   debug(1, ">> quit request...");
-  config.quit_requested_from_glib_mainloop = 1;
-  g_main_loop_quit(config.glib_worker_loop);
   media_player2_complete_quit(skeleton, invocation);
+  exit_request(EXIT_SUCCESS);
   return TRUE;
 }
 

@@ -42,6 +42,8 @@ int debugger_show_file_and_line = 1;
 static uint64_t ns_time_at_startup = 0;
 static uint64_t ns_time_at_last_debug_message;
 
+void (*local_exit_requester)(const int exit_status) = NULL;
+
 // always lock use this when accessing the ns_time_at_last_debug_message
 static pthread_mutex_t debug_timing_lock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -57,13 +59,14 @@ uint64_t debug_get_absolute_time_in_ns() {
   return time_now_ns;
 }
 
-void debug_init(int level, int show_elapsed_time, int show_relative_time, int show_file_and_line) {
+void debug_init(int level, int show_elapsed_time, int show_relative_time, int show_file_and_line, void (*exit_requester)(const int exit_status)) {
   ns_time_at_startup = debug_get_absolute_time_in_ns();
   ns_time_at_last_debug_message = ns_time_at_startup;
   debuglev = level;
   debugger_show_elapsed_time = show_elapsed_time;
   debugger_show_relative_time = show_relative_time;
   debugger_show_file_and_line = show_file_and_line;
+  local_exit_requester = exit_requester;
 }
 
 int debug_level() { return debuglev; };
@@ -144,8 +147,14 @@ void _die(const char *filename, const int linenumber, const char *format, ...) {
   // syslog(LOG_ERR, "%s", b);
   fprintf(stderr, "%s\n", b);
   pthread_setcancelstate(oldState, NULL);
-  usleep(2000000); //allow some time for printing of message
-  _Exit(EXIT_FAILURE);
+  if (local_exit_requester != NULL) {
+    local_exit_requester(EXIT_FAILURE);
+    // wait for the exit request to be honoured
+    usleep(1000000);
+    // if not, head for the hills
+    fprintf(stderr, "fatal error: exit cleanup could not be completed.\n");
+    _Exit(EXIT_FAILURE);
+  }
 }
 
 void _warn(const char *filename, const int linenumber, const char *format, ...) {

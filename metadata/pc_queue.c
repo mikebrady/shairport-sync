@@ -81,11 +81,11 @@ int pc_queue_add_item(pc_queue *the_queue, const void *the_stuff, int block) {
   int rc;
   if (the_queue) {
     if (block == 0) {
-      rc = debug_mutex_lock(&the_queue->pc_queue_lock, 10000, 4);
+      rc = pthread_mutex_lock(&the_queue->pc_queue_lock);
       if (rc == EBUSY)
         return EBUSY;
     } else
-      rc = debug_mutex_lock(&the_queue->pc_queue_lock, 50000, 4);
+      rc = pthread_mutex_lock(&the_queue->pc_queue_lock);
     if (rc)
       debug(1, "Error %d (\"%s\") locking for pc_queue_add_item. Block is %d.", rc, strerror(rc),
             block);
@@ -137,7 +137,7 @@ int pc_queue_add_item(pc_queue *the_queue, const void *the_stuff, int block) {
 int pc_queue_get_item(pc_queue *the_queue, void *the_stuff) {
   int rc;
   if (the_queue) {
-    rc = debug_mutex_lock(&the_queue->pc_queue_lock, 50000, 4);
+    rc = pthread_mutex_lock(&the_queue->pc_queue_lock);
     if (rc)
       debug(1, "metadata queue \"%s\": error locking for pc_queue_get_item", the_queue->name);
     pthread_cleanup_push(pc_queue_cleanup_handler, (void *)the_queue);

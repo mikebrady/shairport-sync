@@ -83,6 +83,7 @@
 #include "rtp.h"
 #include "rtsp.h"
 #include "utilities/string_utilities.h"
+#include "utilities/exit.h"
 
 #if defined(CONFIG_DACP_CLIENT)
 #include "dacp.h"
@@ -139,6 +140,10 @@ int this_is_the_daemon_process = 0;
 #define strnull(s) ((s) ? (s) : "(null)")
 
 pthread_t rtsp_listener_thread;
+
+#if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
+GMainLoop *glib_worker_loop = NULL;
+#endif
 
 int killOption = 0;
 int daemonisewith = 0;
@@ -453,7 +458,7 @@ int parse_options(int argc, char **argv) {
       break;
     case 'u':
       inform("Warning: the option -u is no longer needed and is deprecated. Debug and statistics "
-             "output to STDERR is now the default. Use \"--log-to-syslog\" to revert.");
+             "output to STDERR is now the default.");
       break;
     case 'D':
       inform("Warning: the option -D or --disconnectFromOutput is deprecated.");
@@ -489,6 +494,7 @@ int parse_options(int argc, char **argv) {
     }
   }
   if (c < -1) {
+    debug(1, "Oops");
     die("%s: %s", poptBadOption(optCon, POPT_BADOPTION_NOALIAS), poptStrerror(c));
   }
 
@@ -503,16 +509,15 @@ int parse_options(int argc, char **argv) {
   }
 
   if (log_to_syslog_selected) {
-    // if this was the first command line argument, it'll already have been chosen
-    if (log_to_syslog_select_is_first_command_line_argument == 0) {
-      inform("Suggestion: make \"--log-to-syslog\" the first command line argument to ensure "
-             "messages go to the syslog right from the beginning.");
-    }
+    inform("the diagnostic \"log-to-syslog\" command_line_option is obsolete and is ignored. All logging is to STDERR, which is directed to the system log when Shairport Sync is running as a service.");
+/*
 #ifdef CONFIG_LIBDAEMON
     log_to_default = 0; // a specific log output modality has been selected.
 #endif
     log_to_syslog();
+*/
   }
+
 
 #ifdef CONFIG_LIBDAEMON
   if ((daemonisewith) && (daemonisewithout))
@@ -857,6 +862,7 @@ int parse_options(int argc, char **argv) {
 
       /* Get the diagnostics output default. */
       if (config_lookup_string(config.cfg, "diagnostics.log_output_to", &str)) {
+      /*
 #ifdef CONFIG_LIBDAEMON
         log_to_default = 0; // a specific log output modality has been selected.
 #endif
@@ -871,7 +877,11 @@ int parse_options(int argc, char **argv) {
           config.log_fd = -1;
           log_to_file();
         }
+      */
+        warn("the diagnostic \"log_output_to\" setting is obsolete and is ignored. All logging is to STDERR, which is directed to the system log when Shairport Sync is running as a service.");
       }
+      
+      
       /* Get the ignore_volume_control setting. */
       if (config_lookup_string(config.cfg, "general.ignore_volume_control", &str)) {
         if (strcasecmp(str, "no") == 0)
@@ -1838,7 +1848,7 @@ GThread *glib_worker_thread = NULL;
 gpointer glib_worker_thread_function(__attribute__((unused)) gpointer data) {
 
   // use the default global-default main context
-  config.glib_worker_loop = g_main_loop_new(NULL, FALSE);
+  glib_worker_loop = g_main_loop_new(NULL, FALSE);
 
   // debug(1, "glib worker thread started.");
 
@@ -1853,7 +1863,7 @@ gpointer glib_worker_thread_function(__attribute__((unused)) gpointer data) {
 
   // debug(1, "g_main_loop_run start.");
 
-  g_main_loop_run(config.glib_worker_loop);
+  g_main_loop_run(glib_worker_loop);
 
   // debug(1, "g_main_loop_run exit.");
 
@@ -1869,11 +1879,7 @@ gpointer glib_worker_thread_function(__attribute__((unused)) gpointer data) {
   // debug(1, "stopped D-Bus service");
 #endif
 
-  g_main_loop_unref(config.glib_worker_loop);
-  if (config.quit_requested_from_glib_mainloop != 0) {
-    debug(2, "glib_mainloop_thread_function asking for exit");
-    exit(EXIT_SUCCESS);
-  }
+  g_main_loop_unref(glib_worker_loop);
   return NULL;
 }
 
@@ -1927,10 +1933,15 @@ void exit_function() {
 #endif
 
 #if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
-      if ((glib_worker_thread != NULL) && (config.quit_requested_from_glib_mainloop == 0)) {
-        g_main_loop_quit(config.glib_worker_loop);
-        debug(2, "GMainLoop stop requested");
-      }
+        if (glib_worker_loop != NULL) { // may not have been initialised
+          g_main_loop_quit(glib_worker_loop);
+          debug(2, "GMainLoop stop requested");
+        }
+        if (glib_worker_thread != NULL) {
+          g_thread_join(glib_worker_thread);
+          debug(1, "GLib worker thread joined");
+        }
+
 #endif
 
 #ifdef CONFIG_METADATA_HUB
@@ -2063,12 +2074,12 @@ void handle_sigchld(__attribute__((unused)) int sig) {
 // for clean exits
 void intHandler(__attribute__((unused)) int k) {
   debug(2, "exit on SIGINT");
-  exit(EXIT_SUCCESS);
+  exit_request(EXIT_SUCCESS);
 }
 
 void termHandler(__attribute__((unused)) int k) {
   debug(2, "exit on SIGTERM");
-  exit(EXIT_SUCCESS);
+  exit_request(EXIT_SUCCESS);
 }
 
 void _display_config(const char *filename, const int linenumber, __attribute__((unused)) int argc,
@@ -2330,9 +2341,10 @@ const char *av_channel_layout_name(uint64_t channel_layout) {
 #endif
 
 int main(int argc, char **argv) {
+  exit_init(); // initialise the exit handler to give us a clean safe exit on request
   // initialise debug messages stuff -- level 0, no elapsed time, relative time, file and line
   // debug_init(int level, int show_elapsed_time, int show_relative_time, int show_file_and_line)
-  debug_init(0, 0, 1, 1);
+  debug_init(0, 0, 1, 1, exit_request);
   memset(&config, 0, sizeof(config)); // also clears all strings, BTW
   /* Check if we are called with -V or --version parameter */
   if (argc >= 2 && ((strcmp(argv[1], "-V") == 0) || (strcmp(argv[1], "--version") == 0))) {
@@ -2375,13 +2387,15 @@ int main(int argc, char **argv) {
     exit(EXIT_SUCCESS);
   }
 
-  /* Check if we are called with -log-to-syslog */
+/*
+  // Check if we are called with -log-to-syslog
   if (argc >= 2 && (strcmp(argv[1], "--log-to-syslog") == 0)) {
     log_to_syslog_select_is_first_command_line_argument = 1;
     log_to_syslog();
   } else {
     log_to_stderr();
   }
+*/
 
   pid = getpid();
   config.log_fd = -1;
@@ -2453,8 +2467,8 @@ int main(int argc, char **argv) {
   config.packet_stuffing = ST_vernier; // you need to explicitly ask for "basic" (ST_basic)
 #endif
 
-  set_requested_connection_state_to_output(
-      1); // we expect to be able to connect to the output device
+  // set_requested_connection_state_to_output(
+  //     1); // we expect to be able to connect to the output device
   config.audio_backend_buffer_desired_length = 0.15; // seconds
   config.audio_decoded_buffer_desired_length = 0.75; // seconds
   config.udp_port_base = 6001;
@@ -3348,6 +3362,10 @@ int main(int argc, char **argv) {
   // you'll see two threads named "listener" or whatever...
   named_pthread_create(&rtsp_listener_thread, NULL, &rtsp_listen_loop, NULL, "listener");
   atexit(exit_rtsp_listener);
-  pthread_join(rtsp_listener_thread, NULL);
+  
+  // wait forever...
+  while (1) {
+    usleep(1000000);
+  }
   return 0;
 }

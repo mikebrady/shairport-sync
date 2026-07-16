@@ -133,8 +133,6 @@ void set_alsa_out_dev(char *);
 config_t config_file_stuff;
 uint64_t minimum_dac_queue_size;
 
-pthread_mutex_t the_conn_lock = PTHREAD_MUTEX_INITIALIZER;
-
 unsigned int sps_format_sample_size_array[] = {
     0,       // unknown
     1, 1,    // S8, U8
@@ -232,8 +230,10 @@ const char *short_format_description(int32_t encoded_format) {
 }
 
 // true if Shairport Sync is supposed to be sending output to the output device, false otherwise
-static volatile int requested_connection_state_to_output = 1;
+// static volatile int requested_connection_state_to_output = 1;
 
+
+/*
 // this stuff is to direct logging to syslog via libdaemon or directly
 // alternatively you can direct it to stderr using a command line option
 
@@ -290,7 +290,7 @@ int create_log_file(const char *path) {
             int flags = fcntl(fd, F_GETFL);
             if (flags == -1) {
               //							strerror_r(errno, (char
-              //*)errorstring, sizeof(errorstring));
+              // *)errorstring, sizeof(errorstring));
               // debug(1, "create_log_file -- error %d (\"%s\") getting flags of pipe: \"%s\".",
               // errno,
               // (char *)errorstring, pathname);
@@ -336,11 +336,11 @@ void log_to_syslog() {
 #else
   sps_log = syslog;
 #endif
+
 }
+*/
 
 shairport_cfg config;
-
-sigset_t pselect_sigset;
 
 static uint16_t UDPPortIndex = 0;
 
@@ -502,9 +502,9 @@ uint16_t bind_UDP_port(int ip_family, const char *self_ip_address, uint32_t scop
   return sport;
 }
 
-int get_requested_connection_state_to_output() { return requested_connection_state_to_output; }
+// int get_requested_connection_state_to_output() { return requested_connection_state_to_output; }
 
-void set_requested_connection_state_to_output(int v) { requested_connection_state_to_output = v; }
+// void set_requested_connection_state_to_output(int v) { requested_connection_state_to_output = v; }
 
 void getErrorText(char *destinationString, size_t destinationStringLength) {
 #pragma GCC diagnostic push
@@ -1806,13 +1806,6 @@ uint64_t nctoh64(const uint8_t *p) {
   return vl;
 }
 
-pthread_mutex_t barrier_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-void memory_barrier() {
-  pthread_mutex_lock(&barrier_mutex);
-  pthread_mutex_unlock(&barrier_mutex);
-}
-
 void sps_nanosleep(const time_t sec, const long nanosec) {
   struct timespec req, rem;
   int result;
@@ -1825,98 +1818,6 @@ void sps_nanosleep(const time_t sec, const long nanosec) {
   if (result == -1)
     debug(1, "Error in sps_nanosleep of %" PRIdMAX " sec and %ld nanoseconds: %d.", (intmax_t)sec,
           nanosec, errno);
-}
-
-// Mac OS X doesn't have pthread_mutex_timedlock
-// Also note that timing must be relative to CLOCK_REALTIME
-
-/*
-#ifdef COMPILE_FOR_LINUX_AND_FREEBSD_AND_CYGWIN_AND_OPENBSD
-int sps_pthread_mutex_timedlock(pthread_mutex_t *mutex, useconds_t dally_time) {
-
-  int oldState;
-  pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);
-  struct timespec timeoutTime;
-  uint64_t wait_until_time = dally_time * 1000; // to nanoseconds
-  uint64_t start_time = get_realtime_in_ns();   // this is from CLOCK_REALTIME
-  wait_until_time = wait_until_time + start_time;
-  uint64_t wait_until_sec = wait_until_time / 1000000000;
-  uint64_t wait_until_nsec = wait_until_time % 1000000000;
-  timeoutTime.tv_sec = wait_until_sec;
-  timeoutTime.tv_nsec = wait_until_nsec;
-  int r = pthread_mutex_timedlock(mutex, &timeoutTime);
-  pthread_setcancelstate(oldState, NULL);
-  return r;
-}
-#endif
-#ifdef COMPILE_FOR_OSX
-*/
-int sps_pthread_mutex_timedlock(pthread_mutex_t *mutex, useconds_t dally_time) {
-
-  // this would not be not pthread_cancellation safe because is contains a cancellation point
-  int oldState;
-  pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);
-  int time_to_wait = dally_time;
-  int r = pthread_mutex_trylock(mutex);
-  while ((r == EBUSY) && (time_to_wait > 0)) {
-    int st = time_to_wait;
-    if (st > 1000)
-      st = 1000;
-    sps_nanosleep(0, st * 1000); // this contains a cancellation point
-    time_to_wait -= st;
-    r = pthread_mutex_trylock(mutex);
-  }
-  pthread_setcancelstate(oldState, NULL);
-  return r;
-}
-// #endif
-
-int _debug_mutex_lock(pthread_mutex_t *mutex, useconds_t dally_time, const char *mutexname,
-                      const char *filename, const int line, int debuglevel) {
-  if ((debuglevel > debug_level()) || (debuglevel == 0))
-    return pthread_mutex_lock(mutex);
-  int oldState;
-  pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);
-  if (debuglevel != 0)
-    _debug(filename, line, 3, "mutex_lock \"%s\".", mutexname); // only if you really ask for it!
-  int result = sps_pthread_mutex_timedlock(mutex, dally_time);
-  if (result == ETIMEDOUT) {
-    _debug(
-        filename, line, debuglevel,
-        "mutex_lock \"%s\" failed to lock after %f ms -- now waiting unconditionally to lock it.",
-        mutexname, dally_time * 1E-3);
-    result = pthread_mutex_lock(mutex);
-    if (result == 0)
-      _debug(filename, line, debuglevel, " ...mutex_lock \"%s\" locked successfully.", mutexname);
-    else
-      _debug(filename, line, debuglevel, " ...mutex_lock \"%s\" exited with error code: %u",
-             mutexname, result);
-  }
-  pthread_setcancelstate(oldState, NULL);
-  return result;
-}
-
-int _debug_mutex_unlock(pthread_mutex_t *mutex, const char *mutexname, const char *filename,
-                        const int line, int debuglevel) {
-  if ((debuglevel > debug_level()) || (debuglevel == 0))
-    return pthread_mutex_unlock(mutex);
-  int oldState;
-  pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);
-  char dstring[1000];
-  char errstr[512];
-  memset(dstring, 0, sizeof(dstring));
-  snprintf(dstring, sizeof(dstring), "%s:%d", filename, line);
-  debug(debuglevel, "mutex_unlock \"%s\" at \"%s\".", mutexname, dstring);
-  int r = pthread_mutex_unlock(mutex);
-  if ((debuglevel != 0) && (r != 0)) {
-    if (strerror_r(r, errstr, sizeof(errstr)) == 0) {
-      debug(1, "error %d: \"%s\" unlocking mutex \"%s\" at \"%s\".", r, errstr, mutexname, dstring);
-    } else {
-      debug(1, "error %d: unlocking mutex \"%s\" at \"%s\".", r, mutexname, dstring);
-    }
-  }
-  pthread_setcancelstate(oldState, NULL);
-  return r;
 }
 
 void malloc_cleanup(void *arg) {

@@ -10,7 +10,7 @@ StartLimitIntervalSec=300
 StartLimitBurst=5
 
 [Service]
-ExecStart=@prefix@/bin/shairport-sync --log-to-syslog
+ExecStart=@prefix@/bin/shairport-sync
 User=shairport-sync
 Group=shairport-sync
 LimitRTPRIO=5

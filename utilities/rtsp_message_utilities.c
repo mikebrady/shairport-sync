@@ -45,7 +45,7 @@ static pthread_mutex_t reference_counter_lock = PTHREAD_MUTEX_INITIALIZER;
 static int msg_indexes = 1;
 
 void msg_retain(rtsp_message *msg) {
-  int rc = debug_mutex_lock(&reference_counter_lock, 500000, 4);
+  int rc = pthread_mutex_lock(&reference_counter_lock);
   if (rc)
     debug(1, "Error %d locking reference counter lock", rc);
   if (msg > (rtsp_message *)0x00010000) {
@@ -63,7 +63,7 @@ void msg_retain(rtsp_message *msg) {
 
 rtsp_message *msg_init(void) {
   // no thread cancellation points here
-  int rc = debug_mutex_lock(&reference_counter_lock, 500000, 4);
+  int rc = pthread_mutex_lock(&reference_counter_lock);
   if (rc)
     debug(1, "Error %d locking reference counter lock", rc);
 
@@ -128,7 +128,7 @@ void _debug_print_msg_headers(rtsp_conn_info *conn, const char *filename, const 
 }
 
 void msg_free(rtsp_message **msgh) {
-  debug_mutex_lock(&reference_counter_lock, 1000, 0);
+  pthread_mutex_lock(&reference_counter_lock);
   if (*msgh > (rtsp_message *)0x00010000) {
     rtsp_message *msg = *msgh;
     msg->referenceCount--;
@@ -161,7 +161,7 @@ void msg_free(rtsp_message **msgh) {
           "%" PRIxPTR ".",
           (uintptr_t)*msgh);
   }
-  debug_mutex_unlock(&reference_counter_lock, 0);
+  pthread_mutex_unlock(&reference_counter_lock);
 }
 
 int msg_handle_line(rtsp_message **pmsg, char *line) {

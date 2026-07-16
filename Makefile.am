@@ -31,7 +31,8 @@ shairport_sync_SOURCES = shairport.c bonjour_strings.c mdns.c common.c rtp.c \
   player.c audio.c loudness.c activity_monitor.c \
   rtsp.c \
   utilities/debug.c utilities/network_utilities.c utilities/rtsp_message_utilities.c \
-  utilities/string_utilities.c
+  utilities/string_utilities.c \
+  utilities/exit.c
 
 if BUILD_FOR_DARWIN
   AM_CXXFLAGS = -I/usr/local/include -Wno-multichar -Wall -Wextra -Wno-deprecated-declarations -pthread -DSYSCONFDIR=\"$(sysconfdir)\"
