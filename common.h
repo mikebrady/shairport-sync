@@ -402,10 +402,11 @@ typedef struct {
   char *model;
   char *srcvers;
   char *osvers;
+  uint32_t vv;
+  uint32_t airplay_statusflags;
 
 #ifdef CONFIG_AIRPLAY_2
   uint64_t airplay_features;
-  uint32_t airplay_statusflags;
   char *airplay_fex;       // a base64-encoded version of the airplay_features in little-endian form
   char *airplay_device_id; // for the Bonjour advertisement and the GETINFO PList
   char *airplay_pi;        // UUID in the Bonjour advertisement and the GETINFO Plist

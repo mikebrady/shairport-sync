@@ -1593,7 +1593,7 @@ int32_t decipher_player_put_packet(uint8_t *ciphered_audio_alt, ssize_t nread,
           nonce,
           conn->session_key); // *k
       if (response != 0) {
-        debug(1, "Error decrypting an audio packet.");
+        debug(3, "Error decrypting an audio packet.");
       }
       // now pass it in to the regular processing chain
 
@@ -1606,7 +1606,8 @@ int32_t decipher_player_put_packet(uint8_t *ciphered_audio_alt, ssize_t nread,
       player_put_packet(ALAC_44100_S16_2, sequence_number, timestamp, m, plen, 0, 0,
                         conn); // 0 = no mute, 0 = non discontinuous
     } else {
-      debug(2, "No session key, so the audio packet can not be deciphered -- skipped.");
+      debug(4, "No session key, so the audio packet of %zd bytes can not be deciphered -- skipped.", nread);
+      debug_print_buffer(4, ciphered_audio_alt, nread);
     }
     return sequence_number;
   } else {

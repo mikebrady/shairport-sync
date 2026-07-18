@@ -566,10 +566,13 @@ int parse_options(int argc, char **argv) {
   // config.srcvers = strdup(PACKAGE_VERSION);
   // config.srcvers = strdup("760.13.1");
 
+  // config.srcvers = strdup("950.7.1");
   config.srcvers = strdup("366.0");
 
   // config.osvers = strdup(VERSION);
   config.osvers = strdup("15.0");
+  
+  config.vv = 0;
 
   // make up a firmware version
 #ifdef CONFIG_USE_GIT_VERSION_STRING
@@ -1531,8 +1534,26 @@ int parse_options(int argc, char **argv) {
           str);
   }
 #endif
+  config.airplay_statusflags |= 1 << 2; // Audio cable is attached
+  if (config.password != NULL) {
+    config.airplay_statusflags |= 1 << 7; // Password required
+  }
+
+  // config.airplay_statusflags |= 1 << 11; // DeviceSupportsRelay
 
   // here, we are finally finished reading the options
+  
+  // now look at some of the status flags, though an initial value has been given further back
+
+  // Advertised with mDNS and returned with GET /info, see
+  // https://openairplay.github.io/airplay-spec/status_flags.html
+
+  // config.airplay_statusflags |= 1 << 17; // ReceiverSessionIsActive
+  // config.airplay_statusflags |= 1 << 10; // DeviceWasSetupForHKAccessControl
+  // config.airplay_statusflags |= 1 << 11; // DeviceSupportsRelay
+  // config.airplay_statusflags |= 1 << 19; // Unknown. Seems to control whether individual volume
+  // controls are shown and whether the SPS devices shows when its active.
+
 
   // finish the Airplay 2 options
 
@@ -1619,6 +1640,13 @@ int parse_options(int argc, char **argv) {
   //     0x0001C340405C4A00; // no AP2 metadata (b50), no AP1 text (b17), no AP1 progress (b16), no
   //     AP1 artwork (b15) 0x0001C340445D0A00;
   // config.airplay_features |= (1 << 26); // 0x0x4000000
+  
+  // experimentally turn off some flags...
+  uint64_t unmask = (1 << 22) + (1l << 47);
+  uint64_t mask = ~unmask;
+  config.airplay_features &= mask;
+  
+  // debug(1, "Features: 0x%" PRIx64 ", unmask: 0x%" PRIx64 ", mask: 0x%" PRIx64 ".", config.airplay_features, unmask, mask);
 
   // features=0x0001C340445D0A00 -- AirPort Express
 
@@ -1661,20 +1689,6 @@ int parse_options(int argc, char **argv) {
   if (padding)
     *padding = 0;
   debug(2, "airplay_fex is \"%s\"", config.airplay_fex);
-
-  // now the status flags
-  // Advertised with mDNS and returned with GET /info, see
-  // https://openairplay.github.io/airplay-spec/status_flags.html
-
-  config.airplay_statusflags = 0;
-  config.airplay_statusflags |= 1 << 2; // Audio cable is attached
-  if (config.password != NULL) {
-    config.airplay_statusflags |= 1 << 7; // Password required
-  }
-  // config.airplay_statusflags |= 1 << 10; // DeviceWasSetupForHKAccessControl
-  // config.airplay_statusflags |= 1 << 11; // DeviceSupportsRelay
-  // config.airplay_statusflags |= 1 << 19; // Unknown. Seems to control whether individual volume
-  // controls are shown and whether the SPS devices shows when its active.
 
   config.airplay_pi = generate_device_uuid(config.airplay_device_id);
   config.airplay_pgid = generate_random_uuid();
@@ -1935,11 +1949,11 @@ void exit_function() {
 #if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
         if (glib_worker_loop != NULL) { // may not have been initialised
           g_main_loop_quit(glib_worker_loop);
-          debug(2, "GMainLoop stop requested");
+          debug(3, "GMainLoop stop requested");
         }
         if (glib_worker_thread != NULL) {
           g_thread_join(glib_worker_thread);
-          debug(1, "GLib worker thread joined");
+          debug(3, "GLib worker thread joined");
         }
 
 #endif

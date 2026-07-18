@@ -24,6 +24,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <inttypes.h>
 #include "bonjour_strings.h"
 #include "common.h"
 
@@ -95,7 +96,9 @@ void build_bonjour_strings(__attribute((unused)) rtsp_conn_info *conn) {
     txt_records[entry_number++] =
         bnprintf(fwString, sizeof(fwString), "fv=%s", config.firmware_version);
     txt_records[entry_number++] = bnprintf(ap1StatusFlagsString, sizeof(ap1StatusFlagsString),
-                                           "sf=0x%" PRIX32, config.airplay_statusflags);
+                                           "sf=0x%" PRIX32 "", config.airplay_statusflags);
+  // secondary_txt_records[entry_number++] = bnprintf(statusflagsString, sizeof(statusflagsString),
+  //                                                  "flags=0x%" PRIX32 "", config.airplay_statusflags);
 #ifdef CONFIG_METADATA
     if (config.get_coverart == 0)
       txt_records[entry_number++] = "md=0,2";
@@ -109,14 +112,14 @@ void build_bonjour_strings(__attribute((unused)) rtsp_conn_info *conn) {
     txt_records[entry_number++] = "vn=65537";
     txt_records[entry_number++] =
         bnprintf(ap1SrcversString, sizeof(ap1SrcversString), "vs=%s", config.srcvers);
-    txt_records[entry_number++] =
-        bnprintf(ap1OsversString, sizeof(ap1OsversString), "ov=%s", config.osvers);
+    // txt_records[entry_number++] =
+    //     bnprintf(ap1OsversString, sizeof(ap1OsversString), "ov=%s", config.osvers);
     txt_records[entry_number++] = NULL;
   } else {
 #endif
     // here, just replicate what happens in mdns.h when using those #defines
-    txt_records[entry_number++] =
-        bnprintf(ap1StatusFlagsString, sizeof(ap1StatusFlagsString), "sf=0x4");
+    txt_records[entry_number++] = bnprintf(ap1StatusFlagsString, sizeof(ap1StatusFlagsString),
+                                           "sf=0x%" PRIX32 "", config.airplay_statusflags);
     txt_records[entry_number++] =
         bnprintf(fwString, sizeof(fwString), "fv=%s", config.firmware_version);
     txt_records[entry_number++] =
@@ -162,7 +165,7 @@ void build_bonjour_strings(__attribute((unused)) rtsp_conn_info *conn) {
       bnprintf(featuresString, sizeof(featuresString), "features=0x%" PRIX64 ",0x%" PRIX64 "",
                features_lo, features_hi); // features_hi and features_lo already calculated.
   secondary_txt_records[entry_number++] = bnprintf(statusflagsString, sizeof(statusflagsString),
-                                                   "flags=0x%" PRIX32, config.airplay_statusflags);
+                                                   "flags=0x%" PRIX32 "", config.airplay_statusflags);
   if ((conn != NULL) && (conn->airplay_gid != 0)) {
     snprintf(gidString, sizeof(gidString), "gid=%s", conn->airplay_gid);
   } else {
@@ -189,9 +192,9 @@ void build_bonjour_strings(__attribute((unused)) rtsp_conn_info *conn) {
   secondary_txt_records[entry_number++] = pkString; // already calculated
   secondary_txt_records[entry_number++] =
       bnprintf(srcversString, sizeof(srcversString), "srcvers=%s", config.srcvers);
-  secondary_txt_records[entry_number++] =
-      bnprintf(osversString, sizeof(osversString), "osvers=%s", config.osvers);
-  secondary_txt_records[entry_number++] = "vv=2";
+  // secondary_txt_records[entry_number++] =
+  //     bnprintf(osversString, sizeof(osversString), "osvers=%s", config.osvers);
+  // secondary_txt_records[entry_number++] = "vv=2";
   secondary_txt_records[entry_number++] = fwString; // already calculated
   secondary_txt_records[entry_number++] = NULL;
 #endif
