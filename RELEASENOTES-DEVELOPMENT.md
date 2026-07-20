@@ -1,7 +1,7 @@
-Version 5.2-dev-42-g5e48d8fe
+Version 5.2-dev-44-geb49aaab
 ==
 **Bug Fixes**
-* Fixed a number of bugs in the convolution and loudness code. The bugs were due to mixing up input and output rates and channel counts. If the input and output rates and channel counts were identical, no problem. But if rates were different, the wrong finite impulse response filter would be loaded. Thanks to [Christopher Wawak](https://github.com/cwawak) for the [report](https://github.com/mikebrady/shairport-sync/issues/2236).
+* Fixed a number of bugs in the convolution and loudness code. The bugs were due to mixing up input and output rates and channel counts. If the input and output rates and channel counts were identical, no problem. But if rates were different, the wrong finite impulse response filter would be loaded. Many thanks to [Christopher Wawak](https://github.com/cwawak) for the [report](https://github.com/mikebrady/shairport-sync/issues/2236) and follow-up.
 
 Version 5.2-dev-35-g83ae1d28
 ==
