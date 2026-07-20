@@ -4635,10 +4635,7 @@ void *player_thread_func(void *arg) {
 
                   if (config.convolution_enabled) {
                     if (
-                        // if any of these are true, we need to create a new convolver
-                        // (conn->convolver_is_valid == 0) ||
-                        // temporarily disable this check...
-                        // (current_convolver_block_size != inframe->length) ||
+                        // if any of these are true, we need to create a new convolver                        
                         (current_convolver_rate != RATE_FROM_ENCODED_FORMAT(config.current_output_configuration)) ||
                         (current_convolver_channels != CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration)) ||
                         (current_convolver_maximum_length_in_seconds !=
@@ -4648,7 +4645,6 @@ void *player_thread_func(void *arg) {
                       // look for a convolution ir file with a matching rate and channel count
 
                       convolver_is_valid = 0; // declare any current convolver as invalid
-                      // current_convolver_block_size = inframe->length;
                       current_convolver_rate = RATE_FROM_ENCODED_FORMAT(config.current_output_configuration);
                       current_convolver_channels = CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration);
                       current_convolver_maximum_length_in_seconds =
@@ -4696,7 +4692,7 @@ void *player_thread_func(void *arg) {
                         // a convolver
                         convolver_is_valid = convolver_init(
                             convolver_file_found, current_convolver_channels,
-                            config.convolution_max_length_in_seconds, inframe->length);
+                            config.convolution_max_length_in_seconds, 1024); // power of 2 suggested for the block length
                         convolver_wait_for_all();
                         if ((convolver_is_valid == 0) && (convolver_error_notified == 0)) {
                           debug(1, "can not initialise a %u/%u convolver from the \"%s\" finite impulse response file.", current_convolver_rate,
@@ -4737,7 +4733,6 @@ void *player_thread_func(void *arg) {
                       }
                     }
                   }
-
 #endif
                   if (conn->do_loudness) {
                     loudness_process_blocks((float *)fbufs, inframe->length,
