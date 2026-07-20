@@ -4626,6 +4626,7 @@ void *player_thread_func(void *arg) {
                   // Apply convolution
                   // First, have we got the right convolution setup?
 
+                  static int convolver_error_notified = 0;
                   static int convolver_is_valid = 0;
                   static size_t current_convolver_block_size = 0;
                   static unsigned int current_convolver_rate = 0;
@@ -4637,9 +4638,8 @@ void *player_thread_func(void *arg) {
                         // if any of these are true, we need to create a new convolver
                         // (conn->convolver_is_valid == 0) ||
                         (current_convolver_block_size != inframe->length) ||
-                        (current_convolver_rate != conn->input_rate) ||
-                        !((current_convolver_channels == 1) ||
-                          (current_convolver_channels == conn->input_num_channels)) ||
+                        (current_convolver_rate != RATE_FROM_ENCODED_FORMAT(config.current_output_configuration)) ||
+                        (current_convolver_channels != CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration)) ||
                         (current_convolver_maximum_length_in_seconds !=
                          config.convolution_max_length_in_seconds) ||
                         (config.convolution_ir_files_updated == 1)) {
@@ -4648,12 +4648,12 @@ void *player_thread_func(void *arg) {
 
                       convolver_is_valid = 0; // declare any current convolver as invalid
                       current_convolver_block_size = inframe->length;
-                      current_convolver_rate = conn->input_rate;
-                      current_convolver_channels = conn->input_num_channels;
+                      current_convolver_rate = RATE_FROM_ENCODED_FORMAT(config.current_output_configuration);
+                      current_convolver_channels = CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration);
                       current_convolver_maximum_length_in_seconds =
                           config.convolution_max_length_in_seconds;
                       config.convolution_ir_files_updated = 0;
-                      debug(2, "try to initialise a %u/%u convolver.", current_convolver_rate,
+                      debug(3, "looking for a %u/%u finite impulse response file.", current_convolver_rate,
                             current_convolver_channels);
                       char *convolver_file_found = NULL;
                       unsigned int ir = 0;
@@ -4668,55 +4668,58 @@ void *player_thread_func(void *arg) {
                           ir++;
                         }
                       }
-
                       // if no luck, try for a single-channel IR file
                       if (convolver_file_found == NULL) {
-                        current_convolver_channels = 1;
                         ir = 0;
+                        debug(3, "looking for a %u/1 finite impulse response file.", current_convolver_rate);
                         while ((ir < config.convolution_ir_file_count) &&
                                (convolver_file_found == NULL)) {
                           if ((config.convolution_ir_files[ir].samplerate ==
                                current_convolver_rate) &&
-                              (config.convolution_ir_files[ir].channels ==
-                               current_convolver_channels)) {
+                              (config.convolution_ir_files[ir].channels == 1)) {
                             convolver_file_found = config.convolution_ir_files[ir].filename;
                           } else {
                             ir++;
                           }
                         }
+                        if (convolver_file_found != NULL) {
+                          debug(1, "The %u/1 finite impulse response file \"%s\" will be used for convolution.", current_convolver_rate,
+                            convolver_file_found);
+                        }
+                      } else {
+                        debug(1, "The %u/%u finite impulse response file \"%s\" will be used for convolution.", current_convolver_rate,
+                            current_convolver_channels, convolver_file_found);
                       }
                       if (convolver_file_found != NULL) {
                         // we have an apparently suitable convolution ir file, so lets initialise
                         // a convolver
                         convolver_is_valid = convolver_init(
-                            convolver_file_found, conn->input_num_channels,
+                            convolver_file_found, current_convolver_channels,
                             config.convolution_max_length_in_seconds, inframe->length);
                         convolver_wait_for_all();
-                        // if (convolver_is_valid)
-                        // debug(1, "convolver_init for %u channels was successful.",
-                        // conn->input_num_channels); convolver_is_valid = convolver_init(
-                        //     convolver_file_found, conn->input_num_channels,
-                        //     config.convolution_max_length_in_seconds, inframe->length);
+                        if ((convolver_is_valid == 0) && (convolver_error_notified == 0)) {
+                          debug(1, "can not initialise a %u/%u convolver from the \"%s\" finite impulse response file.", current_convolver_rate,
+                                current_convolver_channels, convolver_file_found);
+                          convolver_error_notified = 1;
+                        }
+                      } else if (convolver_error_notified == 0) {
+                        debug(1, "Convolution is disabled because a suitable %u/%u or %u/1 finite impulse response file can not be found.", current_convolver_rate, current_convolver_channels, current_convolver_rate);             
+                        convolver_error_notified = 1;
                       }
 
-                      if (convolver_is_valid == 0)
-                        debug(1, "can not initialise a %u/%u convolver.", current_convolver_rate,
-                              conn->input_num_channels);
-                      else
-                        debug(1, "convolver: \"%s\".", convolver_file_found);
                     }
                     if (convolver_is_valid != 0) {
-                      for (j = 0; j < conn->input_num_channels; j++) {
-                        // convolver_process(j, fbufs[j], inframe->length);
+                      for (j = 0; j < current_convolver_channels; j++) {
                         convolver_process(j, fbufs[j], inframe->length);
                       }
                       convolver_wait_for_all();
+                      convolver_error_notified = 0;
                     }
 
                     // apply convolution gain even if no convolution is done...
                     float gain = pow(10.0, config.convolution_gain / 20.0);
                     for (i = 0; i < inframe->length; ++i) {
-                      for (j = 0; j < conn->input_num_channels; j++) {
+                      for (j = 0; j < current_convolver_channels; j++) {
                         float output_level_db = 0.0;
                         if (fbufs[j][i] < 0.0)
                           output_level_db = 20 * log10(fbufs[j][i] / (float)INT32_MIN * 1.0);
@@ -4737,13 +4740,13 @@ void *player_thread_func(void *arg) {
 #endif
                   if (conn->do_loudness) {
                     loudness_process_blocks((float *)fbufs, inframe->length,
-                                            conn->input_num_channels,
+                                            CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration),
                                             (float)conn->fix_volume / 65536);
                   }
 
                   // Interleave and convert back to int32_t
                   for (i = 0; i < inframe->length; i++) {
-                    for (j = 0; j < conn->input_num_channels; j++) {
+                    for (j = 0; j < CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration); j++) {
                       tbuf32[conn->input_num_channels * i + j] = fbufs[j][i];
                     }
                   }
