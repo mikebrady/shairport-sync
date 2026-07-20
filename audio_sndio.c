@@ -493,7 +493,7 @@ static void stop() {
         debug(1, "sndio: unable to stop");
       written = played = is_running = 0;
     } else {
-      debug(1, "sndio: stop: not running.");
+      debug(2, "sndio: stop: not running.");
     }
   } else {
     debug(1, "sndio: output device is not open for stop!");
