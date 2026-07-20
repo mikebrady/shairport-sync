@@ -4628,7 +4628,7 @@ void *player_thread_func(void *arg) {
 
                   static int convolver_error_notified = 0;
                   static int convolver_is_valid = 0;
-                  static size_t current_convolver_block_size = 0;
+                  // static size_t current_convolver_block_size = 0;
                   static unsigned int current_convolver_rate = 0;
                   static unsigned int current_convolver_channels = 0;
                   static double current_convolver_maximum_length_in_seconds = 0;
@@ -4637,7 +4637,8 @@ void *player_thread_func(void *arg) {
                     if (
                         // if any of these are true, we need to create a new convolver
                         // (conn->convolver_is_valid == 0) ||
-                        (current_convolver_block_size != inframe->length) ||
+                        // temporarily disable this check...
+                        // (current_convolver_block_size != inframe->length) ||
                         (current_convolver_rate != RATE_FROM_ENCODED_FORMAT(config.current_output_configuration)) ||
                         (current_convolver_channels != CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration)) ||
                         (current_convolver_maximum_length_in_seconds !=
@@ -4647,7 +4648,7 @@ void *player_thread_func(void *arg) {
                       // look for a convolution ir file with a matching rate and channel count
 
                       convolver_is_valid = 0; // declare any current convolver as invalid
-                      current_convolver_block_size = inframe->length;
+                      // current_convolver_block_size = inframe->length;
                       current_convolver_rate = RATE_FROM_ENCODED_FORMAT(config.current_output_configuration);
                       current_convolver_channels = CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration);
                       current_convolver_maximum_length_in_seconds =
