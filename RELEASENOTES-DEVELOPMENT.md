@@ -1,3 +1,8 @@
+Version 5.2-dev-46-g6ba8e310
+==
+**Metadata Feature Restoration**
+* Restore the previous way of receiving metadata for better compatibility for older users of metadata. A _temporary_ new option in the `diagnostics` section of the configuration file allows you to opt for the newer plist-based metadata, which is considerably richer but not integrated into the D-Bus or MPRIS interfaces.
+  
 Version 5.2-dev-44-geb49aaab
 ==
 **Bug Fixes**
