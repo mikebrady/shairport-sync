@@ -4,7 +4,7 @@
  * All rights reserved.
  *
  * Modifications for audio synchronisation, AirPlay 2
- * and related work, copyright (c) Mike Brady 2014--2025
+ * and related work, copyright (c) Mike Brady 2014--2026
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -332,7 +332,7 @@ static void free_audio_buffers(rtsp_conn_info *conn) {
 int first_possibly_missing_frame = -1;
 
 void reset_buffer(rtsp_conn_info *conn) {
-  pthread_cleanup_debug_mutex_lock(&conn->ab_mutex, 30000, 0);
+  pthread_mutex_lock_and_cleanup_push(&conn->ab_mutex);
   ab_resync(conn);
   pthread_cleanup_pop(1);
 #if CONFIG_FFMPEG
@@ -349,7 +349,7 @@ void reset_buffer(rtsp_conn_info *conn) {
 
 size_t get_audio_buffer_occupancy(rtsp_conn_info *conn) {
   size_t response = 0;
-  pthread_cleanup_debug_mutex_lock(&conn->ab_mutex, 30000, 0);
+  pthread_mutex_lock_and_cleanup_push(&conn->ab_mutex);
   if (conn->ab_synced) {
     int16_t occ =
         conn->ab_write - conn->ab_read; // will be zero or positive if read and write are within
@@ -1412,7 +1412,7 @@ seq_t get_revised_seqno(rtsp_conn_info *conn, uint32_t timestamp) {
   // go back through the buffers to find the first buffer following a buffer that predates
   // the given timestamp, if any.
   seq_t revised_seqno = conn->ab_write;
-  pthread_cleanup_debug_mutex_lock(&conn->ab_mutex, 30000, 0);
+  pthread_mutex_lock_and_cleanup_push(&conn->ab_mutex);
   int older_seqno_found = 0;
   while ((older_seqno_found == 0) && (revised_seqno != conn->ab_read)) {
     revised_seqno--;
@@ -1478,18 +1478,18 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
 
   // ignore a request to flush that has been made before the first packet...
   if (conn->packet_count == 0) {
-    debug_mutex_lock(&conn->flush_mutex, 1000, 4);
+    pthread_mutex_lock(&conn->flush_mutex);
     conn->flush_requested = 0;
     conn->flush_rtp_timestamp = 0;
-    debug_mutex_unlock(&conn->flush_mutex, 4);
+    pthread_mutex_unlock(&conn->flush_mutex);
   }
 
-  pthread_cleanup_debug_mutex_lock(&conn->ab_mutex, 30000, 0);
+  pthread_mutex_lock_and_cleanup_push(&conn->ab_mutex);
   uint64_t time_now = get_absolute_time_in_ns();
   conn->packet_count++;
   conn->packet_count_since_flush++;
   conn->time_of_last_audio_packet = time_now;
-  if (conn->connection_state_to_output) { // if we are supposed to be processing these packets
+//  if (conn->connection_state_to_output) { // if we are supposed to be processing these packets
     abuf_t *abuf = 0;
     if (!conn->ab_synced) {
       conn->ab_write = seqno;
@@ -1794,7 +1794,7 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
       if (number_of_missing_frames == 0)
         first_possibly_missing_frame = conn->ab_write;
     }
-  }
+  // } // remove this
   pthread_cleanup_pop(1);
   // debug_mutex_unlock(&conn->ab_mutex, 0);
   return input_packets_used;
@@ -2043,7 +2043,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
   abuf_t *curframe = NULL;
   int notified_buffer_empty = 0; // diagnostic only
 
-  pthread_cleanup_debug_mutex_lock(&conn->ab_mutex, 30000, 0);
+  pthread_mutex_lock_and_cleanup_push(&conn->ab_mutex);
 
   int wait;
   long dac_delay = 0; // long because alsa returns a long
@@ -2058,6 +2058,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
     // we must have timing information before we can do anything here
     if ((have_timestamp_timing_information(conn)) && (conn->input_format_is_valid != 0)) {
 
+/*
       int rco = get_requested_connection_state_to_output();
 
       if (conn->connection_state_to_output != rco) {
@@ -2065,23 +2066,23 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
         // change happening
         if (conn->connection_state_to_output == 0) { // going off
           debug(2, "request flush because connection_state_to_output is off");
-          debug_mutex_lock(&conn->flush_mutex, 1000, 1);
+          pthread_mutex_lock(&conn->flush_mutex);
           conn->flush_requested = 1;
           conn->flush_rtp_timestamp = 0;
-          debug_mutex_unlock(&conn->flush_mutex, 3);
+          pthread_mutex_unlock(&conn->flush_mutex);
         }
       }
-
+*/
       if (config.output->is_running)
         if (config.output->is_running() != 0) { // if the back end isn't running for any reason
           debug(2, "request flush because back end is not running");
-          debug_mutex_lock(&conn->flush_mutex, 1000, 0);
+          pthread_mutex_lock(&conn->flush_mutex);
           conn->flush_requested = 1;
           conn->flush_rtp_timestamp = 0;
-          debug_mutex_unlock(&conn->flush_mutex, 0);
+          pthread_mutex_unlock(&conn->flush_mutex);
         }
 
-      pthread_cleanup_debug_mutex_lock(&conn->flush_mutex, 1000, 0);
+      pthread_mutex_lock_and_cleanup_push(&conn->flush_mutex);
       if (conn->flush_requested == 1) {
         if (conn->flush_output_flushed == 0) {
 #if CONFIG_FFMPEG
@@ -3556,7 +3557,7 @@ void *player_thread_func(void *arg) {
   }
 
   conn->session_corrections = 0;
-  conn->connection_state_to_output = get_requested_connection_state_to_output();
+  // conn->connection_state_to_output = get_requested_connection_state_to_output();
 
   int number_of_statistics, oldest_statistic, newest_statistic;
   uint32_t frames_since_last_stats_logged = 0;
@@ -4624,20 +4625,18 @@ void *player_thread_func(void *arg) {
                   // Apply convolution
                   // First, have we got the right convolution setup?
 
+                  static int convolver_error_notified = 0;
                   static int convolver_is_valid = 0;
-                  static size_t current_convolver_block_size = 0;
+                  // static size_t current_convolver_block_size = 0;
                   static unsigned int current_convolver_rate = 0;
                   static unsigned int current_convolver_channels = 0;
                   static double current_convolver_maximum_length_in_seconds = 0;
 
                   if (config.convolution_enabled) {
                     if (
-                        // if any of these are true, we need to create a new convolver
-                        // (conn->convolver_is_valid == 0) ||
-                        (current_convolver_block_size != inframe->length) ||
-                        (current_convolver_rate != conn->input_rate) ||
-                        !((current_convolver_channels == 1) ||
-                          (current_convolver_channels == conn->input_num_channels)) ||
+                        // if any of these are true, we need to create a new convolver                        
+                        (current_convolver_rate != RATE_FROM_ENCODED_FORMAT(config.current_output_configuration)) ||
+                        (current_convolver_channels != CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration)) ||
                         (current_convolver_maximum_length_in_seconds !=
                          config.convolution_max_length_in_seconds) ||
                         (config.convolution_ir_files_updated == 1)) {
@@ -4645,13 +4644,12 @@ void *player_thread_func(void *arg) {
                       // look for a convolution ir file with a matching rate and channel count
 
                       convolver_is_valid = 0; // declare any current convolver as invalid
-                      current_convolver_block_size = inframe->length;
-                      current_convolver_rate = conn->input_rate;
-                      current_convolver_channels = conn->input_num_channels;
+                      current_convolver_rate = RATE_FROM_ENCODED_FORMAT(config.current_output_configuration);
+                      current_convolver_channels = CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration);
                       current_convolver_maximum_length_in_seconds =
                           config.convolution_max_length_in_seconds;
                       config.convolution_ir_files_updated = 0;
-                      debug(2, "try to initialise a %u/%u convolver.", current_convolver_rate,
+                      debug(3, "looking for a %u/%u finite impulse response file.", current_convolver_rate,
                             current_convolver_channels);
                       char *convolver_file_found = NULL;
                       unsigned int ir = 0;
@@ -4666,55 +4664,58 @@ void *player_thread_func(void *arg) {
                           ir++;
                         }
                       }
-
                       // if no luck, try for a single-channel IR file
                       if (convolver_file_found == NULL) {
-                        current_convolver_channels = 1;
                         ir = 0;
+                        debug(3, "looking for a %u/1 finite impulse response file.", current_convolver_rate);
                         while ((ir < config.convolution_ir_file_count) &&
                                (convolver_file_found == NULL)) {
                           if ((config.convolution_ir_files[ir].samplerate ==
                                current_convolver_rate) &&
-                              (config.convolution_ir_files[ir].channels ==
-                               current_convolver_channels)) {
+                              (config.convolution_ir_files[ir].channels == 1)) {
                             convolver_file_found = config.convolution_ir_files[ir].filename;
                           } else {
                             ir++;
                           }
                         }
+                        if (convolver_file_found != NULL) {
+                          debug(1, "The %u/1 finite impulse response file \"%s\" will be used for convolution.", current_convolver_rate,
+                            convolver_file_found);
+                        }
+                      } else {
+                        debug(1, "The %u/%u finite impulse response file \"%s\" will be used for convolution.", current_convolver_rate,
+                            current_convolver_channels, convolver_file_found);
                       }
                       if (convolver_file_found != NULL) {
                         // we have an apparently suitable convolution ir file, so lets initialise
                         // a convolver
                         convolver_is_valid = convolver_init(
-                            convolver_file_found, conn->input_num_channels,
-                            config.convolution_max_length_in_seconds, inframe->length);
+                            convolver_file_found, current_convolver_channels,
+                            config.convolution_max_length_in_seconds, 1024); // power of 2 suggested for the block length
                         convolver_wait_for_all();
-                        // if (convolver_is_valid)
-                        // debug(1, "convolver_init for %u channels was successful.",
-                        // conn->input_num_channels); convolver_is_valid = convolver_init(
-                        //     convolver_file_found, conn->input_num_channels,
-                        //     config.convolution_max_length_in_seconds, inframe->length);
+                        if ((convolver_is_valid == 0) && (convolver_error_notified == 0)) {
+                          debug(1, "can not initialise a %u/%u convolver from the \"%s\" finite impulse response file.", current_convolver_rate,
+                                current_convolver_channels, convolver_file_found);
+                          convolver_error_notified = 1;
+                        }
+                      } else if (convolver_error_notified == 0) {
+                        debug(1, "Convolution is disabled because a suitable %u/%u or %u/1 finite impulse response file can not be found.", current_convolver_rate, current_convolver_channels, current_convolver_rate);             
+                        convolver_error_notified = 1;
                       }
 
-                      if (convolver_is_valid == 0)
-                        debug(1, "can not initialise a %u/%u convolver.", current_convolver_rate,
-                              conn->input_num_channels);
-                      else
-                        debug(1, "convolver: \"%s\".", convolver_file_found);
                     }
                     if (convolver_is_valid != 0) {
-                      for (j = 0; j < conn->input_num_channels; j++) {
-                        // convolver_process(j, fbufs[j], inframe->length);
+                      for (j = 0; j < current_convolver_channels; j++) {
                         convolver_process(j, fbufs[j], inframe->length);
                       }
                       convolver_wait_for_all();
+                      convolver_error_notified = 0;
                     }
 
                     // apply convolution gain even if no convolution is done...
                     float gain = pow(10.0, config.convolution_gain / 20.0);
                     for (i = 0; i < inframe->length; ++i) {
-                      for (j = 0; j < conn->input_num_channels; j++) {
+                      for (j = 0; j < current_convolver_channels; j++) {
                         float output_level_db = 0.0;
                         if (fbufs[j][i] < 0.0)
                           output_level_db = 20 * log10(fbufs[j][i] / (float)INT32_MIN * 1.0);
@@ -4731,17 +4732,16 @@ void *player_thread_func(void *arg) {
                       }
                     }
                   }
-
 #endif
                   if (conn->do_loudness) {
                     loudness_process_blocks((float *)fbufs, inframe->length,
-                                            conn->input_num_channels,
+                                            CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration),
                                             (float)conn->fix_volume / 65536);
                   }
 
                   // Interleave and convert back to int32_t
                   for (i = 0; i < inframe->length; i++) {
-                    for (j = 0; j < conn->input_num_channels; j++) {
+                    for (j = 0; j < CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration); j++) {
                       tbuf32[conn->input_num_channels * i + j] = fbufs[j][i];
                     }
                   }
@@ -5016,7 +5016,7 @@ static void player_send_volume_metadata(uint8_t vol_mode_both, double airplay_vo
 }
 
 void player_volume_without_notification(double airplay_volume, rtsp_conn_info *conn) {
-  debug_mutex_lock(&conn->volume_control_mutex, 5000, 4);
+  pthread_mutex_lock(&conn->volume_control_mutex);
   // first, see if we are hw only, sw only, both with hw attenuation on the top or both with sw
   // attenuation on top
 
@@ -5234,7 +5234,7 @@ void player_volume_without_notification(double airplay_volume, rtsp_conn_info *c
   // here, store the volume for possible use in the future
   config.airplay_volume = airplay_volume;
   conn->own_airplay_volume = airplay_volume;
-  debug_mutex_unlock(&conn->volume_control_mutex, 4);
+  pthread_mutex_unlock(&conn->volume_control_mutex);
 }
 
 void player_volume(double airplay_volume, rtsp_conn_info *conn) {
@@ -5245,11 +5245,11 @@ void player_volume(double airplay_volume, rtsp_conn_info *conn) {
 void do_flush(uint32_t timestamp, rtsp_conn_info *conn) {
 
   debug(3, "do_flush: flush to %u.", timestamp);
-  debug_mutex_lock(&conn->flush_mutex, 1000, 1);
+  pthread_mutex_lock(&conn->flush_mutex);
   conn->flush_requested = 1;
   conn->flush_rtp_timestamp = timestamp; // flush all packets up to, but not including, this one.
   reset_input_flow_metrics(conn);
-  debug_mutex_unlock(&conn->flush_mutex, 3);
+  pthread_mutex_unlock(&conn->flush_mutex);
 }
 
 void player_flush(uint32_t timestamp, rtsp_conn_info *conn) {
@@ -5279,7 +5279,7 @@ int player_play(rtsp_conn_info *conn) {
                               // access to the output device (i.e. knowing that it should not be in
                               // use by another program at this time).
 
-  pthread_cleanup_debug_mutex_lock(&conn->player_create_delete_mutex, 5000, 1);
+  pthread_mutex_lock_and_cleanup_push(&conn->player_create_delete_mutex);
   if (conn->player_thread == NULL) {
     pthread_t *pt = malloc(sizeof(pthread_t));
     if (pt == NULL)
@@ -5306,7 +5306,7 @@ int player_stop(rtsp_conn_info *conn) {
   // note -- this may be called from another connection thread.
   debug(2, "Connection %d: player_stop.", conn->connection_number);
   int response = 0; // okay
-  pthread_cleanup_debug_mutex_lock(&conn->player_create_delete_mutex, 5000, 4);
+  pthread_mutex_lock_and_cleanup_push(&conn->player_create_delete_mutex);
   pthread_t *pt = conn->player_thread;
   if (pt) {
     debug(3, "player_thread cancel...");

@@ -1,7 +1,7 @@
 /*
 MIT License
 
-Copyright (c) 2023--2025 Mike Brady 4265913+mikebrady@users.noreply.github.com
+Copyright (c) 2023--2026 Mike Brady 4265913+mikebrady@users.noreply.github.com
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -38,7 +38,7 @@ SOFTWARE.
 
 // level 0 is no messages, level 3 is most messages
 EXTERNC void debug_init(int level, int show_elapsed_time, int show_relative_time,
-                        int show_file_and_line);
+                        int show_file_and_line, void (*exit_requester)(const int exit_status));
 
 EXTERNC int debug_level();
 EXTERNC void set_debug_level(int level);

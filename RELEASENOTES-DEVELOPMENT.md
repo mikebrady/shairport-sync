@@ -1,7 +1,26 @@
-Version 5.2-dev-31-gb1a9f645
+Version 5.2-dev-44-geb49aaab
 ==
-**Bug Fix**
-* Fixed a bug whereby Shairport Sync was hanging up when an "unfixable" error was detected with no recovery routine. The hang-up was because it was trying to clean up the environment before terminating and was getting stuck. Thanks to [timg7](https://github.com/timg7) for the [report](https://github.com/mikebrady/shairport-sync/issues/2234).
+**Bug Fixes**
+* Fixed a number of bugs in the convolution and loudness code. The bugs were due to mixing up input and output rates and channel counts. If the input and output rates and channel counts were identical, no problem. But if rates were different, the wrong finite impulse response filter would be loaded. Many thanks to [Christopher Wawak](https://github.com/cwawak) for the [report](https://github.com/mikebrady/shairport-sync/issues/2236) and follow-up.
+
+Version 5.2-dev-35-g83ae1d28
+==
+**New Feature**
+* Added a long-overdue exit handler to enable Shairport Sync to exit cleanly — that is, to clean everything up, e.g. open files, sockets, devices, threads, etc. before exit.
+
+  If cleanup isn’t finished after one second, exit will occur unconditionally.
+
+  The new exit handler is used for normal exit, abnormal exit after fatal errors and for quit requests from the D-Bus and MPRIS interfaces.
+
+**Deprecations**
+* The `log-to-syslog` command line option and the `log_output_to` setting in the `diagnostics` part of the configuration are obsolete and are now ignored (documentation update pending).
+
+**Bug Fixes**
+* When an unfixable error occurs without an unfixable error handler installed, the mutex protecting Shairport Sync’s `alsa` backend is now unlocked to permit a clean exit. Thanks to [timg7](https://github.com/timg7) for the [report](https://github.com/mikebrady/shairport-sync/issues/2234).
+
+* Updated `audio_sndio.c` to remove some harmless compiler warnings.
+
+* Fixed a very low-level mutex-locking error that interfered with debugging.
 
 Version 5.2-dev-26-gbe6d9d0a
 ==

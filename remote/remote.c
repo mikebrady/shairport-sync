@@ -530,28 +530,6 @@ void remote_simple_command(simple_command_t command) {
 #endif
 }
 
-void remote_playpause() {
-  int available = 0;
-#ifdef CONFIG_DACP_CLIENT
-  available = metadata_store.dacp_server_active;
-  if (available) {
-    debug(1, "remote_playpause -- DACP active.");
-    send_simple_dacp_command("playpause");
-  }
-#endif
-#ifdef CONFIG_AIRPLAY_2
-  pthread_rwlock_rdlock(&principal_conn_lock); // don't let the principal_conn be changed
-  pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
-  if ((available == 0) && (principal_conn != NULL) && (principal_conn->airplay_type == ap_2)) {
-    if (principal_conn != NULL) {
-      debug(1, "remote_playpause -- AirPlay 2.");
-      ap2_event_send_simple_modern_media_remote_command(principal_conn, 2);
-    }
-  }
-  pthread_cleanup_pop(1); // release the principal_conn lock
-#endif
-}
-
 void remote_set_repeat_mode(repeat_status_type mode) {  
   pthread_rwlock_rdlock(&principal_conn_lock); // don't let the principal_conn be changed
   pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
@@ -647,11 +625,3 @@ void remote_set_shuffle_mode(shuffle_status_type mode) {
   }
   pthread_cleanup_pop(1); // release the principal_conn lock
 }  
-
-
-void remote_player_stop(rtsp_conn_info *conn) {
-  if (conn != NULL) {
-    debug(1, "Connection %d: remote_player_stop -- AirPlay 2.", conn->connection_number);
-    ap2_event_send_simple_modern_media_remote_command(conn, rcsc_stop);
-  }
-}

@@ -149,7 +149,7 @@ int RTSP_connection_index = 1;
 // keep track of the threads we have spawned so we can join() them
 static int nconns = 0;
 static void track_thread(rtsp_conn_info *conn) {
-  debug_mutex_lock(&conns_lock, 1000000, 4);
+  pthread_mutex_lock(&conns_lock);
   // look for an empty slot first
   int i = 0;
   int found = 0;
@@ -171,7 +171,7 @@ static void track_thread(rtsp_conn_info *conn) {
       die("could not reallocate memory for conns");
     }
   }
-  debug_mutex_unlock(&conns_lock, 4);
+  pthread_mutex_unlock(&conns_lock);
 }
 
 // note: connection numbers start at 1, so an except_this_one value of zero means "all threads"
@@ -179,7 +179,7 @@ void cancel_all_RTSP_threads(airplay_stream_c stream_category, int except_this_o
   // if the stream category is unspecified_stream_category
   // all categories are elegible for cancellation
   // otherwise just the category itself
-  debug_mutex_lock(&conns_lock, 1000000, 3);
+  pthread_mutex_lock(&conns_lock);
   int i;
   for (i = 0; i < nconns; i++) {
     if ((conns[i] != NULL) && (conns[i]->running != 0) &&
@@ -204,7 +204,7 @@ void cancel_all_RTSP_threads(airplay_stream_c stream_category, int except_this_o
       conns[i] = NULL;
     }
   }
-  debug_mutex_unlock(&conns_lock, 3);
+  pthread_mutex_unlock(&conns_lock);
 }
 
 int old_connection_count = -1;
@@ -215,7 +215,7 @@ void cleanup_threads(void) {
   int i;
   int connection_count = 0;
   // debug(2, "culling threads.");
-  debug_mutex_lock(&conns_lock, 1000000, 4);
+  pthread_mutex_lock(&conns_lock);
   for (i = 0; i < nconns; i++) {
     if ((conns[i] != NULL) && (conns[i]->running == 0)) {
       debug(4, "found RTSP connection thread %d in a non-running state.",
@@ -231,7 +231,7 @@ void cleanup_threads(void) {
       connection_count++;
     }
   }
-  debug_mutex_unlock(&conns_lock, 4);
+  pthread_mutex_unlock(&conns_lock);
 
   if (old_connection_count != connection_count) {
     if (connection_count == 0) {
@@ -248,7 +248,7 @@ void cleanup_threads(void) {
 int terminate_conn(int connection_number) {
   // this will look for a connection by number, cancel it, join it, delete it and send an pre-mpted metadata message.
   int found = 0;
-  debug_mutex_lock(&conns_lock, 1000000, 4);
+  pthread_mutex_lock(&conns_lock);
   // look for an empty slot first
   int i = 0;
   while ((i < nconns) && (found == 0)) {
@@ -260,7 +260,7 @@ int terminate_conn(int connection_number) {
     } else
       i++;
   }
-  debug_mutex_unlock(&conns_lock, 4);
+  pthread_mutex_unlock(&conns_lock);
 #ifdef CONFIG_METADATA
   if (found) {
     debug(4, "Connection %d: is being terminated; terminate_conn is sending 'prmp'", connection_number);
@@ -293,16 +293,14 @@ void stop_play() {
     debug(1, "Connection %d: stop and close this connection.", principal_conn->connection_number);
     terminate_conn(principal_conn->connection_number);
 #ifdef CONFIG_AIRPLAY_2
-    config.airplay_statusflags &= (0xffffffff - (1 << 11)); // DeviceSupportsRelay
     if (principal_conn->airplay_gid) {
       free(principal_conn->airplay_gid);
       principal_conn->airplay_gid = NULL; // stop using the client's GID as our GID.
     }
-    build_bonjour_strings(principal_conn);
-    if (config.service_type == APST_airplay2) {
-      mdns_update(NULL, secondary_txt_records);
-    }
 #endif
+    config.airplay_statusflags &= (0xffffffff - (1 << 17)); // ReceiverSessionIsActive
+    build_bonjour_strings(principal_conn);
+    mdns_update(txt_records, secondary_txt_records);
     principal_conn = NULL; // let it go
     debug(1, "Connection successfully closed.");
   }
@@ -315,16 +313,14 @@ void release_play_lock(rtsp_conn_info *conn) {
   if ((principal_conn == conn) || (conn == NULL)) { // if we have the player
     if (principal_conn != NULL) {
 #ifdef CONFIG_AIRPLAY_2
-      config.airplay_statusflags &= (0xffffffff - (1 << 11)); // DeviceSupportsRelay
       if (principal_conn->airplay_gid) {
         free(principal_conn->airplay_gid);
         principal_conn->airplay_gid = NULL; // stop using the client's GID as our GID.
       }
-      build_bonjour_strings(principal_conn);
-      if (config.service_type == APST_airplay2) {
-        mdns_update(NULL, secondary_txt_records);
-      }
 #endif
+    config.airplay_statusflags &= (0xffffffff - (1 << 17)); // ReceiverSessionIsActive
+    build_bonjour_strings(principal_conn);
+    mdns_update(txt_records, secondary_txt_records);
       debug(2, "Connection %d: %s released principal_conn.", conn->connection_number,
             get_category_string(conn->airplay_stream_category));
     }
@@ -376,9 +372,9 @@ play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) 
     } else if (principal_conn == NULL) {
       // already unlocked, and principal conn not NULL
       principal_conn = conn;
-#ifdef CONFIG_AIRPLAY_2
-      config.airplay_statusflags |= (1 << 11); // DeviceSupportsRelay
-#endif
+      config.airplay_statusflags |= (1 << 17); // ReceiverSessionIsActive
+      build_bonjour_strings(conn);
+      mdns_update(txt_records, secondary_txt_records);
       response = play_lock_acquired_without_breaking_in;
     } else if (allow_session_interruption != 0) { // principal conn not NULL,
       debug(4, "Connection %d: about to be terminated.", principal_conn->connection_number);
@@ -388,24 +384,22 @@ play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) 
       debug(4, "Connection successfully terminated.");
       if (principal_conn == NULL) {
 #ifdef CONFIG_AIRPLAY_2
-        config.airplay_statusflags &= (0xffffffff - (1 << 11)); // DeviceSupportsRelay
         if (conn->airplay_gid) {
           free(conn->airplay_gid);
           conn->airplay_gid = NULL; // stop using the client's GID as our GID.
         }
-        build_bonjour_strings(conn);
-        if (config.service_type == APST_airplay2) {
-          mdns_update(NULL, secondary_txt_records);
-        }
 #endif
+        config.airplay_statusflags &= (0xffffffff - (1 << 17)); // ReceiverSessionIsActive
+        build_bonjour_strings(conn);
+        mdns_update(txt_records, secondary_txt_records);
+
         response = play_lock_released;
       } else {
-#ifdef CONFIG_AIRPLAY_2
-        config.airplay_statusflags |= (1 << 11); // DeviceSupportsRelay
-#endif
+        config.airplay_statusflags |= (1 << 17); // ReceiverSessionIsActive
+        build_bonjour_strings(conn);
+        mdns_update(txt_records, secondary_txt_records);
         response = play_lock_acquired_by_breaking_in;
       }
-      // usleep(1000000); // don't know why this delay is needed.
     }
     if ((principal_conn != NULL) && (response != play_lock_already_acquired))
       debug(2, "Connection %d: %s has principal_conn.", conn->connection_number,
@@ -1083,14 +1077,13 @@ void generateTxtDataValueInfo(rtsp_conn_info *conn, void **response, size_t *res
           &qualifier_response_data, &qualifier_response_data_length) == 0)
     debug(1, "Problem");
 
-  if (add_pstring_to_malloc(bnprintf(localString, sizeof(localString), "osvers=%s", config.osvers),
-                            &qualifier_response_data, &qualifier_response_data_length) == 0)
-    debug(1, "Problem");
+  // if (add_pstring_to_malloc(bnprintf(localString, sizeof(localString), "osvers=%s", config.osvers),
+  //                           &qualifier_response_data, &qualifier_response_data_length) == 0)
+  //   debug(1, "Problem");
 
   if (add_pstring_to_malloc(bnprintf(localString, sizeof(localString), "vv=%u", config.vv),
-                            &qualifier_response_data, &qualifier_response_data_length) == 0)
+          &qualifier_response_data, &qualifier_response_data_length) == 0)
     debug(1, "Problem");
-
   *response = qualifier_response_data;
   *responseLength = qualifier_response_data_length;
 }
@@ -1126,7 +1119,6 @@ plist_t generateInfoPlist(rtsp_conn_info *conn) {
              conn->client_rtsp_port);
     plist_dict_set_item(response_plist, "senderAddress", plist_new_string(senderAddress));
     plist_dict_set_item(response_plist, "initialVolume", plist_new_real(suggested_volume(conn)));
-    plist_dict_set_item(response_plist, "sourceVersion", plist_new_string(config.srcvers));
     plist_dict_set_item(response_plist, "vv", plist_new_uint(config.vv));
     // don't display volume control if we're asking to ignore the volume control
     if (config.ignore_volume_control == 0) {
@@ -1141,7 +1133,9 @@ plist_t generateInfoPlist(rtsp_conn_info *conn) {
     // bufferStreamFormats = 0xF7FE000E00000000; // don't know what these do (from the HPm)
     plist_t supported_formats_plist = plist_new_dict();
     if (supported_formats_plist != NULL) {
-      plist_dict_set_item(supported_formats_plist, "audioStream", plist_new_uint(21235712));
+      // plist_dict_set_item(supported_formats_plist, "audioStream", plist_new_uint(21235712));
+      plist_dict_set_item(supported_formats_plist, "audioStream", plist_new_uint(262144)); // just ALAC/S16/2
+      
       {
         bufferStreamFormats |= 0x00000400000L; // AAC-LC/44.1K/F24/2
         bufferStreamFormats |= 0x40000;        // ALAC/44100/S16/2
@@ -1340,7 +1334,7 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
       debug(4, "flushUntilTS is %" PRId64 ".", flushUntilTS);
     }
 
-    debug_mutex_lock(&conn->flush_mutex, 1000, 4);
+    pthread_mutex_lock(&conn->flush_mutex);
 
     if (flushFromValid == 0) {
       // an immediate flush is requested
@@ -1386,7 +1380,7 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
       }
     }
 
-    debug_mutex_unlock(&conn->flush_mutex, 4);
+    pthread_mutex_unlock(&conn->flush_mutex);
     plist_free(messagePlist);
   }
 
@@ -1464,7 +1458,7 @@ void handle_setrateanchori(rtsp_conn_info *conn, rtsp_message *req, rtsp_message
       uint64_t rate;
       plist_get_uint_val(item, &rate);
       debug(3, "anchor rate 0x%016" PRIx64 ".", rate);
-      pthread_cleanup_debug_mutex_lock(&conn->flush_mutex, 1000, 4);
+      pthread_mutex_lock_and_cleanup_push(&conn->flush_mutex);
       conn->ap2_rate = rate;
       if ((rate & 1) != 0) {
         ptp_send_control_message_string(
@@ -2023,9 +2017,7 @@ void handle_configure(rtsp_conn_info *conn __attribute__((unused)),
 
   if (config.enable_HK_Access_Control != existingEnable_HK_Access_Control) {
     build_bonjour_strings(principal_conn);
-    if (config.service_type == APST_airplay2) {
-      mdns_update(NULL, secondary_txt_records);
-    }
+    mdns_update(txt_records, secondary_txt_records);
   }
   plist_to_bin(response_plist, &resp->content, &resp->contentlength);
   plist_free(response_plist);
@@ -2460,7 +2452,8 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
             if (ptp_shm_interface_open() !=
                 0) // it should be open already, but just in case it isn't...
               die("Can not access the NQPTP service. Has it stopped running?");
-            debug_log_rtsp_message(3, "SETUP \"PTP\" message", req);
+              
+            debug_log_rtsp_message(3, "SETUP (no streams) \"PTP\" message", req);
             plist_t groupUUID = plist_dict_get_item(messagePlist, "groupUUID");
             if (groupUUID) {
               char *gid = NULL;
@@ -2473,7 +2466,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
                 debug(1, "Invalid groupUUID");
               }
             } else {
-              debug(1, "No groupUUID in SETUP");
+              debug(3, "No groupUUID in SETUP");
             }
 
             // now see if the group contains a group leader
@@ -2485,7 +2478,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
               conn->groupContainsGroupLeader = value;
               debug(3, "Updated groupContainsGroupLeader to %u", conn->groupContainsGroupLeader);
             } else {
-              debug(1, "No groupContainsGroupLeader in SETUP");
+              debug(3, "No groupContainsGroupLeader in SETUP");
             }
 
             char timing_list_message[4096];
@@ -2623,10 +2616,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
             build_bonjour_strings(conn);
             debug(2, "Connection %d: SETUP mdns_update on %s.", conn->connection_number,
                   get_category_string(conn->airplay_stream_category));
-            if (config.service_type == APST_airplay2) {
-              mdns_update(NULL, secondary_txt_records);
-            }
-
+            mdns_update(txt_records, secondary_txt_records);
 #ifdef CONFIG_METADATA
             check_and_send_plist_metadata(messagePlist, "name", 'snam');
             check_and_send_plist_metadata(messagePlist, "deviceID", 'cdid');
@@ -2705,7 +2695,6 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
   } else {
 
     if (conn->airplay_stream_category == ptp_stream) {
-
       if (conn->player_thread) {
         debug(1, "stopping a running player during setup phase 2");
         player_stop(conn); // this nulls the player_thread and cancels the threads...
@@ -2727,8 +2716,14 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
       if (item != NULL) {
         plist_get_data_val(item, (char **)&conn->session_key,
                            &item_value); // item_value is the session key length (?)
+        debug(4, "session_key length is %" PRIu64 ".", item_value);
       } else {
         warn("No session key (shk) property in setup! This is fatal!");
+        // This doesn't work right now. Not sure how to proceed.
+        // debug(1, "shared secret length is %zu.", conn->pair_setup_result->shared_secret_len);
+        unsigned char *zeroSessionKey = calloc(conn->pair_setup_result->shared_secret_len, 1);
+        memcpy(zeroSessionKey, conn->pair_setup_result->shared_secret, 32);
+        conn->session_key = zeroSessionKey;
       }
 
       // get the compression type
@@ -3513,11 +3508,11 @@ static void handle_announce(rtsp_conn_info *conn, rtsp_message *req, rtsp_messag
     }
 
     if ((paesiv == NULL) && (prsaaeskey == NULL)) {
-      // debug(1,"Unencrypted session requested?");
+      // debug(1,"Connection %d: unencrypted session requested?", conn->connection_number);
       conn->stream.encrypted = 0;
     } else if ((paesiv != NULL) && (prsaaeskey != NULL)) {
       conn->stream.encrypted = 1;
-      // debug(1,"Encrypted session requested");
+      // debug(1,"Connection %d: encrypted session requested", conn->connection_number);
     } else {
       warn("Invalid Announce message -- missing paesiv or prsaaeskey.");
       resp->respcode = 456; // 456 - Header Field Not Valid for Resource
@@ -4134,14 +4129,14 @@ static void *rtsp_conversation_thread_func(void *pconn) {
 
     // check to see if a conn has been zeroed
 
-    debug_mutex_lock(&conns_lock, 1000000, 4);
+    pthread_mutex_lock(&conns_lock);
     int i;
     for (i = 0; i < nconns; i++) {
       if ((conns[i] != NULL) && (conns[i]->connection_number == 0)) {
         debug(1, "conns[%d] has a Connection Number of 0!", i);
       }
     }
-    debug_mutex_unlock(&conns_lock, 4);
+    pthread_mutex_unlock(&conns_lock);
 
     reply = rtsp_read_request(conn, &req);
     if (reply == rtsp_read_request_response_ok) {

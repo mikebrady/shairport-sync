@@ -26,6 +26,4 @@ void remote_set_repeat_mode(repeat_status_type mode);
 void remote_set_shuffle_mode(shuffle_status_type mode);
 void remote_simple_command(simple_command_t command);
 
-void remote_player_stop(rtsp_conn_info *conn);
-
 ssize_t ap2_event_send_dev_mule(unsigned int command_number);

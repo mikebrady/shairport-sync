@@ -39,7 +39,7 @@
 // number if okay
 ssize_t ap2_event_port_send_message(rtsp_conn_info *conn, char *data, size_t data_length) {
   ssize_t result = -1; // assume a problem
-  debug_mutex_lock(&conn->event_sender_mutex, 1000000, 4);
+  pthread_mutex_lock(&conn->event_sender_mutex);
   pthread_cleanup_push(mutex_unlock, &conn->event_sender_mutex);
   if (conn->event_channel_fd != 0) {
     result = write_encrypted(conn->event_channel_fd, &conn->ap2_pairing_context.event_cipher_bundle,
@@ -140,7 +140,7 @@ void ap2_event_receiver_cleanup_handler(void *arg) {
   // this is here to ensure it's only performed once during a teardown of a ptp stream
   send_ssnc_metadata('disc', conn->client_ip_string, strlen(conn->client_ip_string), 1);
 #endif
-  debug_mutex_lock(&conn->event_sender_mutex, 1000000, 4);
+  pthread_mutex_lock(&conn->event_sender_mutex);
   pthread_cleanup_push(mutex_unlock, &conn->event_sender_mutex);
   safe_socket_close(&conn->event_channel_fd);
   pthread_cleanup_pop(1); // unlock the mutex
@@ -164,7 +164,7 @@ void *ap2_event_receiver(void *arg) {
   memset(&remote_addr, 0, sizeof(remote_addr));
   socklen_t addr_size = sizeof(remote_addr);
 
-  debug_mutex_lock(&conn->event_sender_mutex, 1000000, 4);
+  pthread_mutex_lock(&conn->event_sender_mutex);
   pthread_cleanup_push(mutex_unlock, &conn->event_sender_mutex);
   conn->event_channel_fd =
       eintr_checked_accept(conn->event_socket, (struct sockaddr *)&remote_addr, &addr_size);
