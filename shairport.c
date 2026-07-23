@@ -773,6 +773,17 @@ int parse_options(int argc, char **argv) {
               "inclusive.",
               value);
       }
+      
+      if (config_lookup_string(config.cfg, "diagnostics.get_plist_metadata", &str)) {
+        if (strcasecmp(str, "no") == 0)
+          config.get_plist_metadata = 0;
+        else if (strcasecmp(str, "yes") == 0)
+          config.get_plist_metadata = 1;
+        else
+          die("Invalid \"get_plist_metadata\" option choice \"%s\". It should be \"yes\" or "
+              "\"no\"",
+              str);
+      }
 
       /* Get the verbosity setting. */
       if (config_lookup_int(config.cfg, "diagnostics.log_verbosity", &value)) {
@@ -1637,17 +1648,22 @@ int parse_options(int argc, char **argv) {
   // provides much more information, so should be the default for AirPlay 2
 
   if (config.metadata_enabled != 0) {
-    config.airplay_features |=
-        (uint64_t)1 << 50; // metadata in a binary plist, including more state information
-    // config.airplay_features |= ((uint64_t)1 << 15) | ((uint64_t)1 << 16) | ((uint64_t)1 << 17);
-    // // older metadata flags artwork, progress and text respectively
+    if (config.get_plist_metadata != 0) {
+      config.airplay_features |=
+        (uint64_t)1 << 50; // richer metadata in a binary plist, including more state information
+    } else {
+      // older metadata flags artwork, progress and text respectively
+      config.airplay_features |= (((uint64_t)1 << 16) | ((uint64_t)1 << 17));
+      if (config.get_coverart != 0)
+        config.airplay_features |= ((uint64_t)1 << 15);
+    }
   }
 #endif
 
   // now generate the fex field
   uint8_t fexbytes[8];
   uint64_t temp = config.airplay_features;
-  debug(2, "airplay_features are %" PRIx64 ".", temp);
+  debug(1, "airplay_features are %" PRIx64 ".", temp);
   for (i = 0; i < 8; i++) {
     fexbytes[i] = temp & 0xff;
     temp = temp >> 8;

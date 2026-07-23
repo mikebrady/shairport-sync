@@ -193,6 +193,8 @@ typedef struct {
   double resend_control_check_interval_time; // wait this long between making requests
   double resend_control_last_check_time; // if the packet is missing this close to the time of use,
                                          // give up
+                                         
+  int get_plist_metadata; // set to non-zero to get richer plist metadata
   pthread_mutex_t lock;
   config_t *cfg;
   int endianness;
