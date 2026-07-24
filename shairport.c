@@ -1663,7 +1663,7 @@ int parse_options(int argc, char **argv) {
   // now generate the fex field
   uint8_t fexbytes[8];
   uint64_t temp = config.airplay_features;
-  debug(1, "airplay_features are %" PRIx64 ".", temp);
+  debug(4, "airplay_features are %" PRIx64 ".", temp);
   for (i = 0; i < 8; i++) {
     fexbytes[i] = temp & 0xff;
     temp = temp >> 8;
