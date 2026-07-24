@@ -13,7 +13,7 @@ rcvar="shairport_sync_enable"
 # This seems to be necessary in FreeBSD, as the startup system doesn't seem to like dashes ("-") in service names.
 
 pidfile="/var/run/shairport-sync.pid"
-apptodaemonise="/usr/local/bin/shairport-sync --log-to-syslog"
+apptodaemonise="/usr/local/bin/shairport-sync"
 
 command="/usr/sbin/daemon"
 # -S log to syslog; -P store the supervisor PID; -u to specify the user to run the service under
