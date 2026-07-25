@@ -56,7 +56,9 @@
 		<property name='NowPlayingInformation' type='a{sv}' access='read'>
 			<annotation name="org.qtproject.QtDBus.QtTypeName" value="QVariantMap"/>
 		</property>
-
+		<property name='CommandInformation' type='a{sv}' access='read'>
+			<annotation name="org.qtproject.QtDBus.QtTypeName" value="QVariantMap"/>
+		</property>
   </interface>
   <interface name="org.gnome.ShairportSync.RemoteControl">
 		<method name='FastForward'/>

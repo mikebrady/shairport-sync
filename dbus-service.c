@@ -345,6 +345,11 @@ void dbus_metadata_watcher(struct metadata_bundle *argc) {
   // output the NowPlayingPlist stuff
   GVariant *npi = plist_to_gvariant(argc->npi.npi_plist);
   shairport_sync_client_set_now_playing_information(shairportSyncClientSkeleton, npi);
+  
+  // output the CommandInformation stuff
+  GVariant *sc = plist_to_gvariant(argc->supported_commands_plist);
+  shairport_sync_client_set_command_information(shairportSyncClientSkeleton, sc);
+  
 #endif
 }
 

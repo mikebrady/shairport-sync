@@ -104,6 +104,9 @@ typedef struct metadata_bundle {
   int speaker_volume; // this is the actual speaker volume, allowing for the main volume and the
                       // speaker volume control
   double airplay_volume;
+#ifdef CONFIG_AIRPLAY_2
+  plist_t supported_commands_plist;
+#endif
   metadata_npi_bundle npi;
 } metadata_bundle;
 

@@ -111,6 +111,9 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
                   
                   if (merge_policy_is_replace != 0) {
                     debug(4, "replace metadata");
+                    if (metadata_store.npi.npi_plist != NULL) {
+                      plist_free(metadata_store.npi.npi_plist);
+                    }
                     metadata_store.npi.npi_plist = plist_copy(npi_params);
                   } else {
                     debug(4, "merging metadata");
@@ -249,11 +252,18 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
             // the item should be a dict
             plist_t item_array = plist_dict_get_item(item, "mrSupportedCommandsFromSender");
             if (item_array != NULL) {
+            
+              int metadata_changed = 1; // we can't easily tell if the metadata is changing, unfortunately.
+                  // debug(1, "updateMRNowPlayingInfo");
+              metadata_hub_modify_prolog();
+              if (metadata_store.supported_commands_plist != NULL) {
+                plist_free(metadata_store.supported_commands_plist);
+              }
+              metadata_store.supported_commands_plist = plist_copy(item);
               // here we have an array of data items
               uint32_t items = plist_array_get_size(item_array);
               if (items != 0) {
                 // debug(1, "%u commands found.", items);
-                metadata_hub_modify_prolog();
                 uint32_t item_number;
                 for (item_number = 0; item_number < items; item_number++) {
                   plist_t the_item = plist_array_get_item(item_array, item_number);
@@ -331,8 +341,8 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
                   if (buff != NULL)
                     free(buff);
                 }
-                metadata_hub_modify_epilog(1);
               }
+              metadata_hub_modify_epilog(metadata_changed);
             } else {
               debug(1, "POST /command updateMRSupportedCommands has no "
                        "mrSupportedCommandsFromSender item.");
