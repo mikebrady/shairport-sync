@@ -37,6 +37,10 @@
 
 #include "rtp.h"
 
+#ifdef CONFIG_AIRPLAY_2
+#include "utilities/plist_gvariant_stuff.h"
+#endif
+
 #ifdef CONFIG_DACP_CLIENT
 #include "dacp.h"
 #endif
@@ -336,6 +340,12 @@ void dbus_metadata_watcher(struct metadata_bundle *argc) {
   GVariant *dict = g_variant_builder_end(dict_builder);
   g_variant_builder_unref(dict_builder);
   shairport_sync_remote_control_set_metadata(shairportSyncRemoteControlSkeleton, dict);
+
+#ifdef CONFIG_AIRPLAY_2
+  // output the NowPlayingPlist stuff
+  GVariant *npi = plist_to_gvariant(argc->npi.npi_plist);
+  shairport_sync_client_set_now_playing_information(shairportSyncClientSkeleton, npi);
+#endif
 }
 
 static gboolean on_handle_set_volume(ShairportSyncAdvancedRemoteControl *skeleton,

@@ -53,6 +53,10 @@
       <arg name="mode" type="s" direction="in" />
     </method>
 		<property name='Shuffle' type='s' access='read'/>
+		<property name='NowPlayingInformation' type='a{sv}' access='read'>
+			<annotation name="org.qtproject.QtDBus.QtTypeName" value="QVariantMap"/>
+		</property>
+
   </interface>
   <interface name="org.gnome.ShairportSync.RemoteControl">
 		<method name='FastForward'/>
