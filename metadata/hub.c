@@ -116,6 +116,10 @@ int update_uint64_record(uint64_record_t *record, const uint64_t value) {
   return changed;
 }
 
+int invalidate_string_record(char **str) {
+  return update_string_record(str, NULL);
+}
+
 int is_valid_uint64_record(uint64_record_t *record) {
   int valid = 0;
   if (record != NULL) {
@@ -772,9 +776,32 @@ int send_metadata_to_hub_queue(const uint32_t type, const uint32_t code, const c
   return send_metadata_to_queue(&metadata_hub_queue, type, code, data, length, carrier, block);
 }
 
-
 // reset all now playing information
 void metadata_hub_reset_npi(metadata_npi_bundle *npi) {
-  // debug(1, "metadata_hub_reset_npi");
-  memset(npi, 0, sizeof(metadata_npi_bundle));
+  debug(4, "metadata_hub_reset_npi");
+  invalidate_string_record(&npi->cover_art_pathname);
+  invalidate_uint64_record(&npi->item_id);
+  npi->item_composite_id_is_valid = 0;
+  invalidate_uint64_record(&npi->song_data_kind);
+  invalidate_string_record(&npi->track_name);
+  invalidate_uint64_record(&npi->track_number);
+  invalidate_string_record(&npi->artist_name);
+  invalidate_string_record(&npi->album_artist_name);
+  invalidate_string_record(&npi->album_name);
+  invalidate_string_record(&npi->genre);
+  invalidate_string_record(&npi->comment);
+  invalidate_string_record(&npi->composer);
+  invalidate_string_record(&npi->file_kind);
+  invalidate_string_record(&npi->song_description);
+  invalidate_string_record(&npi->song_album_artist);
+  invalidate_string_record(&npi->sort_name);
+  invalidate_string_record(&npi->sort_artist);
+  invalidate_string_record(&npi->sort_album);
+  invalidate_string_record(&npi->sort_composer);
+  invalidate_uint64_record(&npi->songtime_in_microseconds);
+  if (npi->npi_plist != NULL) {
+    plist_free(npi->npi_plist);
+    npi->npi_plist = NULL;
+  }
+  // memset(npi, 0, sizeof(metadata_npi_bundle));
 }

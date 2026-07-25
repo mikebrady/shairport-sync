@@ -70,6 +70,9 @@ typedef struct metadata_npi_bundle { // now playing information
   char *sort_album;
   char *sort_composer;
   uint64_record_t songtime_in_microseconds;
+#ifdef CONFIG_AIRPLAY_2
+  plist_t npi_plist; // this can contain information a lot more than we use...
+#endif
 } metadata_npi_bundle;
 
 typedef struct metadata_bundle {
