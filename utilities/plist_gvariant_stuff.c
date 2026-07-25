@@ -24,6 +24,10 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
+ 
+ // Note: this code is slightly specialised:
+ // 1. It will skip a dict item keyed 'kMRMediaRemoteNowPlayingInfoArtworkData' 
+ // 2. It will recursively convert Data items that are themselves plists.
 
 #include <glib.h>
 #include <plist/plist.h>
@@ -48,6 +52,8 @@ static plist_t try_parse_embedded_plist(const char *data, uint64_t length) {
     return embedded; // NULL if the header matched but the body didn't actually parse
 }
 
+
+// watch out -- this will skip an item with the key kMRMediaRemoteNowPlayingInfoArtworkData
 static GVariant *plist_dict_to_gvariant(plist_t node) {
     GVariantBuilder builder;
     g_variant_builder_init(&builder, G_VARIANT_TYPE("a{sv}"));
@@ -59,16 +65,14 @@ static GVariant *plist_dict_to_gvariant(plist_t node) {
     plist_t val = NULL;
     plist_dict_next_item(node, it, &key, &val);
     while (key) {
-        GVariant *v;
-
-        if (strcmp(key, "kMRMediaRemoteNowPlayingInfoArtworkData") == 0) {
-            // Replace artwork data with a placeholder filename rather than
-            // encoding the (potentially large) binary artwork as bytes.
-            v = g_variant_new_string("picture-file.jpeg");
-        } else {
+        GVariant *v = NULL;
+        // Don't include the item keyed kMRMediaRemoteNowPlayingInfoArtworkData.
+        // this is the raw bytes of the cover art, which will have been
+        // stored in a local file whose pathname is added to the plist
+        // with the key kShairportSyncNowPlayingInfoArtworkFilePath.
+        if (strcmp(key, "kMRMediaRemoteNowPlayingInfoArtworkData") != 0) {
             v = plist_node_to_gvariant(val);
         }
-
         if (v)
             g_variant_builder_add(&builder, "{sv}", key, v);
         free(key);
