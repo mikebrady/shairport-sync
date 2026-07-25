@@ -110,29 +110,29 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
                   plist_t npi_params = plist_dict_get_item(command_params, "params");
                   
                   if (merge_policy_is_replace != 0) {
-                    debug(1, "replace metadata");
+                    debug(4, "replace metadata");
                     metadata_store.npi.npi_plist = plist_copy(npi_params);
                   } else {
-                    debug(1, "merging metadata");
+                    debug(4, "merging metadata");
                     plist_merge(metadata_store.npi.npi_plist, npi_params); 
                   }
                   
                   if (metadata_store.npi.npi_plist != NULL) {
-                                    
-                    if (config.get_coverart) {
-                      // look for a picture
-                      plist_t pict_item = plist_dict_get_item(
+                    // If we have a kMRMediaRemoteNowPlayingInfoArtworkData item, which
+                    // is the bytes of the file
+                    // We need to save it in a file and add the file path to the plist.
+                     plist_t pict_item = plist_dict_get_item(
                           metadata_store.npi.npi_plist, "kMRMediaRemoteNowPlayingInfoArtworkData");
-                      if (pict_item != NULL) {
-                        
+                      if (pict_item != NULL) {                       
                         char *buff = NULL;
                         uint64_t length = 0;
                         plist_get_data_val(pict_item, &buff, &length);
                         size_t length_size = length;
-                        // debug(1, "Send picture");
                         metadata_changed |= metadata_hub_process_picture(buff, length_size);
+                        plist_dict_set_item(metadata_store.npi.npi_plist, "kShairportSyncNowPlayingInfoArtworkFilePath", plist_new_string(metadata_store.npi.cover_art_pathname));
+                        plist_dict_remove_item(metadata_store.npi.npi_plist, "kMRMediaRemoteNowPlayingInfoArtworkData"); // remove it
                       }
-                    }
+                    
                     // look for album name
                     plist_t album_item =
                         plist_dict_get_item(metadata_store.npi.npi_plist, "kMRMediaRemoteNowPlayingInfoAlbum");
