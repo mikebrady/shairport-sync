@@ -175,6 +175,7 @@ shairport_sync_SOURCES += ap2_buffered_audio_processor.c \
   ptp-utilities.c \
   utilities/buffered_read.c utilities/structured_buffer.c utilities/mod23.c \
   utilities/generate_random_uuid.c utilities/generate_device_uuid.c \
+  utilities/plist_gvariant_stuff.c \
   plists/get_info_response.c
 
 if USE_METADATA_HUB
@@ -228,7 +229,8 @@ noinst_PROGRAMS =
 if USE_DBUS_CLIENT
  #Make it, but don't install it anywhere
 noinst_PROGRAMS += shairport-sync-dbus-test-client
-shairport_sync_dbus_test_client_SOURCES = shairport-sync-dbus-test-client.c
+shairport_sync_dbus_test_client_SOURCES = shairport-sync-dbus-test-client.c \
+  utilities/g_variant_pretty_print.c
 shairport_sync_dbus_test_client_LDADD = lib_dbus_interface.a
 endif
 
