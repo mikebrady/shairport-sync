@@ -237,7 +237,8 @@ endif
 if USE_MPRIS_CLIENT
  #Make it, but don't install it anywhere
 noinst_PROGRAMS += shairport-sync-mpris-test-client
-shairport_sync_mpris_test_client_SOURCES = shairport-sync-mpris-test-client.c
+shairport_sync_mpris_test_client_SOURCES = shairport-sync-mpris-test-client.c \
+  utilities/g_variant_pretty_print.c
 shairport_sync_mpris_test_client_LDADD = lib_mpris_interface.a
 endif
 

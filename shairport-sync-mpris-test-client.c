@@ -24,12 +24,15 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "mpris-interface.h"
 #include <locale.h>
 #include <popt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+
+#include "mpris-interface.h"
+#include "utilities/g_variant_pretty_print.h"
+
 
 GMainLoop *loop;
 
@@ -49,7 +52,7 @@ void on_properties_changed(__attribute__((unused)) GDBusProxy *proxy, GVariant *
     g_variant_get(changed_properties, "a{sv}", &iter);
     while (g_variant_iter_loop(iter, "{&sv}", &key, &value)) {
       gchar *value_str;
-      value_str = g_variant_print(value, TRUE);
+      value_str = g_variant_pretty_print(value, FALSE, 2);
       g_print("      %s -> %s\n", key, value_str);
       g_free(value_str);
     }
