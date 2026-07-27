@@ -36,12 +36,46 @@
 
 GMainLoop *loop;
 
+// Pretty-prints a single property value. If the value is itself an "av"
+// (array of variants), each element is printed on its own indexed line
+// instead of as one opaque blob.
+static void print_property_value(const char *label, const gchar *key, GVariant *value) {
+  if (g_variant_is_of_type(value, G_VARIANT_TYPE("av"))) {
+    GVariantIter *av_iter;
+    GVariant *item;
+    guint index = 0;
+    g_variant_get(value, "av", &av_iter);
+    while (g_variant_iter_loop(av_iter, "v", &item)) {
+      gchar *item_str = g_variant_pretty_print(item, FALSE, 2);
+      if (label)
+        g_print("      %s.%s[%u] -> %s\n", label, key, index, item_str);
+      else
+        g_print("      %s[%u] -> %s\n", key, index, item_str);
+      g_free(item_str);
+      index++;
+    }
+    g_variant_iter_free(av_iter);
+  } else {
+    gchar *value_str = g_variant_pretty_print(value, FALSE, 2);
+    if (label)
+      g_print("      %s.%s -> %s\n", label, key, value_str);
+    else
+      g_print("      %s -> %s\n", key, value_str);
+    g_free(value_str);
+  }
+}
+
+// Generic handler for "g-properties-changed" on any proxy. changed_properties
+// is always "a{sv}" per the org.freedesktop.DBus.Properties spec, regardless
+// of what type any individual property has -- so this one handler covers
+// both MediaPlayer2 and MediaPlayer2Player, including any properties whose
+// value is itself an "av".
 void on_properties_changed(__attribute__((unused)) GDBusProxy *proxy, GVariant *changed_properties,
-                           const gchar *const *invalidated_properties,
-                           __attribute__((unused)) gpointer user_data) {
+                           const gchar *const *invalidated_properties, gpointer user_data) {
   /* Note that we are guaranteed that changed_properties and
    * invalidated_properties are never NULL
    */
+  const char *label = (const char *)user_data;
 
   if (g_variant_n_children(changed_properties) > 0) {
     GVariantIter *iter;
@@ -50,12 +84,8 @@ void on_properties_changed(__attribute__((unused)) GDBusProxy *proxy, GVariant *
 
     g_print(" *** Properties Changed:\n");
     g_variant_get(changed_properties, "a{sv}", &iter);
-    while (g_variant_iter_loop(iter, "{&sv}", &key, &value)) {
-      gchar *value_str;
-      value_str = g_variant_pretty_print(value, FALSE, 2);
-      g_print("      %s -> %s\n", key, value_str);
-      g_free(value_str);
-    }
+    while (g_variant_iter_loop(iter, "{&sv}", &key, &value))
+      print_property_value(label, key, value);
     g_variant_iter_free(iter);
   }
 
@@ -127,7 +157,8 @@ int main(int argc, char *argv[]) {
       "/org/mpris/MediaPlayer2", NULL, &error1);
   if (error1)
     printf("Error proxying MediaPlayer2");
-  g_signal_connect(proxy1, "g-properties-changed", G_CALLBACK(on_properties_changed), NULL);
+  g_signal_connect(proxy1, "g-properties-changed", G_CALLBACK(on_properties_changed),
+                   "MediaPlayer2");
 
   GError *error2 = NULL;
   MediaPlayer2Player *proxy2 = media_player2_player_proxy_new_for_bus_sync(
@@ -135,7 +166,8 @@ int main(int argc, char *argv[]) {
       "/org/mpris/MediaPlayer2", NULL, &error2);
   if (error2)
     printf("Error proxying MediaPlayer2Player");
-  g_signal_connect(proxy2, "g-properties-changed", G_CALLBACK(on_properties_changed), NULL);
+  g_signal_connect(proxy2, "g-properties-changed", G_CALLBACK(on_properties_changed),
+                   "MediaPlayer2Player");
 
   // g_main_loop_quit(loop);
   pthread_join(dbus_thread, NULL);
