@@ -48,51 +48,45 @@
     <method name="SetRepeat">
       <arg name="mode" type="s" direction="in" />
     </method>
-		<property name='Repeat' type='s' access='read'/>
+    <property name='Repeat' type='s' access='read'/>
     <method name="SetShuffle">
       <arg name="mode" type="s" direction="in" />
     </method>
-		<property name='Shuffle' type='s' access='read'/>
-		<property name='NowPlayingInformation' type='a{sv}' access='read'>
-			<annotation name="org.qtproject.QtDBus.QtTypeName" value="QVariantMap"/>
-		</property>
-		<property name='CommandInformation' type='a{sv}' access='read'>
-			<annotation name="org.qtproject.QtDBus.QtTypeName" value="QVariantMap"/>
-		</property>
+    <property name='Shuffle' type='s' access='read'/>
+    <property name='NowPlayingInformation' type='a{sv}' access='read'/>
+    <property name='CommandInformation' type='av' access='read'/>
   </interface>
   <interface name="org.gnome.ShairportSync.RemoteControl">
-		<method name='FastForward'/>
-		<method name='Rewind'/>
-		<method name='ToggleMute'/>
-		<method name='Next'/>
-		<method name='Previous'/>
-		<method name='Pause'/>
-		<method name='PlayPause'/>
-		<method name='Play'/>
-		<method name='Stop'/>
-		<method name='Resume'/>
-		<method name='ShuffleSongs'/>
-		<method name='VolumeUp'/>
-		<method name='VolumeDown'/>
-		<property name='PlayerState' type='s' access='read'/>
-		<property name='ProgressString' type='s' access='read'/>
-		<property name='Client' type='s' access='read'/>
-		<property name='ClientName' type='s' access='read'/>
-		<property name='StreamType' type='s' access='read'/>
-		<property name='AirplayVolume' type='d' access='read'/>
+    <method name='FastForward'/>
+    <method name='Rewind'/>
+    <method name='ToggleMute'/>
+    <method name='Next'/>
+    <method name='Previous'/>
+    <method name='Pause'/>
+    <method name='PlayPause'/>
+    <method name='Play'/>
+    <method name='Stop'/>
+    <method name='Resume'/>
+    <method name='ShuffleSongs'/>
+    <method name='VolumeUp'/>
+    <method name='VolumeDown'/>
+    <property name='PlayerState' type='s' access='read'/>
+    <property name='ProgressString' type='s' access='read'/>
+    <property name='Client' type='s' access='read'/>
+    <property name='ClientName' type='s' access='read'/>
+    <property name='StreamType' type='s' access='read'/>
+    <property name='AirplayVolume' type='d' access='read'/>
     <method name="SetAirplayVolume">
       <arg name="volume" type="d" direction="in" />
     </method>
-		<property name='Metadata' type='a{sv}' access='read'>
-			<annotation name="org.qtproject.QtDBus.QtTypeName" value="QVariantMap"/>
-		</property>
-		<property name='Available' type='b' access='read'/>
+    <property name='Metadata' type='a{sv}' access='read'/>
+    <property name='Available' type='b' access='read'/>
   </interface>
   <interface name="org.gnome.ShairportSync.AdvancedRemoteControl">
-		<property name='Available' type='b' access='read'/>
-		<property name='PlaybackStatus' type='s' access='read'/>
-		<property name='Shuffle' type='b' access='read'/>
-		<property name='LoopStatus' type='s' access='read'/>
+    <property name='Available' type='b' access='read'/>
+    <property name='PlaybackStatus' type='s' access='read'/>
+    <property name='Shuffle' type='b' access='read'/>
+    <property name='LoopStatus' type='s' access='read'/>
     <property name="Volume" type="i" access="read" />
     <method name="SetVolume">
       <arg name="volume" type="i" direction="in" />
