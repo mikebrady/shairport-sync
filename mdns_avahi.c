@@ -399,7 +399,7 @@ static int avahi_update(char **txt_records, char **secondary_txt_records) {
                                                       0, ap2_service_name, config.regtype2, NULL,
                                                       ap2_text_record_string_list);
     if (err != 0)
-      debug(1, "avahi_update error updating secondary txt records.");
+      debug(1, "avahi_entry_group_update_service_txt_strlst error \"%s\" updating secondary txt records.", avahi_strerror(err));
   }
 
   pthread_cleanup_pop(1); // unlock the avahi_threaded_poll_lock
