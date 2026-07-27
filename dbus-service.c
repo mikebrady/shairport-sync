@@ -348,7 +348,11 @@ void dbus_metadata_watcher(struct metadata_bundle *argc) {
   
   // output the CommandInformation stuff
   GVariant *sc = plist_to_gvariant(argc->supported_commands_plist);
-  shairport_sync_client_set_command_information(shairportSyncClientSkeleton, sc);
+  if (sc == NULL) {
+    debug(4, "NULL returned from plist_to_gvariant");
+  } else {
+    shairport_sync_client_set_command_information(shairportSyncClientSkeleton, sc);
+  }
   
 #endif
 }
