@@ -394,7 +394,7 @@ ssize_t ap2_event_send_unit_volume_notification(rtsp_conn_info *conn, double vol
 void remote_increment_volume(int up) {
   const double increment = 1.125;
 
-  debug(1, "config.volume is %f.", config.airplay_volume);
+  debug(4, "config.volume is %f.", config.airplay_volume);
   double desired_volume = config.airplay_volume;
   if (desired_volume < -30.0)
     desired_volume = -30.0;
@@ -413,7 +413,7 @@ void remote_increment_volume(int up) {
   pthread_rwlock_rdlock(&principal_conn_lock); // don't let the principal_conn be changed
   pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
   if ((principal_conn != NULL) && (principal_conn->airplay_type == ap_2)) {
-    debug(1, "remote_increment_volume %s", up == 0 ? "down" : "up");
+    debug(4, "remote_increment_volume %s", up == 0 ? "down" : "up");
     
     double desired_unit_volume = airplayVolumeToUnitVolume(desired_volume);
 
@@ -433,7 +433,7 @@ void remote_volumeup() {
 int available = 0;
 #ifdef CONFIG_DACP_CLIENT
   if (metadata_store.dacp_server_active) {
-    debug(1, "remote_volumeup -- DACP active.");
+    debug(4, "remote_volumeup -- DACP active.");
     send_simple_dacp_command("volumeup");
   }
 #endif
@@ -448,7 +448,7 @@ int available = 0;
 #ifdef CONFIG_DACP_CLIENT
   available = metadata_store.dacp_server_active;
   if (available) {
-    debug(1, "remote_volumedown -- DACP active.");
+    debug(4, "remote_volumedown -- DACP active.");
     send_simple_dacp_command("volumedown");
   }
 #endif
@@ -463,7 +463,7 @@ void remote_set_airplay_volume(double volume) {
 #ifdef CONFIG_DACP_CLIENT
   available = metadata_store.dacp_server_active;
   if (available) {
-    debug(1, "remote_set_airplay_volume to %.3f -- DACP active.", volume);
+    debug(4, "remote_set_airplay_volume to %.3f -- DACP active.", volume);
     char command[256] = "";
     snprintf(command, sizeof(command), "setproperty?dmcp.device-volume=%.6f", volume);
     send_simple_dacp_command(command);
@@ -473,7 +473,7 @@ void remote_set_airplay_volume(double volume) {
   pthread_rwlock_rdlock(&principal_conn_lock); // don't let the principal_conn be changed
   pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
   if ((available == 0) && (principal_conn != NULL) && (principal_conn->airplay_type == ap_2)) {
-    debug(1, "remote_set_airplay_volume to %.3f -- AirPlay 2.", volume);
+    debug(4, "remote_set_airplay_volume to %.3f -- AirPlay 2.", volume);
 
     double present_unit_volume = airplayVolumeToUnitVolume(config.airplay_volume);
     double desired_unit_volume = airplayVolumeToUnitVolume(volume);
