@@ -27,6 +27,10 @@
 
 #include <glib.h>
 
+// Hex dump layout parameters.
+#define HEXDUMP_BYTES_PER_LINE 16
+#define HEXDUMP_MAX_BYTES_SHOWN 64 // i.e. HEXDUMP_BYTES_PER_LINE * 4 lines
+
 static void indent_gstring(GString *out, int depth) {
     for (int i = 0; i < depth; i++)
         g_string_append(out, "    "); // 4 spaces per level
@@ -64,7 +68,7 @@ static void print_dict(GVariant *v, GString *out, int depth, gboolean type_annot
         g_variant_unref(entry);
     }
     if (first) { // if first is still true, it means the item was empty
-      g_string_append(out, "{}\n");
+      g_string_append(out, "{}");
     } else {
       g_string_append(out, "\n");
       indent_gstring(out, depth);
@@ -96,6 +100,67 @@ static void print_array(GVariant *v, GString *out, int depth, gboolean type_anno
     g_string_append(out, "]");
 }
 
+// Renders up to HEXDUMP_MAX_BYTES_SHOWN bytes of `data` as classic
+// hexdump-style lines (8-digit offset, 16 hex bytes split into two
+// groups of 8, then an ASCII gutter with non-printables shown as '.').
+// If there are more bytes than that, appends a truncation note instead
+// of dumping the rest. Nothing here ends in a trailing newline, to stay
+// consistent with the other print_* helpers.
+static void print_hex_dump(GString *out, const guchar *data, gsize len, int depth) {
+    gsize show_len = len < HEXDUMP_MAX_BYTES_SHOWN ? len : HEXDUMP_MAX_BYTES_SHOWN;
+    gboolean first_line = TRUE;
+
+    for (gsize offset = 0; offset < show_len; offset += HEXDUMP_BYTES_PER_LINE) {
+        gsize line_len = len - offset < HEXDUMP_BYTES_PER_LINE ? show_len - offset
+                                                                : HEXDUMP_BYTES_PER_LINE;
+        if (line_len > show_len - offset)
+            line_len = show_len - offset;
+
+        if (!first_line)
+            g_string_append(out, "\n");
+        first_line = FALSE;
+
+        indent_gstring(out, depth);
+        g_string_append_printf(out, "%08" G_GSIZE_MODIFIER "x  ", offset);
+
+        for (gsize i = 0; i < HEXDUMP_BYTES_PER_LINE; i++) {
+            if (i < line_len)
+                g_string_append_printf(out, "%02x ", data[offset + i]);
+            else
+                g_string_append(out, "   "); // padding to keep the ASCII gutter aligned
+            if (i == 7)
+                g_string_append(out, " "); // extra gap between the two 8-byte groups
+        }
+
+        g_string_append(out, " |");
+        for (gsize i = 0; i < line_len; i++) {
+            guchar c = data[offset + i];
+            g_string_append_c(out, g_ascii_isprint(c) ? (char)c : '.');
+        }
+        g_string_append(out, "|");
+    }
+
+    if (len > show_len) {
+        if (!first_line)
+            g_string_append(out, "\n");
+        indent_gstring(out, depth);
+        g_string_append_printf(out, "... (%" G_GSIZE_FORMAT " more bytes truncated)",
+                                len - show_len);
+    }
+}
+
+static void print_byte_array(GVariant *v, GString *out, int depth) {
+    gsize n_elements = 0;
+    gconstpointer data = g_variant_get_fixed_array(v, &n_elements, sizeof(guchar));
+
+    g_string_append_printf(out, "<Data, %" G_GSIZE_FORMAT " bytes>", n_elements);
+
+    if (n_elements > 0) {
+        g_string_append(out, "\n");
+        print_hex_dump(out, (const guchar *)data, n_elements, depth + 1);
+    }
+}
+
 static void print_gvariant_pretty(GVariant *v, GString *out, int depth, gboolean type_annotate) {
     if (!v) {
         g_string_append(out, "null");
@@ -113,7 +178,9 @@ static void print_gvariant_pretty(GVariant *v, GString *out, int depth, gboolean
 
     case G_VARIANT_CLASS_ARRAY: {
         const GVariantType *elem_type = g_variant_type_element(g_variant_get_type(v));
-        if (g_variant_type_is_dict_entry(elem_type))
+        if (g_variant_type_equal(elem_type, G_VARIANT_TYPE_BYTE))
+            print_byte_array(v, out, depth);
+        else if (g_variant_type_is_dict_entry(elem_type))
             print_dict(v, out, depth, type_annotate);
         else
             print_array(v, out, depth, type_annotate);
