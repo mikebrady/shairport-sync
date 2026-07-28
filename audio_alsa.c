@@ -1,7 +1,7 @@
 /*
  * libalsa output driver. This file is part of Shairport.
  * Copyright (c) Muffinman, Skaman 2013
- * Copyright (c) Mike Brady 2014--2025
+ * Copyright (c) Mike Brady 2014--2026
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -212,9 +212,10 @@ void handle_unfixable_error(int errorCode) {
     if (config.cmd_unfixable) {
       command_execute(config.cmd_unfixable, messageString, 1);
     } else {
-      die("An unrecoverable error, \"output_device_error_%d\", has been "
-          "detected. Doing an emergency exit, as no run_this_if_an_unfixable_error_is_detected "
-          "program.",
+      pthread_mutex_unlock(&alsa_mutex); // release the alsa mutex to allow a clean exit
+      die("an unrecoverable error, \"output_device_error_%d\", has been "
+          "detected. Doing an emergency exit, as no \"run_this_if_an_unfixable_error_is_detected\" "
+          "handler has been provided.",
           errorCode);
     }
   }
@@ -246,7 +247,7 @@ static int get_permissible_configuration_settings() {
     snd_pcm_hw_params_alloca(&local_alsa_params);
     snd_pcm_info_t *local_alsa_info;
     snd_pcm_info_alloca(&local_alsa_info);
-    pthread_cleanup_debug_mutex_lock(&alsa_mutex, 50000, 0);
+    pthread_mutex_lock_and_cleanup_push(&alsa_mutex);
     snd_pcm_t *temporary_alsa_handle = NULL;
     ret = snd_pcm_open(&temporary_alsa_handle, alsa_out_dev, SND_PCM_STREAM_PLAYBACK, 0);
     if (ret == 0) {
@@ -1061,7 +1062,7 @@ static int prepare_mixer() {
 
     // Now, start trying to initialise the alsa device with the settings
     // obtained
-    pthread_cleanup_debug_mutex_lock(&alsa_mixer_mutex, 1000, 1);
+    pthread_mutex_lock_and_cleanup_push(&alsa_mixer_mutex);
     if (open_mixer() == 0) {
       if (snd_mixer_selem_get_playback_volume_range(alsa_mix_elem, &alsa_mix_minv, &alsa_mix_maxv) <
           0) {
@@ -1147,7 +1148,7 @@ static int prepare_mixer() {
       if (response == 0)
         response = close_mixer();
     }
-    debug_mutex_unlock(&alsa_mixer_mutex, 3); // release the mutex
+    pthread_mutex_unlock(&alsa_mixer_mutex); // release the mutex
     pthread_cleanup_pop(0);
     pthread_setcancelstate(oldState, NULL);
   }
@@ -1593,7 +1594,7 @@ static int configure(int32_t requested_encoded_format, char **channel_map) {
   int response = 0;
   int oldState;
   pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
-  pthread_cleanup_debug_mutex_lock(&alsa_mutex, 200000, 0);
+  pthread_mutex_lock_and_cleanup_push(&alsa_mutex);
   if (current_encoded_output_format != requested_encoded_format) {
     if (current_encoded_output_format == 0)
       debug(2, "alsa: setting output configuration to %s.",
@@ -1610,7 +1611,7 @@ static int configure(int32_t requested_encoded_format, char **channel_map) {
   if ((response == 0) && (channel_map != NULL)) {
     *channel_map = get_channel_map_str();
   }
-  debug_mutex_unlock(&alsa_mutex, 0);
+  pthread_mutex_unlock(&alsa_mutex);
   pthread_cleanup_pop(0);
   pthread_setcancelstate(oldState, NULL);
   if (response != 0)
@@ -1623,7 +1624,7 @@ static void deinit(void) {
   int oldState;
   pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
   debug(2, "audio_alsa deinit called.");
-  pthread_cleanup_debug_mutex_lock(&alsa_mutex, 10000, 1);
+  pthread_mutex_lock_and_cleanup_push(&alsa_mutex);
   if (alsa_handle != NULL) {
     debug(3, "alsa: closing the output device.");
     do_close();
@@ -1647,7 +1648,7 @@ static int set_mute_state() {
   int response = 1; // some problem expected, e.g. no mixer or not allowed to use it or disconnected
   int oldState;
   pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
-  pthread_cleanup_debug_mutex_lock(&alsa_mixer_mutex, 10000, 0);
+  pthread_mutex_lock_and_cleanup_push(&alsa_mixer_mutex);
   if ((alsa_backend_state != abm_disconnected) && (config.alsa_use_hardware_mute == 1) &&
       (open_mixer() == 0)) {
     response = 0; // okay if actually using the mute facility
@@ -1674,7 +1675,7 @@ static int set_mute_state() {
     }
     close_mixer();
   }
-  debug_mutex_unlock(&alsa_mixer_mutex, 4); // release the mutex
+  pthread_mutex_unlock(&alsa_mixer_mutex); // release the mutex
   pthread_cleanup_pop(0);                   // release the mutex
   pthread_setcancelstate(oldState, NULL);
   return response;
@@ -1910,11 +1911,11 @@ static int delay(long *the_delay) {
   snd_pcm_state_t state;
 
   pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
-  pthread_cleanup_debug_mutex_lock(&alsa_mutex, 10000, 0);
+  pthread_mutex_lock_and_cleanup_push(&alsa_mutex);
 
   ret = delay_and_status(&state, &my_delay, NULL);
 
-  debug_mutex_unlock(&alsa_mutex, 0);
+  pthread_mutex_unlock(&alsa_mutex);
   pthread_cleanup_pop(0);
   pthread_setcancelstate(oldState, NULL);
 
@@ -1941,7 +1942,7 @@ static int stats(uint64_t *raw_measurement_time, uint64_t *corrected_measurement
   snd_pcm_sframes_t my_delay = 0; // this initialisation is to silence a clang warning
 
   pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
-  pthread_cleanup_debug_mutex_lock(&alsa_mutex, 10000, 0);
+  pthread_mutex_lock_and_cleanup_push(&alsa_mutex);
 
   if (alsa_handle == NULL) {
     ret = alsa_handle_status;
@@ -1958,7 +1959,7 @@ static int stats(uint64_t *raw_measurement_time, uint64_t *corrected_measurement
   frames_sent_break_occurred = 0; // reset it.
   if (frames_sent_to_dac != NULL)
     *frames_sent_to_dac = frames_sent_for_playing;
-  debug_mutex_unlock(&alsa_mutex, 0);
+  pthread_mutex_unlock(&alsa_mutex);
   pthread_cleanup_pop(0);
   pthread_setcancelstate(oldState, NULL);
   uint64_t hd = my_delay; // note: snd_pcm_sframes_t is a long
@@ -1983,12 +1984,10 @@ static int do_play(void *buf, int samples) {
     if (ret == 0) { // will be non-zero if an error or a stall
       // just check the state of the DAC
 
-      if ((state != SND_PCM_STATE_PREPARED) && (state != SND_PCM_STATE_RUNNING) &&
-          (state != SND_PCM_STATE_XRUN)) {
-        debug(1, "alsa: DAC in odd SND_PCM_STATE_* %d prior to writing.", state);
+      if ((state != SND_PCM_STATE_PREPARED) && (state != SND_PCM_STATE_RUNNING)) {
+        debug(1, "alsa: DAC in unexpected state %s prior to writing.", snd_pcm_state_name(state));
       }
       if (state == SND_PCM_STATE_XRUN) {
-        debug(1, "alsa: DAC in SND_PCM_STATE_XRUN prior to writing.");
         ret = snd_pcm_recover(alsa_handle, ret, 1);
       }
 
@@ -2141,7 +2140,7 @@ static int play(void *buf, int samples, __attribute__((unused)) int sample_type,
 
   int ret = 0;
 
-  pthread_cleanup_debug_mutex_lock(&alsa_mutex, 50000, 0);
+  pthread_mutex_lock_and_cleanup_push(&alsa_mutex);
 
   if (alsa_backend_state == abm_disconnected) {
     ret = do_open();
@@ -2163,13 +2162,13 @@ static int play(void *buf, int samples, __attribute__((unused)) int sample_type,
     ret = do_play(buf, samples);
   }
 
-  debug_mutex_unlock(&alsa_mutex, 0);
+  pthread_mutex_unlock(&alsa_mutex);
   pthread_cleanup_pop(0); // release the mutex
   return ret;
 }
 
 static void flush(void) {
-  pthread_cleanup_debug_mutex_lock(&alsa_mutex, 10000, 4);
+  pthread_mutex_lock_and_cleanup_push(&alsa_mutex);
   if (alsa_backend_state != abm_disconnected) { // must be playing or connected...
     // do nothing for a flush if config.keep_dac_busy is true
     if (config.keep_dac_busy == 0) {
@@ -2178,19 +2177,19 @@ static void flush(void) {
   } else {
     debug(3, "alsa: flush() -- called on a disconnected alsa backend");
   }
-  debug_mutex_unlock(&alsa_mutex, 4);
+  pthread_mutex_unlock(&alsa_mutex);
   pthread_cleanup_pop(0); // release the mutex
 }
 
 static void stop(void) {
-  pthread_cleanup_debug_mutex_lock(&alsa_mutex, 10000, 4);
+  pthread_mutex_lock_and_cleanup_push(&alsa_mutex);
   if (alsa_backend_state != abm_disconnected) { // must be playing or connected...
     if (config.keep_dac_busy == 0) {
       do_close();
     }
   } else
     debug(3, "alsa: stop() -- called on a disconnected alsa backend");
-  debug_mutex_unlock(&alsa_mutex, 4);
+  pthread_mutex_unlock(&alsa_mutex);
   pthread_cleanup_pop(0); // release the mutex
 }
 
@@ -2200,7 +2199,7 @@ static void do_volume(double vol) { // caller is assumed to have the alsa_mutex 
   int oldState;
   pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
   set_volume = vol;
-  pthread_cleanup_debug_mutex_lock(&alsa_mixer_mutex, 1000, 4);
+  pthread_mutex_lock_and_cleanup_push(&alsa_mixer_mutex);
   if (volume_set_request && (open_mixer() == 0)) {
     if (has_softvol) {
       if (ctl && elem_id) {
@@ -2230,7 +2229,7 @@ static void do_volume(double vol) { // caller is assumed to have the alsa_mutex 
     volume_set_request = 0; // any external request that has been made is now satisfied
     close_mixer();
   }
-  debug_mutex_unlock(&alsa_mixer_mutex, 4);
+  pthread_mutex_unlock(&alsa_mixer_mutex);
   pthread_cleanup_pop(0); // release the mutex
   pthread_setcancelstate(oldState, NULL);
 }
@@ -2303,7 +2302,7 @@ static void *alsa_buffer_monitor_thread_code(__attribute__((unused)) void *arg) 
             "alsa_buffer_monitor_thread_code sleep was %.6f sec but request was for %.6f sec. "
             "Disabling standby may not work properly!",
             sleep_time_actual_ns * 0.000000001, config.disable_standby_mode_silence_scan_interval);
-    pthread_cleanup_debug_mutex_lock(&alsa_mutex, 200000, 0);
+    pthread_mutex_lock_and_cleanup_push(&alsa_mutex);
     // check possible state transitions here
     if ((alsa_backend_state == abm_disconnected) && (config.keep_dac_busy != 0)) {
       // open the dac and move to abm_connected mode
@@ -2409,7 +2408,7 @@ static void *alsa_buffer_monitor_thread_code(__attribute__((unused)) void *arg) 
         }
       }
     }
-    debug_mutex_unlock(&alsa_mutex, 0);
+    pthread_mutex_unlock(&alsa_mutex);
     pthread_cleanup_pop(0); // release the mutex
     uint64_t tsb = get_absolute_time_in_ns();
     usleep(sleep_time_us); // has a cancellation point in it

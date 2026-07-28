@@ -131,7 +131,7 @@ void activity_monitor_signify_activity(int active) {
     pthread_mutex_unlock(&activity_monitor_mutex);
   }
   // lock the mutex again to send a signal
-  pthread_cleanup_debug_mutex_lock(&activity_monitor_mutex, 10000, 4);
+  pthread_mutex_lock_and_cleanup_push(&activity_monitor_mutex);
   pthread_cond_signal(&activity_monitor_cv);
   pthread_cleanup_pop(1); // release the mutex
 }

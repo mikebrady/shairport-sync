@@ -212,11 +212,7 @@ int dacp_send_command(const char *command, char **body, ssize_t *bodysize) {
       uint64_t start_time = get_absolute_time_in_ns();
       pthread_cleanup_push(addrinfo_cleanup, (void *)&res);
       // only do this one at a time -- not sure it is necessary, but better safe than sorry
-
-      // int mutex_reply = sps_pthread_mutex_timedlock(&dacp_conversation_lock, 2000000, command,
-      // 1);
-      int mutex_reply = debug_mutex_lock(&dacp_conversation_lock, 2000000, 1);
-      // int mutex_reply = pthread_mutex_lock(&dacp_conversation_lock);
+      int mutex_reply = pthread_mutex_lock(&dacp_conversation_lock);
       if (mutex_reply == 0) {
         pthread_cleanup_push(mutex_lock_cleanup, (void *)&dacp_conversation_lock);
 
@@ -390,10 +386,10 @@ void relinquish_dacp_server_information(rtsp_conn_info *conn) {
   // as the conn's connection number
   // this is to signify that the player has stopped, but only if another thread (with a different
   // index) hasn't already taken over the dacp service
-  debug_mutex_lock(&dacp_server_information_lock, 500000, 4);
+  pthread_mutex_lock(&dacp_server_information_lock);
   if (dacp_server.players_connection_thread_index == conn->connection_number)
     dacp_server.players_connection_thread_index = 0;
-  debug_mutex_unlock(&dacp_server_information_lock, 4);
+  pthread_mutex_unlock(&dacp_server_information_lock);
 }
 
 // this will be running on the thread of its caller, not of the conversation thread...
@@ -403,7 +399,7 @@ void relinquish_dacp_server_information(rtsp_conn_info *conn) {
 // Thus, we can keep the DACP port that might have previously been discovered
 void set_dacp_server_information(rtsp_conn_info *conn) {
   // debug(1, "set_dacp_server_information");
-  debug_mutex_lock(&dacp_server_information_lock, 500000, 2);
+  pthread_mutex_lock(&dacp_server_information_lock);
   dacp_server.players_connection_thread_index = conn->connection_number;
 
   if ((conn->dacp_id == NULL) || (strcmp(conn->dacp_id, dacp_server.dacp_id) != 0)) {
@@ -464,11 +460,11 @@ void set_dacp_server_information(rtsp_conn_info *conn) {
 
   debug(3, "set_dacp_server_information set active-remote id to %s.", dacp_server.active_remote_id);
   pthread_cond_signal(&dacp_server_information_cv);
-  debug_mutex_unlock(&dacp_server_information_lock, 3);
+  pthread_mutex_unlock(&dacp_server_information_lock);
 }
 
 void dacp_monitor_port_update_callback(const char *dacp_id, uint16_t port) {
-  debug_mutex_lock(&dacp_server_information_lock, 500000, 2);
+  pthread_mutex_lock(&dacp_server_information_lock);
   debug(3,
         "dacp_monitor_port_update_callback with Remote ID \"%s\", target ID \"%s\" and port "
         "number %d.",
@@ -493,7 +489,7 @@ void dacp_monitor_port_update_callback(const char *dacp_id, uint16_t port) {
     }
   }
   pthread_cond_signal(&dacp_server_information_cv);
-  debug_mutex_unlock(&dacp_server_information_lock, 3);
+  pthread_mutex_unlock(&dacp_server_information_lock);
 }
 
 void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
@@ -510,7 +506,7 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
   while (1) {
     int result = 0;
     int32_t the_volume;
-    pthread_cleanup_debug_mutex_lock(&dacp_server_information_lock, 500000, 4);
+    pthread_mutex_lock_and_cleanup_push(&dacp_server_information_lock);
     if (dacp_server.scan_enable == 0) {
       metadata_hub_modify_prolog();
       int ch = (metadata_store.dacp_server_active != 0) ||

@@ -39,7 +39,7 @@ static char channel_map_6[] = "FL FR BL BR FC LFE";
 static pthread_mutex_t sndio_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int current_encoded_output_format;
-static struct sio_hdl *hdl;
+static struct sio_hdl *ohdl;
 static const char *output_device_name;
 static unsigned int output_device_driver_bufsiz; // parameters for opening the output device
 static unsigned int output_device_driver_round;  // parameters for opening the output device
@@ -51,7 +51,7 @@ static size_t written;
 uint64_t time_of_last_onmove_cb;
 int at_least_one_onmove_cb_seen;
 
-struct sio_par par;
+struct sio_par opar;
 
 struct sndio_formats {
   sps_format_t sps_format;
@@ -84,7 +84,7 @@ static uint16_t permissible_configurations[SPS_RATE_HIGHEST + 1][SPS_FORMAT_HIGH
 static int get_permissible_configuration_settings() {
   int ret = 0;
   uint64_t hto = get_absolute_time_in_ns();
-  pthread_cleanup_debug_mutex_lock(&sndio_mutex, 1000, 1);
+  pthread_mutex_lock_and_cleanup_push(&sndio_mutex);
   struct sio_hdl *hdl = sio_open(output_device_name, SIO_PLAY, 0);
   if (hdl != NULL) {
     struct sio_cap cap;
@@ -198,7 +198,7 @@ static int get_permissible_configuration_settings() {
                   proposed_par.rate = sps_rate_actual_rate(r);
                   proposed_par.pchan = c;
                   proposed_par.bits = format_info->bits;
-                  proposed_par.bps = SIO_BPS(par.bits);
+                  proposed_par.bps = SIO_BPS(opar.bits);
                   proposed_par.le = format_info->le;
                   proposed_par.sig = format_info->sig;
                   if (sio_setpar(hdl, &proposed_par) == 1) {
@@ -283,7 +283,7 @@ static int configure(int32_t requested_encoded_format, char **channel_map) {
 
     if (is_running != 0) {
       debug(1, "sndio: the output device is running while changing configuration");
-      if (sio_flush(hdl) != 1)
+      if (sio_flush(ohdl) != 1)
         debug(1, "sndio: unable to flush");
       written = played = is_running = 0;
       time_of_last_onmove_cb = 0;
@@ -301,9 +301,9 @@ static int configure(int32_t requested_encoded_format, char **channel_map) {
     par.sig = format_info->sig;
     debug(3, "Requested %u/%u/%u/%u/%u (rate/bits/signed/le/channels)", par.rate, par.bits, par.sig,
           par.le, par.pchan);
-    if (sio_setpar(hdl, &par) == 1) {
+    if (sio_setpar(ohdl, &par) == 1) {
       struct sio_par apar;
-      if (sio_getpar(hdl, &apar) == 1) {
+      if (sio_getpar(ohdl, &apar) == 1) {
         debug(3, "Got %u/%u/%u/%u/%u (rate/bits/signed/le/channels)", apar.rate, apar.bits,
               apar.sig, apar.le, apar.pchan);
         if ((apar.rate == par.rate) && (apar.pchan == par.pchan) && (apar.bits == par.bits) &&
@@ -439,23 +439,23 @@ static int init(int argc, char **argv) {
   */
   get_permissible_configuration_settings();
   debug(2, "sndio: output device name is \"%s\".", output_device_name);
-  hdl = sio_open(output_device_name, SIO_PLAY, 0);
-  if (!hdl)
+  ohdl = sio_open(output_device_name, SIO_PLAY, 0);
+  if (!ohdl)
     die("sndio: cannot open audio device");
-  sio_onmove(hdl, onmove_cb, NULL);
+  sio_onmove(ohdl, onmove_cb, NULL);
   // debug(1, "sndio: init done");
   return 0;
 }
 
 static void deinit() {
-  pthread_cleanup_debug_mutex_lock(&sndio_mutex, 1000, 1);
-  if (hdl != NULL) {
+  pthread_mutex_lock_and_cleanup_push(&sndio_mutex);
+  if (ohdl != NULL) {
     if (is_running != 0) {
-      sio_flush(hdl);
+      sio_flush(ohdl);
       is_running = 0;
     }
-    sio_close(hdl);
-    hdl = NULL;
+    sio_close(ohdl);
+    ohdl = NULL;
   }
   pthread_cleanup_pop(1); // unlock the mutex
 }
@@ -465,10 +465,10 @@ static int play(void *buf, int frames, __attribute__((unused)) int sample_type,
                 __attribute__((unused)) uint64_t playtime) {
 
   if (frames > 0) {
-    pthread_cleanup_debug_mutex_lock(&sndio_mutex, 1000, 1);
+    pthread_mutex_lock_and_cleanup_push(&sndio_mutex);
     if (is_running == 0) {
-      if (hdl != NULL) {
-        if (sio_start(hdl) != 1)
+      if (ohdl != NULL) {
+        if (sio_start(ohdl) != 1)
           debug(1, "sndio: unable to start");
         is_running = 1;
         written = played = 0;
@@ -478,7 +478,7 @@ static int play(void *buf, int frames, __attribute__((unused)) int sample_type,
         debug(1, "sndio: output device is not open for play!");
       }
     }
-    written += sio_write(hdl, buf, frames * framesize);
+    written += sio_write(ohdl, buf, frames * framesize);
     pthread_cleanup_pop(1); // unlock the mutex
   }
   return 0;
@@ -486,10 +486,10 @@ static int play(void *buf, int frames, __attribute__((unused)) int sample_type,
 
 static void stop() {
 
-  pthread_cleanup_debug_mutex_lock(&sndio_mutex, 1000, 1);
-  if (hdl != NULL) {
+  pthread_mutex_lock_and_cleanup_push(&sndio_mutex);
+  if (ohdl != NULL) {
     if (is_running != 0) {
-      if (sio_flush(hdl) != 1)
+      if (sio_flush(ohdl) != 1)
         debug(1, "sndio: unable to stop");
       written = played = is_running = 0;
     } else {
@@ -509,7 +509,7 @@ int get_delay(long *delay) {
     // calculate the difference in time between now and when the last callback occurred,
     // and use it to estimate the frames that would have been output
     uint64_t time_difference = get_absolute_time_in_ns() - time_of_last_onmove_cb;
-    uint64_t frame_difference = (time_difference * par.rate) / 1000000000;
+    uint64_t frame_difference = (time_difference * opar.rate) / 1000000000;
     estimated_extra_frames_output = frame_difference;
     // sanity check -- total estimate can not exceed frames written.
     if ((estimated_extra_frames_output + played) > written / framesize) {
@@ -526,8 +526,8 @@ int get_delay(long *delay) {
 
 static int delay(long *delay) {
   int result = 0;
-  pthread_cleanup_debug_mutex_lock(&sndio_mutex, 1000, 1);
-  if (hdl != NULL) {
+  pthread_mutex_lock_and_cleanup_push(&sndio_mutex);
+  if (ohdl != NULL) {
     if (is_running != 0) {
       result = get_delay(delay);
     } else {
@@ -543,10 +543,10 @@ static int delay(long *delay) {
 }
 
 static void flush() {
-  pthread_cleanup_debug_mutex_lock(&sndio_mutex, 1000, 1);
-  if (hdl != NULL) {
+  pthread_mutex_lock_and_cleanup_push(&sndio_mutex);
+  if (ohdl != NULL) {
     if (is_running != 0) {
-      if (sio_flush(hdl) != 1)
+      if (sio_flush(ohdl) != 1)
         debug(1, "sndio: unable to flush");
       written = played = is_running = 0;
     } else {

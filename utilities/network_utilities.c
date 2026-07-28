@@ -52,7 +52,7 @@ int _safe_socket_close(const char *filename, const int linenumber, int *sockfd) 
   int result = 0;
   int oldstate;
   pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldstate);
-  debug_mutex_lock(&safe_socket_lock, 1000000, 1);
+  pthread_mutex_lock(&safe_socket_lock);
   if (*sockfd == 0) {
     _debug(filename, linenumber, 1, "_safe_socket_close: socket is zero!");
   }
@@ -64,7 +64,7 @@ int _safe_socket_close(const char *filename, const int linenumber, int *sockfd) 
   } else {
     _debug(filename, linenumber, 1, "_safe_socket_close: socket already closed!");
   }
-  debug_mutex_unlock(&safe_socket_lock, 4);
+  pthread_mutex_unlock(&safe_socket_lock);
   pthread_setcancelstate(oldstate, NULL);
   return result;
 }

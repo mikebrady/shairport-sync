@@ -44,6 +44,7 @@
 #include "metadata/hub.h"
 
 #include "dbus-service.h"
+#include "utilities/exit.h"
 
 #ifdef CONFIG_CONVOLUTION
 #include <FFTConvolver/convolver.h>
@@ -934,9 +935,8 @@ static gboolean on_handle_quit(ShairportSync *skeleton, GDBusMethodInvocation *i
                                __attribute__((unused)) const gchar *command,
                                __attribute__((unused)) gpointer user_data) {
   debug(1, ">> quit request...");
-  config.quit_requested_from_glib_mainloop = 1;
-  g_main_loop_quit(config.glib_worker_loop);
   shairport_sync_complete_quit(skeleton, invocation);
+  exit_request(EXIT_SUCCESS);
   return TRUE;
 }
 

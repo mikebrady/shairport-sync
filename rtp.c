@@ -487,7 +487,7 @@ void *rtp_control_receiver(void *arg) {
 
             sync_rtp_timestamp = sync_rtp_timestamp - conn->latency;
 
-            debug_mutex_lock(&conn->reference_time_mutex, 1000, 0);
+            pthread_mutex_lock(&conn->reference_time_mutex);
 
             if (conn->initial_reference_time == 0) {
               if (conn->packet_count_since_flush > 0) {
@@ -535,7 +535,7 @@ void *rtp_control_receiver(void *arg) {
             conn->anchor_remote_info_is_valid = 1;
 
             conn->latency_delayed_timestamp = rtp_timestamp_less_latency;
-            debug_mutex_unlock(&conn->reference_time_mutex, 0);
+            pthread_mutex_unlock(&conn->reference_time_mutex);
 
             conn->reference_to_previous_time_difference =
                 remote_time_of_sync - old_remote_reference_time;
@@ -1111,11 +1111,11 @@ void rtp_setup(SOCKADDR *local, SOCKADDR *remote, uint16_t cport, uint16_t tport
 }
 
 void reset_ntp_anchor_info(rtsp_conn_info *conn) {
-  debug_mutex_lock(&conn->reference_time_mutex, 1000, 1);
+  pthread_mutex_lock(&conn->reference_time_mutex);
   conn->anchor_remote_info_is_valid = 0;
   conn->anchor_rtptime = 0;
   conn->anchor_time = 0;
-  debug_mutex_unlock(&conn->reference_time_mutex, 3);
+  pthread_mutex_unlock(&conn->reference_time_mutex);
 }
 
 int have_ntp_timing_information(rtsp_conn_info *conn) {
@@ -1132,7 +1132,7 @@ int frame_to_ntp_local_time(uint32_t timestamp, uint64_t *time, rtsp_conn_info *
   // a zero result is good
   if (conn->anchor_remote_info_is_valid == 0)
     debug(1, "no anchor information");
-  debug_mutex_lock(&conn->reference_time_mutex, 1000, 0);
+  pthread_mutex_lock(&conn->reference_time_mutex);
   int result = -1;
   if (conn->anchor_remote_info_is_valid != 0) {
     uint64_t remote_time_of_timestamp;
@@ -1151,13 +1151,13 @@ int frame_to_ntp_local_time(uint32_t timestamp, uint64_t *time, rtsp_conn_info *
       *time = remote_time_of_timestamp - local_to_remote_time_difference_now(conn);
     result = 0;
   }
-  debug_mutex_unlock(&conn->reference_time_mutex, 0);
+  pthread_mutex_unlock(&conn->reference_time_mutex);
   return result;
 }
 
 int local_ntp_time_to_frame(uint64_t time, uint32_t *frame, rtsp_conn_info *conn) {
   // a zero result is good
-  debug_mutex_lock(&conn->reference_time_mutex, 1000, 0);
+  pthread_mutex_lock(&conn->reference_time_mutex);
   int result = -1;
   if (conn->anchor_remote_info_is_valid != 0) {
     // first, get from [local] time to remote time.
@@ -1176,7 +1176,7 @@ int local_ntp_time_to_frame(uint64_t time, uint32_t *frame, rtsp_conn_info *conn
       *frame = new_frame;
     result = 0;
   }
-  debug_mutex_unlock(&conn->reference_time_mutex, 0);
+  pthread_mutex_unlock(&conn->reference_time_mutex);
   return result;
 }
 

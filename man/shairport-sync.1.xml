@@ -45,7 +45,6 @@
       <opt>[-g | --get-cover-art]</opt>
       <opt>[-j | --justDaemoniseNoPIDFile]</opt>
       <opt>[--logOutputLevel]</opt>
-      <opt>[--log-to-syslog]</opt>
       <opt>[-L </opt><arg>latency</arg><opt> | --latency=</opt><arg>latency</arg><opt>]</opt>
       <opt>[-m </opt><arg>backend</arg><opt> | --mdns=</opt><arg>backend</arg><opt>]</opt>
       <opt>[-M | --metadata-enable]</opt>
@@ -270,16 +269,6 @@
 	  </option>
 
 	  <option>
-		<p><opt>--log-to-syslog</opt></p>
-		<optdesc><p>
-		Warnings, error messages and messages are sent, by default, to <file>STDERR</file>.
-		Use this option to route these messages to the <opt>syslog</opt> instead.
-		This is intended for use when Shairport Sync is operating as a daemon.
-    </p><p>See also <opt>--displayConfig</opt>.</p>
-    </optdesc>
-	  </option>
-
-	  <option>
 		<p><opt>-L | --latency=</opt><arg>latency</arg></p>
 		<optdesc><p>
 		Use this to set the <arg>default latency</arg>, in frames, for audio coming from an
@@ -381,7 +370,7 @@
 	  <option>
 		<p><opt>--statistics</opt></p>
 		<optdesc><p>
-		Print some performance information to <file>STDERR</file>, or to <opt>syslog</opt> if the <opt>--log-to-syslog</opt> command line option is also chosen.
+		Print some performance information to <file>STDERR</file>.
 		</p></optdesc>
 	  </option>
 
@@ -446,7 +435,7 @@
 	  <option>
 		<p><opt>-v | --verbose</opt></p>
 		<optdesc><p>
-		Print debug information to the <file>STDERR</file>, or to <opt>syslog</opt> if the <opt>--log-to-syslog</opt> command line option is also chosen.
+		Print debug information to the <file>STDERR</file>.
 		Repeat up to three times (i.e. <opt>-vv</opt> or <opt>-vvv</opt>) for more detail. You should use <opt>-vvv</opt> very sparingly -- it is really noisy.
 		</p></optdesc>
 	  </option>

@@ -344,8 +344,7 @@ void *rtp_buffered_audio_processor(void *arg) {
     }
 
     if (finished == 0) {
-      pthread_cleanup_debug_mutex_lock(&conn->flush_mutex, 25000,
-                                       4); // 25 ms is a long time to wait!
+      pthread_mutex_lock_and_cleanup_push(&conn->flush_mutex);
       if (blocks_read != 0) {
         if (conn->ap2_immediate_flush_requested != 0) {
           if (ap2_immediate_flush_requested == 0) {
