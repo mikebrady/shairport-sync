@@ -1,3 +1,7 @@
+Version 5.3-dev
+==
+This is essentially Version 5.2, which is essentially Version 5.2-dev-46.
+
 Version 5.2-dev-46-g6ba8e310
 ==
 **Metadata Feature Restoration**
