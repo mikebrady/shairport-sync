@@ -1,3 +1,10 @@
+Version 5.3-dev-3-gcac178a6
+==
+This is essentially Version 5.2.1.
+
+**Bug Fix**
+* Fixed a bug if `libdaemon` is included in the configuration. The bug was a reference to `log_to_syslog()`, which is obsolete and has been removed. Thanks to [Daeho Ro](https://github.com/daeho-ro) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2243).
+
 Version 5.3-dev
 ==
 This is essentially Version 5.2, which is essentially Version 5.2-dev-46.
