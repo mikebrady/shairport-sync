@@ -2,7 +2,7 @@
 .SH NAME
 shairport-sync \- AirPlay and AirPlay 2 Audio Player
 .SH SYNOPSIS
-\fBshairport-sync [-djvw]\fB [-a \fB\fIservice-name\fB | --name=\fB\fIservice-name\fB]\fB [-B \fB\fIcommand\fB | --onstart=\fB\fIcommand\fB]\fB [-c \fB\fIconfigurationfile\fB | --configfile=\fB\fIconfigurationfile\fB]\fB [-d | --daemon]\fB [--dbus-default-message-bus=\fB\fIbus\fB]\fB [-E \fB\fIcommand\fB | --onstop=\fB\fIcommand\fB]\fB [-g | --get-cover-art]\fB [-j | --justDaemoniseNoPIDFile]\fB [--logOutputLevel]\fB [--log-to-syslog]\fB [-L \fB\fIlatency\fB | --latency=\fB\fIlatency\fB]\fB [-m \fB\fIbackend\fB | --mdns=\fB\fIbackend\fB]\fB [-M | --metadata-enable]\fB [-o \fB\fIbackend\fB | --output=\fB\fIbackend\fB]\fB [-p \fB\fIport\fB | --port=\fB\fIport\fB]\fB [--password=\fB\fIsecret\fB]\fB [-r \fB\fIthreshold\fB | --resync=\fB\fIthreshold\fB]\fB [--service-type=\fB\fItype\fB]\fB [--statistics]\fB [-S \fB\fImode\fB | --stuffing=\fB\fImode\fB]\fB [-t \fB\fItimeout\fB | --timeout=\fB\fItimeout\fB]\fB [--tolerance=\fB\fIframes\fB]\fB [-v | --verbose]\fB [-w | --wait-cmd]\fB [-- \fB\fIaudio_backend_options\fB]\fB
+\fBshairport-sync [-djvw]\fB [-a \fB\fIservice-name\fB | --name=\fB\fIservice-name\fB]\fB [-B \fB\fIcommand\fB | --onstart=\fB\fIcommand\fB]\fB [-c \fB\fIconfigurationfile\fB | --configfile=\fB\fIconfigurationfile\fB]\fB [-d | --daemon]\fB [--dbus-default-message-bus=\fB\fIbus\fB]\fB [-E \fB\fIcommand\fB | --onstop=\fB\fIcommand\fB]\fB [-g | --get-cover-art]\fB [-j | --justDaemoniseNoPIDFile]\fB [--logOutputLevel]\fB [-L \fB\fIlatency\fB | --latency=\fB\fIlatency\fB]\fB [-m \fB\fIbackend\fB | --mdns=\fB\fIbackend\fB]\fB [-M | --metadata-enable]\fB [-o \fB\fIbackend\fB | --output=\fB\fIbackend\fB]\fB [-p \fB\fIport\fB | --port=\fB\fIport\fB]\fB [--password=\fB\fIsecret\fB]\fB [-r \fB\fIthreshold\fB | --resync=\fB\fIthreshold\fB]\fB [--service-type=\fB\fItype\fB]\fB [--statistics]\fB [-S \fB\fImode\fB | --stuffing=\fB\fImode\fB]\fB [-t \fB\fItimeout\fB | --timeout=\fB\fItimeout\fB]\fB [--tolerance=\fB\fIframes\fB]\fB [-v | --verbose]\fB [-w | --wait-cmd]\fB [-- \fB\fIaudio_backend_options\fB]\fB
 
 shairport-sync -X | --displayConfig\fB
 
@@ -96,11 +96,6 @@ Kill the shairport-sync daemon and exit. (Requires that the daemon has written i
 \fB--logOutputLevel\f1
 Use this to log the volume level when the volume is changed. It may be useful if you are trying to determine a suitable value for the maximum volume level. Not available as a configuration file setting. 
 .TP
-\fB--log-to-syslog\f1
-Warnings, error messages and messages are sent, by default, to \fISTDERR\f1. Use this option to route these messages to the \fBsyslog\f1 instead. This is intended for use when Shairport Sync is operating as a daemon. 
-
-See also \fB--displayConfig\f1.
-.TP
 \fB-L | --latency=\f1\fIlatency\f1
 Use this to set the \fIdefault latency\f1, in frames, for audio coming from an unidentified source or from an iTunes Version 9 or earlier source. The standard value for the \fIdefault latency\f1 is 88,200 frames, where there are 44,100 frames to the second. 
 
@@ -131,7 +126,7 @@ Resynchronise if timings differ by more than \fIthreshold\f1 frames. If the outp
 On an AirPlay-2-capable Shairport Sync, if you need offer only the older "classic" AirPlay (sometimes called AirPlay 1) service, set \fB--service-type=classic\f1. A potential use of this would be for Apple Music on Windows, which is not compatible with the AirPlay 2 service offered by Shairport Sync, but which is compatible with the classic-only service. To offer AirPlay 2 service only, set \fB--service-type=airplay2\f1 (note that this requires NQPTP). Set \fB--service-type=auto\f1 to allow Shairport Sync to choose AirPlay 2 service if NQPTP is present or classic AirPlay service if not, with "(Classic)" appended to the default service name. 
 .TP
 \fB--statistics\f1
-Print some performance information to \fISTDERR\f1, or to \fBsyslog\f1 if the \fB--log-to-syslog\f1 command line option is also chosen. 
+Print some performance information to \fISTDERR\f1. 
 .TP
 \fB-S \f1\fImode\f1\fB | --stuffing=\f1\fImode\f1
 Interpolate ("stuff") the audio stream using the \fImode\f1. "Stuffing" refers to the process of adding or removing frames of audio to or from the stream sent to the output device in order to keep it synchronised with the player. The \fBvernier\f1 mode is normally almost completely inaudible and suitable for low-powered devices. An alternative mode, \fBsoxr\f1, is less obtrusive but requires much more processing power. For this mode, support for \fBlibsoxr\f1, the SoX Resampler Library, must be selected when \fBshairport-sync\f1 is built. The \fBbasic\f1 mode is also suitable for low-powered device, but \fBvernier\f1 is better. The default setting, \fBauto\f1, allows Shairport Sync to choose \fBsoxr\f1 mode if the system is powerful enough. 
@@ -148,7 +143,7 @@ Allow playback to be up to \fIframes\f1 out of exact synchronization before atte
 Print version information and exit. 
 .TP
 \fB-v | --verbose\f1
-Print debug information to the \fISTDERR\f1, or to \fBsyslog\f1 if the \fB--log-to-syslog\f1 command line option is also chosen. Repeat up to three times (i.e. \fB-vv\f1 or \fB-vvv\f1) for more detail. You should use \fB-vvv\f1 very sparingly -- it is really noisy. 
+Print debug information to the \fISTDERR\f1. Repeat up to three times (i.e. \fB-vv\f1 or \fB-vvv\f1) for more detail. You should use \fB-vvv\f1 very sparingly -- it is really noisy. 
 .TP
 \fB-w | --wait-cmd\f1
 Wait for commands specified using \fB-B\f1 or \fB-E\f1 to complete before continuing execution. 
