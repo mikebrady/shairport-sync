@@ -2627,8 +2627,10 @@ int main(int argc, char **argv) {
     } else { /* pid == 0 means we are the daemon */
 
       this_is_the_daemon_process = 1;
+/*
       if (log_to_default != 0) // if a specific logging mode has not been selected
         log_to_syslog();       // automatically send logs to the daemon_log
+*/
 
       /* Close FDs */
       if (daemon_close_all(-1) < 0) {
