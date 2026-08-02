@@ -213,6 +213,7 @@ typedef struct {
 
   char *pa_sink; // the name (or id) of the sink that Shairport Sync will play on.
 #endif
+
 #ifdef CONFIG_PIPEWIRE
   char *pw_application_name; // the name under which Shairport Sync shows up as an "Application" in
                              // the Sound Preferences in most desktop Linuxes.
@@ -221,6 +222,7 @@ typedef struct {
   char *pw_node_name;   // defaults to the application's name, usually "shairport-sync".
   char *pw_sink_target; // leave this unset if you don't want to change the sink_target.
 #endif
+
 #ifdef CONFIG_METADATA
   int metadata_enabled;
   char *metadata_pipename;
@@ -230,6 +232,7 @@ typedef struct {
   int get_coverart;
   double metadata_progress_interval; // 0 means no progress reports
 #endif
+
 #ifdef CONFIG_MQTT
   int mqtt_enabled;
   char *mqtt_hostname;
@@ -250,6 +253,7 @@ typedef struct {
   char *mqtt_autodiscovery_prefix;
   char *mqtt_empty_payload_substitute;
 #endif
+
   uint8_t ap1_prefix[6];
   uint8_t hw_addr[8]; // only needs 6 but 8 is handy when converting this to a number
   int port;
@@ -302,8 +306,6 @@ typedef struct {
                             // to be enabled under the auto setting
   int decoders_supported;
   int decoder_in_use;
-  // char *logfile;
-  // char *errfile;
   char *configfile;
   char *regtype; // The regtype is the service type followed by the protocol, separated by a dot, by
                  // default “_raop._tcp.” for AirPlay 1.
@@ -348,17 +350,11 @@ typedef struct {
 
 #ifdef CONFIG_CONVOLUTION
   int convolution_enabled;
-  unsigned int convolution_rate; // 0 means the convolver has never been initialised, so ignore
-                                 // convolver_valid.
-  // but if this is the same as the current rate and convolver_valid is false, it means that an
-  // attempt to initialise the convolver has failed.
-  size_t convolution_block_size;
   unsigned int convolution_ir_file_count;
   ir_file_info_t *convolution_ir_files; // NULL or an array of information about all the impulse
                                         // response files loaded
   int convolution_ir_files_updated; // set to true if the convolution_ir_files are changed. Cleared
                                     // when the convolver has been initialised
-  int convolver_valid;              // set to true if the convolver can be initialised
   unsigned int convolution_threads; // number of threads in the convolver thread pool
   float convolution_gain;
   double convolution_max_length_in_seconds;
@@ -385,6 +381,7 @@ typedef struct {
   int scan_max_inactive_count;     // number of scans to do before stopping if not made active again
                                    // (about 15 minutes worth)
 #endif
+
   int disable_resend_requests; // set this to stop resend request being made for missing packets
   double diagnostic_drop_packet_fraction; // pseudo randomly drop this fraction of packets, for
                                           // debugging. Currently audio packets only...
@@ -395,10 +392,11 @@ typedef struct {
   int jack_soxr_resample_quality;
 #endif
 #endif
+
   void *gradients; // a linked list of the clock gradients discovered for all DACP IDs
                    // can't use IP numbers as they might be given to different devices
                    // can't get hold of MAC addresses.
-                   // can't define the nvll linked list struct here
+                   // can't define the null linked list struct here
   char *firmware_version;
   // use these in information requests
   char *model;
@@ -442,6 +440,7 @@ typedef struct {
 #if defined(CONFIG_DBUS_INTERFACE)
   dbus_message_bus_t dbus_service_bus_type;
 #endif
+
 #if defined(CONFIG_MPRIS_INTERFACE)
   dbus_message_bus_t mpris_service_bus_type;
 #endif
