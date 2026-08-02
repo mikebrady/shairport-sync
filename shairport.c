@@ -1955,7 +1955,7 @@ void exit_function() {
         }
         if (glib_worker_thread != NULL) {
           g_thread_join(glib_worker_thread);
-          debug(1, "GLib worker thread joined");
+          debug(2, "GLib worker thread joined");
         }
 
 #endif
