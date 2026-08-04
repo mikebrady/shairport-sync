@@ -259,7 +259,7 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
               if (metadata_store.supported_commands_plist != NULL) {
                 plist_free(metadata_store.supported_commands_plist);
               }
-              metadata_store.supported_commands_plist = plist_copy(item);
+              metadata_store.supported_commands_plist = plist_copy(item_array);
               // here we have an array of data items
               uint32_t items = plist_array_get_size(item_array);
               if (items != 0) {
