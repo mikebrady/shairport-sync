@@ -13,7 +13,7 @@ Version 5.3-dev-7-g7f8a23b5
 
   The bug fix means that if SPS fails to find an exact format match, it will now look for another format _at the same rate_ before searching at other rates.
 
-  In addition, to be sure that no further audio processing is needed, SPS will check to ensure that neither convolution not loudness are enabled.
+  In addition, to be sure that no further audio processing is needed, SPS checks to ensure that neither convolution not loudness are enabled.
   
 Version 5.3-dev-3-gcac178a6
 ==
