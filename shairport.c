@@ -1775,17 +1775,15 @@ int parse_options(int argc, char **argv) {
   // 496155702020608 this setting here is the source of both the plist features response and the
   // mDNS string.
 
-  config.airplay_features = 0x00018340405C4A00; // no AP2 metadata (b50), no AP1 text (b17), no AP1
+  config.airplay_features = 0x00010340401C4A00; // no AP2 metadata (b50), no AP1 text (b17), no AP1
                                                 // progress (b16), no AP1 artwork (b15)
-  //     0x0001C340405C4A00; // no AP2 metadata (b50), no AP1 text (b17), no AP1 progress (b16), no
-  //     AP1 artwork (b15) 0x0001C340445D0A00;
-  // config.airplay_features |= (1 << 26); // 0x0x4000000
+                                                // no HomeKit Pairing ability
   
-  // experimentally turn off some flags...
-  uint64_t unmask = (1 << 22) + (1l << 47);
-  uint64_t mask = ~unmask;
-  config.airplay_features &= mask;
-  
+  // These are important for allowing Shairport Sync to be added to Apple home.
+  config.airplay_features |= (((uint64_t)1 << 46) | ((uint64_t)1 << 47));
+  // Bit 46 seems to mean	SupportsHKPairingAndAccessControl	HomeKit-based pairing and access control support
+  // Bit 47 seems necessary too, but is undocumented.
+
   // debug(1, "Features: 0x%" PRIx64 ", unmask: 0x%" PRIx64 ", mask: 0x%" PRIx64 ".", config.airplay_features, unmask, mask);
 
   // features=0x0001C340445D0A00 -- AirPort Express
@@ -1819,10 +1817,6 @@ int parse_options(int argc, char **argv) {
     }
   }
 #endif
-  // These are important for allowing Shairport Sync to be added to Apple home.
-  config.airplay_features |= (((uint64_t)1 << 46) | ((uint64_t)1 << 47));
-  // Bit 46 seems to mean	SupportsHKPairingAndAccessControl	HomeKit-based pairing and access control support
-  // Bit 47 seems necessary too, but is undocumented.
 
   // now generate the fex field
   uint8_t fexbytes[8];
