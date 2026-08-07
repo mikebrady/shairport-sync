@@ -691,7 +691,7 @@ void *rtp_buffered_audio_processor(void *arg) {
                    2); // wait for approximately the length of two packets
           }
         } else {
-          debug(3, "just you wait, Henry Higgins, without valid timing information...");
+          debug(4, "just you wait, Henry Higgins, without valid timing information...");
           usleep(20000); // just you wait, Henry Higgins...
         }
       }
