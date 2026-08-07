@@ -1819,6 +1819,10 @@ int parse_options(int argc, char **argv) {
     }
   }
 #endif
+  // These are important for allowing Shairport Sync to be added to Apple home.
+  config.airplay_features |= (((uint64_t)1 << 46) | ((uint64_t)1 << 47));
+  // Bit 46 seems to mean	SupportsHKPairingAndAccessControl	HomeKit-based pairing and access control support
+  // Bit 47 seems necessary too, but is undocumented.
 
   // now generate the fex field
   uint8_t fexbytes[8];
