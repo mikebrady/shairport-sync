@@ -40,4 +40,4 @@ int dacp_set_include_speaker_volume(int64_t machine_number, int32_t vo);
 int dacp_get_client_volume(int32_t *result);
 int dacp_get_volume(
     int32_t *the_actual_volume); // get the speaker volume information from the DACP source
-int dacp_set_volume(int32_t vo); // set the volume of our speaker
+int dacp_set_integer_percent_volume(int32_t vo); // set the volume of our speaker

@@ -1281,7 +1281,7 @@ int dacp_get_volume(int32_t *the_actual_volume) {
   return http_response;
 }
 
-int dacp_set_volume(int32_t vo) {
+int dacp_set_integer_percent_volume(int32_t vo) {
   int http_response = 492; // argument out of range
   if ((vo >= 0) && (vo <= 100)) {
     // get the information we need -- the absolute volume, the speaker list, our ID
