@@ -179,8 +179,8 @@ plist_t prepareNSKeyedArchiver(const char *uid) {
 plist_t destinationArchive(const char *deviceUUID) {
   plist_t archive_plist = prepareNSKeyedArchiver(deviceUUID);
 
-  debug(1, "kMRMediaRemoteOptionDestinationDeviceUIDs archive:");
-  decodeAndLogPlist(3, archive_plist);
+  debug(4, "kMRMediaRemoteOptionDestinationDeviceUIDs archive:");
+  decodeAndLogPlist(4, archive_plist);
 
   /* serialise to binary plist */
   char *bplist_buf = NULL;
@@ -388,11 +388,47 @@ ssize_t ap2_event_send_unit_volume_notification(rtsp_conn_info *conn, double vol
   }
   return result;
 }
+
+void ap2_remote_set_volume(double volume) {
+  pthread_rwlock_rdlock(&principal_conn_lock); // don't let the principal_conn be changed
+  pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
+  if ((principal_conn != NULL) && (principal_conn->airplay_type == ap_2)) {
+    debug(4, "remote_set_airplay_volume to %.3f -- AirPlay 2.", volume);
+
+    double present_unit_volume = airplayVolumeToUnitVolume(config.airplay_volume);
+    double desired_unit_volume = airplayVolumeToUnitVolume(volume);
+
+    if (principal_conn != NULL) {
+      // It seems that a large change of the notified volume, e.g. from 1.0 to 0.0, evokes
+      // a bug in Apple Music on macOS Tahoe, causing the local (mac) volume to jump.
+      // So here, we notify changes in 0.09 increments with a short delay between them.
+      // The last change can be up to 0.1.
+      while (fabs(desired_unit_volume - present_unit_volume) > 1E-3) {
+        if (fabs(desired_unit_volume - present_unit_volume) < 0.1) {
+          present_unit_volume = desired_unit_volume;
+        } else {
+          if (desired_unit_volume > present_unit_volume)
+            present_unit_volume += 0.09;
+          else
+            present_unit_volume -= 0.09;
+        }
+        ap2_event_send_unit_volume_notification(principal_conn, present_unit_volume);
+        debug(4, "remote_set_airplay_volume set unit volume to %.3f.", present_unit_volume);
+        usleep(10000);
+      }
+      player_volume(volume, principal_conn);
+    } else {
+      config.airplay_volume = volume;
+    }
+  }
+  pthread_cleanup_pop(1); // release the principal_conn lock
+}
+
 #endif
 
 #ifdef CONFIG_AIRPLAY_2
 void remote_increment_volume(int up) {
-  const double increment = 1.125;
+  const double increment = 1.875;
 
   debug(4, "config.volume is %f.", config.airplay_volume);
   double desired_volume = config.airplay_volume;
@@ -458,6 +494,27 @@ if (available == 0)
 #endif
 }
 
+// this is the "advanced" set volume capability in the Music app on classic AirPlay only.
+void remote_set_integer_percent_volume(const int volume) {
+  int available = 0;
+#ifdef CONFIG_DACP_CLIENT
+  available = metadata_store.advanced_dacp_server_active;
+  if (available) {
+      dacp_set_integer_percent_volume(volume);
+  }
+#endif
+// not quite the same... this only affects this speaker...
+#ifdef CONFIG_AIRPLAY_2
+  if (available == 0) {
+    if (volume == 0) {
+      ap2_remote_set_volume(-144.0);
+    } else {
+      ap2_remote_set_volume((volume * 30.0 / 100.0) - 30.0);
+    }
+  }
+#endif
+}
+
 void remote_set_airplay_volume(double volume) {
   int available = 0;
 #ifdef CONFIG_DACP_CLIENT
@@ -470,38 +527,9 @@ void remote_set_airplay_volume(double volume) {
   }
 #endif
 #ifdef CONFIG_AIRPLAY_2
-  pthread_rwlock_rdlock(&principal_conn_lock); // don't let the principal_conn be changed
-  pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
-  if ((available == 0) && (principal_conn != NULL) && (principal_conn->airplay_type == ap_2)) {
-    debug(4, "remote_set_airplay_volume to %.3f -- AirPlay 2.", volume);
-
-    double present_unit_volume = airplayVolumeToUnitVolume(config.airplay_volume);
-    double desired_unit_volume = airplayVolumeToUnitVolume(volume);
-
-    if (principal_conn != NULL) {
-      // It seems that a large change of the notified volume, e.g. from 1.0 to 0.0, evokes
-      // a bug in Apple Music on macOS Tahoe, causing the local (mac) volume to jump.
-      // So here, we notify changes in 0.09 increments with a short delay between them.
-      // The last change can be up to 0.1.
-      while (fabs(desired_unit_volume - present_unit_volume) > 1E-3) {
-        if (fabs(desired_unit_volume - present_unit_volume) < 0.1) {
-          present_unit_volume = desired_unit_volume;
-        } else {
-          if (desired_unit_volume > present_unit_volume)
-            present_unit_volume += 0.09;
-          else
-            present_unit_volume -= 0.09;
-        }
-        ap2_event_send_unit_volume_notification(principal_conn, present_unit_volume);
-        debug(4, "remote_set_airplay_volume set unit volume to %.3f.", present_unit_volume);
-        usleep(10000);
-      }
-      player_volume(volume, principal_conn);
-    } else {
-      config.airplay_volume = volume;
-    }
+  if (available == 0) {
+    ap2_remote_set_volume(volume);
   }
-  pthread_cleanup_pop(1); // release the principal_conn lock
 #endif
 }
 
@@ -522,7 +550,7 @@ void remote_simple_command(simple_command_t command) {
   pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
   if ((available == 0) && (principal_conn != NULL) && (principal_conn->airplay_type == ap_2)) {
     if (principal_conn != NULL) {
-      debug(1, "remote_simple_command %u -- AirPlay 2.", command);
+      debug(4, "remote_simple_command %u -- AirPlay 2.", command);
       ap2_event_send_simple_modern_media_remote_command(principal_conn, command);
     }
   }
