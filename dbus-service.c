@@ -360,10 +360,8 @@ void dbus_metadata_watcher(struct metadata_bundle *argc) {
 static gboolean on_handle_set_volume(ShairportSyncAdvancedRemoteControl *skeleton,
                                      GDBusMethodInvocation *invocation, const gint volume,
                                      __attribute__((unused)) gpointer user_data) {
-  debug(2, "Set volume to %d.", volume);
-#ifdef CONFIG_DACP_CLIENT
-  dacp_set_volume(volume);
-#endif
+  debug(1, "D-Bus set \"advanced\" volume (integer percent) to %d.", volume);
+  remote_set_integer_percent_volume(volume);
   shairport_sync_advanced_remote_control_complete_set_volume(skeleton, invocation);
   return TRUE;
 }
@@ -472,7 +470,7 @@ static gboolean on_handle_shuffle_songs(ShairportSyncRemoteControl *skeleton,
 static gboolean on_handle_volume_up(ShairportSyncRemoteControl *skeleton,
                                     GDBusMethodInvocation *invocation,
                                     __attribute__((unused)) gpointer user_data) {
-  debug(1, "D-Bus VolumeUp");
+  debug(4, "D-Bus VolumeUp");
   remote_volumeup();
   shairport_sync_remote_control_complete_volume_up(skeleton, invocation);
   return TRUE;
@@ -481,7 +479,7 @@ static gboolean on_handle_volume_up(ShairportSyncRemoteControl *skeleton,
 static gboolean on_handle_volume_down(ShairportSyncRemoteControl *skeleton,
                                       GDBusMethodInvocation *invocation,
                                       __attribute__((unused)) gpointer user_data) {
-  debug(1, "D-Bus VolumeDown");
+  debug(4, "D-Bus VolumeDown");
   remote_volumedown();
   shairport_sync_remote_control_complete_volume_down(skeleton, invocation);
   return TRUE;
