@@ -34,33 +34,14 @@
 
 GMainLoop *loop;
 
-// Pretty-prints a single property value. If the value is itself an "av"
-// (array of variants -- e.g. CommandInformation), each element is printed
-// on its own indexed line instead of as one opaque blob.
+// Pretty-prints a single property value.
 static void print_property_value(const char *label, const gchar *key, GVariant *value) {
-  if (g_variant_is_of_type(value, G_VARIANT_TYPE("av"))) {
-    GVariantIter *av_iter;
-    GVariant *item;
-    guint index = 0;
-    g_variant_get(value, "av", &av_iter);
-    while (g_variant_iter_loop(av_iter, "v", &item)) {
-      gchar *item_str = g_variant_pretty_print(item, FALSE, 2);
-      if (label)
-        g_print("      %s.%s[%u] -> %s\n", label, key, index, item_str);
-      else
-        g_print("      %s[%u] -> %s\n", key, index, item_str);
-      g_free(item_str);
-      index++;
-    }
-    g_variant_iter_free(av_iter);
-  } else {
-    gchar *value_str = g_variant_pretty_print(value, FALSE, 2);
-    if (label)
-      g_print("      %s.%s -> %s\n", label, key, value_str);
-    else
-      g_print("      %s -> %s\n", key, value_str);
-    g_free(value_str);
-  }
+  gchar *value_str = g_variant_pretty_print(value, FALSE, 2);
+  if (label)
+    g_print("      %s.%s -> %s\n", label, key, value_str);
+  else
+    g_print("      %s -> %s\n", key, value_str);
+  g_free(value_str);
 }
 
 // Generic handler for "g-properties-changed" on any proxy. changed_properties
