@@ -1,17 +1,22 @@
+Version 5.3-dev-15-gd0422952
+==
+**Enhancement**
+* Remove the explicit `-` for `xxd` to read from `STDIN`. It's not necessary, and removing it makes it easier to package Shairport Sync on other build systems, such as [OpenWrt](https://openwrt.org/start). Thanks to [kel-mo](https://github.com/kel-mo) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2247).
+  
 Version 5.3-dev-7-g7f8a23b5
 ==
 **Bug Fix**
 * Fixed a subtle bug thanks to [nicolas314](https://github.com/nicolas314)'s [report](https://github.com/mikebrady/shairport-sync/issues/2244).
 
-  The bug would occur only in specific circumstances when automatically choosing a suitable output rate and format to match the input. Rather ironically, it arose from an attempt to maximise audio fidelity, as follows:
+  The bug would occur only in specific circumstances when searching for a suitable output rate and format to match the input. Rather ironically, it arose from an attempt to maximise audio fidelity, as follows:
 
-  If it can be determined from the settings that Shairport Sync ("SPS") does not have to modify the audio, e.g. by changing volume, then SPS will look for the output format with the exact same rate and format as the input, so that audio passes through SPS without alteration of any kind.
+  * If it can be determined from the settings that Shairport Sync ("SPS") does not have to modify the audio, e.g. by changing volume, then SPS will look for an output format with the exact same rate and format as the input, so that audio passes through SPS without alteration of any kind.
 
-  Unfortunately, if it failed to find an exact match, SPS would start searching at a _different output rate_.
+  * Unfortunately, due to the bug, if it failed to find an exact match, SPS would start searching at a _different output rate_.
   
-  The bug only showed up when it could be determined that no modification of the audio was to be performed. So the bug only occured if `ignore_volume_control` was set to `yes` and the output device could not exactly match the input format.
+  * The bug only showed up when it could be determined that no modification of the audio was to be performed. So the bug only occured if `ignore_volume_control` was set to `yes` and the output device could not exactly match the input format.
 
-  The bug fix means that if SPS fails to find an exact format match, it will now look for another format _at the same rate_ before searching at other rates.
+  The fix means that if SPS fails to find an exact format match, it will now look for another format _at the same rate_ before searching at other rates.
 
   In addition, to be sure that no further audio processing is needed, SPS checks to ensure that neither convolution not loudness are enabled.
   
