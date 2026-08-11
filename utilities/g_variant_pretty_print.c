@@ -77,8 +77,10 @@ static void print_dict(GVariant *v, GString *out, int depth, gboolean type_annot
 }
 
 static void print_array(GVariant *v, GString *out, int depth, gboolean type_annotate) {
+  if (g_variant_n_children(v) == 0) {
+     g_string_append(out, "[]");
+  } else {
     g_string_append(out, "[\n");
-
     GVariantIter iter;
     g_variant_iter_init(&iter, v);
     GVariant *item;
@@ -98,6 +100,7 @@ static void print_array(GVariant *v, GString *out, int depth, gboolean type_anno
     g_string_append(out, "\n");
     indent_gstring(out, depth);
     g_string_append(out, "]");
+  }
 }
 
 // Renders up to HEXDUMP_MAX_BYTES_SHOWN bytes of `data` as classic
