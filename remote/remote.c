@@ -558,7 +558,8 @@ void remote_simple_command(simple_command_t command) {
 #endif
 }
 
-void remote_set_repeat_mode(repeat_status_type mode) {  
+int remote_set_repeat_mode(repeat_status_type mode) {  
+  int handled = 0;
   pthread_rwlock_rdlock(&principal_conn_lock); // don't let the principal_conn be changed
   pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
   if (principal_conn != NULL) {
@@ -579,7 +580,8 @@ void remote_set_repeat_mode(repeat_status_type mode) {
         default:
           debug(1, "AP2 invalid repeat mode request -- ignored.");
           break;
-      }   
+      }
+      handled = 1;
     }  
 #endif
 #ifdef CONFIG_DACP_CLIENT
@@ -598,7 +600,8 @@ void remote_set_repeat_mode(repeat_status_type mode) {
           default:
             debug(1, "DACP invalid repeat mode request -- ignored.");
             break;
-        }    
+        } 
+        handled = 1;   
       }
        else {
         inform("Can't set loop status / repeat mode -- advanced remote control is not available for this client.");
@@ -607,6 +610,7 @@ void remote_set_repeat_mode(repeat_status_type mode) {
 #endif
   }
   pthread_cleanup_pop(1); // release the principal_conn lock
+  return handled;
 }  
 
 void remote_set_shuffle_mode(shuffle_status_type mode) {  

@@ -46,7 +46,7 @@
 #endif
 
 #ifdef CONFIG_DBUS_INTERFACE
-#include "dbus-service.h"
+#include "dbus/dbus-service.h"
 #endif
 
 enum am_state state;

@@ -47,6 +47,8 @@
 
 #include "dbus-service.h"
 #include "metadata/hub.h"
+#include "property-preflight/property-preflight-shairportsync.h"
+
 #include "remote/remote.h"
 #include "utilities/exit.h"
 
@@ -197,35 +199,26 @@ void dbus_metadata_watcher(struct metadata_bundle *argc) {
     shairport_sync_advanced_remote_control_set_playback_status(
         shairportSyncAdvancedRemoteControlSkeleton, response);
   }
-  
-  
+
   // repeat status (was loop status)
   switch (argc->repeat_status) {
   case RS_NOT_AVAILABLE:
-    strcpy(response, "Not Available");
+    shairport_sync_advanced_remote_control_set_loop_status(shairportSyncAdvancedRemoteControlSkeleton, "Not Available");
     break;
   case RS_OFF:
-    strcpy(response, "Off");
+    shairport_sync_advanced_remote_control_set_loop_status(shairportSyncAdvancedRemoteControlSkeleton, "Off");
     break;
   case RS_ONE:
-    strcpy(response, "One");
+    shairport_sync_advanced_remote_control_set_loop_status(shairportSyncAdvancedRemoteControlSkeleton, "One");
     break;
   case RS_ALL:
-    strcpy(response, "All");
+    shairport_sync_advanced_remote_control_set_loop_status(shairportSyncAdvancedRemoteControlSkeleton, "All");
     break;
   default:
-    debug(1, "This should never happen.");
-    response[0] = '\0';
+    shairport_sync_advanced_remote_control_set_loop_status(shairportSyncAdvancedRemoteControlSkeleton, "Error");
   }
- 
-  if (strlen(response) != 0) {
-    shairport_sync_client_set_repeat(
-            shairportSyncClientSkeleton, response);
-    shairport_sync_advanced_remote_control_set_loop_status(
-        shairportSyncAdvancedRemoteControlSkeleton, response);
-  }
-  
-  // 
+
+  //
   gboolean shuffle_is_on = FALSE;
   switch (argc->shuffle_status) {
   case SS_NOT_AVAILABLE:
@@ -243,11 +236,10 @@ void dbus_metadata_watcher(struct metadata_bundle *argc) {
   default:
     shuffle_is_on = FALSE;
     shairport_sync_client_set_shuffle(shairportSyncClientSkeleton, "Error");
-    debug(1, "Unknown shuffle status -- this should never happen.");
   }
 
   shairport_sync_advanced_remote_control_set_shuffle(shairportSyncAdvancedRemoteControlSkeleton,
-                                                       shuffle_is_on);
+                                                     shuffle_is_on);
 
   // Build the metadata array
   // debug(2, "Build metadata");
@@ -344,23 +336,23 @@ void dbus_metadata_watcher(struct metadata_bundle *argc) {
 #ifdef CONFIG_AIRPLAY_2
   // output the NowPlayingPlist stuff
   GVariant *npi = plist_to_gvariant(argc->npi.npi_plist);
-  shairport_sync_client_set_now_playing_information(shairportSyncClientSkeleton, npi);
-  
+  if (argc->npi.npi_plist != NULL) {
+    shairport_sync_client_set_now_playing_information(shairportSyncClientSkeleton, npi);
+  }
+
   // output the CommandInformation stuff
   GVariant *sc = plist_to_gvariant(argc->supported_commands_plist);
-  if (sc == NULL) {
-    debug(4, "NULL returned from plist_to_gvariant");
-  } else {
+  if (sc != NULL) {
     shairport_sync_client_set_command_information(shairportSyncClientSkeleton, sc);
   }
-  
+
 #endif
 }
 
 static gboolean on_handle_set_volume(ShairportSyncAdvancedRemoteControl *skeleton,
                                      GDBusMethodInvocation *invocation, const gint volume,
                                      __attribute__((unused)) gpointer user_data) {
-  debug(1, "D-Bus set \"advanced\" volume (integer percent) to %d.", volume);
+  debug(4, "D-Bus set \"advanced\" volume (integer percent) to %d.", volume);
   remote_set_integer_percent_volume(volume);
   shairport_sync_advanced_remote_control_complete_set_volume(skeleton, invocation);
   return TRUE;
@@ -550,6 +542,18 @@ gboolean notify_statistics_callback(ShairportSyncDiagnostics *skeleton,
   return TRUE;
 }
 
+gboolean notify_sample_property_callback(ShairportSyncClient *skeleton,
+                                         __attribute__((unused)) gpointer user_data) {
+  debug(1, ">> sample_property_is \"%s\".", shairport_sync_client_get_sample_property(skeleton));
+  return TRUE;
+}
+
+gboolean notify_loop_status_callback(__attribute__((unused)) ShairportSyncClient *skeleton,
+                                     __attribute__((unused)) gpointer user_data) {
+  debug(1, "notify_loop_status_callback does nothing -- it's done in preflight.");
+  return TRUE;
+}
+
 gboolean notify_verbosity_callback(ShairportSyncDiagnostics *skeleton,
                                    __attribute__((unused)) gpointer user_data) {
   gint th = shairport_sync_diagnostics_get_verbosity(skeleton);
@@ -697,7 +701,6 @@ gboolean notify_loudness_threshold_callback(ShairportSync *skeleton,
     config.loudness_reference_volume_db = th;
   } else {
     debug(1, ">> invalid loudness threshold: %f. Ignored.", th);
-    shairport_sync_set_loudness_threshold(skeleton, config.loudness_reference_volume_db);
   }
   return TRUE;
 }
@@ -731,31 +734,14 @@ gboolean notify_volume_callback(ShairportSync *skeleton,
 gboolean notify_disable_standby_mode_callback(ShairportSync *skeleton,
                                               __attribute__((unused)) gpointer user_data) {
   char *th = (char *)shairport_sync_get_disable_standby_mode(skeleton);
-  if ((strcasecmp(th, "no") == 0) || (strcasecmp(th, "off") == 0) ||
-      (strcasecmp(th, "never") == 0)) {
+  if ((strcmp(th, "No") == 0) || (strcmp(th, "Off") == 0) || (strcmp(th, "Never") == 0)) {
     config.disable_standby_mode = disable_standby_off;
     config.keep_dac_busy = 0;
-  } else if ((strcasecmp(th, "yes") == 0) || (strcasecmp(th, "on") == 0) ||
-             (strcasecmp(th, "always") == 0)) {
+  } else if ((strcmp(th, "Yes") == 0) || (strcmp(th, "On") == 0) || (strcmp(th, "Always") == 0)) {
     config.disable_standby_mode = disable_standby_always;
     config.keep_dac_busy = 1;
-  } else if (strcasecmp(th, "auto") == 0)
+  } else if (strcmp(th, "Auto") == 0) {
     config.disable_standby_mode = disable_standby_auto;
-  else {
-    warn("An unrecognised disable_standby_mode: \"%s\" was requested via D-Bus interface.", th);
-    switch (config.disable_standby_mode) {
-    case disable_standby_off:
-      shairport_sync_set_disable_standby_mode(skeleton, "off");
-      break;
-    case disable_standby_always:
-      shairport_sync_set_disable_standby_mode(skeleton, "always");
-      break;
-    case disable_standby_auto:
-      shairport_sync_set_disable_standby_mode(skeleton, "auto");
-      break;
-    default:
-      break;
-    }
   }
   return TRUE;
 }
@@ -765,19 +751,19 @@ gboolean notify_alacdecoder_callback(ShairportSync *skeleton,
   char *th = (char *)shairport_sync_get_alacdecoder(skeleton);
 
 #ifdef CONFIG_AIRPLAY_2
-  if (strcasecmp(th, "ffmpeg") != 0) {
+  if (strcasecmp(th, "FFmpeg") != 0) {
     warn(" This request, to set the decoder to \"%s\", is ignored. For AirPlay 2, the FFmpeg "
          "decoder is always used.",
          th);
   }
 #else
-  if ((strcasecmp(th, "hammerton") == 0) &&
+  if ((strcasecmp(th, "Hammerton") == 0) &&
       ((config.decoders_supported & (1 << decoder_hammerton)) != 0))
     config.decoder_in_use = 1 << decoder_hammerton;
-  else if ((strcasecmp(th, "apple") == 0) &&
+  else if ((strcasecmp(th, "Apple") == 0) &&
            ((config.decoders_supported & (1 << decoder_apple_alac)) != 0))
     config.decoder_in_use = 1 << decoder_apple_alac;
-  else if ((strcasecmp(th, "ffmpeg") == 0) &&
+  else if ((strcasecmp(th, "FFmpeg") == 0) &&
            ((config.decoders_supported & (1 << decoder_ffmpeg_alac)) != 0))
     config.decoder_in_use = 1 << decoder_ffmpeg_alac;
   else {
@@ -796,15 +782,15 @@ gboolean notify_interpolation_callback(ShairportSync *skeleton,
                                        __attribute__((unused)) gpointer user_data) {
   char *th = (char *)shairport_sync_get_interpolation(skeleton);
   // #ifdef CONFIG_SOXR
-  if (strcasecmp(th, "basic") == 0)
+  if (strcasecmp(th, "Basic") == 0)
     config.packet_stuffing = ST_basic;
 #ifdef CONFIG_SOXR
-  else if (strcasecmp(th, "soxr") == 0)
+  else if (strcasecmp(th, "Soxr") == 0)
     config.packet_stuffing = ST_soxr;
 #endif
-  else if (strcasecmp(th, "auto") == 0)
+  else if (strcasecmp(th, "Auto") == 0)
     config.packet_stuffing = ST_auto;
-  else if (strcasecmp(th, "vernier") == 0)
+  else if (strcasecmp(th, "Vernier") == 0)
     config.packet_stuffing = ST_vernier;
   else {
 #ifdef CONFIG_SOXR
@@ -890,30 +876,10 @@ static gboolean on_handle_mule(ShairportSync *skeleton, GDBusMethodInvocation *i
   return TRUE;
 }
 
-static gboolean on_handle_set_repeat(ShairportSyncClient *skeleton, GDBusMethodInvocation *invocation,
-                               const gchar *modeString, __attribute__((unused)) gpointer user_data) {
-  debug(1, "SetRepeat with mode \"%s\".", modeString);  
-  repeat_status_type requested_repeat_mode = RS_NOT_AVAILABLE;
-  if (strcasecmp(modeString, "off") == 0) {
-    requested_repeat_mode = RS_OFF;
-  } else if (strcasecmp(modeString, "one") == 0) {
-    requested_repeat_mode = RS_ONE;
-  } else if (strcasecmp(modeString, "all") == 0) {
-    requested_repeat_mode = RS_ALL;
-  } else {
-    warn("Illegal SetRepeat: \"%s\" -- ignored.", modeString);
-    requested_repeat_mode = RS_NOT_AVAILABLE;
-  }
-  if (requested_repeat_mode != RS_NOT_AVAILABLE) {
-    remote_set_repeat_mode(requested_repeat_mode);
-  }
-  shairport_sync_client_complete_set_repeat(skeleton, invocation);
-  return TRUE;
-}
-
-static gboolean on_handle_set_shuffle(ShairportSyncClient *skeleton, GDBusMethodInvocation *invocation,
-                               const gchar *modeString, __attribute__((unused)) gpointer user_data) {
-  debug(1, "SetShuffle with mode \"%s\".", modeString);  
+static gboolean on_handle_set_shuffle(ShairportSyncClient *skeleton,
+                                      GDBusMethodInvocation *invocation, const gchar *modeString,
+                                      __attribute__((unused)) gpointer user_data) {
+  debug(1, "SetShuffle with mode \"%s\".", modeString);
   shuffle_status_type requested_shuffle_mode = SS_NOT_AVAILABLE;
   if (strcasecmp(modeString, "off") == 0) {
     requested_shuffle_mode = SS_OFF;
@@ -980,27 +946,167 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
   debug(1, "Shairport Sync native D-Bus interface \"%s\" acquired on the %s bus.", name,
         (dbus_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
 
-  shairportSyncSkeleton = shairport_sync_skeleton_new();
-  g_dbus_interface_skeleton_export(G_DBUS_INTERFACE_SKELETON(shairportSyncSkeleton), connection,
-                                   "/org/gnome/ShairportSync", NULL);
+  // define the skeletons
 
-  shairportSyncClientSkeleton = shairport_sync_client_skeleton_new();
-  g_dbus_interface_skeleton_export(G_DBUS_INTERFACE_SKELETON(shairportSyncClientSkeleton),
-                                   connection, "/org/gnome/ShairportSync", NULL);
-
+  shairportSyncSkeleton = property_preflight_shairport_sync_skeleton_new();
+  shairportSyncClientSkeleton = property_preflight_shairport_sync_client_skeleton_new();
   shairportSyncDiagnosticsSkeleton = shairport_sync_diagnostics_skeleton_new();
-  g_dbus_interface_skeleton_export(G_DBUS_INTERFACE_SKELETON(shairportSyncDiagnosticsSkeleton),
-                                   connection, "/org/gnome/ShairportSync", NULL);
-
-  shairportSyncRemoteControlSkeleton = shairport_sync_remote_control_skeleton_new();
-  g_dbus_interface_skeleton_export(G_DBUS_INTERFACE_SKELETON(shairportSyncRemoteControlSkeleton),
-                                   connection, "/org/gnome/ShairportSync", NULL);
-
+  shairportSyncRemoteControlSkeleton = property_preflight_shairport_sync_remote_control_skeleton_new();
   shairportSyncAdvancedRemoteControlSkeleton =
-      shairport_sync_advanced_remote_control_skeleton_new();
-  g_dbus_interface_skeleton_export(
-      G_DBUS_INTERFACE_SKELETON(shairportSyncAdvancedRemoteControlSkeleton), connection,
-      "/org/gnome/ShairportSync", NULL);
+      property_preflight_shairport_sync_advanced_remote_control_skeleton_new();
+
+  // set initial D-Bus interface values to correspond with initial Shairport Sync settings
+
+  shairport_sync_set_loudness_threshold(SHAIRPORT_SYNC(shairportSyncSkeleton),
+                                        config.loudness_reference_volume_db);
+  shairport_sync_set_drift_tolerance(SHAIRPORT_SYNC(shairportSyncSkeleton), config.tolerance);
+  shairport_sync_set_volume(SHAIRPORT_SYNC(shairportSyncSkeleton), config.airplay_volume);
+
+  if ((config.decoder_in_use & (1 << decoder_hammerton)) != 0) {
+    shairport_sync_set_alacdecoder(SHAIRPORT_SYNC(shairportSyncSkeleton), "Hammerton");
+  } else if ((config.decoder_in_use & (1 << decoder_apple_alac)) != 0) {
+    shairport_sync_set_alacdecoder(SHAIRPORT_SYNC(shairportSyncSkeleton), "Apple");
+  } else if ((config.decoder_in_use & (1 << decoder_ffmpeg_alac)) != 0) {
+    shairport_sync_set_alacdecoder(SHAIRPORT_SYNC(shairportSyncSkeleton), "FFmpeg");
+  }
+
+  shairport_sync_set_active(SHAIRPORT_SYNC(shairportSyncSkeleton), FALSE);
+
+  switch (config.disable_standby_mode) {
+  case disable_standby_off:
+    shairport_sync_set_disable_standby_mode(SHAIRPORT_SYNC(shairportSyncSkeleton), "Off");
+    break;
+  case disable_standby_always:
+    shairport_sync_set_disable_standby_mode(SHAIRPORT_SYNC(shairportSyncSkeleton), "Always");
+    break;
+  case disable_standby_auto:
+    shairport_sync_set_disable_standby_mode(SHAIRPORT_SYNC(shairportSyncSkeleton), "Auto");
+    break;
+  default:
+    debug(1, "invalid disable_standby mode!");
+    break;
+  }
+  if (config.packet_stuffing == ST_basic) {
+    shairport_sync_set_interpolation(SHAIRPORT_SYNC(shairportSyncSkeleton), "Basic");
+  } else if (config.packet_stuffing == ST_auto) {
+    shairport_sync_set_interpolation(SHAIRPORT_SYNC(shairportSyncSkeleton), "Auto");
+  } else if (config.packet_stuffing == ST_vernier) {
+    shairport_sync_set_interpolation(SHAIRPORT_SYNC(shairportSyncSkeleton), "Vernier");
+  } else {
+    shairport_sync_set_interpolation(SHAIRPORT_SYNC(shairportSyncSkeleton), "Soxr");
+  }
+  if (config.volume_control_profile == VCP_standard)
+    shairport_sync_set_volume_control_profile(SHAIRPORT_SYNC(shairportSyncSkeleton), "Standard");
+  else if (config.volume_control_profile == VCP_dasl_tapered)
+    shairport_sync_set_volume_control_profile(SHAIRPORT_SYNC(shairportSyncSkeleton),
+                                              "Dasl_Tapered");
+  else
+    shairport_sync_set_volume_control_profile(SHAIRPORT_SYNC(shairportSyncSkeleton), "Flat");
+
+  if (config.keep_dac_busy == 0) {
+    shairport_sync_set_disable_standby(SHAIRPORT_SYNC(shairportSyncSkeleton), FALSE);
+  } else {
+    shairport_sync_set_disable_standby(SHAIRPORT_SYNC(shairportSyncSkeleton), TRUE);
+  }
+
+  if (config.loudness_enabled == 0) {
+    shairport_sync_set_loudness_enabled(SHAIRPORT_SYNC(shairportSyncSkeleton), FALSE);
+  } else {
+    shairport_sync_set_loudness_enabled(SHAIRPORT_SYNC(shairportSyncSkeleton), TRUE);
+  }
+
+#ifdef CONFIG_CONVOLUTION
+  if (config.convolution_enabled == 0) {
+    shairport_sync_set_convolution_enabled(SHAIRPORT_SYNC(shairportSyncSkeleton), FALSE);
+  } else {
+    shairport_sync_set_convolution_enabled(SHAIRPORT_SYNC(shairportSyncSkeleton), TRUE);
+  }
+
+  const char *str = NULL;
+  if ((config.cfg != NULL) &&
+      (config_lookup_non_empty_string(config.cfg, "dsp.convolution_ir_files", &str))) {
+    shairport_sync_set_convolution_impulse_response_files(SHAIRPORT_SYNC(shairportSyncSkeleton),
+                                                          str);
+  } else {
+    shairport_sync_set_convolution_impulse_response_files(SHAIRPORT_SYNC(shairportSyncSkeleton),
+                                                          NULL);
+  }
+  shairport_sync_set_convolution_maximum_length_in_seconds(
+      SHAIRPORT_SYNC(shairportSyncSkeleton), config.convolution_max_length_in_seconds);
+#endif
+
+  shairport_sync_set_service_name(SHAIRPORT_SYNC(shairportSyncSkeleton), config.service_name);
+
+#ifdef CONFIG_AIRPLAY_2
+  if (config.service_type == APST_airplay2) {
+    shairport_sync_set_protocol(SHAIRPORT_SYNC(shairportSyncSkeleton), "AirPlay 2");
+  } else {
+#endif
+    shairport_sync_set_protocol(SHAIRPORT_SYNC(shairportSyncSkeleton), "AirPlay");
+#ifdef CONFIG_AIRPLAY_2
+  }
+#endif
+
+  shairport_sync_set_version(SHAIRPORT_SYNC(shairportSyncSkeleton), PACKAGE_VERSION);
+  char *vs = get_version_string();
+  shairport_sync_set_version_string(SHAIRPORT_SYNC(shairportSyncSkeleton), vs);
+  if (vs)
+    free(vs);
+
+  shairport_sync_diagnostics_set_verbosity(
+      SHAIRPORT_SYNC_DIAGNOSTICS(shairportSyncDiagnosticsSkeleton), debug_level());
+
+  if (config.statistics_requested == 0) {
+    shairport_sync_diagnostics_set_statistics(
+        SHAIRPORT_SYNC_DIAGNOSTICS(shairportSyncDiagnosticsSkeleton), FALSE);
+  } else {
+    shairport_sync_diagnostics_set_statistics(
+        SHAIRPORT_SYNC_DIAGNOSTICS(shairportSyncDiagnosticsSkeleton), TRUE);
+  }
+
+  if (config.debugger_show_elapsed_time == 0) {
+    shairport_sync_diagnostics_set_elapsed_time(
+        SHAIRPORT_SYNC_DIAGNOSTICS(shairportSyncDiagnosticsSkeleton), FALSE);
+  } else {
+    shairport_sync_diagnostics_set_elapsed_time(
+        SHAIRPORT_SYNC_DIAGNOSTICS(shairportSyncDiagnosticsSkeleton), TRUE);
+  }
+
+  if (config.debugger_show_relative_time == 0) {
+    shairport_sync_diagnostics_set_delta_time(
+        SHAIRPORT_SYNC_DIAGNOSTICS(shairportSyncDiagnosticsSkeleton), FALSE);
+  } else {
+    shairport_sync_diagnostics_set_delta_time(
+        SHAIRPORT_SYNC_DIAGNOSTICS(shairportSyncDiagnosticsSkeleton), TRUE);
+  }
+
+  if (config.debugger_show_file_and_line == 0) {
+    shairport_sync_diagnostics_set_file_and_line(
+        SHAIRPORT_SYNC_DIAGNOSTICS(shairportSyncDiagnosticsSkeleton), FALSE);
+  } else {
+    shairport_sync_diagnostics_set_file_and_line(
+        SHAIRPORT_SYNC_DIAGNOSTICS(shairportSyncDiagnosticsSkeleton), TRUE);
+  }
+  
+  shairport_sync_remote_control_set_metadata(shairportSyncRemoteControlSkeleton, g_variant_new_array (G_VARIANT_TYPE ("{sv}"), NULL, 0));
+  shairport_sync_client_set_now_playing_information(shairportSyncClientSkeleton, g_variant_new_array (G_VARIANT_TYPE ("{sv}"), NULL, 0));
+  shairport_sync_client_set_command_information(shairportSyncClientSkeleton, g_variant_new_array (G_VARIANT_TYPE ("v"), NULL, 0));
+
+
+  shairport_sync_remote_control_set_player_state(shairportSyncRemoteControlSkeleton,
+                                                 "Not Available");
+  shairport_sync_advanced_remote_control_set_playback_status(
+      shairportSyncAdvancedRemoteControlSkeleton, "Not Available");
+
+  shairport_sync_advanced_remote_control_set_loop_status(shairportSyncAdvancedRemoteControlSkeleton,
+                                                         "Not Available");
+
+  shairport_sync_client_set_shuffle(shairportSyncClientSkeleton, "Not Available");
+
+  usleep(20000); // allow settings to be made before connecting the callbacks.
+  
+  // connect up the callbacks
+
   g_signal_connect(shairportSyncSkeleton, "notify::interpolation",
                    G_CALLBACK(notify_interpolation_callback), NULL);
   g_signal_connect(shairportSyncSkeleton, "notify::alacdecoder",
@@ -1040,9 +1146,15 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
 
   g_signal_connect(shairportSyncSkeleton, "handle-set-frame-position-update-interval",
                    G_CALLBACK(on_handle_set_frame_position_update_interval), NULL);
-                     
-  g_signal_connect(shairportSyncClientSkeleton, "handle-set-repeat", G_CALLBACK(on_handle_set_repeat), NULL);
-  g_signal_connect(shairportSyncClientSkeleton, "handle-set-shuffle", G_CALLBACK(on_handle_set_shuffle), NULL);
+
+  g_signal_connect(shairportSyncClientSkeleton, "handle-set-shuffle",
+                   G_CALLBACK(on_handle_set_shuffle), NULL);
+
+  // g_signal_connect(shairportSyncClientSkeleton, "notify::loop-status",
+  //                 G_CALLBACK(notify_loop_status_callback), NULL);
+
+  g_signal_connect(shairportSyncClientSkeleton, "notify::sample-property",
+                   G_CALLBACK(notify_sample_property_callback), NULL);
 
   g_signal_connect(shairportSyncDiagnosticsSkeleton, "notify::verbosity",
                    G_CALLBACK(notify_verbosity_callback), NULL);
@@ -1094,175 +1206,19 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
 
   add_metadata_watcher(dbus_metadata_watcher);
 
-  shairport_sync_set_loudness_threshold(SHAIRPORT_SYNC(shairportSyncSkeleton),
-                                        config.loudness_reference_volume_db);
-  shairport_sync_set_drift_tolerance(SHAIRPORT_SYNC(shairportSyncSkeleton), config.tolerance);
-  shairport_sync_set_volume(SHAIRPORT_SYNC(shairportSyncSkeleton), config.airplay_volume);
+  // connect to the bus
 
-  if ((config.decoder_in_use & (1 << decoder_hammerton)) != 0) {
-    shairport_sync_set_alacdecoder(SHAIRPORT_SYNC(shairportSyncSkeleton), "hammerton");
-    debug(1, ">> ALACDecoder set to \"hammerton\"");
-  } else if ((config.decoder_in_use & (1 << decoder_apple_alac)) != 0) {
-    shairport_sync_set_alacdecoder(SHAIRPORT_SYNC(shairportSyncSkeleton), "apple");
-    debug(1, ">> ALACDecoder set to \"apple\"");
-  } else if ((config.decoder_in_use & (1 << decoder_ffmpeg_alac)) != 0) {
-    shairport_sync_set_alacdecoder(SHAIRPORT_SYNC(shairportSyncSkeleton), "ffmpeg");
-    debug(1, ">> ALACDecoder set to \"ffmpeg\"");
-  }
-
-  shairport_sync_set_active(SHAIRPORT_SYNC(shairportSyncSkeleton), FALSE);
-  debug(1, ">> Active set to \"false\"");
-
-  switch (config.disable_standby_mode) {
-  case disable_standby_off:
-    shairport_sync_set_disable_standby_mode(SHAIRPORT_SYNC(shairportSyncSkeleton), "off");
-    debug(1, ">> disable standby mode set to \"off\"");
-    break;
-  case disable_standby_always:
-    shairport_sync_set_disable_standby_mode(SHAIRPORT_SYNC(shairportSyncSkeleton), "always");
-    debug(1, ">> disable standby mode set to \"always\"");
-    break;
-  case disable_standby_auto:
-    shairport_sync_set_disable_standby_mode(SHAIRPORT_SYNC(shairportSyncSkeleton), "auto");
-    debug(1, ">> disable standby mode set to \"auto\"");
-    break;
-  default:
-    debug(1, "invalid disable_standby mode!");
-    break;
-  }
-  if (config.packet_stuffing == ST_basic) {
-    shairport_sync_set_interpolation(SHAIRPORT_SYNC(shairportSyncSkeleton), "basic");
-    debug(1, ">> interpolation set to \"basic\"");
-  } else if (config.packet_stuffing == ST_auto) {
-    shairport_sync_set_interpolation(SHAIRPORT_SYNC(shairportSyncSkeleton), "auto");
-    debug(1, ">> interpolation set to \"auto\"");
-  } else if (config.packet_stuffing == ST_vernier) {
-    shairport_sync_set_interpolation(SHAIRPORT_SYNC(shairportSyncSkeleton), "vernier");
-    debug(1, ">> interpolation set to \"vernier\"");
-  } else {
-    shairport_sync_set_interpolation(SHAIRPORT_SYNC(shairportSyncSkeleton), "soxr");
-    debug(1, ">> interpolation set to \"soxr\"");
-  }
-  if (config.volume_control_profile == VCP_standard)
-    shairport_sync_set_volume_control_profile(SHAIRPORT_SYNC(shairportSyncSkeleton), "standard");
-  else if (config.volume_control_profile == VCP_dasl_tapered)
-    shairport_sync_set_volume_control_profile(SHAIRPORT_SYNC(shairportSyncSkeleton),
-                                              "dasl_tapered");
-  else
-    shairport_sync_set_volume_control_profile(SHAIRPORT_SYNC(shairportSyncSkeleton), "flat");
-
-  if (config.keep_dac_busy == 0) {
-    shairport_sync_set_disable_standby(SHAIRPORT_SYNC(shairportSyncSkeleton), FALSE);
-  } else {
-    shairport_sync_set_disable_standby(SHAIRPORT_SYNC(shairportSyncSkeleton), TRUE);
-  }
-
-  if (config.loudness_enabled == 0) {
-    debug(1, ">> loudness_enabled is false");
-    shairport_sync_set_loudness_enabled(SHAIRPORT_SYNC(shairportSyncSkeleton), FALSE);
-  } else {
-    debug(1, ">> loudness_enabled is true");
-    shairport_sync_set_loudness_enabled(SHAIRPORT_SYNC(shairportSyncSkeleton), TRUE);
-  }
-
-#ifdef CONFIG_CONVOLUTION
-  if (config.convolution_enabled == 0) {
-    debug(1, ">> convolution_enabled is false");
-    shairport_sync_set_convolution_enabled(SHAIRPORT_SYNC(shairportSyncSkeleton), FALSE);
-  } else {
-    debug(1, ">> convolution_enabled is true");
-    shairport_sync_set_convolution_enabled(SHAIRPORT_SYNC(shairportSyncSkeleton), TRUE);
-  }
-
-  const char *str = NULL;
-  if ((config.cfg != NULL) &&
-      (config_lookup_non_empty_string(config.cfg, "dsp.convolution_ir_files", &str))) {
-    shairport_sync_set_convolution_impulse_response_files(SHAIRPORT_SYNC(shairportSyncSkeleton),
-                                                          str);
-  } else {
-    shairport_sync_set_convolution_impulse_response_files(SHAIRPORT_SYNC(shairportSyncSkeleton),
-                                                          NULL);
-  }
-  shairport_sync_set_convolution_maximum_length_in_seconds(
-      SHAIRPORT_SYNC(shairportSyncSkeleton), config.convolution_max_length_in_seconds);
-#endif
-
-  shairport_sync_set_service_name(SHAIRPORT_SYNC(shairportSyncSkeleton), config.service_name);
-
-#ifdef CONFIG_AIRPLAY_2
-  if (config.service_type == APST_airplay2) {
-    shairport_sync_set_protocol(SHAIRPORT_SYNC(shairportSyncSkeleton), "AirPlay 2");
-  } else {
-#endif
-    shairport_sync_set_protocol(SHAIRPORT_SYNC(shairportSyncSkeleton), "AirPlay");
-#ifdef CONFIG_AIRPLAY_2
-  }
-#endif
-
-  shairport_sync_set_version(SHAIRPORT_SYNC(shairportSyncSkeleton), PACKAGE_VERSION);
-  char *vs = get_version_string();
-  shairport_sync_set_version_string(SHAIRPORT_SYNC(shairportSyncSkeleton), vs);
-  if (vs)
-    free(vs);
-
-  shairport_sync_diagnostics_set_verbosity(
-      SHAIRPORT_SYNC_DIAGNOSTICS(shairportSyncDiagnosticsSkeleton), debug_level());
-
-  // debug(2,">> log verbosity is %d.",debuglev);
-
-  if (config.statistics_requested == 0) {
-    shairport_sync_diagnostics_set_statistics(
-        SHAIRPORT_SYNC_DIAGNOSTICS(shairportSyncDiagnosticsSkeleton), FALSE);
-    // debug(1, ">> statistics logging is off");
-  } else {
-    shairport_sync_diagnostics_set_statistics(
-        SHAIRPORT_SYNC_DIAGNOSTICS(shairportSyncDiagnosticsSkeleton), TRUE);
-    // debug(1, ">> statistics logging is on");
-  }
-
-  if (config.debugger_show_elapsed_time == 0) {
-    shairport_sync_diagnostics_set_elapsed_time(
-        SHAIRPORT_SYNC_DIAGNOSTICS(shairportSyncDiagnosticsSkeleton), FALSE);
-    // debug(1, ">> elapsed time is included in log entries");
-  } else {
-    shairport_sync_diagnostics_set_elapsed_time(
-        SHAIRPORT_SYNC_DIAGNOSTICS(shairportSyncDiagnosticsSkeleton), TRUE);
-    // debug(1, ">> elapsed time is not included in log entries");
-  }
-
-  if (config.debugger_show_relative_time == 0) {
-    shairport_sync_diagnostics_set_delta_time(
-        SHAIRPORT_SYNC_DIAGNOSTICS(shairportSyncDiagnosticsSkeleton), FALSE);
-    // debug(1, ">> delta time is included in log entries");
-  } else {
-    shairport_sync_diagnostics_set_delta_time(
-        SHAIRPORT_SYNC_DIAGNOSTICS(shairportSyncDiagnosticsSkeleton), TRUE);
-    // debug(1, ">> delta time is not included in log entries");
-  }
-
-  if (config.debugger_show_file_and_line == 0) {
-    shairport_sync_diagnostics_set_file_and_line(
-        SHAIRPORT_SYNC_DIAGNOSTICS(shairportSyncDiagnosticsSkeleton), FALSE);
-    // debug(1, ">> file and line is included in log entries");
-  } else {
-    shairport_sync_diagnostics_set_file_and_line(
-        SHAIRPORT_SYNC_DIAGNOSTICS(shairportSyncDiagnosticsSkeleton), TRUE);
-    // debug(1, ">> file and line is not included in log entries");
-  }
-
-  shairport_sync_remote_control_set_player_state(shairportSyncRemoteControlSkeleton,
-                                                 "Not Available");
-  shairport_sync_advanced_remote_control_set_playback_status(
-      shairportSyncAdvancedRemoteControlSkeleton, "Not Available");
-
-  shairport_sync_advanced_remote_control_set_loop_status(shairportSyncAdvancedRemoteControlSkeleton,
-                                                         "Not Available");
-
-  shairport_sync_client_set_repeat(shairportSyncClientSkeleton,
-                                                         "Not Available");
-  shairport_sync_client_set_shuffle(shairportSyncClientSkeleton,
-                                                         "Not Available");
-
+  g_dbus_interface_skeleton_export(G_DBUS_INTERFACE_SKELETON(shairportSyncSkeleton), connection,
+                                   "/org/gnome/ShairportSync", NULL);
+  g_dbus_interface_skeleton_export(G_DBUS_INTERFACE_SKELETON(shairportSyncClientSkeleton),
+                                   connection, "/org/gnome/ShairportSync", NULL);
+  g_dbus_interface_skeleton_export(G_DBUS_INTERFACE_SKELETON(shairportSyncDiagnosticsSkeleton),
+                                   connection, "/org/gnome/ShairportSync", NULL);
+  g_dbus_interface_skeleton_export(G_DBUS_INTERFACE_SKELETON(shairportSyncRemoteControlSkeleton),
+                                   connection, "/org/gnome/ShairportSync", NULL);
+  g_dbus_interface_skeleton_export(
+      G_DBUS_INTERFACE_SKELETON(shairportSyncAdvancedRemoteControlSkeleton), connection,
+      "/org/gnome/ShairportSync", NULL);
 
   debug(1, "Shairport Sync native D-Bus service started at \"%s\" on the %s bus.", name,
         (dbus_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");

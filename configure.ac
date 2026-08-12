@@ -390,6 +390,8 @@ if test "x$with_mpris_test_client" = "xyes" || test "x$with_dbus_test_client" = 
   PKG_CHECK_MODULES([glib], [gio-unix-2.0 >= 2.30.0],[CFLAGS="${glib_CFLAGS} ${CFLAGS}" LIBS="${glib_LIBS} ${LIBS}"],[AC_MSG_ERROR(the glib 2.0 library is required -- libglib2.0-dev suggested!)])
 fi
 
+AM_CONDITIONAL([ADD_DBUS_SUPPORT], [test "x$with_mpris_interface" = "xyes" || test "x$with_dbus_interface" = "xyes"])
+
 # Look for mqtt flag
 AC_ARG_WITH(mqtt-client, [AS_HELP_STRING([--with-mqtt-client],[include a client for MQTT -- the Message Queuing Telemetry Transport protocol])])
 if test "x$with_mqtt_client" = "xyes" ; then

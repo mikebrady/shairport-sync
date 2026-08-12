@@ -45,16 +45,17 @@
     <property name="FileAndLine" type="b" access="readwrite" />
   </interface>  
   <interface name="org.gnome.ShairportSync.Client">
-    <method name="SetRepeat">
-      <arg name="mode" type="s" direction="in" />
-    </method>
-    <property name='Repeat' type='s' access='read'/>
+    <property name='SampleProperty' type='s' access='readwrite'/>
     <method name="SetShuffle">
       <arg name="mode" type="s" direction="in" />
     </method>
     <property name='Shuffle' type='s' access='read'/>
-    <property name='NowPlayingInformation' type='a{sv}' access='read'/>
-    <property name='CommandInformation' type='av' access='read'/>
+    <property name='NowPlayingInformation' type='a{sv}' access='read'>
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="invalidates"/>
+    </property>
+    <property name='CommandInformation' type='av' access='read'>
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="invalidates"/>
+    </property>
   </interface>
   <interface name="org.gnome.ShairportSync.RemoteControl">
     <method name='FastForward'/>
@@ -86,7 +87,7 @@
     <property name='Available' type='b' access='read'/>
     <property name='PlaybackStatus' type='s' access='read'/>
     <property name='Shuffle' type='b' access='read'/>
-    <property name='LoopStatus' type='s' access='read'/>
+    <property name='LoopStatus' type='s' access='readwrite'/>
     <property name="Volume" type="i" access="read" />
     <method name="SetVolume">
       <arg name="volume" type="i" direction="in" />

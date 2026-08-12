@@ -98,7 +98,7 @@
 #endif
 
 #ifdef CONFIG_DBUS_INTERFACE
-#include "dbus-service.h"
+#include "dbus/dbus-service.h"
 #endif
 
 #ifdef CONFIG_MQTT
@@ -106,7 +106,7 @@
 #endif
 
 #ifdef CONFIG_MPRIS_INTERFACE
-#include "mpris-service.h"
+#include "dbus/mpris-service.h"
 #endif
 
 #ifdef CONFIG_LIBDAEMON

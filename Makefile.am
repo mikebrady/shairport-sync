@@ -196,16 +196,20 @@ CLEANFILES +=plists/get_info_response.h plists/get_info_response.c
 
 endif
 
+if ADD_DBUS_SUPPORT
+shairport_sync_SOURCES += dbus/property-preflight/property-preflight.c
+endif
+
 if USE_DBUS
 shairport_sync_LDADD += lib_dbus_interface.a
 noinst_LIBRARIES += lib_dbus_interface.a
 lib_dbus_interface_a_SOURCES = dbus-interface.c
-shairport_sync_SOURCES += dbus-service.c
+shairport_sync_SOURCES += dbus/dbus-service.c dbus/property-preflight/property-preflight-shairportsync.c
 BUILT_SOURCES += dbus-interface.h dbus-interface.c
 CLEANFILES += dbus-interface.h dbus-interface.c
 
-dbus-interface.c:  org.gnome.ShairportSync.xml
-	gdbus-codegen --interface-prefix org.gnome --generate-c-code dbus-interface $(top_srcdir)/org.gnome.ShairportSync.xml
+dbus-interface.c:  dbus/org.gnome.ShairportSync.xml
+	gdbus-codegen --interface-prefix org.gnome --generate-c-code dbus-interface $(top_srcdir)/dbus/org.gnome.ShairportSync.xml
 dbus-interface.h: dbus-interface.c
 	touch dbus-interface.h
 endif
@@ -214,12 +218,12 @@ if USE_MPRIS
 shairport_sync_LDADD += lib_mpris_interface.a
 noinst_LIBRARIES += lib_mpris_interface.a
 lib_mpris_interface_a_SOURCES = mpris-interface.c
-shairport_sync_SOURCES += mpris-service.c
+shairport_sync_SOURCES += dbus/mpris-service.c dbus/property-preflight/property-preflight-mpris.c
 BUILT_SOURCES += mpris-interface.h mpris-interface.c
 CLEANFILES += mpris-interface.h mpris-interface.c
 
-mpris-interface.c:  org.mpris.MediaPlayer2.xml
-	gdbus-codegen --interface-prefix org.mpris --generate-c-code mpris-interface $(top_srcdir)/org.mpris.MediaPlayer2.xml
+mpris-interface.c:  dbus/org.mpris.MediaPlayer2.xml
+	gdbus-codegen --interface-prefix org.mpris --generate-c-code mpris-interface $(top_srcdir)/dbus/org.mpris.MediaPlayer2.xml
 mpris-interface.h: mpris-interface.c
 	touch mpris-interface.h
 endif
