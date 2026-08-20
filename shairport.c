@@ -125,7 +125,8 @@
 #endif
 
 #ifdef CONFIG_CONVOLUTION
-#include <FFTConvolver/convolver.h>
+#include <sndfile.h>
+#include "FFTConvolver/convolver.h"
 #endif
 
 pid_t pid;
@@ -572,9 +573,11 @@ int parse_options(int argc, char **argv) {
 
   // config.osvers = strdup(VERSION);
   config.osvers = strdup("15.0");
-  
+
+#ifdef CONFIG_AIRPLAY_2
   config.volumeControlType = 3; // 0 in AP2 seems to mean don't show the volume controls on the
                                 // player. 0 -- 4. 3 seems normal.
+#endif
 
   config.vv = 0;
 
@@ -1783,6 +1786,9 @@ int parse_options(int argc, char **argv) {
   config.airplay_features |= (((uint64_t)1 << 46) | ((uint64_t)1 << 47));
   // Bit 46 seems to mean	SupportsHKPairingAndAccessControl	HomeKit-based pairing and access control support
   // Bit 47 seems necessary too, but is undocumented.
+
+  // This is undocumented, but is set on the APX.
+  // config.airplay_features |= (uint64_t)1 << 22 ;
 
   // debug(1, "Features: 0x%" PRIx64 ", unmask: 0x%" PRIx64 ", mask: 0x%" PRIx64 ".", config.airplay_features, unmask, mask);
 
@@ -3370,8 +3376,14 @@ int main(int argc, char **argv) {
   debug(option_print_level, "convolution maximum length is %f seconds.",
         config.convolution_max_length_in_seconds);
   debug(option_print_level, "convolution gain is %f", config.convolution_gain);
-  sanity_check_ir_files(option_print_level, config.convolution_ir_files,
+  int convolution_ir_files_status = sanity_check_ir_files(option_print_level, config.convolution_ir_files,
                         config.convolution_ir_file_count);
+  if (convolution_ir_files_status != 0) { // if non zero, it's the index of the errant file + 1                 
+    debug(option_print_level, "convolution impulse response file \"%s\" %s", config.convolution_ir_files[convolution_ir_files_status - 1].filename,
+          sf_strerror(NULL));
+    warn("Error accessing the convolution impulse response file \"%s\". %s", config.convolution_ir_files[convolution_ir_files_status - 1].filename,
+         sf_strerror(NULL));
+  }
 #endif
   debug(option_print_level, "loudness_enabled is %s.",
         config.loudness_enabled != 0 ? "true" : "false");

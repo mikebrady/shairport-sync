@@ -52,17 +52,10 @@ static const char *simple_command_strings[] = {
 
 #ifdef CONFIG_AIRPLAY_2
 #include "ap2_event_receiver.h"
+#include "utilities/general_utilities.h"
 #include "utilities/generate_random_uuid.h"
 #include "utilities/rtsp_message_utilities.h"
 #include "utilities/structured_buffer.h"
-
-double airplayVolumeToUnitVolume(double airplayVolume) {
-  double response = 0.0;
-  if ((airplayVolume >= -30.0) && (airplayVolume <= 0.0)) {
-    response = airplayVolume / 30.0 + 1.0;
-  }
-  return response;
-}
 
 plist_t prepareNSKeyedArchiver(const char *uid) {
   // this creates a BASE64 encoding of a bplist of an NSKeyedArchiver-encoded
@@ -466,7 +459,7 @@ void remote_increment_volume(int up) {
 #endif
 
 void remote_volumeup() {
-int available = 0;
+// int available = 0;
 #ifdef CONFIG_DACP_CLIENT
   if (metadata_store.dacp_server_active) {
     debug(4, "remote_volumeup -- DACP active.");
@@ -474,7 +467,7 @@ int available = 0;
   }
 #endif
 #ifdef CONFIG_AIRPLAY_2
-if (available == 0)
+// if (available == 0)
   remote_increment_volume(1); // increment up
 #endif
 }
@@ -495,7 +488,8 @@ if (available == 0)
 }
 
 // this is the "advanced" set volume capability in the Music app on classic AirPlay only.
-void remote_set_integer_percent_volume(const int volume) {
+int remote_set_integer_percent_volume(const int volume) {
+  int handled = 1;
   int available = 0;
 #ifdef CONFIG_DACP_CLIENT
   available = metadata_store.advanced_dacp_server_active;
@@ -513,9 +507,11 @@ void remote_set_integer_percent_volume(const int volume) {
     }
   }
 #endif
+  return handled;
 }
 
-void remote_set_airplay_volume(double volume) {
+int remote_set_airplay_volume(double volume) {
+  int handled = 1;
   int available = 0;
 #ifdef CONFIG_DACP_CLIENT
   available = metadata_store.dacp_server_active;
@@ -531,6 +527,7 @@ void remote_set_airplay_volume(double volume) {
     ap2_remote_set_volume(volume);
   }
 #endif
+  return handled;
 }
 
 void remote_simple_command(simple_command_t command) {
@@ -613,7 +610,8 @@ int remote_set_repeat_mode(repeat_status_type mode) {
   return handled;
 }  
 
-void remote_set_shuffle_mode(shuffle_status_type mode) {  
+int remote_set_shuffle_mode(shuffle_status_type mode) { 
+  int handled = 1; //default 
   pthread_rwlock_rdlock(&principal_conn_lock); // don't let the principal_conn be changed
   pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
   if (principal_conn != NULL) {
@@ -623,7 +621,7 @@ void remote_set_shuffle_mode(shuffle_status_type mode) {
       command_handled_in_airplay_2 = 1; // handled even if not successful
       switch (mode) {
         case SS_OFF:
-          ap2_event_send_set_shuffle_mode(1); // seems top be shuffle off
+          ap2_event_send_set_shuffle_mode(1); // seems to be shuffle off
           break;
         case SS_ON:
           ap2_event_send_set_shuffle_mode(3); // seems to be shuffle songs
@@ -656,4 +654,5 @@ void remote_set_shuffle_mode(shuffle_status_type mode) {
 #endif
   }
   pthread_cleanup_pop(1); // release the principal_conn lock
+  return handled;
 }  

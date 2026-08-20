@@ -51,6 +51,7 @@
 
 #include "remote/remote.h"
 #include "utilities/exit.h"
+#include "utilities/general_utilities.h"
 
 #ifdef CONFIG_CONVOLUTION
 #include <FFTConvolver/convolver.h>
@@ -77,6 +78,9 @@ void dbus_metadata_watcher(struct metadata_bundle *argc) {
 
   shairport_sync_remote_control_set_airplay_volume(shairportSyncRemoteControlSkeleton,
                                                    argc->airplay_volume);
+  shairport_sync_advanced_remote_control_set_volume(shairportSyncAdvancedRemoteControlSkeleton,
+                                                   lround(100 * airplayVolumeToUnitVolume(argc->airplay_volume)));
+
 
   shairport_sync_remote_control_set_client(shairportSyncRemoteControlSkeleton, argc->client_ip);
   shairport_sync_remote_control_set_client_name(shairportSyncRemoteControlSkeleton,
@@ -219,27 +223,20 @@ void dbus_metadata_watcher(struct metadata_bundle *argc) {
   }
 
   //
-  gboolean shuffle_is_on = FALSE;
+ 
   switch (argc->shuffle_status) {
   case SS_NOT_AVAILABLE:
-    shuffle_is_on = FALSE;
-    shairport_sync_client_set_shuffle(shairportSyncClientSkeleton, "Not Available");
+    shairport_sync_advanced_remote_control_set_shuffle(shairportSyncAdvancedRemoteControlSkeleton, "Not Available");
     break;
   case SS_OFF:
-    shuffle_is_on = FALSE;
-    shairport_sync_client_set_shuffle(shairportSyncClientSkeleton, "Off");
+    shairport_sync_advanced_remote_control_set_shuffle(shairportSyncAdvancedRemoteControlSkeleton, "Off");
     break;
   case SS_ON:
-    shuffle_is_on = TRUE;
-    shairport_sync_client_set_shuffle(shairportSyncClientSkeleton, "On");
+    shairport_sync_advanced_remote_control_set_shuffle(shairportSyncAdvancedRemoteControlSkeleton, "On");
     break;
   default:
-    shuffle_is_on = FALSE;
-    shairport_sync_client_set_shuffle(shairportSyncClientSkeleton, "Error");
+    shairport_sync_advanced_remote_control_set_shuffle(shairportSyncAdvancedRemoteControlSkeleton, "Error");
   }
-
-  shairport_sync_advanced_remote_control_set_shuffle(shairportSyncAdvancedRemoteControlSkeleton,
-                                                     shuffle_is_on);
 
   // Build the metadata array
   // debug(2, "Build metadata");
@@ -542,18 +539,6 @@ gboolean notify_statistics_callback(ShairportSyncDiagnostics *skeleton,
   return TRUE;
 }
 
-gboolean notify_sample_property_callback(ShairportSyncClient *skeleton,
-                                         __attribute__((unused)) gpointer user_data) {
-  debug(1, ">> sample_property_is \"%s\".", shairport_sync_client_get_sample_property(skeleton));
-  return TRUE;
-}
-
-gboolean notify_loop_status_callback(__attribute__((unused)) ShairportSyncClient *skeleton,
-                                     __attribute__((unused)) gpointer user_data) {
-  debug(1, "notify_loop_status_callback does nothing -- it's done in preflight.");
-  return TRUE;
-}
-
 gboolean notify_verbosity_callback(ShairportSyncDiagnostics *skeleton,
                                    __attribute__((unused)) gpointer user_data) {
   gint th = shairport_sync_diagnostics_get_verbosity(skeleton);
@@ -571,6 +556,8 @@ gboolean notify_verbosity_callback(ShairportSyncDiagnostics *skeleton,
   return TRUE;
 }
 
+/*
+// this is no longer needed at all
 gboolean notify_disable_standby_callback(ShairportSync *skeleton,
                                          __attribute__((unused)) gpointer user_data) {
   // debug(1, "\"notify_disable_standby_callback\" called.");
@@ -583,7 +570,6 @@ gboolean notify_disable_standby_callback(ShairportSync *skeleton,
   }
   return TRUE;
 }
-
 #ifdef CONFIG_CONVOLUTION
 gboolean notify_convolution_enabled_callback(ShairportSync *skeleton,
                                              __attribute__((unused)) gpointer user_data) {
@@ -605,6 +591,7 @@ gboolean notify_convolution_enabled_callback(__attribute__((unused)) ShairportSy
   return TRUE;
 }
 #endif
+
 
 #ifdef CONFIG_CONVOLUTION
 gboolean
@@ -651,6 +638,7 @@ gboolean notify_convolution_gain_callback(__attribute__((unused)) ShairportSync 
   return TRUE;
 }
 #endif
+
 #ifdef CONFIG_CONVOLUTION
 gboolean
 notify_convolution_impulse_response_files_callback(ShairportSync *skeleton,
@@ -778,6 +766,7 @@ gboolean notify_alacdecoder_callback(ShairportSync *skeleton,
   return TRUE;
 }
 
+
 gboolean notify_interpolation_callback(ShairportSync *skeleton,
                                        __attribute__((unused)) gpointer user_data) {
   char *th = (char *)shairport_sync_get_interpolation(skeleton);
@@ -858,6 +847,7 @@ gboolean notify_volume_control_profile_callback(ShairportSync *skeleton,
   }
   return TRUE;
 }
+*/
 
 static gboolean on_handle_quit(ShairportSync *skeleton, GDBusMethodInvocation *invocation,
                                __attribute__((unused)) const gchar *command,
@@ -871,11 +861,16 @@ static gboolean on_handle_quit(ShairportSync *skeleton, GDBusMethodInvocation *i
 static gboolean on_handle_mule(ShairportSync *skeleton, GDBusMethodInvocation *invocation,
                                const gint parameter, __attribute__((unused)) gpointer user_data) {
   debug(1, "Mule with parameter %d.", parameter);
+#ifdef CONFIG_AIRPLAY_2
   ap2_event_send_dev_mule(parameter);
+#else
+  debug(1, "Mule is only availabe in AirPlay 2 builds.");
+#endif
   shairport_sync_complete_mule(skeleton, invocation);
   return TRUE;
 }
 
+/*
 static gboolean on_handle_set_shuffle(ShairportSyncClient *skeleton,
                                       GDBusMethodInvocation *invocation, const gchar *modeString,
                                       __attribute__((unused)) gpointer user_data) {
@@ -895,6 +890,7 @@ static gboolean on_handle_set_shuffle(ShairportSyncClient *skeleton,
   shairport_sync_client_complete_set_shuffle(skeleton, invocation);
   return TRUE;
 }
+*/
 
 static gboolean on_handle_remote_command(ShairportSync *skeleton, GDBusMethodInvocation *invocation,
                                          const gchar *command,
@@ -998,16 +994,9 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
   if (config.volume_control_profile == VCP_standard)
     shairport_sync_set_volume_control_profile(SHAIRPORT_SYNC(shairportSyncSkeleton), "Standard");
   else if (config.volume_control_profile == VCP_dasl_tapered)
-    shairport_sync_set_volume_control_profile(SHAIRPORT_SYNC(shairportSyncSkeleton),
-                                              "Dasl_Tapered");
+    shairport_sync_set_volume_control_profile(SHAIRPORT_SYNC(shairportSyncSkeleton), "DASL");
   else
     shairport_sync_set_volume_control_profile(SHAIRPORT_SYNC(shairportSyncSkeleton), "Flat");
-
-  if (config.keep_dac_busy == 0) {
-    shairport_sync_set_disable_standby(SHAIRPORT_SYNC(shairportSyncSkeleton), FALSE);
-  } else {
-    shairport_sync_set_disable_standby(SHAIRPORT_SYNC(shairportSyncSkeleton), TRUE);
-  }
 
   if (config.loudness_enabled == 0) {
     shairport_sync_set_loudness_enabled(SHAIRPORT_SYNC(shairportSyncSkeleton), FALSE);
@@ -1092,7 +1081,6 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
   shairport_sync_client_set_now_playing_information(shairportSyncClientSkeleton, g_variant_new_array (G_VARIANT_TYPE ("{sv}"), NULL, 0));
   shairport_sync_client_set_command_information(shairportSyncClientSkeleton, g_variant_new_array (G_VARIANT_TYPE ("v"), NULL, 0));
 
-
   shairport_sync_remote_control_set_player_state(shairportSyncRemoteControlSkeleton,
                                                  "Not Available");
   shairport_sync_advanced_remote_control_set_playback_status(
@@ -1101,38 +1089,38 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
   shairport_sync_advanced_remote_control_set_loop_status(shairportSyncAdvancedRemoteControlSkeleton,
                                                          "Not Available");
 
-  shairport_sync_client_set_shuffle(shairportSyncClientSkeleton, "Not Available");
+  shairport_sync_advanced_remote_control_set_shuffle(shairportSyncAdvancedRemoteControlSkeleton, "Not Available");
 
   usleep(20000); // allow settings to be made before connecting the callbacks.
   
   // connect up the callbacks
 
-  g_signal_connect(shairportSyncSkeleton, "notify::interpolation",
-                   G_CALLBACK(notify_interpolation_callback), NULL);
-  g_signal_connect(shairportSyncSkeleton, "notify::alacdecoder",
-                   G_CALLBACK(notify_alacdecoder_callback), NULL);
-  g_signal_connect(shairportSyncSkeleton, "notify::disable-standby-mode",
-                   G_CALLBACK(notify_disable_standby_mode_callback), NULL);
-  g_signal_connect(shairportSyncSkeleton, "notify::volume-control-profile",
-                   G_CALLBACK(notify_volume_control_profile_callback), NULL);
-  g_signal_connect(shairportSyncSkeleton, "notify::disable-standby",
-                   G_CALLBACK(notify_disable_standby_callback), NULL);
-  g_signal_connect(shairportSyncSkeleton, "notify::convolution-enabled",
-                   G_CALLBACK(notify_convolution_enabled_callback), NULL);
-  g_signal_connect(shairportSyncSkeleton, "notify::convolution-gain",
-                   G_CALLBACK(notify_convolution_gain_callback), NULL);
-  g_signal_connect(shairportSyncSkeleton, "notify::convolution-maximum-length-in-seconds",
-                   G_CALLBACK(notify_convolution_maximum_length_in_seconds_callback), NULL);
-  g_signal_connect(shairportSyncSkeleton, "notify::convolution-impulse-response-files",
-                   G_CALLBACK(notify_convolution_impulse_response_files_callback), NULL);
-  g_signal_connect(shairportSyncSkeleton, "notify::loudness-enabled",
-                   G_CALLBACK(notify_loudness_enabled_callback), NULL);
-  g_signal_connect(shairportSyncSkeleton, "notify::loudness-threshold",
-                   G_CALLBACK(notify_loudness_threshold_callback), NULL);
-  g_signal_connect(shairportSyncSkeleton, "notify::drift-tolerance",
-                   G_CALLBACK(notify_drift_tolerance_callback), NULL);
-  g_signal_connect(shairportSyncSkeleton, "notify::volume", G_CALLBACK(notify_volume_callback),
-                   NULL);
+  // g_signal_connect(shairportSyncSkeleton, "notify::interpolation",
+  //                  G_CALLBACK(notify_interpolation_callback), NULL);
+  // g_signal_connect(shairportSyncSkeleton, "notify::alacdecoder",
+  //                  G_CALLBACK(notify_alacdecoder_callback), NULL);
+  // g_signal_connect(shairportSyncSkeleton, "notify::disable-standby-mode",
+  //                  G_CALLBACK(notify_disable_standby_mode_callback), NULL);
+  // g_signal_connect(shairportSyncSkeleton, "notify::volume-control-profile",
+  //                  G_CALLBACK(notify_volume_control_profile_callback), NULL);
+  // g_signal_connect(shairportSyncSkeleton, "notify::disable-standby",
+  //                 G_CALLBACK(notify_disable_standby_callback), NULL);
+  // g_signal_connect(shairportSyncSkeleton, "notify::convolution-enabled",
+  //                 G_CALLBACK(notify_convolution_enabled_callback), NULL);
+  // g_signal_connect(shairportSyncSkeleton, "notify::convolution-gain",
+  //                  G_CALLBACK(notify_convolution_gain_callback), NULL);
+  // g_signal_connect(shairportSyncSkeleton, "notify::convolution-maximum-length-in-seconds",
+  //                 G_CALLBACK(notify_convolution_maximum_length_in_seconds_callback), NULL);
+  // g_signal_connect(shairportSyncSkeleton, "notify::convolution-impulse-response-files",
+  //                  G_CALLBACK(notify_convolution_impulse_response_files_callback), NULL);
+  // g_signal_connect(shairportSyncSkeleton, "notify::loudness-enabled",
+  //                  G_CALLBACK(notify_loudness_enabled_callback), NULL);
+  // g_signal_connect(shairportSyncSkeleton, "notify::loudness-threshold",
+  //                  G_CALLBACK(notify_loudness_threshold_callback), NULL);
+  // g_signal_connect(shairportSyncSkeleton, "notify::drift-tolerance",
+  //                  G_CALLBACK(notify_drift_tolerance_callback), NULL);
+  // g_signal_connect(shairportSyncSkeleton, "notify::volume", G_CALLBACK(notify_volume_callback),
+  //                  NULL);
 
   g_signal_connect(shairportSyncSkeleton, "handle-quit", G_CALLBACK(on_handle_quit), NULL);
 
@@ -1147,14 +1135,14 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
   g_signal_connect(shairportSyncSkeleton, "handle-set-frame-position-update-interval",
                    G_CALLBACK(on_handle_set_frame_position_update_interval), NULL);
 
-  g_signal_connect(shairportSyncClientSkeleton, "handle-set-shuffle",
-                   G_CALLBACK(on_handle_set_shuffle), NULL);
+  // g_signal_connect(shairportSyncClientSkeleton, "handle-set-shuffle",
+  //                 G_CALLBACK(on_handle_set_shuffle), NULL);
 
   // g_signal_connect(shairportSyncClientSkeleton, "notify::loop-status",
   //                 G_CALLBACK(notify_loop_status_callback), NULL);
 
-  g_signal_connect(shairportSyncClientSkeleton, "notify::sample-property",
-                   G_CALLBACK(notify_sample_property_callback), NULL);
+  // g_signal_connect(shairportSyncClientSkeleton, "notify::sample-property",
+  //                  G_CALLBACK(notify_sample_property_callback), NULL);
 
   g_signal_connect(shairportSyncDiagnosticsSkeleton, "notify::verbosity",
                    G_CALLBACK(notify_verbosity_callback), NULL);

@@ -799,9 +799,10 @@ void metadata_hub_reset_npi(metadata_npi_bundle *npi) {
   invalidate_string_record(&npi->sort_album);
   invalidate_string_record(&npi->sort_composer);
   invalidate_uint64_record(&npi->songtime_in_microseconds);
+#ifdef CONFIG_AIRPLAY_2
   if (npi->npi_plist != NULL) {
     plist_free(npi->npi_plist);
     npi->npi_plist = NULL;
   }
-  // memset(npi, 0, sizeof(metadata_npi_bundle));
+#endif
 }

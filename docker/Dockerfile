@@ -43,6 +43,7 @@ RUN apk -U add \
         automake \
         build-base \
         git \
+        pkgconf \
         linux-headers
 
 ARG NQPTP_BRANCH

@@ -187,8 +187,10 @@ void cancel_all_RTSP_threads(airplay_stream_c stream_category, int except_this_o
         ((conns[i]->airplay_stream_category == stream_category) ||
          (stream_category == unspecified_stream_category))) {
       pthread_cancel(conns[i]->thread);
+#ifdef CONFIG_AIRPLAY_2
       debug(2, "Connection %d from \"%s\": %s cancelled.", conns[i]->connection_number,
             conns[i]->ap2_client_name, get_category_string(conns[i]->airplay_stream_category));
+#endif
     }
   }
   for (i = 0; i < nconns; i++) {
@@ -263,7 +265,7 @@ int terminate_conn(int connection_number) {
   pthread_mutex_unlock(&conns_lock);
 #ifdef CONFIG_METADATA
   if (found) {
-    debug(4, "Connection %d: is being terminated; terminate_conn is sending 'prmp'", connection_number);
+    debug(1, "Connection %d: is being terminated; terminate_conn is sending 'prmp'", connection_number);
     send_ssnc_metadata('prmp', (const char *)&connection_number, sizeof(connection_number), 1); // PRe-eMPted 
   }
 #endif
@@ -321,7 +323,7 @@ void release_play_lock(rtsp_conn_info *conn) {
     config.airplay_statusflags &= (0xffffffff - (1 << 17)); // ReceiverSessionIsActive
     build_bonjour_strings(principal_conn);
     mdns_update(txt_records, secondary_txt_records);
-      debug(2, "Connection %d: %s released principal_conn.", conn->connection_number,
+    debug(1, "Connection %d: (%s) has released play lock.", conn->connection_number,
             get_category_string(conn->airplay_stream_category));
     }
     principal_conn = NULL; // let it go
@@ -344,7 +346,7 @@ typedef enum {
 play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) {
   play_lock_r response = play_lock_aquisition_failed;
   if (conn != NULL) {
-    debug(2, "Connection %d: %s get_play_lock with allow_session_interruption of %d.",
+    debug(2, "Connection %d: (%s) get_play_lock with allow_session_interruption of %d.",
           conn->connection_number, get_category_string(conn->airplay_stream_category),
           allow_session_interruption);
 
@@ -352,36 +354,34 @@ play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) 
     pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
 
     if (principal_conn == conn) {
-      debug(2, "Connection %d: %s already has principal_conn.", principal_conn->connection_number,
+      debug(2, "Connection %d: (%s) already has principal_conn.", principal_conn->connection_number,
             get_category_string(conn->airplay_stream_category));
     } else {
       if (principal_conn != NULL)
-        debug(2, "Connection %d: %s is requested to relinquish principal_conn.",
+        debug(2, "Connection %d: (%s) is requested to relinquish principal_conn.",
               principal_conn->connection_number,
               get_category_string(conn->airplay_stream_category));
-      if (conn != NULL)
-        debug(2, "Connection %d: %s request to acquire principal_conn.", conn->connection_number,
-              get_category_string(conn->airplay_stream_category));
+      debug(2, "Connection %d: (%s) request to acquire principal_conn.", conn->connection_number,
+            get_category_string(conn->airplay_stream_category));
     }
 
     if (principal_conn == conn) {
-      if (conn == NULL)
-        response = play_lock_already_released;
-      else
         response = play_lock_already_acquired;
     } else if (principal_conn == NULL) {
-      // already unlocked, and principal conn not NULL
+      // no other connection already has play lock 
       principal_conn = conn;
       config.airplay_statusflags |= (1 << 17); // ReceiverSessionIsActive
       build_bonjour_strings(conn);
       mdns_update(txt_records, secondary_txt_records);
       response = play_lock_acquired_without_breaking_in;
-    } else if (allow_session_interruption != 0) { // principal conn not NULL,
-      debug(4, "Connection %d: about to be terminated.", principal_conn->connection_number);
+    } else if (allow_session_interruption != 0) { // principal conn is not NULL,
+      debug(4, "Connection %d: (%s) about to be terminated.", principal_conn->connection_number, get_category_string(conn->airplay_stream_category));
       rtsp_conn_info *previous_principal_conn = principal_conn;
       principal_conn = conn; // make the conn the new principal_conn
+      debug(1,  "Connection %d: (%s) is pre-empting play lock from connection %d.", conn->connection_number,
+            get_category_string(conn->airplay_stream_category), previous_principal_conn->connection_number);
       terminate_conn(previous_principal_conn->connection_number);
-      debug(4, "Connection successfully terminated.");
+      /*
       if (principal_conn == NULL) {
 #ifdef CONFIG_AIRPLAY_2
         if (conn->airplay_gid) {
@@ -395,19 +395,22 @@ play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) 
 
         response = play_lock_released;
       } else {
+      */
+      if (1) {
         config.airplay_statusflags |= (1 << 17); // ReceiverSessionIsActive
         build_bonjour_strings(conn);
         mdns_update(txt_records, secondary_txt_records);
         response = play_lock_acquired_by_breaking_in;
       }
     }
-    if ((principal_conn != NULL) && (response != play_lock_already_acquired))
-      debug(2, "Connection %d: %s has principal_conn.", conn->connection_number,
+//    if ((principal_conn != NULL) && (response != play_lock_already_acquired))
+    if (response != play_lock_already_acquired) {
+      debug(1, "Connection %d: (%s) has acquired play lock.", conn->connection_number,
             get_category_string(conn->airplay_stream_category));
+    }
     pthread_cleanup_pop(1); // release the principal_conn lock
-
   } else {
-    debug(1, "Connection %d: %s get_play_lock must have a non-NULL conn.", conn->connection_number,
+    debug(1, "Connection %d: (%s) get_play_lock must have a non-NULL conn.", conn->connection_number,
           get_category_string(conn->airplay_stream_category));
   }
   return response;
@@ -1692,7 +1695,7 @@ void handle_pair_verify(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *r
     mstage = '0' + b[2];
   }
 
-  debug(1, "Connection %d from \"%s\": handle_pair_verify, stage M%c, Content-Length %d",
+  debug(2, "Connection %d from \"%s\": handle_pair_verify, stage M%c, Content-Length %d",
         conn->connection_number, conn->ap2_client_name, mstage, req->contentlength);
   debug_log_rtsp_message_conn(conn, 2, "pair-verify request", req);
   int ret;
@@ -4220,7 +4223,6 @@ static void *rtsp_conversation_thread_func(void *pconn) {
             debug(dl, "Content: \"%s\".", obf);
           }
         }
-        resp->respcode = 200; // OK
       }
       debug(dl, "Connection %d: (%s) RTSP response:", conn->connection_number,
             get_category_string(conn->airplay_stream_category));

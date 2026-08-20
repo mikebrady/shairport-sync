@@ -3,7 +3,6 @@
   <interface name="org.gnome.ShairportSync">
     <method name="Quit"/>
     <property name='Active' type='b' access='read'/>
-    <property name="DisableStandby" type="b" access="readwrite" />
     <property name="DisableStandbyMode" type="s" access="readwrite" />
     <property name="LoudnessEnabled" type="b" access="readwrite" />
     <property name="LoudnessThreshold" type="d" access="readwrite" />
@@ -45,11 +44,6 @@
     <property name="FileAndLine" type="b" access="readwrite" />
   </interface>  
   <interface name="org.gnome.ShairportSync.Client">
-    <property name='SampleProperty' type='s' access='readwrite'/>
-    <method name="SetShuffle">
-      <arg name="mode" type="s" direction="in" />
-    </method>
-    <property name='Shuffle' type='s' access='read'/>
     <property name='NowPlayingInformation' type='a{sv}' access='read'>
       <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="invalidates"/>
     </property>
@@ -76,7 +70,7 @@
     <property name='Client' type='s' access='read'/>
     <property name='ClientName' type='s' access='read'/>
     <property name='StreamType' type='s' access='read'/>
-    <property name='AirplayVolume' type='d' access='read'/>
+    <property name='AirplayVolume' type='d' access='readwrite'/>
     <method name="SetAirplayVolume">
       <arg name="volume" type="d" direction="in" />
     </method>
@@ -86,9 +80,9 @@
   <interface name="org.gnome.ShairportSync.AdvancedRemoteControl">
     <property name='Available' type='b' access='read'/>
     <property name='PlaybackStatus' type='s' access='read'/>
-    <property name='Shuffle' type='b' access='read'/>
+    <property name='Shuffle' type='s' access='readwrite'/>
     <property name='LoopStatus' type='s' access='readwrite'/>
-    <property name="Volume" type="i" access="read" />
+    <property name="Volume" type="i" access="readwrite" />
     <method name="SetVolume">
       <arg name="volume" type="i" direction="in" />
     </method>

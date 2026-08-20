@@ -30,8 +30,11 @@ noinst_LIBRARIES =
 shairport_sync_SOURCES = shairport.c bonjour_strings.c mdns.c common.c rtp.c \
   player.c audio.c loudness.c activity_monitor.c \
   rtsp.c \
-  utilities/debug.c utilities/network_utilities.c utilities/rtsp_message_utilities.c \
+  utilities/debug.c \
+  utilities/network_utilities.c \
+  utilities/rtsp_message_utilities.c \
   utilities/string_utilities.c \
+  utilities/general_utilities.c \
   utilities/exit.c
 
 if USE_REMOTE_CONTROL
@@ -133,6 +136,7 @@ shairport_sync_SOURCES += audio_pw.c
 endif
 
 if USE_CONVOLUTION
+shairport_sync_SOURCES += utilities/ir_file_support.c
 shairport_sync_SOURCES += FFTConvolver/AudioFFT.cpp FFTConvolver/FFTConvolver.cpp FFTConvolver/Utilities.cpp FFTConvolver/convolver.cpp FFTConvolver/ConvolverThreadPool.cpp
 AM_CXXFLAGS += -std=c++11
 endif
@@ -175,7 +179,6 @@ shairport_sync_SOURCES += ap2_buffered_audio_processor.c \
   ptp-utilities.c \
   utilities/buffered_read.c utilities/structured_buffer.c utilities/mod23.c \
   utilities/generate_random_uuid.c utilities/generate_device_uuid.c \
-  utilities/plist_gvariant_stuff.c \
   plists/get_info_response.c
 
 if USE_METADATA_HUB
@@ -198,6 +201,9 @@ endif
 
 if ADD_DBUS_SUPPORT
 shairport_sync_SOURCES += dbus/property-preflight/property-preflight.c
+if USE_AIRPLAY_2
+shairport_sync_SOURCES += utilities/plist_gvariant_stuff.c
+endif
 endif
 
 if USE_DBUS

@@ -1,0 +1,169 @@
+ARG NQPTP_BRANCH=main
+ARG FFMPEG_BRANCH=release/8.1
+ARG SHAIRPORT_SYNC_BRANCH=.
+
+FROM debian:stable-slim AS dev
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates 
+RUN apt-get install -y --no-install-recommends build-essential git autoconf automake libtool pkg-config
+    
+
+##### FFMPEGLITE #####
+FROM dev AS ffmpeglite
+RUN apt-get install -y --no-install-recommends nasm
+RUN mkdir -p /ffmpeg_sources /ffmpeg_build
+WORKDIR /ffmpeg_sources
+ARG FFMPEG_BRANCH
+RUN git clone --depth=1 -b "$FFMPEG_BRANCH" https://github.com/FFmpeg/FFmpeg
+WORKDIR /ffmpeg_sources/FFmpeg
+RUN ./configure \
+  --prefix="/ffmpeg_build" \
+  --extra-libs="-lpthread -lm" \
+  --ld="g++" \
+  --disable-static \
+  --enable-shared \
+  --enable-gpl \
+  --disable-programs \
+  --disable-everything \
+  --disable-doc \
+  --disable-iconv \
+  --disable-avdevice \
+  --disable-avfilter \
+  --disable-swscale \
+  --disable-network \
+  --disable-iamf \
+  --disable-pixelutils \
+  --enable-decoder=alac \
+  --enable-decoder=aac
+RUN make -j$(nproc)
+RUN make install
+##### FFMPEGLITE END #####
+
+##### NQPTP #####
+FROM dev AS nqptp
+
+ARG NQPTP_BRANCH
+RUN git clone --depth=1 -b "$NQPTP_BRANCH" https://github.com/mikebrady/nqptp
+WORKDIR /nqptp
+RUN autoreconf -i
+RUN ./configure
+RUN make -j$(nproc)
+WORKDIR /
+##### NQPTP END #####
+
+##### SPS-AIRPLAY-2-MINIMUM-DEV #####
+FROM dev AS shairport-sync-airplay-2-minimum-dev
+RUN apt-get install -y --no-install-recommends \
+    libpopt-dev libconfig-dev libasound2-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev \
+    libplist-dev libsodium-dev uuid-dev libgcrypt-dev xxd libplist-utils \
+    systemd-dev \
+    libavutil-dev libavcodec-dev libavformat-dev
+##### SPS-AIRPLAY-2-MINIMUM-DEV END #####
+
+##### SPS-CLASSIC-MINIMUM #####
+FROM shairport-sync-airplay-2-minimum-dev AS shairport-sync-classic-minimum
+ARG SHAIRPORT_SYNC_BRANCH
+WORKDIR /shairport-sync-classic-minimum
+COPY . .
+RUN rm -rf build
+# the above three lines or the following...
+# RUN git clone --depth=1 -b "SHAIRPORT_SYNC_BRANCH" https://github.com/mikebrady/sps-private shairport-sync
+
+# RUN git checkout "$SHAIRPORT_SYNC_BRANCH"
+# the following is to remove any build directory that might be there
+# not needed if the source is a clone of the repository
+# RUN rm -rf build
+WORKDIR /shairport-sync-classic-minimum/build
+RUN autoreconf -i ../
+RUN ../configure --sysconfdir=/etc --with-alsa --with-avahi --with-ssl=openssl --with-systemd-install
+RUN make -j$(nproc)
+RUN DESTDIR=install make install
+WORKDIR /
+##### SPS-CLASSIC-MINIMUM END #####
+
+##### SPS-CLASSIC-FFMPEG-MINIMUM #####
+FROM shairport-sync-airplay-2-minimum-dev AS shairport-sync-classic-ffmpeg-minimum
+ARG SHAIRPORT_SYNC_BRANCH
+WORKDIR /shairport-sync-classic-ffmpeg-minimum
+COPY . .
+RUN rm -rf build
+# the above three lines or the following...
+# RUN git clone --depth=1 -b "SHAIRPORT_SYNC_BRANCH" https://github.com/mikebrady/sps-private shairport-sync
+
+COPY --from=ffmpeglite /ffmpeg_build/lib/ /usr/local/lib
+COPY --from=ffmpeglite /ffmpeg_build/lib/pkgconfig/*.pc  /usr/local/lib/pkgconfig/
+COPY --from=ffmpeglite /ffmpeg_build/include/  /usr/local/include
+
+# RUN git checkout "$SHAIRPORT_SYNC_BRANCH"
+# the following is to remove any build directory that might be there
+# not needed if the source is a clone of the repository
+# RUN rm -rf build
+WORKDIR /shairport-sync-classic-ffmpeg-minimum/build
+RUN autoreconf -i ../
+RUN ../configure --sysconfdir=/etc --with-ffmpeg --with-alsa --with-avahi --with-ssl=openssl --with-systemd-install
+RUN make -j$(nproc)
+RUN DESTDIR=install make install
+WORKDIR /
+##### SPS-CLASSIC-FFMPEG-MINIMUM END #####
+
+##### SPS-AIRPLAY-2-MINIMUM #####
+FROM shairport-sync-airplay-2-minimum-dev AS shairport-sync-minimum
+ARG SHAIRPORT_SYNC_BRANCH
+WORKDIR /shairport-sync-minimum
+COPY . .
+RUN rm -rf build
+# the above three lines or the following...
+# RUN git clone --depth=1 -b "SHAIRPORT_SYNC_BRANCH" https://github.com/mikebrady/sps-private shairport-sync
+
+COPY --from=ffmpeglite /ffmpeg_build/lib/ /usr/local/lib
+COPY --from=ffmpeglite /ffmpeg_build/lib/pkgconfig/*.pc  /usr/local/lib/pkgconfig/
+COPY --from=ffmpeglite /ffmpeg_build/include/  /usr/local/include
+
+# RUN git checkout "$SHAIRPORT_SYNC_BRANCH"
+# the following is to remove any build directory that might be there
+# not needed if the source is a clone of the repository
+# RUN rm -rf build
+WORKDIR /shairport-sync-minimum/build
+RUN autoreconf -i ../
+RUN ../configure --sysconfdir=/etc --with-alsa --with-avahi --with-ssl=openssl --with-airplay-2 --with-systemd-install
+RUN make -j$(nproc)
+RUN DESTDIR=install make install
+WORKDIR /
+##### SPS-AIRPLAY-2-MINIMUM END #####
+
+
+##### SPS-AIRPLAY-2-EVERYTHING #####
+FROM shairport-sync-airplay-2-minimum-dev AS shairport-sync-with-everything
+RUN apt-get install -y  libglib2.0-dev libsndfile1-dev libpipewire-0.3-dev libsndio-dev libpulse-dev libmosquitto-dev
+ARG SHAIRPORT_SYNC_BRANCH
+WORKDIR /shairport-sync-everything
+COPY . .
+RUN rm -rf build
+# the above three lines or the following...
+# RUN git clone --depth=1 -b "SHAIRPORT_SYNC_BRANCH" https://github.com/mikebrady/sps-private shairport-sync
+
+COPY --from=ffmpeglite /ffmpeg_build/lib/ /usr/local/lib
+COPY --from=ffmpeglite /ffmpeg_build/lib/pkgconfig/*.pc  /usr/local/lib/pkgconfig/
+COPY --from=ffmpeglite /ffmpeg_build/include/  /usr/local/include
+
+# RUN git checkout "$SHAIRPORT_SYNC_BRANCH"
+# the following is to remove any build directory that might be there
+# not needed if the source is a clone of the repository
+# RUN rm -rf build
+WORKDIR /shairport-sync-everything/build
+RUN autoreconf -i ../
+RUN ../configure --sysconfdir=/etc --with-alsa --with-pulseaudio --with-soxr --with-avahi --with-ssl=openssl \
+        --with-airplay-2 --with-metadata --with-metadata-pipe --with-metadata-multicast \
+        --with-dummy --with-pipe --with-dbus-interface \
+        --with-stdout --with-mpris-interface --with-mqtt-client \
+        --with-convolution --with-pipewire \
+         --with-systemd-install
+RUN make -j$(nproc)
+RUN DESTDIR=install make install
+WORKDIR /
+##### SPS-AIRPLAY-2-EVERYTHING END #####
+
+CMD ["bash"]
+

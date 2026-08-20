@@ -109,10 +109,10 @@ static int get_permissible_configuration_settings() {
               s++;
           }
           if (fo == 0) {
-            debug(3, "sndio: output device can't deal with %u channels.", c);
+            debug(4, "sndio: output device can't deal with %u channel%s.", c, c==1 ? "" : "s");
             config.channel_set &= ~(1 << c); // remove this channel count
           } else {
-            debug(3, "sndio: output device can have %u channels.", c);
+            debug(3, "sndio: output device can have %u channel%s.", c, c==1 ? "" : "s");
           }
         }
       }
@@ -131,7 +131,7 @@ static int get_permissible_configuration_settings() {
               s++;
           }
           if (fo == 0) {
-            debug(3, "sndio: output device can't be set to %u fps.", sps_rate_actual_rate(r));
+            debug(4, "sndio: output device can't be set to %u fps.", sps_rate_actual_rate(r));
             config.rate_set &= ~(1 << r); // remove this rate
           } else {
             debug(3, "sndio: output device can be set to %u fps.", sps_rate_actual_rate(r));
@@ -159,11 +159,11 @@ static int get_permissible_configuration_settings() {
               }
             }
           } else {
-            debug(3, "sndio: no entry for format %s.", sps_format_description_string(f));
+            debug(4, "sndio: no entry for format %s.", sps_format_description_string(f));
           }
           if (found == 0) {
             if (format != 0)
-              debug(3, "sndio: output device can't be set to format %s.",
+              debug(4, "sndio: output device can't be set to format %s.",
                     sps_format_description_string(f));
             config.format_set &= ~(1 << f); // remove this format
           } else {
@@ -190,8 +190,7 @@ static int get_permissible_configuration_settings() {
             if ((config.format_set & (1 << f)) != 0) {
               for (c = 0; c <= 8; c++) {
                 if ((config.channel_set & (1 << c)) != 0) {
-                  // debug(1, "check %u/%s/%u.", sps_rate_actual_rate(r),
-                  // sps_format_description_string(f), c);
+                  
                   struct sio_par proposed_par, actual_par;
                   struct sndio_formats *format_info = sps_format_lookup(f);
                   sio_initpar(&proposed_par);
@@ -210,8 +209,9 @@ static int get_permissible_configuration_settings() {
                           (actual_par.sig == proposed_par.sig)) {
                         permissible_configurations[r][f][c] =
                             0; // i.e. no error, so remove the EINVAL
+                        debug(4, "sndio: the configuration \"%u/%s/%u\" is available.", sps_rate_actual_rate(r), sps_format_description_string(f), c);
                       } else {
-                        debug(3, "sndio: check_setting: could not set format exactly");
+                        debug(4, "sndio: the configuration \"%u/%s/%u\" is not available.", sps_rate_actual_rate(r), sps_format_description_string(f), c);
                       }
                     } else {
                       debug(1,

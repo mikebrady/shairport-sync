@@ -19,12 +19,12 @@ typedef enum {
   rcsc_rewind_stop,
 } simple_command_t;
 
-void remote_set_airplay_volume(double volume);
-void remote_set_integer_percent_volume(const int volume);
+int remote_set_airplay_volume(double volume);
+int remote_set_integer_percent_volume(const int volume);
 void remote_volumeup();
 void remote_volumedown();
 int remote_set_repeat_mode(repeat_status_type mode);
-void remote_set_shuffle_mode(shuffle_status_type mode);
+int remote_set_shuffle_mode(shuffle_status_type mode);
 void remote_simple_command(simple_command_t command);
 
 ssize_t ap2_event_send_dev_mule(unsigned int command_number);
