@@ -1,3 +1,8 @@
+Version 5.3-dev-21-g6966a74c
+==
+**Enhancement**
+* If the output rate is different to the input rate (e.g. 48,000 vs 44,100), look for the deepest output bit depth in order that the transcoder has the maximum dynamic range available so that it can minimise transcoding inaccuracies.
+
 Version 5.3-dev-19-gb69e01cd
 ==
 **Bug Fix**

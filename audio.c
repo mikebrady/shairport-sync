@@ -994,7 +994,7 @@ int32_t search_for_suitable_configuration(unsigned int channels, unsigned int ra
         }
 #ifdef CONFIG_FFMPEG
         if (local_format == SPS_FORMAT_UNKNOWN) {
-          debug(3, "check for the next highest rate above %u with %u channels.", rate,
+          debug(3, "check for the next highest rate above %u with %u channels and the best format.", rate,
                 local_channels);
           unsigned int rate_pointer = 0;
           while ((rate_pointer < sizeof(rates) / sizeof(unsigned int)) &&
@@ -1002,7 +1002,7 @@ int32_t search_for_suitable_configuration(unsigned int channels, unsigned int ra
             local_rate = rates[rate_pointer];
             if (local_rate > rate) {
               local_format = check_configuration_with_formats(
-                  local_channels, local_rate, (sps_format_t)format, check_configuration);
+                  local_channels, local_rate, SPS_FORMAT_S32, check_configuration);
             }
             if (local_format == SPS_FORMAT_UNKNOWN) {
               rate_pointer++;
@@ -1012,13 +1012,13 @@ int32_t search_for_suitable_configuration(unsigned int channels, unsigned int ra
 
         if (local_format == SPS_FORMAT_UNKNOWN) {
           int rate_pointer = (int)(sizeof(rates) / sizeof(unsigned int) - 1);
-          debug(3, "check for the next lowest rate below %u with %u channels.", rate,
+          debug(3, "check for the next lowest rate below %u with %u channels and the best format.", rate,
                 local_channels);
           while ((rate_pointer >= 0) && (local_format == SPS_FORMAT_UNKNOWN)) {
             local_rate = rates[rate_pointer];
             if (local_rate < rate) {
               local_format = check_configuration_with_formats(
-                  local_channels, local_rate, (sps_format_t)format, check_configuration);
+                  local_channels, local_rate, SPS_FORMAT_S32, check_configuration);
             }
             if (local_format == SPS_FORMAT_UNKNOWN) {
               rate_pointer--;
