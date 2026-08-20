@@ -1488,8 +1488,11 @@ int get_ptp_anchor_local_time_info(rtsp_conn_info *conn, uint32_t *anchorRTP,
     }
 
     if (conn->last_anchor_info_is_valid != 0) {
-      if (anchorRTP != NULL)
-        *anchorRTP = conn->last_anchor_rtptime;
+      if (anchorRTP != NULL) {
+        // Use the current rate in case the stream format has changed.
+        int32_t added_latency = (int32_t)(config.audio_backend_latency_offset * conn->input_rate);
+        *anchorRTP = conn->last_anchor_rtptime - added_latency;
+      }
       if (anchorLocalTime != NULL)
         *anchorLocalTime = conn->last_anchor_local_time;
     }
