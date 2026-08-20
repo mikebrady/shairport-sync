@@ -2793,6 +2793,17 @@ int main(int argc, char **argv) {
 
 #endif
 
+  // parse arguments into config -- needed to locate pid_dir
+  int audio_arg = parse_options(argc, argv);
+
+  if (display_config_selected != 0) {
+    display_config(argc, argv);
+    if (argc == 2) {
+      inform(">> Goodbye!");
+      exit(EXIT_SUCCESS);
+    }
+  }
+
   debug(2, "Log Verbosity is %d.", debug_level());
 
   config.output = audio_get_output(config.output_name);
@@ -3055,17 +3066,6 @@ int main(int argc, char **argv) {
   }
 
 #endif
-
-  // parse arguments into config -- needed to locate pid_dir
-  int audio_arg = parse_options(argc, argv);
-
-  if (display_config_selected != 0) {
-    display_config(argc, argv);
-    if (argc == 2) {
-      inform(">> Goodbye!");
-      exit(EXIT_SUCCESS);
-    }
-  }
 
   switch (config.endianness) {
   case SS_LITTLE_ENDIAN:
