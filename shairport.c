@@ -2539,16 +2539,16 @@ int main(int argc, char **argv) {
   daemon_pid_file_proc = pid_file_proc;
 
 #endif
-  // parse arguments into config -- needed to locate pid_dir
-  int audio_arg = parse_options(argc, argv);
+  // // parse arguments into config -- needed to locate pid_dir
+  // int audio_arg = parse_options(argc, argv);
 
-  if (display_config_selected != 0) {
-    display_config(argc, argv);
-    if (argc == 2) {
-      inform(">> Goodbye!");
-      exit(EXIT_SUCCESS);
-    }
-  }
+  // if (display_config_selected != 0) {
+  //   display_config(argc, argv);
+  //   if (argc == 2) {
+  //     inform(">> Goodbye!");
+  //     exit(EXIT_SUCCESS);
+  //   }
+  // }
 
   /* Check if we are called with -k or --kill option */
   if (killOption != 0) {
@@ -3055,6 +3055,17 @@ int main(int argc, char **argv) {
   }
 
 #endif
+
+  // parse arguments into config -- needed to locate pid_dir
+  int audio_arg = parse_options(argc, argv);
+
+  if (display_config_selected != 0) {
+    display_config(argc, argv);
+    if (argc == 2) {
+      inform(">> Goodbye!");
+      exit(EXIT_SUCCESS);
+    }
+  }
 
   switch (config.endianness) {
   case SS_LITTLE_ENDIAN:
