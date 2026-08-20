@@ -1,3 +1,14 @@
+Version 5.3-dev-19-gb69e01cd
+==
+**Bug Fix**
+* Fixed a bug whereby the audio backend latency offset was mishandled in AirPlay 2 operation.
+
+  Background: the `audio_backend_latency_offset_in_seconds` in the `general` section of the configuration file allows you to [delay or advance the output](ADVANCED%20TOPICS/AdjustingSync.md#adjusting-synchronisation-with-shairport-sync) by a fixed amount relative to the exact synchronisation time. It can be used, for example, to delay the audio slightly so that it synchronises with audio coming from another device that is delayed by internal processing.
+
+  The bug was that the latency offset value was being used before the frame rate of the incoming audio was properly set, resulting in an incorrect calculation of the number of frames to offset.
+
+  Many thanks to [prhodey](https://github.com/prhodey) for discovering and investigating the problem and for a [PR](https://github.com/mikebrady/shairport-sync/pull/2253) that fixes the problem for Buffered Audio streams. An adjustment has also been made to the treatment of Realtime streams.
+
 Version 5.3-dev-15-gd0422952
 ==
 **Enhancement**
