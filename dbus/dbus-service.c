@@ -460,7 +460,7 @@ static gboolean on_handle_volume_up(ShairportSyncRemoteControl *skeleton,
                                     GDBusMethodInvocation *invocation,
                                     __attribute__((unused)) gpointer user_data) {
   debug(4, "D-Bus VolumeUp");
-  remote_volumeup();
+  remote_simple_command(rcsc_volume_up);
   shairport_sync_remote_control_complete_volume_up(skeleton, invocation);
   return TRUE;
 }
@@ -469,7 +469,7 @@ static gboolean on_handle_volume_down(ShairportSyncRemoteControl *skeleton,
                                       GDBusMethodInvocation *invocation,
                                       __attribute__((unused)) gpointer user_data) {
   debug(4, "D-Bus VolumeDown");
-  remote_volumedown();
+  remote_simple_command(rcsc_volume_down);
   shairport_sync_remote_control_complete_volume_down(skeleton, invocation);
   return TRUE;
 }

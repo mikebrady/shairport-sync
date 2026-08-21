@@ -44,6 +44,8 @@ static const char *simple_command_strings[] = {
     NULL,            /* rcsc_fast_forward_stop = 9 — no match */
     "beginrew",      /* rcsc_rewind         = 10 */
     NULL,            /* rcsc_rewind_stop    = 11 — no match */
+    "volumeup",      /* rcsc_volume_up      = 12 */
+    "volumedown",    /* rcsc_volume_down    = 13 */
 };
 
 #ifdef CONFIG_DACP_CLIENT
@@ -547,8 +549,23 @@ void remote_simple_command(simple_command_t command) {
   pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
   if ((available == 0) && (principal_conn != NULL) && (principal_conn->airplay_type == ap_2)) {
     if (principal_conn != NULL) {
-      debug(4, "remote_simple_command %u -- AirPlay 2.", command);
-      ap2_event_send_simple_modern_media_remote_command(principal_conn, command);
+      switch (command) {
+        case rcsc_not_a_command: // do nothing...
+          break;
+        case rcsc_volume_up:
+          remote_volumeup();
+          break;
+        case rcsc_volume_down:
+          remote_volumedown();
+          break;
+        case rcsc_disconnect:
+          stop_play(); // stop any current session and don't replace it
+          break;
+        default:
+          debug(4, "remote_simple_command %u -- AirPlay 2.", command);
+          ap2_event_send_simple_modern_media_remote_command(principal_conn, command);
+          break;
+      }
     }
   }
   pthread_cleanup_pop(1); // release the principal_conn lock

@@ -17,6 +17,13 @@
 #include "dacp.h"
 #endif
 
+#include "remote/remote.h"
+
+typedef struct {
+  const char *name;
+  const simple_command_t command;
+} command_translator_t;
+
 #include "metadata/core.h"
 #include "metadata/hub.h"
 #include "metadata/pc_queue.h"
@@ -68,50 +75,71 @@ void on_message(__attribute__((unused)) struct mosquitto *mosq,
   debug(2, "[MQTT]: received Message on topic %s: %s\n", msg->topic, payload);
 
   // All recognized commands
-  char *commands[] = {"command",    "beginff",  "beginrew",   "mutetoggle",
-                      "nextitem",   "previtem", "pause",      "playpause",
-                      "play",       "stop",     "playresume", "shuffle_songs",
-                      "volumedown", "volumeup", "disconnect", "queue_next",
-                      NULL};
+  command_translator_t commands[] = {
+      {"command", rcsc_command},
+      {"beginff", rcsc_fast_forward},
+      {"beginrew", rcsc_rewind},
+      {"nextitem", rcsc_next_item},
+      {"previtem", rcsc_previous_item},
+      {"pause", rcsc_pause},
+      {"playpause", rcsc_play_pause},
+      {"play", rcsc_play},
+      {"stop", rcsc_stop},
+      {"shuffle_songs", rcsc_toggle_shuffle},
+      {"volumedown", rcsc_volume_down},
+      {"volumeup", rcsc_volume_up},
+      {"disconnect", rcsc_disconnect},
+
+// these are only implemented in the DACP client, not in AirPlay 2
+#ifdef CONFIG_DACP_CLIENT
+      {"playresume", rcsc_play_resume},
+      {"mutetoggle", rcsc_mute_toggle},
+      {"queue_next", rcsc_queue_next},
+#endif
+      {NULL, rcsc_not_a_command},
+  };
 
   int it = 0;
-
-  // send command if it's a valid one
-  while (commands[it] != NULL) {
-    if ((size_t)msg->payloadlen >= strlen(commands[it]) &&
-        strncmp(msg->payload, commands[it], strlen(commands[it])) == 0) {
-      debug(2, "[MQTT]: Received Recognized Command: %s\n", commands[it]);
-      if (strcmp(commands[it], "disconnect") == 0) {
-        debug(2, "[MQTT]: Disconnect Command: %s\n", commands[it]);
-        stop_play(); // stop any current session and don't replace it
-      } else if (strcmp(commands[it], "queue_next") == 0) {
-        // payload is "queue_next <track_id>", where <track_id> is the hex track_id
-        // string as published by shairport-sync itself (see the "mper"/"track_id" handling
-        // above), e.g. "queue_next 1A2B3C4D5E6F7"
-        char *track_id = payload + strlen(commands[it]);
-        while (*track_id == ' ' || *track_id == '\t')
-          track_id++;
-        size_t track_id_len = strlen(track_id);
-        while (track_id_len > 0 && isspace((unsigned char)track_id[track_id_len - 1]))
-          track_id[--track_id_len] = '\0';
-        if (track_id_len == 0) {
-          warn("[MQTT]: queue_next command received with no track_id -- ignoring.");
-        } else {
-          char dacp_command[256];
-          snprintf(dacp_command, sizeof(dacp_command),
-                   "cue?command=add&query='dmap.persistentid:0x%s'&mode=3", track_id);
-          debug(2, "[MQTT]: Queue Next Command: %s\n", dacp_command);
-          send_simple_dacp_command(dacp_command);
-        }
-      } else {
-        debug(2, "[MQTT]: DACP Command: %s\n", commands[it]);
+  int found = 0;
+  while ((commands[it].name != NULL) && (found == 0)) {
+    found = ((size_t)msg->payloadlen >= strlen(commands[it].name) &&
+             strncmp(msg->payload, commands[it].name, strlen(commands[it].name)) == 0);
+    if (found == 0)
+      it++;
+  }
+  if (commands[it].name != NULL) {
+    debug(2, "[MQTT]: Received Recognized Command: %s\n", commands[it].name);
+  }
+  // send command
+  switch (commands[it].command) {
 #ifdef CONFIG_DACP_CLIENT
-        send_simple_dacp_command(commands[it]);
-#endif
-      }
-      break;
+  case rcsc_queue_next: {
+    // payload is "queue_next <track_id>", where <track_id> is the hex track_id
+    // string as published by shairport-sync itself (see the "mper"/"track_id" handling
+    // above), e.g. "queue_next 1A2B3C4D5E6F7"
+    char *track_id = payload + strlen(commands[it].name);
+    while (*track_id == ' ' || *track_id == '\t')
+      track_id++;
+    size_t track_id_len = strlen(track_id);
+    while (track_id_len > 0 && isspace((unsigned char)track_id[track_id_len - 1]))
+      track_id[--track_id_len] = '\0';
+    if (track_id_len == 0) {
+      warn("[MQTT]: queue_next command received with no track_id -- ignoring.");
+    } else {
+      char dacp_command[256];
+      snprintf(dacp_command, sizeof(dacp_command),
+               "cue?command=add&query='dmap.persistentid:0x%s'&mode=3", track_id);
+      debug(2, "[MQTT]: Calling \"Queue Next\" Command via DACP: %s\n", dacp_command);
+      send_simple_dacp_command(dacp_command);
     }
-    it++;
+  } break;
+#endif
+  default:
+    if (commands[it].name != NULL) {
+      debug(2, "[MQTT]: Calling Remote Command: %s\n", commands[it].name);
+      remote_simple_command(commands[it].command);
+    }
+    break;
   }
 }
 
