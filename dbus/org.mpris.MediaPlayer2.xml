@@ -38,7 +38,7 @@
     <property name='Rate' type='d' access='readwrite'/>
     <property name='Shuffle' type='b' access='readwrite'/>
     <property name='Metadata' type='a{sv}' access='read'/>
-    <property name='Volume' type='d' access='read'/>
+    <property name='Volume' type='d' access='readwrite'/>
     <method name='SetVolume'>
       <arg name='volume' type='d' direction='in' />
     </method>

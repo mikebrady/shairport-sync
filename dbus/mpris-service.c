@@ -1,6 +1,6 @@
 /*
  * This file is part of Shairport Sync.
- * Copyright (c) Mike Brady 2018--2025
+ * Copyright (c) Mike Brady 2018--2026
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -35,20 +35,17 @@
 
 #include "rtp.h"
 
-#ifdef CONFIG_DACP_CLIENT
-#include "dacp.h"
-#endif
-
 #include "metadata/hub.h"
 #include "mpris-service.h"
+#include "property-preflight/property-preflight-mpris.h"
 #include "remote/remote.h"
 #include "utilities/exit.h"
 
 static guint ownerID = 0;
 static GBusType mpris_bus_type = G_BUS_TYPE_SYSTEM; // default is the dbus system message bus
 
-MediaPlayer2 *mprisPlayerSkeleton;
-MediaPlayer2Player *mprisPlayerPlayerSkeleton;
+MediaPlayer2 *mprisPlayerSkeleton = NULL;
+MediaPlayer2Player *mprisPlayerPlayerSkeleton = NULL;
 
 double airplay_volume_to_mpris_volume(double sp) {
   if (sp < -30.0)
@@ -59,23 +56,16 @@ double airplay_volume_to_mpris_volume(double sp) {
   return sp;
 }
 
-double mpris_volume_to_airplay_volume(double sp) {
-  sp = (sp - 1.0) * 30.0;
-  if (sp < -30.0)
-    sp = -30.0;
-  if (sp > 0.0)
-    sp = 0.0;
-  return sp;
-}
-
 void mpris_metadata_watcher(struct metadata_bundle *argc) {
   // debug(1, "MPRIS metadata watcher called");
   char response[100];
   media_player2_player_set_volume(mprisPlayerPlayerSkeleton,
                                   airplay_volume_to_mpris_volume(argc->airplay_volume));
+
+  // sticking strictly to the MPRIS enumeration only -- not including "Not Available"
   switch (argc->repeat_status) {
   case RS_NOT_AVAILABLE:
-    strcpy(response, "Not Available");
+    strcpy(response, "None");
     break;
   case RS_OFF:
     strcpy(response, "None");
@@ -90,9 +80,10 @@ void mpris_metadata_watcher(struct metadata_bundle *argc) {
 
   media_player2_player_set_loop_status(mprisPlayerPlayerSkeleton, response);
 
+  // sticking strictly to the MPRIS enumeration only -- not including "Not Available"
   switch (argc->player_state) {
   case PS_NOT_AVAILABLE:
-    strcpy(response, "Not Available");
+    strcpy(response, "Stopped");
     break;
   case PS_STOPPED:
     strcpy(response, "Stopped");
@@ -107,21 +98,7 @@ void mpris_metadata_watcher(struct metadata_bundle *argc) {
 
   media_player2_player_set_playback_status(mprisPlayerPlayerSkeleton, response);
 
-  /*
-    switch (argc->shuffle_state) {
-    case SS_NOT_AVAILABLE:
-      strcpy(response, "Not Available");
-      break;
-    case SS_OFF:
-      strcpy(response, "Off");
-      break;
-    case SS_ON:
-      strcpy(response, "On");
-      break;
-    }
-
-     media_player2_player_set_shuffle_status(mprisPlayerPlayerSkeleton, response);
-  */
+  // sticking strictly to the MPRIS enumeration only -- not including "Not Available"
 
   switch (argc->shuffle_status) {
   case SS_NOT_AVAILABLE:
@@ -204,7 +181,7 @@ void mpris_metadata_watcher(struct metadata_bundle *argc) {
 
 static gboolean on_handle_quit(MediaPlayer2 *skeleton, GDBusMethodInvocation *invocation,
                                __attribute__((unused)) gpointer user_data) {
-  debug(1, ">> quit request...");
+  debug(4, "MPRIS quit.");
   media_player2_complete_quit(skeleton, invocation);
   exit_request(EXIT_SUCCESS);
   return TRUE;
@@ -212,36 +189,32 @@ static gboolean on_handle_quit(MediaPlayer2 *skeleton, GDBusMethodInvocation *in
 
 static gboolean on_handle_next(MediaPlayer2Player *skeleton, GDBusMethodInvocation *invocation,
                                __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("nextitem");
-#endif
+  debug(4, "MPRIS next item.");
+  remote_simple_command(rcsc_next_item);
   media_player2_player_complete_next(skeleton, invocation);
   return TRUE;
 }
 
 static gboolean on_handle_previous(MediaPlayer2Player *skeleton, GDBusMethodInvocation *invocation,
                                    __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("previtem");
-#endif
+  debug(4, "MPRIS previous item.");
+  remote_simple_command(rcsc_previous_item);
   media_player2_player_complete_previous(skeleton, invocation);
   return TRUE;
 }
 
 static gboolean on_handle_stop(MediaPlayer2Player *skeleton, GDBusMethodInvocation *invocation,
                                __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("stop");
-#endif
+  debug(4, "MPRIS stop.");
+  remote_simple_command(rcsc_stop);
   media_player2_player_complete_stop(skeleton, invocation);
   return TRUE;
 }
 
 static gboolean on_handle_pause(MediaPlayer2Player *skeleton, GDBusMethodInvocation *invocation,
                                 __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("pause");
-#endif
+  debug(4, "MPRIS pause.");
+  remote_simple_command(rcsc_pause);
   media_player2_player_complete_pause(skeleton, invocation);
   return TRUE;
 }
@@ -249,18 +222,16 @@ static gboolean on_handle_pause(MediaPlayer2Player *skeleton, GDBusMethodInvocat
 static gboolean on_handle_play_pause(MediaPlayer2Player *skeleton,
                                      GDBusMethodInvocation *invocation,
                                      __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("playpause");
-#endif
+  debug(4, "MPRIS playpause.");
+  remote_simple_command(rcsc_play_pause);
   media_player2_player_complete_play_pause(skeleton, invocation);
   return TRUE;
 }
 
 static gboolean on_handle_play(MediaPlayer2Player *skeleton, GDBusMethodInvocation *invocation,
                                __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("play");
-#endif
+  debug(4, "MPRIS play.");
+  remote_simple_command(rcsc_play);
   media_player2_player_complete_play(skeleton, invocation);
   return TRUE;
 }
@@ -268,8 +239,8 @@ static gboolean on_handle_play(MediaPlayer2Player *skeleton, GDBusMethodInvocati
 static gboolean on_handle_set_volume(MediaPlayer2Player *skeleton,
                                      GDBusMethodInvocation *invocation, const gdouble volume,
                                      __attribute__((unused)) gpointer user_data) {
-  debug(1, "D-Bus set airplay volume to %.3f.", volume);
-  remote_set_airplay_volume(volume);
+  debug(1, "MPRIS set volume to %g.", volume);
+  remote_set_airplay_volume(mpris_volume_to_airplay_volume(volume));
   media_player2_player_complete_play(skeleton, invocation);
   return TRUE;
 }
@@ -281,13 +252,9 @@ static void on_mpris_name_acquired(GDBusConnection *connection, const gchar *nam
 
   debug(2, "MPRIS well-known interface name \"%s\" acquired on the %s bus.", name,
         (mpris_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
-  mprisPlayerSkeleton = media_player2_skeleton_new();
-  mprisPlayerPlayerSkeleton = media_player2_player_skeleton_new();
 
-  g_dbus_interface_skeleton_export(G_DBUS_INTERFACE_SKELETON(mprisPlayerSkeleton), connection,
-                                   "/org/mpris/MediaPlayer2", NULL);
-  g_dbus_interface_skeleton_export(G_DBUS_INTERFACE_SKELETON(mprisPlayerPlayerSkeleton), connection,
-                                   "/org/mpris/MediaPlayer2", NULL);
+  mprisPlayerSkeleton = property_preflight_mpris_media_player2_skeleton_new();
+  mprisPlayerPlayerSkeleton = property_preflight_mpris_media_player2_player_skeleton_new();
 
   media_player2_set_desktop_entry(mprisPlayerSkeleton, "shairport-sync");
   media_player2_set_identity(mprisPlayerSkeleton, "Shairport Sync");
@@ -297,8 +264,14 @@ static void on_mpris_name_acquired(GDBusConnection *connection, const gchar *nam
   media_player2_set_supported_uri_schemes(mprisPlayerSkeleton, empty_string_array);
   media_player2_set_supported_mime_types(mprisPlayerSkeleton, empty_string_array);
 
+  media_player2_player_set_metadata(mprisPlayerPlayerSkeleton,
+                                    g_variant_new_array(G_VARIANT_TYPE("{sv}"), NULL, 0));
+  media_player2_player_set_volume(mprisPlayerPlayerSkeleton,
+                                  airplay_volume_to_mpris_volume(config.airplay_volume));
   media_player2_player_set_playback_status(mprisPlayerPlayerSkeleton, "Stopped");
   media_player2_player_set_loop_status(mprisPlayerPlayerSkeleton, "None");
+  media_player2_player_set_position(mprisPlayerPlayerSkeleton, 0.0);
+  media_player2_player_set_shuffle(mprisPlayerPlayerSkeleton, FALSE);
   media_player2_player_set_minimum_rate(mprisPlayerPlayerSkeleton, 1.0);
   media_player2_player_set_maximum_rate(mprisPlayerPlayerSkeleton, 1.0);
   media_player2_player_set_can_go_next(mprisPlayerPlayerSkeleton, TRUE);
@@ -322,6 +295,13 @@ static void on_mpris_name_acquired(GDBusConnection *connection, const gchar *nam
                    NULL);
 
   add_metadata_watcher(mpris_metadata_watcher);
+
+  // connect to the bus
+
+  g_dbus_interface_skeleton_export(G_DBUS_INTERFACE_SKELETON(mprisPlayerSkeleton), connection,
+                                   "/org/mpris/MediaPlayer2", NULL);
+  g_dbus_interface_skeleton_export(G_DBUS_INTERFACE_SKELETON(mprisPlayerPlayerSkeleton), connection,
+                                   "/org/mpris/MediaPlayer2", NULL);
 
   debug(1, "MPRIS service started at \"%s\" on the %s bus.", name,
         (mpris_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");

@@ -22,24 +22,24 @@
 G_BEGIN_DECLS
 
 /* org.gnome.ShairportSync */
-PROPERTY_PREFLIGHT_DECLARE_SKELETON (PropertyPreflightShairportSyncSkeleton,
-                                      property_preflight_shairport_sync_skeleton,
-                                      ShairportSync)
+PROPERTY_PREFLIGHT_DECLARE_SKELETON(PropertyPreflightShairportSyncSkeleton,
+                                    property_preflight_shairport_sync_skeleton, ShairportSync)
 
 /* org.gnome.ShairportSync.Client */
-PROPERTY_PREFLIGHT_DECLARE_SKELETON (PropertyPreflightShairportSyncClientSkeleton,
-                                      property_preflight_shairport_sync_client_skeleton,
-                                      ShairportSyncClient)
+PROPERTY_PREFLIGHT_DECLARE_SKELETON(PropertyPreflightShairportSyncClientSkeleton,
+                                    property_preflight_shairport_sync_client_skeleton,
+                                    ShairportSyncClient)
 
 /* org.gnome.ShairportSync.RemoteControl */
-PROPERTY_PREFLIGHT_DECLARE_SKELETON (PropertyPreflightShairportSyncRemoteControlSkeleton,
-                                      property_preflight_shairport_sync_remote_control_skeleton,
-                                      ShairportSyncRemoteControl)
+PROPERTY_PREFLIGHT_DECLARE_SKELETON(PropertyPreflightShairportSyncRemoteControlSkeleton,
+                                    property_preflight_shairport_sync_remote_control_skeleton,
+                                    ShairportSyncRemoteControl)
 
 /* org.gnome.ShairportSync.AdvancedRemoteControl */
-PROPERTY_PREFLIGHT_DECLARE_SKELETON (PropertyPreflightShairportSyncAdvancedRemoteControlSkeleton,
-                                      property_preflight_shairport_sync_advanced_remote_control_skeleton,
-                                      ShairportSyncAdvancedRemoteControl)
+PROPERTY_PREFLIGHT_DECLARE_SKELETON(
+    PropertyPreflightShairportSyncAdvancedRemoteControlSkeleton,
+    property_preflight_shairport_sync_advanced_remote_control_skeleton,
+    ShairportSyncAdvancedRemoteControl)
 
 G_END_DECLS
 

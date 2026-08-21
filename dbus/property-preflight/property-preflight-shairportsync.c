@@ -37,19 +37,14 @@
  * ShairportSync's own local-config properties (DisableStandbyMode,
  * LoudnessThreshold) validate and apply directly instead, since
  * they're not remote-player-backed.
- *
- * The functions in the "REMOTE PLAYER TRIGGER STUBS" section below
- * are placeholders - replace their bodies with your actual mechanism
- * for telling the remote player to change. Nothing else in this file
- * needs to change to wire them up.
  */
 
 #include "property-preflight-shairportsync.h"
 #include "common.h"
 #include "remote/remote.h"
 #ifdef CONFIG_CONVOLUTION
-#include <sndfile.h>
 #include "FFTConvolver/convolver.h"
+#include <sndfile.h>
 #endif
 
 /* ========================================================================
@@ -125,14 +120,14 @@ static gboolean property_preflight_shairport_sync_validate_property(const gchar 
 #ifdef CONFIG_CONVOLUTION
     const gchar *file_list = g_variant_get_string(*value, NULL);
     if (file_list != NULL) {
-      
+
       unsigned int convolution_ir_file_count = 0;
-      ir_file_info_t *convolution_ir_files = NULL; // NULL or an array of information about all the impulse
-                                                // response files loaded
-      convolution_ir_files =
-          parse_ir_filenames(file_list, &convolution_ir_file_count);
-      
-      int convolution_ir_files_status =  sanity_check_ir_files(2, convolution_ir_files, convolution_ir_file_count);
+      ir_file_info_t *convolution_ir_files = NULL; // NULL or an array of information about all the
+                                                   // impulse response files loaded
+      convolution_ir_files = parse_ir_filenames(file_list, &convolution_ir_file_count);
+
+      int convolution_ir_files_status =
+          sanity_check_ir_files(2, convolution_ir_files, convolution_ir_file_count);
       if (convolution_ir_files_status == 0) {
         // debug(1, ">> freeing current configuration impulse response filter files.");
         free_ir_filenames(config.convolution_ir_files, config.convolution_ir_file_count);
@@ -140,12 +135,15 @@ static gboolean property_preflight_shairport_sync_validate_property(const gchar 
         config.convolution_ir_file_count = convolution_ir_file_count;
         config.convolution_ir_files_updated = 1;
         // debug(1, ">> setting %d configuration impulse response filter%s",
-        //     config.convolution_ir_file_count, config.convolution_ir_file_count == 1 ? "" : "s");        
-      } else { // convolution_ir_files_status is the index of the errant file number in the array + 1                  
-        debug(1, "convolution impulse response file \"%s\" %s", convolution_ir_files[convolution_ir_files_status - 1].filename,
-              sf_strerror(NULL));
+        //     config.convolution_ir_file_count, config.convolution_ir_file_count == 1 ? "" : "s");
+      } else { // convolution_ir_files_status is the index of the errant file number in the array +
+               // 1
+        debug(1, "convolution impulse response file \"%s\" %s",
+              convolution_ir_files[convolution_ir_files_status - 1].filename, sf_strerror(NULL));
         g_set_error(error, G_DBUS_ERROR, G_DBUS_ERROR_INVALID_ARGS,
-                "ShairportSync.ConvolutionImpulseResponseFiles, \"%s\": %s", convolution_ir_files[convolution_ir_files_status - 1].filename, sf_strerror(NULL));
+                    "ShairportSync.ConvolutionImpulseResponseFiles, \"%s\": %s",
+                    convolution_ir_files[convolution_ir_files_status - 1].filename,
+                    sf_strerror(NULL));
         result = FALSE;
       }
     }
@@ -210,9 +208,9 @@ static gboolean property_preflight_shairport_sync_validate_property(const gchar 
       result = FALSE;
     }
   } else if (g_strcmp0(property_name, "ALACDecoder") == 0) {
-      const gchar *requested_value = g_variant_get_string(*value, NULL);
+    const gchar *requested_value = g_variant_get_string(*value, NULL);
     if (requested_value != NULL) {
-      
+
 #ifdef CONFIG_AIRPLAY_2
       if (strcmp(requested_value, "FFmpeg") != 0) {
         g_set_error(error, G_DBUS_ERROR, G_DBUS_ERROR_INVALID_ARGS,
@@ -233,7 +231,7 @@ static gboolean property_preflight_shairport_sync_validate_property(const gchar 
                ((config.decoders_supported & (1 << decoder_ffmpeg_alac)) != 0))
         config.decoder_in_use = 1 << decoder_ffmpeg_alac;
       else {
-        
+
         GString *list = g_string_new(NULL);
         gint i = 0;
         if ((config.decoders_supported & (1 << decoder_hammerton)) != 0) {
@@ -251,16 +249,16 @@ static gboolean property_preflight_shairport_sync_validate_property(const gchar 
             g_string_append(list, ", ");
           g_string_append(list, "\"FFmpeg\"");
           i++;
-        }           
-        if (i==0)
-          g_string_append(list, "none");        
+        }
+        if (i == 0)
+          g_string_append(list, "none");
         g_set_error(error, G_DBUS_ERROR, G_DBUS_ERROR_INVALID_ARGS,
-                    "The decoder \"%s\" is unrecognised. Decoders supported: %s.",
-                    requested_value, list->str);
+                    "The decoder \"%s\" is unrecognised. Decoders supported: %s.", requested_value,
+                    list->str);
         g_string_free(list, TRUE);
         result = FALSE;
       }
-  
+
 #endif
     }
   } else if (g_strcmp0(property_name, "Interpolation") == 0) {
@@ -268,10 +266,10 @@ static gboolean property_preflight_shairport_sync_validate_property(const gchar 
     if (requested_value != NULL) {
       if (strcmp(requested_value, "Basic") == 0)
         config.packet_stuffing = ST_basic;
-    #ifdef CONFIG_SOXR
+#ifdef CONFIG_SOXR
       else if (strcmp(requested_value, "Soxr") == 0)
         config.packet_stuffing = ST_soxr;
-    #endif
+#endif
       else if (strcmp(requested_value, "Auto") == 0)
         config.packet_stuffing = ST_auto;
       else if (strcmp(requested_value, "Vernier") == 0)
@@ -279,16 +277,19 @@ static gboolean property_preflight_shairport_sync_validate_property(const gchar 
       else {
 #ifdef CONFIG_SOXR
         g_set_error(error, G_DBUS_ERROR, G_DBUS_ERROR_INVALID_ARGS,
-                    "\"%s\" is not valid for ShairportSync.Interpolation --  it must be \"Auto\", \"Basic\", \"Vernier\" or \"Soxr\".",
+                    "\"%s\" is not valid for ShairportSync.Interpolation --  it must be \"Auto\", "
+                    "\"Basic\", \"Vernier\" or \"Soxr\".",
                     requested_value);
 #else
         if (strcmp(requested_value, "Soxr") == 0) {
           g_set_error(error, G_DBUS_ERROR, G_DBUS_ERROR_INVALID_ARGS,
-                    "Soxr interpolation is not supported in this edition of Shairport Sync --  ShairportSync.Interpolation must be \"Auto\", \"Basic\" or \"Vernier\".");
+                      "Soxr interpolation is not supported in this edition of Shairport Sync --  "
+                      "ShairportSync.Interpolation must be \"Auto\", \"Basic\" or \"Vernier\".");
         } else {
           g_set_error(error, G_DBUS_ERROR, G_DBUS_ERROR_INVALID_ARGS,
-                    "\"%s\" is not valid for ShairportSync.Interpolation --  it must be \"Auto\", \"Basic\" or \"Vernier\".",
-                    requested_value);
+                      "\"%s\" is not valid for ShairportSync.Interpolation --  it must be "
+                      "\"Auto\", \"Basic\" or \"Vernier\".",
+                      requested_value);
         }
 #endif
         result = FALSE;
@@ -305,13 +306,14 @@ static gboolean property_preflight_shairport_sync_validate_property(const gchar 
         config.volume_control_profile = VCP_dasl_tapered;
       else {
         g_set_error(error, G_DBUS_ERROR, G_DBUS_ERROR_INVALID_ARGS,
-                    "\"%s\" is not valid for ShairportSync.VolumeControlProfile --  it must be \"Standard\", \"Flat\" or \"DASL\".",
+                    "\"%s\" is not valid for ShairportSync.VolumeControlProfile --  it must be "
+                    "\"Standard\", \"Flat\" or \"DASL\".",
                     requested_value);
         result = FALSE;
       }
     }
   } else {
-      debug(1, "Preflight ShairportSync.%s.", property_name);
+    debug(1, "Preflight ShairportSync.%s.", property_name);
   }
 
   /* Not a property we validate - let it through unchanged. */
@@ -353,7 +355,7 @@ static gboolean property_preflight_shairport_sync_remote_control_validate_proper
     const gchar *property_name, __attribute((unused)) GVariant **value,
     __attribute((unused)) GError **error) {
   gboolean result = TRUE;
-    
+
   if (g_strcmp0(property_name, "AirplayVolume") == 0) {
     gdouble requested_value = g_variant_get_double(*value);
     *value = NULL; // don't update the D-Bus value when finished
@@ -368,7 +370,8 @@ static gboolean property_preflight_shairport_sync_remote_control_validate_proper
       }
     } else {
       g_set_error(error, G_DBUS_ERROR, G_DBUS_ERROR_INVALID_ARGS,
-                  "%g is not a valid value for ShairportSync.RemoteControl.AirplayVolume --  it must be -144.0 (i.e. "
+                  "%g is not a valid value for ShairportSync.RemoteControl.AirplayVolume --  it "
+                  "must be -144.0 (i.e. "
                   "mute) or within the range -30.0 to 0.0.",
                   requested_value);
       result = FALSE;
@@ -453,7 +456,7 @@ static gboolean property_preflight_shairport_sync_advanced_remote_control_valida
       }
     }
     *value = NULL; // don't update the Shuffle value here -- let the remote device update it.
-  } else   if (g_strcmp0(property_name, "Volume") == 0) {
+  } else if (g_strcmp0(property_name, "Volume") == 0) {
     gint32 requested_value = g_variant_get_int32(*value);
     *value = NULL; // don't update the D-Bus value when finished
     if ((requested_value >= 0) && (requested_value <= 100)) {
@@ -466,15 +469,15 @@ static gboolean property_preflight_shairport_sync_advanced_remote_control_valida
         result = FALSE;
       }
     } else {
-      g_set_error(error, G_DBUS_ERROR, G_DBUS_ERROR_INVALID_ARGS,
-                  "%d is not a valid value for ShairportSync.AdvncedRemoteControl.Volume --  it must be "
-                  "within the range 0 to 100.",
-                  requested_value);
+      g_set_error(
+          error, G_DBUS_ERROR, G_DBUS_ERROR_INVALID_ARGS,
+          "%d is not a valid value for ShairportSync.AdvncedRemoteControl.Volume --  it must be "
+          "within the range 0 to 100.",
+          requested_value);
       result = FALSE;
     }
-    *value = NULL; // don't update the Volume value here.
   } else {
-      debug(1, "Preflight ShairportSync.AdvancedRemoteControl.%s.", property_name);
+    debug(1, "Preflight ShairportSync.AdvancedRemoteControl.%s.", property_name);
   }
   /* Not a property we validate or use here - let it through unchanged. */
   return result;

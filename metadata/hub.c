@@ -141,6 +141,9 @@ void invalidate_uint64_record(uint64_record_t *record) {
 void metadata_hub_init(void) {
   // debug(1, "Metadata bundle initialisation.");
   memset(&metadata_store, 0, sizeof(metadata_store));
+  // zero is inappropriate for an initial airplay volume, as it means 0 dB, i.e. full volume!
+  // so we'll use the present config.airplay_volume until we know better...
+  metadata_store.airplay_volume = config.airplay_volume;
   metadata_hub_initialised = 1;
 }
 

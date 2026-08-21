@@ -28,42 +28,19 @@
  * Validators and skeleton subclasses for the two MPRIS D-Bus
  * interfaces. Value sets are per the MPRIS2 spec, NOT the
  * ShairportSync-specific vocabulary used in
- * property-preflight-shairportsync.c - see the comment on
- * property_preflight_send_mpris_loop_status_command() below.
- *
- * The functions in the "REMOTE PLAYER TRIGGER STUBS" section below
- * are placeholders - replace their bodies with your actual mechanism
- * for telling the remote player to change. Nothing else in this file
- * needs to change to wire them up.
- *
- * TODO: the ParentType/ParentTypeMacro/PublicCastMacro identifiers in
- * both PROPERTY_PREFLIGHT_DEFINE_SKELETON() invocations below are
- * UNVERIFIED GUESSES pending your actual generated MPRIS header - see
- * the per-invocation comments.
+ * property-preflight-shairportsync.c.
  */
 
 #include "property-preflight-mpris.h"
+#include "remote/remote.h"
 
-/* ========================================================================
- * REMOTE PLAYER TRIGGER STUBS
- * ======================================================================== */
-
-static void property_preflight_send_mpris_loop_status_command(const gchar *requested_value) {
-  /* TODO: replace with your actual mechanism. Note this is a
-   * deliberately separate stub from
-   * property_preflight_send_loop_status_command() above, since MPRIS
-   * LoopStatus uses a different value vocabulary ("None"/"Track"/
-   * "Playlist") than ShairportSync's own LoopStatus properties
-   * ("Off"/"All"/"One") - if both ultimately drive the same
-   * underlying remote player, consider having one call the other
-   * with an appropriate translation, rather than duplicating the
-   * actual trigger mechanism. */
-  (void)requested_value;
-}
-
-static void property_preflight_send_mpris_volume_command(gdouble requested_volume) {
-  /* TODO: replace with your actual mechanism. */
-  (void)requested_volume;
+double mpris_volume_to_airplay_volume(double sp) {
+  sp = (sp - 1.0) * 30.0;
+  if (sp < -30.0)
+    sp = -30.0;
+  if (sp > 0.0)
+    sp = 0.0;
+  return sp;
 }
 
 /* ========================================================================
@@ -75,12 +52,9 @@ static void property_preflight_send_mpris_volume_command(gdouble requested_volum
  * if that ever stops being true.
  * ======================================================================== */
 
-static gboolean property_preflight_mpris_media_player2_validate_property(const gchar *property_name,
-                                                                          GVariant **value,
-                                                                          GError **error) {
-  (void)property_name;
-  (void)value;
-  (void)error;
+static gboolean property_preflight_mpris_media_player2_validate_property(
+    __attribute((unused)) const gchar *property_name, __attribute((unused)) GVariant **value,
+    __attribute((unused)) GError **error) {
 
   debug(1, "property_preflight_mpris_media_player2_validate_property is called...");
 
@@ -88,68 +62,100 @@ static gboolean property_preflight_mpris_media_player2_validate_property(const g
   return TRUE;
 }
 
-/* TODO: ParentType/ParentTypeMacro/PublicCastMacro below follow the
- * same naming convention as dbus-interface.h's real types, but are
- * UNVERIFIED GUESSES for the MPRIS header - correct against your
- * actual generated header, same as PublicType in property-preflight.h. */
 PROPERTY_PREFLIGHT_DEFINE_SKELETON(PropertyPreflightMprisMediaPlayer2Skeleton,
                                    property_preflight_mpris_media_player2_skeleton,
-                                   MediaPlayer2Skeleton, TYPE_MEDIA_PLAYER2_SKELETON,
-                                   MediaPlayer2, MEDIA_PLAYER2,
+                                   MediaPlayer2Skeleton, TYPE_MEDIA_PLAYER2_SKELETON, MediaPlayer2,
+                                   MEDIA_PLAYER2,
                                    property_preflight_mpris_media_player2_validate_property)
 
 /* ========================================================================
  * org.mpris.MediaPlayer2.Player
  *
  * Value sets are per the MPRIS2 spec, NOT the ShairportSync-specific
- * vocabulary used elsewhere in this file - see the comment on
- * property_preflight_send_mpris_loop_status_command() above.
+ * vocabulary used elsewhere in this file.
  * ======================================================================== */
 
-static gboolean property_preflight_mpris_media_player2_player_validate_property(
-    const gchar *property_name, GVariant **value, GError **error) {
-  static const gchar *const valid_loop_status[] = {"None", "Track", "Playlist", NULL};
+static gboolean
+property_preflight_mpris_media_player2_player_validate_property(const gchar *property_name,
+                                                                GVariant **value, GError **error) {
+
+  gboolean result = TRUE;
 
   debug(1, "property_preflight_mpris_media_player2_player_validate_property is called...");
 
-  if (g_strcmp0(property_name, "LoopStatus") == 0) {
-    if (!property_preflight_string_enum(property_name, *value, valid_loop_status,
-                                        "org.mpris.MediaPlayer2.Player", error))
-      return FALSE;
-
-    property_preflight_send_mpris_loop_status_command(g_variant_get_string(*value, NULL));
-    *value = NULL;
-    return TRUE;
-  }
-
   if (g_strcmp0(property_name, "Volume") == 0) {
-    GVariant *original = *value;
-
-    /* Per the MPRIS spec, Volume is a linear 0.0-1.0 scale and
-     * out-of-range values should be clamped, not rejected. */
-    property_preflight_clamp_double_range(property_name, value, 0.0, 1.0, error);
-
-    property_preflight_send_mpris_volume_command(g_variant_get_double(*value));
-
-    if (*value != original)
-      g_variant_unref(*value);
-
-    *value = NULL;
-    return TRUE;
+    gdouble requested_value = g_variant_get_double(*value);
+    *value = NULL; // don't update the D-Bus value when finished
+    if ((requested_value >= 0.0) && (requested_value <= 1.0)) {
+      debug(1, ">> set MPRIS volume to %g.", requested_value);
+      if (remote_set_airplay_volume(mpris_volume_to_airplay_volume(requested_value)) == 0) {
+        g_set_error(error, G_DBUS_ERROR, G_DBUS_ERROR_FAILED,
+                    "MPRIS MediaPlayer2.Player.Volume is unable to set the volume "
+                    "on the client to %g%%.",
+                    requested_value);
+        result = FALSE;
+      }
+    } else {
+      g_set_error(error, G_DBUS_ERROR, G_DBUS_ERROR_INVALID_ARGS,
+                  "%g is not a valid value for the MPRIS MediaPlayer2.Player.Volume property --  "
+                  "it must be "
+                  "within the range 0.0 to 1.0.",
+                  requested_value);
+      result = FALSE;
+    }
+  } else if (g_strcmp0(property_name, "LoopStatus") == 0) {
+    int handled = 0;
+    // Send valid LoopStatus request to the remote device...
+    const gchar *requested_value = g_variant_get_string(*value, NULL);
+    if (requested_value != NULL) {
+      if (strcmp(requested_value, "None") == 0) {
+        handled = remote_set_repeat_mode(RS_OFF);
+      } else if (strcmp(requested_value, "Track") == 0) {
+        handled = remote_set_repeat_mode(RS_ONE);
+      } else if (strcmp(requested_value, "Playlist") == 0) {
+        handled = remote_set_repeat_mode(RS_ALL);
+      } else {
+        g_set_error(error, G_DBUS_ERROR, G_DBUS_ERROR_INVALID_ARGS,
+                    "\"%s\" is not valid for the MPRIS MediaPlayer2.Player.LoopStatus property. It "
+                    "must be one of the following: \"None\", \"Track\", \"Playlist\".",
+                    requested_value);
+        result = FALSE;
+      }
+      if ((result == TRUE) && (handled == 0)) {
+        g_set_error(error, G_DBUS_ERROR, G_DBUS_ERROR_FAILED,
+                    "the MPRIS MediaPlayer2.Player.LoopStatus property could not be set to \"%s\" "
+                    "on the client.",
+                    requested_value);
+        result = FALSE;
+      }
+    } else {
+      g_set_error(error, G_DBUS_ERROR, G_DBUS_ERROR_FAILED,
+                  " MediaPlayer2.Player.LoopStatus NULL request.");
+      result = FALSE;
+    }
+    *value = NULL; // don't update the LoopStatus value here -- let the remote device update it.
+  } else if (g_strcmp0(property_name, "Shuffle") == 0) {
+    int handled = 0;
+    const gboolean requested_value = g_variant_get_boolean(*value);
+    if (requested_value) {
+      handled = remote_set_shuffle_mode(SS_ON);
+    } else {
+      handled = remote_set_shuffle_mode(SS_OFF);
+    }
+    if (handled == 0) {
+      g_set_error(error, G_DBUS_ERROR, G_DBUS_ERROR_FAILED,
+                  "the MPRIS MediaPlayer2.Player.Shuffle property could not be set to \"%s\" "
+                  "on the client.",
+                  requested_value ? "TRUE" : "FALSE");
+      result = FALSE;
+    }
+    *value = NULL; // don't update the Shuffle value here -- let the remote device update it.
+  } else {
+    debug(1, "Preflight MPRIS MediaPlayer2.Player.%s.", property_name);
   }
-
-  /* PlaybackStatus is not client-settable per the MPRIS spec - it's
-   * driven by the Play/Pause/Stop/PlayPause methods instead, so no
-   * property validation is needed for it here. Shuffle is a gboolean,
-   * self-validating by its D-Bus type - if it also needs the
-   * trigger-then-drop treatment (likely, since it's remote-player
-   * state), add that branch the same way as LoopStatus above, minus
-   * the value-check call. */
-
-  return TRUE;
+  return result;
 }
 
-/* TODO: same caveat as MediaPlayer2 above - these names are guesses. */
 PROPERTY_PREFLIGHT_DEFINE_SKELETON(PropertyPreflightMprisMediaPlayer2PlayerSkeleton,
                                    property_preflight_mpris_media_player2_player_skeleton,
                                    MediaPlayer2PlayerSkeleton, TYPE_MEDIA_PLAYER2_PLAYER_SKELETON,

@@ -48,7 +48,6 @@
 #include "dbus-service.h"
 #include "metadata/hub.h"
 #include "property-preflight/property-preflight-shairportsync.h"
-
 #include "remote/remote.h"
 #include "utilities/exit.h"
 #include "utilities/general_utilities.h"
@@ -78,9 +77,9 @@ void dbus_metadata_watcher(struct metadata_bundle *argc) {
 
   shairport_sync_remote_control_set_airplay_volume(shairportSyncRemoteControlSkeleton,
                                                    argc->airplay_volume);
-  shairport_sync_advanced_remote_control_set_volume(shairportSyncAdvancedRemoteControlSkeleton,
-                                                   lround(100 * airplayVolumeToUnitVolume(argc->airplay_volume)));
-
+  shairport_sync_advanced_remote_control_set_volume(
+      shairportSyncAdvancedRemoteControlSkeleton,
+      lround(100 * airplayVolumeToUnitVolume(argc->airplay_volume)));
 
   shairport_sync_remote_control_set_client(shairportSyncRemoteControlSkeleton, argc->client_ip);
   shairport_sync_remote_control_set_client_name(shairportSyncRemoteControlSkeleton,
@@ -207,35 +206,44 @@ void dbus_metadata_watcher(struct metadata_bundle *argc) {
   // repeat status (was loop status)
   switch (argc->repeat_status) {
   case RS_NOT_AVAILABLE:
-    shairport_sync_advanced_remote_control_set_loop_status(shairportSyncAdvancedRemoteControlSkeleton, "Not Available");
+    shairport_sync_advanced_remote_control_set_loop_status(
+        shairportSyncAdvancedRemoteControlSkeleton, "Not Available");
     break;
   case RS_OFF:
-    shairport_sync_advanced_remote_control_set_loop_status(shairportSyncAdvancedRemoteControlSkeleton, "Off");
+    shairport_sync_advanced_remote_control_set_loop_status(
+        shairportSyncAdvancedRemoteControlSkeleton, "Off");
     break;
   case RS_ONE:
-    shairport_sync_advanced_remote_control_set_loop_status(shairportSyncAdvancedRemoteControlSkeleton, "One");
+    shairport_sync_advanced_remote_control_set_loop_status(
+        shairportSyncAdvancedRemoteControlSkeleton, "One");
     break;
   case RS_ALL:
-    shairport_sync_advanced_remote_control_set_loop_status(shairportSyncAdvancedRemoteControlSkeleton, "All");
+    shairport_sync_advanced_remote_control_set_loop_status(
+        shairportSyncAdvancedRemoteControlSkeleton, "All");
     break;
   default:
-    shairport_sync_advanced_remote_control_set_loop_status(shairportSyncAdvancedRemoteControlSkeleton, "Error");
+    shairport_sync_advanced_remote_control_set_loop_status(
+        shairportSyncAdvancedRemoteControlSkeleton, "Error");
   }
 
   //
- 
+
   switch (argc->shuffle_status) {
   case SS_NOT_AVAILABLE:
-    shairport_sync_advanced_remote_control_set_shuffle(shairportSyncAdvancedRemoteControlSkeleton, "Not Available");
+    shairport_sync_advanced_remote_control_set_shuffle(shairportSyncAdvancedRemoteControlSkeleton,
+                                                       "Not Available");
     break;
   case SS_OFF:
-    shairport_sync_advanced_remote_control_set_shuffle(shairportSyncAdvancedRemoteControlSkeleton, "Off");
+    shairport_sync_advanced_remote_control_set_shuffle(shairportSyncAdvancedRemoteControlSkeleton,
+                                                       "Off");
     break;
   case SS_ON:
-    shairport_sync_advanced_remote_control_set_shuffle(shairportSyncAdvancedRemoteControlSkeleton, "On");
+    shairport_sync_advanced_remote_control_set_shuffle(shairportSyncAdvancedRemoteControlSkeleton,
+                                                       "On");
     break;
   default:
-    shairport_sync_advanced_remote_control_set_shuffle(shairportSyncAdvancedRemoteControlSkeleton, "Error");
+    shairport_sync_advanced_remote_control_set_shuffle(shairportSyncAdvancedRemoteControlSkeleton,
+                                                       "Error");
   }
 
   // Build the metadata array
@@ -947,7 +955,8 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
   shairportSyncSkeleton = property_preflight_shairport_sync_skeleton_new();
   shairportSyncClientSkeleton = property_preflight_shairport_sync_client_skeleton_new();
   shairportSyncDiagnosticsSkeleton = shairport_sync_diagnostics_skeleton_new();
-  shairportSyncRemoteControlSkeleton = property_preflight_shairport_sync_remote_control_skeleton_new();
+  shairportSyncRemoteControlSkeleton =
+      property_preflight_shairport_sync_remote_control_skeleton_new();
   shairportSyncAdvancedRemoteControlSkeleton =
       property_preflight_shairport_sync_advanced_remote_control_skeleton_new();
 
@@ -1076,10 +1085,13 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
     shairport_sync_diagnostics_set_file_and_line(
         SHAIRPORT_SYNC_DIAGNOSTICS(shairportSyncDiagnosticsSkeleton), TRUE);
   }
-  
-  shairport_sync_remote_control_set_metadata(shairportSyncRemoteControlSkeleton, g_variant_new_array (G_VARIANT_TYPE ("{sv}"), NULL, 0));
-  shairport_sync_client_set_now_playing_information(shairportSyncClientSkeleton, g_variant_new_array (G_VARIANT_TYPE ("{sv}"), NULL, 0));
-  shairport_sync_client_set_command_information(shairportSyncClientSkeleton, g_variant_new_array (G_VARIANT_TYPE ("v"), NULL, 0));
+
+  shairport_sync_remote_control_set_metadata(shairportSyncRemoteControlSkeleton,
+                                             g_variant_new_array(G_VARIANT_TYPE("{sv}"), NULL, 0));
+  shairport_sync_client_set_now_playing_information(
+      shairportSyncClientSkeleton, g_variant_new_array(G_VARIANT_TYPE("{sv}"), NULL, 0));
+  shairport_sync_client_set_command_information(shairportSyncClientSkeleton,
+                                                g_variant_new_array(G_VARIANT_TYPE("v"), NULL, 0));
 
   shairport_sync_remote_control_set_player_state(shairportSyncRemoteControlSkeleton,
                                                  "Not Available");
@@ -1089,10 +1101,11 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
   shairport_sync_advanced_remote_control_set_loop_status(shairportSyncAdvancedRemoteControlSkeleton,
                                                          "Not Available");
 
-  shairport_sync_advanced_remote_control_set_shuffle(shairportSyncAdvancedRemoteControlSkeleton, "Not Available");
+  shairport_sync_advanced_remote_control_set_shuffle(shairportSyncAdvancedRemoteControlSkeleton,
+                                                     "Not Available");
 
   usleep(20000); // allow settings to be made before connecting the callbacks.
-  
+
   // connect up the callbacks
 
   // g_signal_connect(shairportSyncSkeleton, "notify::interpolation",

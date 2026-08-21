@@ -38,8 +38,7 @@
  * ======================================================================== */
 
 gboolean property_preflight_string_enum(const gchar *property_name, GVariant *value,
-                                        const gchar *const *valid_values,
-                                        const gchar *interface,
+                                        const gchar *const *valid_values, const gchar *interface,
                                         GError **error) {
   const gchar *s = g_variant_get_string(value, NULL);
 
@@ -66,8 +65,7 @@ gboolean property_preflight_string_enum(const gchar *property_name, GVariant *va
 
 gboolean property_preflight_normalize_string_enum(const gchar *property_name, GVariant **value,
                                                   const gchar *const *valid_values,
-                                                  const gchar *interface,
-                                                  GError **error) {
+                                                  const gchar *interface, GError **error) {
   const gchar *s = g_variant_get_string(*value, NULL);
   gint i;
 
@@ -102,8 +100,9 @@ gboolean property_preflight_normalize_string_enum(const gchar *property_name, GV
   return FALSE;
 }
 
-gboolean property_preflight_double_range(const gchar *property_name, GVariant *value, gdouble min_value,
-                                         gdouble max_value, const gchar *interface, GError **error) {
+gboolean property_preflight_double_range(const gchar *property_name, GVariant *value,
+                                         gdouble min_value, gdouble max_value,
+                                         const gchar *interface, GError **error) {
   gdouble v = g_variant_get_double(value);
 
   if (v >= min_value && v <= max_value)
@@ -116,7 +115,8 @@ gboolean property_preflight_double_range(const gchar *property_name, GVariant *v
 }
 
 gboolean property_preflight_clamp_double_range(const gchar *property_name, GVariant **value,
-                                               gdouble min_value, gdouble max_value, GError **error) {
+                                               gdouble min_value, gdouble max_value,
+                                               GError **error) {
   gdouble v = g_variant_get_double(*value);
   gdouble clamped = CLAMP(v, min_value, max_value);
 
@@ -155,4 +155,3 @@ gboolean property_preflight_clamp_int_range(const gchar *property_name, GVariant
 
   return TRUE;
 }
-

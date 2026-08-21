@@ -182,17 +182,18 @@ plist_t destinationArchive(const char *deviceUUID) {
   uint32_t bplist_len = 0;
   plist_to_bin(archive_plist, &bplist_buf, &bplist_len);
   plist_free(archive_plist);
-  
+
   plist_t reply = plist_new_data(bplist_buf, bplist_len);
   free(bplist_buf);
   return reply;
 }
 
 plist_t paramsPlist(unsigned int send_options_number, const char *deviceUUID) {
-   plist_t params_plist = plist_new_dict();
+  plist_t params_plist = plist_new_dict();
   // plist_dict_set_item(params_plist, "kMRMediaRemoteOptionRemoteControlInterfaceIdentifier",
   //                     plist_new_string("org.gnome.ShairportSync"));
-  plist_dict_set_item(params_plist, "kMRMediaRemoteOptionSendOptionsNumber", plist_new_uint(send_options_number));
+  plist_dict_set_item(params_plist, "kMRMediaRemoteOptionSendOptionsNumber",
+                      plist_new_uint(send_options_number));
   char *command_UUID = generate_random_uuid();
   plist_dict_set_item(params_plist, "kMRMediaRemoteOptionCommandID",
                       plist_new_string(command_UUID));
@@ -240,7 +241,7 @@ ssize_t ap2_event_send_dev_mule(unsigned int parameter) {
       plist_dict_set_item(params, "kMRMediaRemoteOptionShuffleMode",
                         plist_new_uint(parameter));
     plist_dict_set_item(modernMediaCommand, "params", params);
-        
+
     result = ap2_event_port_post_command(conn, modernMediaCommand);
     plist_free(modernMediaCommand);
     if (result <= 0)
@@ -264,22 +265,19 @@ ssize_t ap2_event_send_dev_mule(unsigned int repeat_mode) {
 
     plist_t params = paramsPlist(0, conn->airplay_gid);
     if (params != NULL)
-      plist_dict_set_item(params, "kMRMediaRemoteOptionShuffleMode",
-                        plist_new_uint(repeat_mode));
+      plist_dict_set_item(params, "kMRMediaRemoteOptionShuffleMode", plist_new_uint(repeat_mode));
     plist_dict_set_item(modernMediaCommand, "params", params);
-        
+
     result = ap2_event_port_post_command(conn, modernMediaCommand);
     plist_free(modernMediaCommand);
     if (result <= 0)
-      debug(1, "Connection %d: error %zd when sending set shuffle mode command.", conn->connection_number,
-            result);
+      debug(1, "Connection %d: error %zd when sending set shuffle mode command.",
+            conn->connection_number, result);
   } else {
     debug(1, "No connection when sending set shuffle mode command.");
   }
   return result;
 }
-
-
 
 ssize_t ap2_event_send_set_repeat_mode(unsigned int repeat_mode) {
   ssize_t result = -1;
@@ -293,15 +291,14 @@ ssize_t ap2_event_send_set_repeat_mode(unsigned int repeat_mode) {
 
     plist_t params = paramsPlist(0, conn->airplay_gid);
     if (params != NULL)
-      plist_dict_set_item(params, "kMRMediaRemoteOptionRepeatMode",
-                        plist_new_uint(repeat_mode));
+      plist_dict_set_item(params, "kMRMediaRemoteOptionRepeatMode", plist_new_uint(repeat_mode));
     plist_dict_set_item(modernMediaCommand, "params", params);
-        
+
     result = ap2_event_port_post_command(conn, modernMediaCommand);
     plist_free(modernMediaCommand);
     if (result <= 0)
-      debug(1, "Connection %d: error %zd when sending set repeat mode command.", conn->connection_number,
-            result);
+      debug(1, "Connection %d: error %zd when sending set repeat mode command.",
+            conn->connection_number, result);
   } else {
     debug(1, "No connection when sending set repeat mode command.");
   }
@@ -320,15 +317,14 @@ ssize_t ap2_event_send_set_shuffle_mode(unsigned int shuffle_mode) {
 
     plist_t params = paramsPlist(0, conn->airplay_gid);
     if (params != NULL)
-      plist_dict_set_item(params, "kMRMediaRemoteOptionShuffleMode",
-                        plist_new_uint(shuffle_mode));
+      plist_dict_set_item(params, "kMRMediaRemoteOptionShuffleMode", plist_new_uint(shuffle_mode));
     plist_dict_set_item(modernMediaCommand, "params", params);
-        
+
     result = ap2_event_port_post_command(conn, modernMediaCommand);
     plist_free(modernMediaCommand);
     if (result <= 0)
-      debug(1, "Connection %d: error %zd when sending set shuffle mode command.", conn->connection_number,
-            result);
+      debug(1, "Connection %d: error %zd when sending set shuffle mode command.",
+            conn->connection_number, result);
   } else {
     debug(1, "No connection when sending set shuffle mode command.");
   }
@@ -429,7 +425,7 @@ void remote_increment_volume(int up) {
   double desired_volume = config.airplay_volume;
   if (desired_volume < -30.0)
     desired_volume = -30.0;
-  
+
   if (up == 0) {
     desired_volume -= increment;
   } else {
@@ -445,7 +441,7 @@ void remote_increment_volume(int up) {
   pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
   if ((principal_conn != NULL) && (principal_conn->airplay_type == ap_2)) {
     debug(4, "remote_increment_volume %s", up == 0 ? "down" : "up");
-    
+
     double desired_unit_volume = airplayVolumeToUnitVolume(desired_volume);
 
     if (principal_conn != NULL) {
@@ -454,7 +450,7 @@ void remote_increment_volume(int up) {
       player_volume(desired_volume, principal_conn);
     }
   } else {
-      config.airplay_volume = desired_volume;
+    config.airplay_volume = desired_volume;
   }
   pthread_cleanup_pop(1); // release the principal_conn lock
 }
@@ -469,13 +465,13 @@ void remote_volumeup() {
   }
 #endif
 #ifdef CONFIG_AIRPLAY_2
-// if (available == 0)
+  // if (available == 0)
   remote_increment_volume(1); // increment up
 #endif
 }
 
 void remote_volumedown() {
-int available = 0;
+  int available = 0;
 #ifdef CONFIG_DACP_CLIENT
   available = metadata_store.dacp_server_active;
   if (available) {
@@ -484,8 +480,8 @@ int available = 0;
   }
 #endif
 #ifdef CONFIG_AIRPLAY_2
-if (available == 0)
-  remote_increment_volume(0); // increment down
+  if (available == 0)
+    remote_increment_volume(0); // increment down
 #endif
 }
 
@@ -496,7 +492,7 @@ int remote_set_integer_percent_volume(const int volume) {
 #ifdef CONFIG_DACP_CLIENT
   available = metadata_store.advanced_dacp_server_active;
   if (available) {
-      dacp_set_integer_percent_volume(volume);
+    dacp_set_integer_percent_volume(volume);
   }
 #endif
 // not quite the same... this only affects this speaker...
@@ -550,21 +546,21 @@ void remote_simple_command(simple_command_t command) {
   if ((available == 0) && (principal_conn != NULL) && (principal_conn->airplay_type == ap_2)) {
     if (principal_conn != NULL) {
       switch (command) {
-        case rcsc_not_a_command: // do nothing...
-          break;
-        case rcsc_volume_up:
-          remote_volumeup();
-          break;
-        case rcsc_volume_down:
-          remote_volumedown();
-          break;
-        case rcsc_disconnect:
-          stop_play(); // stop any current session and don't replace it
-          break;
-        default:
-          debug(4, "remote_simple_command %u -- AirPlay 2.", command);
-          ap2_event_send_simple_modern_media_remote_command(principal_conn, command);
-          break;
+      case rcsc_not_a_command: // do nothing...
+        break;
+      case rcsc_volume_up:
+        remote_volumeup();
+        break;
+      case rcsc_volume_down:
+        remote_volumedown();
+        break;
+      case rcsc_disconnect:
+        stop_play(); // stop any current session and don't replace it
+        break;
+      default:
+        debug(4, "remote_simple_command %u -- AirPlay 2.", command);
+        ap2_event_send_simple_modern_media_remote_command(principal_conn, command);
+        break;
       }
     }
   }
@@ -572,7 +568,7 @@ void remote_simple_command(simple_command_t command) {
 #endif
 }
 
-int remote_set_repeat_mode(repeat_status_type mode) {  
+int remote_set_repeat_mode(repeat_status_type mode) {
   int handled = 0;
   pthread_rwlock_rdlock(&principal_conn_lock); // don't let the principal_conn be changed
   pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
@@ -582,53 +578,53 @@ int remote_set_repeat_mode(repeat_status_type mode) {
     if (principal_conn->airplay_type == ap_2) {
       command_handled_in_airplay_2 = 1; // handled even if not successful
       switch (mode) {
-        case RS_OFF:
-          ap2_event_send_set_repeat_mode(1);
-          break;
-        case RS_ONE:
-          ap2_event_send_set_repeat_mode(2);
-          break;
-        case RS_ALL:
-          ap2_event_send_set_repeat_mode(3);
-          break;
-        default:
-          debug(1, "AP2 invalid repeat mode request -- ignored.");
-          break;
+      case RS_OFF:
+        ap2_event_send_set_repeat_mode(1);
+        break;
+      case RS_ONE:
+        ap2_event_send_set_repeat_mode(2);
+        break;
+      case RS_ALL:
+        ap2_event_send_set_repeat_mode(3);
+        break;
+      default:
+        debug(1, "AP2 invalid repeat mode request -- ignored.");
+        break;
       }
       handled = 1;
-    }  
+    }
 #endif
 #ifdef CONFIG_DACP_CLIENT
     if (command_handled_in_airplay_2 == 0) {
       if (metadata_store.advanced_dacp_server_active != 0) {
         switch (mode) {
-          case RS_OFF:
-            send_simple_dacp_command("setproperty?dacp.repeatstate=0");
-            break;
-          case RS_ONE:
-            send_simple_dacp_command("setproperty?dacp.repeatstate=1");
-            break;
-          case RS_ALL:
-            send_simple_dacp_command("setproperty?dacp.repeatstate=2");
-            break;
-          default:
-            debug(1, "DACP invalid repeat mode request -- ignored.");
-            break;
-        } 
-        handled = 1;   
-      }
-       else {
-        inform("Can't set loop status / repeat mode -- advanced remote control is not available for this client.");
+        case RS_OFF:
+          send_simple_dacp_command("setproperty?dacp.repeatstate=0");
+          break;
+        case RS_ONE:
+          send_simple_dacp_command("setproperty?dacp.repeatstate=1");
+          break;
+        case RS_ALL:
+          send_simple_dacp_command("setproperty?dacp.repeatstate=2");
+          break;
+        default:
+          debug(1, "DACP invalid repeat mode request -- ignored.");
+          break;
+        }
+        handled = 1;
+      } else {
+        inform("Can't set loop status / repeat mode -- advanced remote control is not available "
+               "for this client.");
       }
     }
 #endif
   }
   pthread_cleanup_pop(1); // release the principal_conn lock
   return handled;
-}  
+}
 
-int remote_set_shuffle_mode(shuffle_status_type mode) { 
-  int handled = 1; //default 
+int remote_set_shuffle_mode(shuffle_status_type mode) {
+  int handled = 1;                             // default
   pthread_rwlock_rdlock(&principal_conn_lock); // don't let the principal_conn be changed
   pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
   if (principal_conn != NULL) {
@@ -637,39 +633,39 @@ int remote_set_shuffle_mode(shuffle_status_type mode) {
     if (principal_conn->airplay_type == ap_2) {
       command_handled_in_airplay_2 = 1; // handled even if not successful
       switch (mode) {
-        case SS_OFF:
-          ap2_event_send_set_shuffle_mode(1); // seems to be shuffle off
-          break;
-        case SS_ON:
-          ap2_event_send_set_shuffle_mode(3); // seems to be shuffle songs
-          break;
-        default:
-          debug(1, "AP2 invalid shuffle mode request -- ignored.");
-          break;
-      }   
-    }  
+      case SS_OFF:
+        ap2_event_send_set_shuffle_mode(1); // seems to be shuffle off
+        break;
+      case SS_ON:
+        ap2_event_send_set_shuffle_mode(3); // seems to be shuffle songs
+        break;
+      default:
+        debug(1, "AP2 invalid shuffle mode request -- ignored.");
+        break;
+      }
+    }
 #endif
 #ifdef CONFIG_DACP_CLIENT
     if (command_handled_in_airplay_2 == 0) {
       if (metadata_store.advanced_dacp_server_active != 0) {
         switch (mode) {
-          case SS_OFF:
-            send_simple_dacp_command("setproperty?dacp.shufflestate=0");
-            break;
-          case SS_ON:
-            send_simple_dacp_command("setproperty?dacp.shufflestate=1");
-            break;
-          default:
-            debug(1, "DACP invalid shuffle mode request -- ignored.");
-            break;
-        }    
-      }
-       else {
-        inform("Can't set loop status / repeat mode -- advanced remote control is not available for this client.");
+        case SS_OFF:
+          send_simple_dacp_command("setproperty?dacp.shufflestate=0");
+          break;
+        case SS_ON:
+          send_simple_dacp_command("setproperty?dacp.shufflestate=1");
+          break;
+        default:
+          debug(1, "DACP invalid shuffle mode request -- ignored.");
+          break;
+        }
+      } else {
+        inform("Can't set loop status / repeat mode -- advanced remote control is not available "
+               "for this client.");
       }
     }
 #endif
   }
   pthread_cleanup_pop(1); // release the principal_conn lock
   return handled;
-}  
+}
