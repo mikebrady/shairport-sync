@@ -29,6 +29,10 @@
 #include "rtsp.h"
 #include "utilities/generate_random_uuid.h"
 #include "utilities/structured_buffer.h"
+#include <errno.h>
+#include <stdio.h>
+#include <sys/socket.h>
+#include <sys/time.h>
 
 void decodeAndLogPlist(plist_t plist_to_log) {
   if (plist_to_log != NULL) {
@@ -103,6 +107,206 @@ ssize_t ap2_event_port_post_command(rtsp_conn_info *conn, plist_t command) {
     }
     pthread_cleanup_pop(1); // delete the structured buffer
   }
+  return result;
+}
+
+static ssize_t ap2_event_port_send_media_remote_message(
+    rtsp_conn_info *conn, char *data, size_t data_length) {
+  ssize_t result = -1;
+  int receive_timeout_changed = 0;
+  int send_timeout_changed = 0;
+  int timeout_setup_ok = 1;
+  struct timeval old_receive_timeout;
+  struct timeval old_send_timeout;
+  socklen_t old_receive_timeout_length = sizeof(old_receive_timeout);
+  socklen_t old_send_timeout_length = sizeof(old_send_timeout);
+
+  pthread_mutex_lock(&conn->event_sender_mutex);
+  pthread_cleanup_push(mutex_unlock, &conn->event_sender_mutex);
+
+  if ((conn->event_channel_fd > 0) &&
+      (conn->ap2_pairing_context.event_cipher_bundle.cipher_ctx != NULL)) {
+    if (getsockopt(conn->event_channel_fd, SOL_SOCKET, SO_RCVTIMEO, &old_receive_timeout,
+                   &old_receive_timeout_length) == -1) {
+      debug(1, "Connection %d: unable to read MediaRemote receive timeout: %d.",
+            conn->connection_number, errno);
+      timeout_setup_ok = 0;
+    }
+    if (getsockopt(conn->event_channel_fd, SOL_SOCKET, SO_SNDTIMEO, &old_send_timeout,
+                   &old_send_timeout_length) == -1) {
+      debug(1, "Connection %d: unable to read MediaRemote send timeout: %d.",
+            conn->connection_number, errno);
+      timeout_setup_ok = 0;
+    }
+
+    if (timeout_setup_ok != 0) {
+      // Match the existing DACP control path's 500 ms socket timeout.
+      struct timeval event_timeout;
+      event_timeout.tv_sec = 0;
+      event_timeout.tv_usec = 500000;
+
+      if (setsockopt(conn->event_channel_fd, SOL_SOCKET, SO_RCVTIMEO, &event_timeout,
+                     sizeof(event_timeout)) == -1) {
+        debug(1, "Connection %d: unable to set MediaRemote receive timeout: %d.",
+              conn->connection_number, errno);
+        timeout_setup_ok = 0;
+      } else {
+        receive_timeout_changed = 1;
+      }
+
+      if ((timeout_setup_ok != 0) &&
+          (setsockopt(conn->event_channel_fd, SOL_SOCKET, SO_SNDTIMEO, &event_timeout,
+                      sizeof(event_timeout)) == -1)) {
+        debug(1, "Connection %d: unable to set MediaRemote send timeout: %d.",
+              conn->connection_number, errno);
+        timeout_setup_ok = 0;
+      } else if (timeout_setup_ok != 0) {
+        send_timeout_changed = 1;
+      }
+    }
+
+    // Do not risk an unbounded transaction if the socket timeout could not be established.
+    if (timeout_setup_ok != 0) {
+      errno = 0;
+      ssize_t written =
+          write_encrypted(conn->event_channel_fd, &conn->ap2_pairing_context.event_cipher_bundle,
+                          data, data_length);
+      if ((written >= 0) && ((size_t)written == data_length)) {
+        uint8_t packet[4097];
+        errno = 0;
+        result = read_encrypted(conn->event_channel_fd,
+                                &conn->ap2_pairing_context.event_cipher_bundle, packet,
+                                sizeof(packet) - 1);
+        if (result > 0) {
+          packet[result] = '\0';
+          int response_code = 0;
+          if (sscanf((char *)packet, "RTSP/%*s %d", &response_code) != 1) {
+            debug(1, "Connection %d: malformed MediaRemote RTSP response.",
+                  conn->connection_number);
+            result = -1;
+          } else if ((response_code < 200) || (response_code >= 300)) {
+            debug(1, "Connection %d: MediaRemote RTSP response status %d.",
+                  conn->connection_number, response_code);
+            result = -1;
+          } else {
+            debug(2, "Connection %d: MediaRemote RTSP response status %d.",
+                  conn->connection_number, response_code);
+          }
+        } else {
+          debug(1, "Connection %d: MediaRemote response failed or timed out (errno %d).",
+                conn->connection_number, errno);
+          result = -1;
+        }
+      } else {
+        debug(1, "Connection %d: MediaRemote write failed or timed out (errno %d).",
+              conn->connection_number, errno);
+        result = -1;
+      }
+    } else {
+      debug(1, "Connection %d: MediaRemote transaction not attempted because a bounded socket "
+               "timeout could not be established.",
+            conn->connection_number);
+      result = -1;
+    }
+
+    if (receive_timeout_changed != 0) {
+      if (setsockopt(conn->event_channel_fd, SOL_SOCKET, SO_RCVTIMEO, &old_receive_timeout,
+                     sizeof(old_receive_timeout)) == -1)
+        debug(1, "Connection %d: unable to restore event receive timeout: %d.",
+              conn->connection_number, errno);
+    }
+    if (send_timeout_changed != 0) {
+      if (setsockopt(conn->event_channel_fd, SOL_SOCKET, SO_SNDTIMEO, &old_send_timeout,
+                     sizeof(old_send_timeout)) == -1)
+        debug(1, "Connection %d: unable to restore event send timeout: %d.",
+              conn->connection_number, errno);
+    }
+  } else {
+    debug(1, "Connection %d: MediaRemote requested without a ready encrypted event channel.",
+          conn->connection_number);
+  }
+
+  pthread_cleanup_pop(1);
+  return result;
+}
+
+static ssize_t ap2_event_port_post_media_remote_command(rtsp_conn_info *conn, plist_t command) {
+  ssize_t result = -1;
+  decodeAndLogPlist(command);
+  structured_buffer *sbuf = sbuf_new(4096);
+  if (sbuf != NULL) {
+    pthread_cleanup_push(sbuf_cleanup, sbuf);
+    char *plist_string = NULL;
+    uint32_t plist_string_length = 0;
+    plist_to_bin(command, &plist_string, &plist_string_length);
+    if (plist_string != NULL) {
+      sbuf_printf(sbuf, "POST /command RTSP/1.0\r\nContent-Length: %u\r\n",
+                  plist_string_length);
+      sbuf_printf(sbuf, "Content-Type: application/x-apple-binary-plist\r\n\r\n");
+      sbuf_append(sbuf, plist_string, plist_string_length);
+      free(plist_string);
+      char *buffer = NULL;
+      size_t length = 0;
+      sbuf_buf_and_length(sbuf, &buffer, &length);
+      result = ap2_event_port_send_media_remote_message(conn, buffer, length);
+    }
+    pthread_cleanup_pop(1);
+  }
+  return result;
+}
+
+ssize_t ap2_event_send_modern_media_remote_command(rtsp_conn_info *conn,
+                                                   unsigned int command_number) {
+  ssize_t result = -1;
+
+  if (conn == NULL)
+    return result;
+
+  // Transport control support is intentionally limited to the six basic commands.
+  if (command_number > 5) {
+    debug(1, "Connection %d: unsupported AirPlay 2 MediaRemote transport command %u.",
+          conn->connection_number, command_number);
+    return result;
+  }
+
+  plist_t command_plist = plist_new_dict();
+  if (command_plist == NULL)
+    return result;
+
+  plist_t params_plist = plist_new_dict();
+  if (params_plist == NULL) {
+    plist_free(command_plist);
+    return result;
+  }
+
+  char *command_uuid = generate_random_uuid();
+  if (command_uuid == NULL) {
+    plist_free(params_plist);
+    plist_free(command_plist);
+    debug(1, "Connection %d: unable to generate MediaRemote command UUID.",
+          conn->connection_number);
+    return result;
+  }
+
+  plist_dict_set_item(command_plist, "type", plist_new_string("sendMediaRemoteCommand"));
+  plist_dict_set_item(command_plist, "modernMediaRemoteCommand", plist_new_uint(command_number));
+  plist_dict_set_item(params_plist, "kMRMediaRemoteOptionCommandID",
+                      plist_new_string(command_uuid));
+  free(command_uuid);
+
+  plist_dict_set_item(params_plist, "kMRMediaRemoteOptionOriginatedFromRemoteDevice",
+                      plist_new_uint(1));
+  plist_dict_set_item(params_plist, "kMRMediaRemoteOptionSendOptionsNumber", plist_new_uint(0));
+  plist_dict_set_item(params_plist, "kMRMediaRemoteOptionIsRedirectingCommand",
+                      plist_new_uint(1));
+  plist_dict_set_item(command_plist, "params", params_plist);
+
+  debug(2, "Connection %d: sending AirPlay 2 MediaRemote transport command %u.",
+        conn->connection_number, command_number);
+  result = ap2_event_port_post_media_remote_command(conn, command_plist);
+  debug(2, "Connection %d: AirPlay 2 MediaRemote transport command %u result %zd.",
+        conn->connection_number, command_number, result);
+  plist_free(command_plist);
   return result;
 }
 

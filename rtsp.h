@@ -41,4 +41,8 @@ plist_t generateInfoPlist(rtsp_conn_info *conn);
 char *plist_as_xml_text(plist_t the_plist); // caller must free the returned NUL-terminated string
 #endif
 
+// Route the six basic transport commands through the active session protocol.
+// AirPlay 1 uses DACP; AirPlay 2 uses the encrypted event-channel /command path.
+int send_airplay_transport_command(const char *command);
+
 #endif // _RTSP_H

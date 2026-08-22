@@ -103,6 +103,15 @@ void on_message(__attribute__((unused)) struct mosquitto *mosq,
           debug(2, "[MQTT]: Queue Next Command: %s\n", dacp_command);
           send_simple_dacp_command(dacp_command);
         }
+      } else if ((strcmp(commands[it], "play") == 0) ||
+                 (strcmp(commands[it], "pause") == 0) ||
+                 (strcmp(commands[it], "playpause") == 0) ||
+                 (strcmp(commands[it], "stop") == 0) ||
+                 (strcmp(commands[it], "nextitem") == 0) ||
+                 (strcmp(commands[it], "previtem") == 0)) {
+        debug(2, "[MQTT]: AirPlay transport command: %s\n", commands[it]);
+        if (send_airplay_transport_command(commands[it]) != 0)
+          debug(1, "[MQTT]: AirPlay transport command failed: %s\n", commands[it]);
       } else {
         debug(2, "[MQTT]: DACP Command: %s\n", commands[it]);
 #ifdef CONFIG_DACP_CLIENT

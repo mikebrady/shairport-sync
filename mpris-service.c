@@ -242,36 +242,48 @@ static gboolean on_handle_quit(MediaPlayer2 *skeleton, GDBusMethodInvocation *in
 
 static gboolean on_handle_next(MediaPlayer2Player *skeleton, GDBusMethodInvocation *invocation,
                                __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("nextitem");
-#endif
+if (send_airplay_transport_command("nextitem") != 0) {
+    g_dbus_method_invocation_return_dbus_error(
+        invocation, "org.mpris.MediaPlayer2.ShairportSync.Error.ControlFailed",
+        "AirPlay transport command failed");
+    return TRUE;
+  }
   media_player2_player_complete_next(skeleton, invocation);
   return TRUE;
 }
 
 static gboolean on_handle_previous(MediaPlayer2Player *skeleton, GDBusMethodInvocation *invocation,
                                    __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("previtem");
-#endif
+if (send_airplay_transport_command("previtem") != 0) {
+    g_dbus_method_invocation_return_dbus_error(
+        invocation, "org.mpris.MediaPlayer2.ShairportSync.Error.ControlFailed",
+        "AirPlay transport command failed");
+    return TRUE;
+  }
   media_player2_player_complete_previous(skeleton, invocation);
   return TRUE;
 }
 
 static gboolean on_handle_stop(MediaPlayer2Player *skeleton, GDBusMethodInvocation *invocation,
                                __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("stop");
-#endif
+if (send_airplay_transport_command("stop") != 0) {
+    g_dbus_method_invocation_return_dbus_error(
+        invocation, "org.mpris.MediaPlayer2.ShairportSync.Error.ControlFailed",
+        "AirPlay transport command failed");
+    return TRUE;
+  }
   media_player2_player_complete_stop(skeleton, invocation);
   return TRUE;
 }
 
 static gboolean on_handle_pause(MediaPlayer2Player *skeleton, GDBusMethodInvocation *invocation,
                                 __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("pause");
-#endif
+if (send_airplay_transport_command("pause") != 0) {
+    g_dbus_method_invocation_return_dbus_error(
+        invocation, "org.mpris.MediaPlayer2.ShairportSync.Error.ControlFailed",
+        "AirPlay transport command failed");
+    return TRUE;
+  }
   media_player2_player_complete_pause(skeleton, invocation);
   return TRUE;
 }
@@ -279,18 +291,24 @@ static gboolean on_handle_pause(MediaPlayer2Player *skeleton, GDBusMethodInvocat
 static gboolean on_handle_play_pause(MediaPlayer2Player *skeleton,
                                      GDBusMethodInvocation *invocation,
                                      __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("playpause");
-#endif
+if (send_airplay_transport_command("playpause") != 0) {
+    g_dbus_method_invocation_return_dbus_error(
+        invocation, "org.mpris.MediaPlayer2.ShairportSync.Error.ControlFailed",
+        "AirPlay transport command failed");
+    return TRUE;
+  }
   media_player2_player_complete_play_pause(skeleton, invocation);
   return TRUE;
 }
 
 static gboolean on_handle_play(MediaPlayer2Player *skeleton, GDBusMethodInvocation *invocation,
                                __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("play");
-#endif
+if (send_airplay_transport_command("play") != 0) {
+    g_dbus_method_invocation_return_dbus_error(
+        invocation, "org.mpris.MediaPlayer2.ShairportSync.Error.ControlFailed",
+        "AirPlay transport command failed");
+    return TRUE;
+  }
   media_player2_player_complete_play(skeleton, invocation);
   return TRUE;
 }

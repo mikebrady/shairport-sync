@@ -76,6 +76,10 @@
 #include "rtp.h"
 #include "rtsp.h"
 
+#ifdef CONFIG_DACP_CLIENT
+#include "dacp.h"
+#endif
+
 #ifdef CONFIG_METADATA
 #include "metadata/core.h"
 #include "metadata/pc_queue.h"
@@ -93,6 +97,7 @@
 
 #ifdef CONFIG_AIRPLAY_2
 #include "ap2_buffered_audio_processor.h"
+#include "ap2_event_message_handler.h"
 #include "ap2_event_receiver.h"
 #include "pair_ap/pair.h"
 #include "plists/get_info_response.h"
@@ -133,6 +138,84 @@ rtsp_conn_info **conns = NULL;
 // use a read lock when consulting and holding it
 // use a write lock if you want to change it
 pthread_rwlock_t principal_conn_lock = PTHREAD_RWLOCK_INITIALIZER;
+
+static int media_remote_command_number(const char *command) {
+  if (command == NULL)
+    return -1;
+  if (strcmp(command, "play") == 0)
+    return 0;
+  if (strcmp(command, "pause") == 0)
+    return 1;
+  if (strcmp(command, "playpause") == 0)
+    return 2;
+  if (strcmp(command, "stop") == 0)
+    return 3;
+  if (strcmp(command, "nextitem") == 0)
+    return 4;
+  if (strcmp(command, "previtem") == 0)
+    return 5;
+  return -1;
+}
+
+int send_airplay_transport_command(const char *command) {
+  int result = -1;
+  int have_principal = 0;
+  int use_airplay_2 = 0;
+  int command_number = media_remote_command_number(command);
+
+  if (command_number < 0) {
+    debug(1, "Unsupported AirPlay transport command \"%s\".",
+          command != NULL ? command : "(null)");
+    return result;
+  }
+
+#ifdef CONFIG_AIRPLAY_2
+  /*
+   * The principal connection owns the AP2 event socket, cipher state and mutex.
+   * Keep the read lock for the bounded MediaRemote transaction so teardown cannot
+   * reclaim those objects while the command is in flight.
+   */
+  pthread_rwlock_rdlock(&principal_conn_lock);
+  pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
+  if (principal_conn != NULL) {
+    have_principal = 1;
+    if (principal_conn->airplay_type == ap_2) {
+      use_airplay_2 = 1;
+      ssize_t wire_result = ap2_event_send_modern_media_remote_command(
+          principal_conn, (unsigned int)command_number);
+      result = wire_result > 0 ? 0 : -1;
+    }
+  }
+  pthread_cleanup_pop(1);
+
+  if (use_airplay_2) {
+    debug(result == 0 ? 2 : 1,
+          "AirPlay 2 transport command %d (%s) event-channel %s.",
+          command_number, command, result == 0 ? "accepted" : "failed");
+    return result; // Never mask an AP2 failure by falling through to DACP.
+  }
+#else
+  (void)command_number;
+  have_principal = 1; // AirPlay 1-only builds preserve the existing DACP path.
+#endif
+
+  if (!have_principal) {
+    debug(2, "No active principal connection for transport command %s.", command);
+    return result;
+  }
+
+#ifdef CONFIG_DACP_CLIENT
+  debug(2, "Classic AirPlay transport command %s via DACP.", command);
+  int dacp_result = send_simple_dacp_command((char *)command);
+  result = ((dacp_result >= 200) && (dacp_result < 300)) ? 0 : -1;
+  if (result != 0)
+    debug(1, "Classic AirPlay transport command %s failed with DACP status %d.",
+          command, dacp_result);
+#else
+  debug(2, "Classic AirPlay transport command %s requested without DACP support.", command);
+#endif
+  return result;
+}
 
 // always lock this when accessing the list of connection threads
 pthread_mutex_t conns_lock = PTHREAD_MUTEX_INITIALIZER;
