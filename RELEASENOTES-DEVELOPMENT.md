@@ -1,3 +1,41 @@
+Version 5.4-dev
+===
+Remote Control for AirPlay 2
+====
+We are excited to announce that remote control of AirPlay 2 players is becoming available with the `development` version of Shairport Sync `5.4-dev`. In tandem with this, enhanced metadata is also available on the D-Bus interface for AirPlay 2 players.
+
+You'll know that Shairport Sync has had remote control facilities for classic AirPlay players for some time -- for example, you could control play and volume and some more things via Shairport Sync's MPRIS, D-Bus or MQTT interfaces, but this only worked only on "classic" AirPlay (aka AirPlay 1) players, and "Advanced" controls were only available for iTunes or the macOS Music app.
+
+Now, most of these remote control facilities are available on AirPlay 2 players using the same Shairport Sync commands and properties.
+
+Enhanced Metadata for Airplay 2
+====
+AirPlay 2 provides much more metadata than classic AirPlay. This is now provided on the D-Bus interface alongside existing metadata. A great deal of extra metadata is provided in AirPlay 2, and much of it has not been figured out.
+
+More Details
+====
+* The MPRIS interface has been brought closer to the true MPRIS standard: Volume, Loop Status and Shuffle are now settable properties as specified in the standard, whereas up to now they were read-only properties.
+* The D-Bus interface has likewise been enhanced: Volume, Loop Status and Shuffle are now settable properties. Most of the `RemoteControl` and `AdvancedRemoteControl` suite of commands and properties are available on AirPlay 2 connections.
+* The D-Bus interface has two new properties: `NowPlayingInformation` and `CommandInformation`. Both of these are essentially raw feeds of metadata coming from AirPlay 2. The only exception is that raw picture data is removed from the `NowPlayingInformation` and is replaced by a local file reference to the same data.
+* MPRIS and D-Bus interfaces now check parameters and report errors before accepting a command or setting a property.
+
+Other Changes
+====
+* Some AirPlay 2 feature and status flags have been changed.
+
+Divergences between AirPlay 2 and classic AirPlay
+====
+
+Although many properties and features remain the same, not everything is quite the same between classic AirPlay and AirPlay 2 commands and metadata. 
+
+The Picture is Evolving!
+====
+This picture is changing as we develop more understanding. 
+
+Deprecations!
+====
+There will likely be deprecations as these facilities evolve. For example, `AdvancedRemoteControl`, duplicate `Volume` and `SetVolume` properties and methods will go away; `AdvancedRemoteControl.Available` and `RemoteControl.Available` may disappear, etc.
+
 Version 5.3-dev-24-g5e170a67
 ==
 This is essentially Version 5.2.2.
