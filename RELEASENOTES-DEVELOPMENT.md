@@ -25,6 +25,7 @@ More Details
 Other Changes
 ====
 * Some AirPlay 2 feature and status flags have been changed.
+* Two new metadata build flags have been introduced: `--with-metadata-pipe` and `--with-metadata-multicast` to included support for piping and multicasting, respectively, metadata.
 * The D-Bus and `MPRIS` test clients `shairport-sync-dbus-test-client` and `shairport-sync-mpris-test-client` have been updated to pretty-print the new metadata and command information.
 * The [sample metadata reader](https://github.com/mikebrady/shairport-sync-metadata-reader) has similarly been updated to handle the new metadata and fix a few bugs.
 
