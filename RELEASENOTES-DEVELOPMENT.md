@@ -18,7 +18,7 @@ AirPlay 2 provides much more metadata than classic AirPlay. This is now provided
 More Details
 ====
 * The `MPRIS` interface has been brought closer to the true `MPRIS` standard: `Volume`, `LoopStatus` and `Shuffle` are now settable properties as specified in the standard, whereas up to now they were read-only properties.
-* The D-Bus interface has likewise been enhanced: `Volume`, LoopStatus` and `Shuffle` are now settable properties. Most of the `RemoteControl` and `AdvancedRemoteControl` suite of commands and properties are available on AirPlay 2 connections.
+* The D-Bus interface has likewise been enhanced: `Volume`, `LoopStatus` and `Shuffle` are now settable properties. Most of the `RemoteControl` and `AdvancedRemoteControl` suite of commands and properties are available on AirPlay 2 connections.
 * The D-Bus interface has two new properties: `NowPlayingInformation` and `CommandInformation`. Both of these are essentially raw feeds of metadata coming from AirPlay 2. The only exception is that raw picture data is removed from the `NowPlayingInformation` and is replaced by a local file reference to the same data.
 * `MPRIS` and D-Bus interfaces now check parameters and report errors before accepting a command or setting a property.
 
