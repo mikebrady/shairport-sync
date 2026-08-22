@@ -8,6 +8,8 @@ You'll know that Shairport Sync has had remote control facilities for classic Ai
 
 Now, most of these remote control facilities are available on AirPlay 2 players using the same Shairport Sync commands and properties.
 
+**Update:** It emerges that [paintarm287](https://github.com/paintarm287) has been working on this independently, and we look forward to incorporating what they have deciphered!
+
 Enhanced Metadata for Airplay 2
 ====
 AirPlay 2 provides much more metadata than classic AirPlay. This is now provided on the D-Bus interface alongside existing metadata. A great deal of extra metadata is provided in AirPlay 2, and much of it has not been figured out.
