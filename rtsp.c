@@ -1453,11 +1453,8 @@ void handle_setrateanchori(rtsp_conn_info *conn, rtsp_message *req, rtsp_message
       // debug(1, "anchor rtpTime is %" PRId64 ".", rtpTime);
       uint32_t anchorRTPTime = rtpTime;
 
-      int32_t added_latency = (int32_t)(config.audio_backend_latency_offset * conn->input_rate);
-      // debug(1,"anchorRTPTime: %" PRIu32 ", added latency: %" PRId32 ".", anchorRTPTime,
-      // added_latency);
-      set_ptp_anchor_info(conn, conn->networkTimeTimelineID, anchorRTPTime - added_latency,
-                          anchorTimeNanoseconds);
+      // Store the raw anchor; apply the latency offset when it is used.
+      set_ptp_anchor_info(conn, conn->networkTimeTimelineID, anchorRTPTime, anchorTimeNanoseconds);
     }
 
     item = plist_dict_get_item(messagePlist, "rate");

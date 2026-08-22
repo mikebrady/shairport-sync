@@ -1488,8 +1488,11 @@ int get_ptp_anchor_local_time_info(rtsp_conn_info *conn, uint32_t *anchorRTP,
     }
 
     if (conn->last_anchor_info_is_valid != 0) {
-      if (anchorRTP != NULL)
-        *anchorRTP = conn->last_anchor_rtptime;
+      if (anchorRTP != NULL) {
+        // Use the current rate in case the stream format has changed.
+        int32_t added_latency = (int32_t)(config.audio_backend_latency_offset * conn->input_rate);
+        *anchorRTP = conn->last_anchor_rtptime - added_latency;
+      }
       if (anchorLocalTime != NULL)
         *anchorLocalTime = conn->last_anchor_local_time;
     }
@@ -1616,6 +1619,7 @@ int32_t decipher_player_put_packet(uint8_t *ciphered_audio_alt, ssize_t nread,
 }
 
 void *rtp_ap2_control_receiver(void *arg) {
+  const int32_t ap2_realttime_stream_latency_fudge_factor = 11025; // seems to bring everything into sync
   //  #include <syscall.h>
   //  debug(1, "rtp_ap2_control_receiver PID %d", syscall(SYS_gettid));
   pthread_cleanup_push(rtp_ap2_control_handler_cleanup_handler, arg);
@@ -1674,22 +1678,6 @@ void *rtp_ap2_control_receiver(void *arg) {
             switch (packet[1]) {
             case 215: // code 215, effectively an anchoring announcement
             {
-              // struct timespec tnr;
-              // clock_gettime(CLOCK_REALTIME, &tnr);
-              // uint64_t local_realtime_now = timespec_to_ns(&tnr);
-
-              /*
-                        char obf[4096];
-                        char *obfp = obf;
-                        int obfc;
-                        for (obfc=0;obfc<nread;obfc++) {
-                          snprintf(obfp, 3, "%02X", packet[obfc]);
-                          obfp+=2;
-                        };
-                        *obfp=0;
-                        debug(1,"AP2 Timing Control Received: \"%s\"",obf);
-              */
-
               uint64_t remote_packet_time_ns = nctoh64(packet + 8);
               check64conversion("remote_packet_time_ns", packet + 8, remote_packet_time_ns);
               uint64_t clock_id = nctoh64(packet + 20);
@@ -1699,49 +1687,45 @@ void *rtp_ap2_control_receiver(void *arg) {
               // debug(1,"remote_packet_time_ns: %" PRIx64 ", local_realtime_now_ns: %" PRIx64
               // ".", remote_packet_time_ns, local_realtime_now);
               uint32_t frame_1 =
-                  nctohl(packet + 4); // this seems to be the frame with latency of 77165 included
+                  nctohl(packet + 4); // this seems to be the frame with latency of 77175 included
               check32conversion("frame_1", packet + 4, frame_1);
               uint32_t frame_2 =
                   nctohl(packet + 16); // this seems to be the frame the time refers to
               check32conversion("frame_2", packet + 16, frame_2);
-              // this just updates the anchor information contained in the packet
-              // the frame and its remote time
-              // add in the audio_backend_latency_offset;
-              int32_t notified_latency = frame_2 - frame_1;
-              if (notified_latency != 77175)
-                debug(1, "Notified latency is %d frames.", notified_latency);
-              int32_t added_latency =
-                  (int32_t)(config.audio_backend_latency_offset * conn->input_rate);
-              // the actual latency is the notified latency plus the fixed latency + the added
-              // latency
+              // this updates the anchor information contained in the packet
+              int32_t stream_specified_latency = frame_2 - frame_1; // this is the latency expected
+              if (stream_specified_latency != 77175)
+                debug(1, "Stream-specified latency is %d frames. Normally it is 77175.", stream_specified_latency);
+              int32_t net_source_latency = stream_specified_latency + ap2_realttime_stream_latency_fudge_factor;
 
-              int32_t net_latency =
-                  notified_latency + 11035 +
-                  added_latency; // this is the latency between incoming frames and the DAC
-              net_latency = net_latency - (int32_t)(config.audio_backend_buffer_desired_length *
+              // Now to accommodate a backend buffer of the desired length.
+              // Note that it's in input-rate frames, not output-rate frames!
+              
+              net_source_latency = net_source_latency - (int32_t)(config.audio_backend_buffer_desired_length *
                                                     conn->input_rate);
-              // debug(1, "Net latency is %d frames.", net_latency);
+                                                                               
+              // Now we want to check the user-specified latency offset.
 
+              // We want to warn the user if they have asked for a negative latency that is too great --
+              // one that would require packets to arrive before they actually do,
+              // (which is about two seconds before they are to be played).
+              
+              int32_t net_latency = net_source_latency + (int32_t)(config.audio_backend_latency_offset * conn->input_rate);
+              
               if (net_latency <= 0) {
                 if (conn->latency_warning_issued == 0) {
-                  warn("The stream latency (%f seconds) it too short to accommodate an offset of "
-                       "%f "
-                       "seconds and a backend buffer of %f seconds.",
-                       ((notified_latency + 11035) * 1.0) / conn->input_rate,
+                  warn("The stream latency (%g seconds) is too short to accommodate an audio backend latency offset of "
+                       "%g seconds and a backend buffer of %g seconds. The audio_backend_latency_offset has been set to zero.",
+                       ((stream_specified_latency + ap2_realttime_stream_latency_fudge_factor) * 1.0) / conn->input_rate,
                        config.audio_backend_latency_offset,
                        config.audio_backend_buffer_desired_length);
-                  warn("(FYI the stream latency needed would be %f seconds.)",
-                       config.audio_backend_buffer_desired_length -
-                           config.audio_backend_latency_offset);
+                  config.audio_backend_latency_offset = 0.0;
+                  net_latency = net_source_latency;
                   conn->latency_warning_issued = 1;
                 }
-                conn->latency = notified_latency + 11035;
-              } else {
-                conn->latency = notified_latency + 11035 + added_latency;
               }
-
-              set_ptp_anchor_info(conn, clock_id, frame_1 - 11035 - added_latency,
-                                  remote_packet_time_ns);
+              conn->latency = net_latency; // this is the time window within which packets can be accepted without being too late
+              set_ptp_anchor_info(conn, clock_id, frame_1 - ap2_realttime_stream_latency_fudge_factor, remote_packet_time_ns);
               if (conn->anchor_clock != clock_id) {
                 debug(2, "Connection %d: Change Anchor Clock: %" PRIx64 ".",
                       conn->connection_number, clock_id);

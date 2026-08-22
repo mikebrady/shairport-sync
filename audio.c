@@ -959,21 +959,30 @@ int32_t search_for_suitable_configuration(unsigned int channels, unsigned int ra
         local_rate = rate; // begin with the requested rate
         debug(3, "check for an exact multiple of %u with %u channels.", rate, local_channels);
         while ((local_rate <= 384000) && (local_format == SPS_FORMAT_UNKNOWN)) {
+          // first, if we in a circumstance where no further audio processing,
+          // e.g. volume adjustment or convolution is required, check_
+          // for an exact rate and bit depth match with the same or more channels
           if (
-              // clang-format off
+            // clang-format off
             // check for the exact format only under these conditions, otherwise look for the best
             (config.ignore_volume_control != 0) &&
             (config.volume_max_db_set == 0) &&
+#ifdef CONFIG_CONVOLUTION
+            (config.convolution_enabled == 0) &&
+#endif
+            (config.loudness_enabled == 0) &&
             (local_rate == rate) &&
             (local_channels >= channels) &&
             (config.playback_mode != ST_mono)
-              // clang-format on
+            // clang-format on
           ) {
-            // debug(1, "check exact");
+            // debug(1, "first, check exact rate and format");
             local_format = check_configuration_with_formats(
                 local_channels, local_rate, (sps_format_t)format, check_configuration);
-          } else {
-            // debug(1, "check best");
+          }
+          
+          if (local_format == SPS_FORMAT_UNKNOWN) {
+            // debug(1, "check best, with any format");
             local_format = check_configuration_with_formats(local_channels, local_rate,
                                                             SPS_FORMAT_S32, check_configuration);
           }
@@ -985,7 +994,7 @@ int32_t search_for_suitable_configuration(unsigned int channels, unsigned int ra
         }
 #ifdef CONFIG_FFMPEG
         if (local_format == SPS_FORMAT_UNKNOWN) {
-          debug(3, "check for the next highest rate above %u with %u channels.", rate,
+          debug(3, "check for the next highest rate above %u with %u channels and the best format.", rate,
                 local_channels);
           unsigned int rate_pointer = 0;
           while ((rate_pointer < sizeof(rates) / sizeof(unsigned int)) &&
@@ -993,7 +1002,7 @@ int32_t search_for_suitable_configuration(unsigned int channels, unsigned int ra
             local_rate = rates[rate_pointer];
             if (local_rate > rate) {
               local_format = check_configuration_with_formats(
-                  local_channels, local_rate, (sps_format_t)format, check_configuration);
+                  local_channels, local_rate, SPS_FORMAT_S32, check_configuration);
             }
             if (local_format == SPS_FORMAT_UNKNOWN) {
               rate_pointer++;
@@ -1003,13 +1012,13 @@ int32_t search_for_suitable_configuration(unsigned int channels, unsigned int ra
 
         if (local_format == SPS_FORMAT_UNKNOWN) {
           int rate_pointer = (int)(sizeof(rates) / sizeof(unsigned int) - 1);
-          debug(3, "check for the next lowest rate below %u with %u channels.", rate,
+          debug(3, "check for the next lowest rate below %u with %u channels and the best format.", rate,
                 local_channels);
           while ((rate_pointer >= 0) && (local_format == SPS_FORMAT_UNKNOWN)) {
             local_rate = rates[rate_pointer];
             if (local_rate < rate) {
               local_format = check_configuration_with_formats(
-                  local_channels, local_rate, (sps_format_t)format, check_configuration);
+                  local_channels, local_rate, SPS_FORMAT_S32, check_configuration);
             }
             if (local_format == SPS_FORMAT_UNKNOWN) {
               rate_pointer--;
