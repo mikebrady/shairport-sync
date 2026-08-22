@@ -6,7 +6,7 @@ We are thrilled to announce that remote control of AirPlay 2 players is becoming
 
 You'll know that Shairport Sync has had remote control facilities for classic AirPlay players for some time -- for example, you could control play and volume and some more things via Shairport Sync's MPRIS, D-Bus or MQTT interfaces, but this only worked only on "classic" AirPlay (aka AirPlay 1) players, and "Advanced" controls were only available for iTunes or the macOS Music app.
 
-Now, most of these remote control facilities are available on AirPlay 2 players using the same Shairport Sync commands and properties.
+Most of these remote control facilities are now available on AirPlay 2 players using the same Shairport Sync commands and properties.
 
 **Update:** It emerges that [paintarm287](https://github.com/paintarm287) has been working on this independently, and we look forward to incorporating what they have deciphered!
 
