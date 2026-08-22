@@ -379,7 +379,7 @@ static gboolean on_handle_toggle_mute(ShairportSyncRemoteControl *skeleton,
 static gboolean on_handle_next(ShairportSyncRemoteControl *skeleton,
                                GDBusMethodInvocation *invocation,
                                __attribute__((unused)) gpointer user_data) {
-if (send_airplay_transport_command("nextitem") != 0) {
+  if (send_airplay_transport_command("nextitem") != 0) {
     g_dbus_method_invocation_return_dbus_error(
         invocation, "org.gnome.ShairportSync.Error.ControlFailed",
         "AirPlay transport command failed");
@@ -392,7 +392,7 @@ if (send_airplay_transport_command("nextitem") != 0) {
 static gboolean on_handle_previous(ShairportSyncRemoteControl *skeleton,
                                    GDBusMethodInvocation *invocation,
                                    __attribute__((unused)) gpointer user_data) {
-if (send_airplay_transport_command("previtem") != 0) {
+  if (send_airplay_transport_command("previtem") != 0) {
     g_dbus_method_invocation_return_dbus_error(
         invocation, "org.gnome.ShairportSync.Error.ControlFailed",
         "AirPlay transport command failed");
@@ -405,7 +405,7 @@ if (send_airplay_transport_command("previtem") != 0) {
 static gboolean on_handle_pause(ShairportSyncRemoteControl *skeleton,
                                 GDBusMethodInvocation *invocation,
                                 __attribute__((unused)) gpointer user_data) {
-if (send_airplay_transport_command("pause") != 0) {
+  if (send_airplay_transport_command("pause") != 0) {
     g_dbus_method_invocation_return_dbus_error(
         invocation, "org.gnome.ShairportSync.Error.ControlFailed",
         "AirPlay transport command failed");
@@ -418,7 +418,7 @@ if (send_airplay_transport_command("pause") != 0) {
 static gboolean on_handle_play_pause(ShairportSyncRemoteControl *skeleton,
                                      GDBusMethodInvocation *invocation,
                                      __attribute__((unused)) gpointer user_data) {
-if (send_airplay_transport_command("playpause") != 0) {
+  if (send_airplay_transport_command("playpause") != 0) {
     g_dbus_method_invocation_return_dbus_error(
         invocation, "org.gnome.ShairportSync.Error.ControlFailed",
         "AirPlay transport command failed");
@@ -431,7 +431,7 @@ if (send_airplay_transport_command("playpause") != 0) {
 static gboolean on_handle_play(ShairportSyncRemoteControl *skeleton,
                                GDBusMethodInvocation *invocation,
                                __attribute__((unused)) gpointer user_data) {
-if (send_airplay_transport_command("play") != 0) {
+  if (send_airplay_transport_command("play") != 0) {
     g_dbus_method_invocation_return_dbus_error(
         invocation, "org.gnome.ShairportSync.Error.ControlFailed",
         "AirPlay transport command failed");
@@ -444,7 +444,7 @@ if (send_airplay_transport_command("play") != 0) {
 static gboolean on_handle_stop(ShairportSyncRemoteControl *skeleton,
                                GDBusMethodInvocation *invocation,
                                __attribute__((unused)) gpointer user_data) {
-if (send_airplay_transport_command("stop") != 0) {
+  if (send_airplay_transport_command("stop") != 0) {
     g_dbus_method_invocation_return_dbus_error(
         invocation, "org.gnome.ShairportSync.Error.ControlFailed",
         "AirPlay transport command failed");
