@@ -1,5 +1,7 @@
 Version 5.3-dev-24-g5e170a67
 ==
+This is essentially Version 5.2.2.
+
 **Documentation Update**
 * Update the README reference to the MPRIS specification to the [latest](https://specifications.freedesktop.org/mpris/latest) version. Thanks to [Dmitry Batin](https://github.com/demosspro) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2255).
 
