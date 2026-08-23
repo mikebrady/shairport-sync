@@ -21,7 +21,7 @@ AirPlay 2 supports a variety of audio formats. This is a summary of what is know
    - Stereo, 5.1 and 7.1 Surround Sound.
 
 # Shairport Sync
-This information relates to Shairport Sync Version 5.0 onwards.
+This information relates to Shairport Sync Version 5.4 onwards.
 
 Shairport Sync offers AirPlay 2 support for audio sources on:
 - iOS devices,
