@@ -47,10 +47,10 @@ ssize_t ap2_event_port_send_message(rtsp_conn_info *conn, char *data, size_t dat
     if ((result != -1) && ((size_t)result == data_length)) {
       debug(3, "Connection %d: Packet of %zu bytes successfully written on the Event Port.",
             conn->connection_number, result);
-      uint8_t packet[4096];
+      uint8_t packet[4096 + 1];
       result =
           read_encrypted(conn->event_channel_fd, &conn->ap2_pairing_context.event_cipher_bundle,
-                         packet, sizeof(packet));
+                         packet, sizeof(packet) - 1);
       debug(3, "Connection %d: Packet of %zu bytes successfully read on the Event Port.",
             conn->connection_number, result);
       if (result > 0) {
