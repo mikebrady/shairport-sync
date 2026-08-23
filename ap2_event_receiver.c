@@ -35,8 +35,8 @@
 #include "metadata/core.h"
 #endif
 
-// will return -1 if there is an error or port is not open, 0 if the port was closed and a positive
-// number if okay
+// will return -1 if there is an error, the port is not open or the response is not a valid
+// successful RTSP response, 0 if the port was closed and a positive number if okay
 ssize_t ap2_event_port_send_message(rtsp_conn_info *conn, char *data, size_t data_length) {
   ssize_t result = -1; // assume a problem
   pthread_mutex_lock(&conn->event_sender_mutex);
@@ -57,6 +57,30 @@ ssize_t ap2_event_port_send_message(rtsp_conn_info *conn, char *data, size_t dat
         packet[result] = '\0';
         debug(3, "Connection %d: Packet Received on Event Port with contents: \n--\n%s\n--\n",
               conn->connection_number, packet);
+
+        if ((result < 12) ||
+            (((strncmp((char *)packet, "RTSP/1.0 ", 9) != 0) &&
+              (strncmp((char *)packet, "RTSP/1.1 ", 9) != 0))) ||
+            (packet[9] < '0') || (packet[9] > '9') ||
+            (packet[10] < '0') || (packet[10] > '9') ||
+            (packet[11] < '0') || (packet[11] > '9') ||
+            ((packet[12] != ' ') && (packet[12] != '\r') &&
+             (packet[12] != '\n') && (packet[12] != '\0'))) {
+          debug(1, "Connection %d: invalid RTSP response from the Event Port.",
+                conn->connection_number);
+          result = -1;
+        } else {
+          unsigned int response_code =
+              ((unsigned int)(packet[9] - '0') * 100) +
+              ((unsigned int)(packet[10] - '0') * 10) +
+              (unsigned int)(packet[11] - '0');
+
+          if ((response_code < 200) || (response_code >= 300)) {
+            debug(1, "Connection %d: Event Port returned RTSP status %u.",
+                  conn->connection_number, response_code);
+            result = -1;
+          }
+        }
       } else {
         debug(2, "Connection %d: Event Port connection closed by client", conn->connection_number);
       }
