@@ -44,14 +44,15 @@ Shairport Sync offers AirPlay 2 support for audio sources on:
 - Transcoding: the output will be transcoded if necessary (e.g. from 44,100 to 48,000 fps) to match the output device's rate.
 - Mixdown: mixdown to fewer output channels (e.g. 5.1 to stereo) is automatic but can be controlled.
 - Shairport Sync can revert to "classic" AirPlay if necessary.
+- Metadata, including "now-playing" information and album artwork, via an MPRIS interface, a native D-Bus interface, MQTT, a Unix pipe or multicast.
+- Remote control facilities via MPRIS, D-Bus or MQTT.
 - Devices running Shairport Sync in AirPlay 2 mode can be [added](https://github.com/mikebrady/shairport-sync/blob/development/ADDINGTOHOME.md) to the Home app.
-- Shairport Sync can be built to support classic AirPlay (aka "AirPlay 1") only. Classic Airplay offers only one format, ALAC/S16/44100/2, but output transcoding is available to, for example, 48000 fps.
+- Shairport Sync can be built to support classic AirPlay (aka "AirPlay 1") only. Classic Airplay offers only one format, ALAC/S16/44100/2, but output transcoding is available to, for example, 48,000 fps.
 
 ## What Does Not Work
 - High-Definition Lossless -- 96,000 and 192,000 fps material -- is not supported.
 - Dolby Atmos is not supported.
 - AirPlay 2 for Windows iTunes is not supported.
-- Remote control facilities are not implemented.
 - AirPlay 2 from macOS prior to 10.15 (Catalina) is not supported.
 - Multiple instances of the AirPlay 2 version of Shairport Sync can not be hosted on the same system. It seems that AirPlay 2 clients are confused by having multiple AirPlay 2 players at the same IP addresses.
 
