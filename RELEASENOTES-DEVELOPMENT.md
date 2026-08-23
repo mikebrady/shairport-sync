@@ -1,45 +1,48 @@
+Version 5.4-dev-12-g3b7f300e
+==
+**Enhancements**
+*  Harden AirPlay 2 Event Port response handling with enhanced memory allocation and response checking. thanks to [paintarm287](https://github.com/paintarm287) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2258).
+
 Version 5.4-dev
-===
-Remote Control for AirPlay 2
-====
+==
+## Remote Control for AirPlay 2
+
 We are thrilled to announce that remote control of AirPlay 2 players is becoming available with the `development` version of Shairport Sync `5.4-dev`. In tandem with this, enhanced metadata is also available on the D-Bus interface for AirPlay 2 players.
 
 You'll know that Shairport Sync has had remote control facilities for classic AirPlay players for some time -- for example, you could control play and volume and some more things via Shairport Sync's MPRIS, D-Bus or MQTT interfaces, but this only worked only on "classic" AirPlay (aka AirPlay 1) players, and "Advanced" controls were only available for iTunes or the macOS Music app.
 
-Most of these remote control facilities are now available on AirPlay 2 players using the same Shairport Sync commands and properties.
+Most of these remote control facilities are now available on AirPlay 2 players using the same Shairport Sync commands and properties as work for classic AirPlay.
 
 **Update:** It emerges that [paintarm287](https://github.com/paintarm287) has been working on this independently, and we look forward to incorporating what they have deciphered!
 
 
-Enhanced Metadata for Airplay 2
-====
+## Enhanced Metadata for Airplay 2
+
 AirPlay 2 provides much more metadata than classic AirPlay. This is now provided on the D-Bus interface alongside existing metadata. Much of it has not been figured out.
 
-More Details
-====
+**More Details**
+
 * The `MPRIS` interface has been brought closer to the true `MPRIS` standard: `Volume`, `LoopStatus` and `Shuffle` are now settable properties as specified in the standard, whereas up to now they were read-only properties.
 * The D-Bus interface has likewise been enhanced: `Volume`, `LoopStatus` and `Shuffle` are now settable properties. Most of the `RemoteControl` and `AdvancedRemoteControl` suite of commands and properties are available on AirPlay 2 connections.
 * The D-Bus interface has two new properties: `NowPlayingInformation` and `CommandInformation`. Both of these are essentially raw feeds of metadata coming from AirPlay 2. The only exception is that raw picture data is removed from the `NowPlayingInformation` and is replaced by a local file reference to the same data.
 * `MPRIS` and D-Bus interfaces now check parameters and report errors before accepting a command or setting a property.
 
-Other Changes
-====
+**Other Changes**
 * Some AirPlay 2 feature and status flags have been changed.
 * Two new metadata build flags have been introduced: `--with-metadata-pipe` and `--with-metadata-multicast` to included support for piping and multicasting, respectively, metadata.
 * The D-Bus and `MPRIS` test clients `shairport-sync-dbus-test-client` and `shairport-sync-mpris-test-client` have been updated to pretty-print the new metadata and command information.
 * The [sample metadata reader](https://github.com/mikebrady/shairport-sync-metadata-reader) has similarly been updated to handle the new metadata and fix a few bugs.
 
-Divergences between AirPlay 2 and classic AirPlay
-====
+**Divergences between AirPlay 2 and Llassic AirPlay**
 
 Although many properties and features remain the same, not everything is quite the same between classic AirPlay and AirPlay 2 commands and metadata. 
 
-The Picture is Evolving!
-====
+**The Picture is Evolving!**
+
 This picture is changing as we develop more understanding. 
 
-Deprecations!
-====
+**Deprecations!**
+
 There will likely be deprecations as these facilities evolve. For example, `AdvancedRemoteControl`, duplicate `Volume` and `SetVolume` properties and methods will go away; `AdvancedRemoteControl.Available` and `RemoteControl.Available` may disappear, etc. In the `MPRIS` interface, the `SetVolume` method may disappear -- it's not part of the `MPRIS` standard and is not needed any more.
 
 Version 5.3-dev-24-g5e170a67
