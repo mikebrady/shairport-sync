@@ -20,11 +20,12 @@ jobs:
   docker-vars:
     uses: ./.github/workflows/docker-vars.yaml
   build-docker-image-and-publish:
-    name: Build and conditionally push docker image
+    name: Build and conditionally push docker image~
     needs:
       - docker-vars
     runs-on: ubuntu-22.04
     strategy:
+      max-parallel: 1
       matrix:
         include:
           - name: classic
