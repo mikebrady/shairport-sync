@@ -324,7 +324,7 @@ PROPERTY_PREFLIGHT_DEFINE_SKELETON(PropertyPreflightShairportSyncSkeleton,
                                    property_preflight_shairport_sync_skeleton,
                                    ShairportSyncSkeleton, TYPE_SHAIRPORT_SYNC_SKELETON,
                                    ShairportSync, SHAIRPORT_SYNC,
-                                   property_preflight_shairport_sync_validate_property)
+                                   property_preflight_shairport_sync_validate_property, NULL)
 
 /* ========================================================================
  * org.gnome.ShairportSync.Client
@@ -345,7 +345,7 @@ PROPERTY_PREFLIGHT_DEFINE_SKELETON(PropertyPreflightShairportSyncClientSkeleton,
                                    property_preflight_shairport_sync_client_skeleton,
                                    ShairportSyncClientSkeleton, TYPE_SHAIRPORT_SYNC_CLIENT_SKELETON,
                                    ShairportSyncClient, SHAIRPORT_SYNC_CLIENT,
-                                   property_preflight_shairport_sync_client_validate_property)
+                                   property_preflight_shairport_sync_client_validate_property, NULL)
 
 /* ========================================================================
  * org.gnome.ShairportSync.RemoteControl
@@ -389,7 +389,7 @@ PROPERTY_PREFLIGHT_DEFINE_SKELETON(
     property_preflight_shairport_sync_remote_control_skeleton, ShairportSyncRemoteControlSkeleton,
     TYPE_SHAIRPORT_SYNC_REMOTE_CONTROL_SKELETON, ShairportSyncRemoteControl,
     SHAIRPORT_SYNC_REMOTE_CONTROL,
-    property_preflight_shairport_sync_remote_control_validate_property)
+    property_preflight_shairport_sync_remote_control_validate_property, NULL)
 
 /* ========================================================================
  * org.gnome.ShairportSync.AdvancedRemoteControl
@@ -489,4 +489,4 @@ PROPERTY_PREFLIGHT_DEFINE_SKELETON(
     ShairportSyncAdvancedRemoteControlSkeleton,
     TYPE_SHAIRPORT_SYNC_ADVANCED_REMOTE_CONTROL_SKELETON, ShairportSyncAdvancedRemoteControl,
     SHAIRPORT_SYNC_ADVANCED_REMOTE_CONTROL,
-    property_preflight_shairport_sync_advanced_remote_control_validate_property)
+    property_preflight_shairport_sync_advanced_remote_control_validate_property, NULL)

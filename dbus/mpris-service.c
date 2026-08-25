@@ -270,6 +270,9 @@ static void on_mpris_name_acquired(GDBusConnection *connection, const gchar *nam
                                   airplay_volume_to_mpris_volume(config.airplay_volume));
   media_player2_player_set_playback_status(mprisPlayerPlayerSkeleton, "Stopped");
   media_player2_player_set_loop_status(mprisPlayerPlayerSkeleton, "None");
+  // Position is computed live by property_preflight_mpris_media_player2_player_compute_property()
+  // on every Get/GetAll (see property-preflight-mpris.c) - this call just seeds the underlying
+  // cached value with something harmless; it is never actually read by a D-Bus client.
   media_player2_player_set_position(mprisPlayerPlayerSkeleton, 0.0);
   media_player2_player_set_shuffle(mprisPlayerPlayerSkeleton, FALSE);
   media_player2_player_set_minimum_rate(mprisPlayerPlayerSkeleton, 1.0);

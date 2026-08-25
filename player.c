@@ -4285,6 +4285,17 @@ void *player_thread_func(void *arg) {
               }
               // debug(1, "resp is %d, delay is %ld.", resp, l_delay);
             }
+#ifdef CONFIG_METADATA_HUB
+            // Get or calculate the timestamp of the frame at the top of the queue
+            // If there is no delay, then it's inframe->timestamp.
+            
+            // If there is a delay, we need to get the time and convert it into
+            // frames at the input rate and subtract if from inframe->timestamp
+            // to get the estimated timestamp of whatever is about to be played.
+                        
+            metadata_store.head_rtp_timestamp = inframe->timestamp;          
+#endif
+            
             if (resp == 0) {
 
               uint64_t the_time_this_frame_should_be_played;
@@ -4315,6 +4326,19 @@ void *player_thread_func(void *arg) {
                     "current_delay: %" PRId64 ", output_buffer_delay_time: %.3f, output rate: %u.",
                     current_delay, output_buffer_delay_time * 0.000000001,
                     RATE_FROM_ENCODED_FORMAT(config.current_output_configuration));
+
+#ifdef CONFIG_METADATA_HUB
+              // calculate the effect of for the output queue size
+              uint64_t output_buffer_delay_time_in_input_frames =
+                output_buffer_delay_time * conn->input_rate;
+              output_buffer_delay_time_in_input_frames = output_buffer_delay_time_in_input_frames / 1000000000;
+              
+              uint32_t output_buffer_delay_time_in_input_frames_32 = output_buffer_delay_time_in_input_frames;
+              metadata_store.head_rtp_timestamp -= output_buffer_delay_time_in_input_frames_32;
+
+
+#endif              
+              
 
               uint64_t the_time_this_frame_will_be_played =
                   delay_measurement_time + output_buffer_delay_time;

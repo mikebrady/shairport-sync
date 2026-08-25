@@ -83,6 +83,7 @@ typedef struct metadata_bundle {
   char *source_format;               // Format of incoming audio, e.g. AAC/44100/S16_LE/2
   char *output_format;               // Format of outgoing audio, e.g. 44100/S32_LE/2 (always PCM)
   char *progress_string;             // progress string, emitted by the source from time to time
+  uint32_t progress_first_timestamp, progress_current_timestamp, progress_last_timestamp; // parsed from the progress string
   char *frame_position_string;       // frame position string emitted by SPS on request
   char *first_frame_position_string; // first frame position string emitted by SPS on request
   int player_thread_active;          // true if a play thread is running
@@ -107,6 +108,7 @@ typedef struct metadata_bundle {
 #ifdef CONFIG_AIRPLAY_2
   plist_t supported_commands_plist;
 #endif
+  uint32_t head_rtp_timestamp; // the timestamp of the frame at the head of the output queue
   metadata_npi_bundle npi;
 } metadata_bundle;
 

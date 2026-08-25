@@ -32,6 +32,7 @@
  */
 
 #include "property-preflight-mpris.h"
+#include "metadata/hub.h"
 #include "remote/remote.h"
 
 double mpris_volume_to_airplay_volume(double sp) {
@@ -66,7 +67,7 @@ PROPERTY_PREFLIGHT_DEFINE_SKELETON(PropertyPreflightMprisMediaPlayer2Skeleton,
                                    property_preflight_mpris_media_player2_skeleton,
                                    MediaPlayer2Skeleton, TYPE_MEDIA_PLAYER2_SKELETON, MediaPlayer2,
                                    MEDIA_PLAYER2,
-                                   property_preflight_mpris_media_player2_validate_property)
+                                   property_preflight_mpris_media_player2_validate_property, NULL)
 
 /* ========================================================================
  * org.mpris.MediaPlayer2.Player
@@ -156,8 +157,59 @@ property_preflight_mpris_media_player2_player_validate_property(const gchar *pro
   return result;
 }
 
+/* ------------------------------------------------------------------------
+ * Position: computed live on every Get/GetAll, never pushed.
+ *
+ * Per the MPRIS spec, Position is meant to be polled or extrapolated by
+ * clients (using Rate), not proactively notified on every change.
+ * This function computes
+ * the value fresh every time a client actually asks for it, and nothing
+ * is ever pushed proactively - so there is nothing to suppress in the
+ * first place.
+ *
+ * ------------------------------------------------------------------------ */
+
+static gint64 property_preflight_mpris_estimate_position_microseconds(void) {
+
+  static gint64 position = 0;
+  debug(1, "Calculate Position");
+  pthread_rwlock_rdlock(&principal_conn_lock); // don't let the principal_conn be changed
+  pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
+  if ((principal_conn != NULL) && (principal_conn->input_rate != 0)) {
+
+    int32_t frames_total =
+        metadata_store.progress_last_timestamp - metadata_store.progress_first_timestamp;
+    int32_t frames_played =
+        metadata_store.head_rtp_timestamp - metadata_store.progress_first_timestamp;
+    int32_t frames_remaining =
+        metadata_store.progress_last_timestamp - metadata_store.head_rtp_timestamp;
+
+    if ((frames_total >= 0) && (frames_played >= 0) && (frames_remaining >= 0)) {
+      debug(4, "progress: %g seconds, rate: %u.",
+            (1.0 * frames_played) / principal_conn->input_rate, principal_conn->input_rate);
+      position = 1000000; // microseconds
+      position = position * frames_played;
+      position = position / principal_conn->input_rate;
+    }
+  }
+  pthread_cleanup_pop(1); // release the principal_conn lock
+  return position;
+}
+
+static gboolean property_preflight_mpris_media_player2_player_compute_property(
+    const gchar *property_name, GVariant **value, __attribute((unused)) GError **error) {
+  if (g_strcmp0(property_name, "Position") == 0) {
+    gint64 live_position_us = property_preflight_mpris_estimate_position_microseconds();
+    *value = g_variant_ref_sink(g_variant_new_int64(live_position_us));
+  }
+  /* Every other property: leave *value (the cached value gdbus-codegen
+   * would otherwise have returned) untouched and let it through as-is. */
+  return TRUE;
+}
+
 PROPERTY_PREFLIGHT_DEFINE_SKELETON(PropertyPreflightMprisMediaPlayer2PlayerSkeleton,
                                    property_preflight_mpris_media_player2_player_skeleton,
                                    MediaPlayer2PlayerSkeleton, TYPE_MEDIA_PLAYER2_PLAYER_SKELETON,
                                    MediaPlayer2Player, MEDIA_PLAYER2_PLAYER,
-                                   property_preflight_mpris_media_player2_player_validate_property)
+                                   property_preflight_mpris_media_player2_player_validate_property,
+                                   property_preflight_mpris_media_player2_player_compute_property)

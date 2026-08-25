@@ -141,6 +141,21 @@ gboolean property_preflight_clamp_int_range(const gchar *property_name, GVariant
  * ======================================================================== */
 
 /**
+ * PropertyPreflightPropertyFunc:
+ *
+ * Shared function-pointer type for both ValidateFunc and ComputeFunc -
+ * they have identical signatures. Used internally by
+ * PROPERTY_PREFLIGHT_DEFINE_SKELETON() to cast ComputeFunc before
+ * calling through it, so that passing the literal NULL for ComputeFunc
+ * (the common case - see its doc comment below) still compiles: the
+ * get_property wrapper function is generated either way, it's simply
+ * never installed into the vtable, hence never actually called, when
+ * ComputeFunc is NULL.
+ */
+typedef gboolean (*PropertyPreflightPropertyFunc)(const gchar *property_name, GVariant **value,
+                                                  GError **error);
+
+/**
  * PROPERTY_PREFLIGHT_DECLARE_SKELETON:
  * @TypeName: CamelCase type name for the new subclass, e.g. MyFooSkeleton.
  * @type_name: matching snake_case prefix, e.g. my_foo_skeleton.
@@ -202,10 +217,48 @@ gboolean property_preflight_clamp_int_range(const gchar *property_name, GVariant
  *   never runs in the drop case, since it happens after the wrapper
  *   would have freed it.
  *
- * Put this in the matching .c section, after ValidateFunc's definition.
+ * @ComputeFunc: the read-side counterpart to ValidateFunc, or NULL if
+ *   this interface has no properties that need one. A function
+ *   (usually static) with the signature
+ *
+ *     gboolean ComputeFunc (const gchar  *property_name,
+ *                           GVariant    **value,
+ *                           GError      **error);
+ *
+ *   called for every incoming D-Bus Properties.Get (and, once per
+ *   property, every GetAll) on this interface, *after* the generated
+ *   skeleton has already produced the value it would normally have
+ *   returned - the value gdbus-codegen cached from the most recent
+ *   _set_<property>() call. *value points to that value on entry.
+ *
+ *   For any property whose D-Bus value should always be a live
+ *   computation rather than whatever was last pushed into it (MPRIS's
+ *   Position is the motivating case: the spec expects clients to
+ *   extrapolate it from Rate rather than be notified of every change,
+ *   so the "right" answer is to never push it at all and instead
+ *   compute it fresh on demand), ComputeFunc replaces *value with a
+ *   newly created, owned GVariant - same ownership convention as
+ *   ValidateFunc: the wrapper unrefs the original cached value once
+ *   the substituted one has been returned to the caller. For every
+ *   other property, leave *value untouched and return TRUE.
+ *
+ *   Unlike ValidateFunc, ComputeFunc cannot usefully return FALSE -
+ *   there is no well-formed D-Bus error reply for "I refuse to tell
+ *   you the value of this property" - so it should always return
+ *   TRUE. The GError** parameter exists purely for signature symmetry
+ *   with ValidateFunc and to allow a future genuinely-fallible getter
+ *   without another signature change; it goes unused by any current
+ *   caller in this codebase.
+ *
+ *   If ComputeFunc is NULL, no get_property wrapper is installed at
+ *   all - the generated skeleton's own get_property is used directly,
+ *   with zero added overhead or indirection.
+ *
+ * Put this in the matching .c section, after ValidateFunc's (and, if
+ * used, ComputeFunc's) definition.
  */
 #define PROPERTY_PREFLIGHT_DEFINE_SKELETON(TypeName, type_name, ParentType, ParentTypeMacro,       \
-                                           PublicType, PublicCastMacro, ValidateFunc)              \
+                                           PublicType, PublicCastMacro, ValidateFunc, ComputeFunc) \
                                                                                                    \
   struct _##TypeName {                                                                             \
     ParentType parent_instance;                                                                    \
@@ -246,6 +299,33 @@ gboolean property_preflight_clamp_int_range(const gchar *property_name, GVariant
     return result;                                                                                 \
   }                                                                                                \
                                                                                                    \
+  static GDBusInterfaceGetPropertyFunc type_name##_original_get_property = NULL;                   \
+                                                                                                   \
+  static GVariant *type_name##_get_property(GDBusConnection *connection, const gchar *sender,      \
+                                            const gchar *object_path, const gchar *interface_name, \
+                                            const gchar *property_name, GError **error,            \
+                                            gpointer user_data) {                                  \
+    GVariant *cached_value = type_name##_original_get_property(                                    \
+        connection, sender, object_path, interface_name, property_name, error, user_data);         \
+                                                                                                   \
+    if (cached_value == NULL)                                                                      \
+      return NULL; /* generated getter itself failed; propagate as-is */                           \
+                                                                                                   \
+    GVariant *effective_value = cached_value;                                                      \
+                                                                                                   \
+    if (!((PropertyPreflightPropertyFunc)ComputeFunc)(property_name, &effective_value, error)) {   \
+      g_variant_unref(cached_value);                                                               \
+      return NULL;                                                                                 \
+    }                                                                                              \
+                                                                                                   \
+    /* If ComputeFunc substituted a freshly computed value, the cached                             \
+     * one gdbus-codegen produced is ours to free. */                                              \
+    if (effective_value != cached_value)                                                           \
+      g_variant_unref(cached_value);                                                               \
+                                                                                                   \
+    return effective_value;                                                                        \
+  }                                                                                                \
+                                                                                                   \
   static GDBusInterfaceVTable *type_name##_get_vtable(GDBusInterfaceSkeleton *skeleton) {          \
     static GDBusInterfaceVTable my_vtable;                                                         \
     static gsize initialized = 0;                                                                  \
@@ -257,6 +337,14 @@ gboolean property_preflight_clamp_int_range(const gchar *property_name, GVariant
       my_vtable = *generated_vtable;                                                               \
       type_name##_original_set_property = generated_vtable->set_property;                          \
       my_vtable.set_property = type_name##_set_property;                                           \
+                                                                                                   \
+      /* Only detour through our get_property wrapper if this interface                            \
+       * actually supplied a ComputeFunc - otherwise leave the generated                           \
+       * getter completely untouched, at zero cost. */                                             \
+      if (ComputeFunc != NULL) {                                                                   \
+        type_name##_original_get_property = generated_vtable->get_property;                        \
+        my_vtable.get_property = type_name##_get_property;                                         \
+      }                                                                                            \
                                                                                                    \
       g_once_init_leave(&initialized, 1);                                                          \
     }                                                                                              \

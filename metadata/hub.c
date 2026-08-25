@@ -47,6 +47,7 @@
 #include "dacp.h"
 #include "hub.h"
 #include "pc_queue.h"
+#include "utilities/general_utilities.h"
 
 #ifdef CONFIG_MBEDTLS
 #include <mbedtls/md5.h>
@@ -616,8 +617,19 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       break;
     case 'prgr':
       changed = update_string_record_with_data(&metadata_store.progress_string, data, length);
-      if (changed)
+      if (changed) {
         debug(3, "MH Progress String set to: \"%s\"", metadata_store.progress_string);
+        // we need to extract the three numbers
+        if (parse_prlg(metadata_store.progress_string,
+          &metadata_store.progress_first_timestamp,
+          &metadata_store.progress_current_timestamp,
+          &metadata_store.progress_last_timestamp) != 0) {
+            debug(1, "error parsing the progress string \"%s\"", metadata_store.progress_string);
+          } else {          
+            debug(4, "progress timestamps: %u/%u/%u", metadata_store.progress_first_timestamp, metadata_store.progress_current_timestamp, metadata_store.progress_last_timestamp);          
+            debug(4, "current timestamp: %u",metadata_store.head_rtp_timestamp);          
+          }
+      }
       break;
     case 'phbt':
       changed = update_string_record_with_data(&metadata_store.frame_position_string, data, length);

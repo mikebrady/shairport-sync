@@ -207,7 +207,7 @@ int main(int argc, char *argv[]) {
                    "ShairportSync.AdvancedRemoteControl");
   g_signal_connect(proxy4, "notify::volume", G_CALLBACK(notify_volume_callback),
                    "ShairportSync.AdvancedRemoteControl");
-
+/*
   g_print("Starting test...\n");
 
   g_print("Using the RemoteControl interface, play for five seconds, pause for five seconds and "
@@ -271,7 +271,6 @@ int main(int argc, char *argv[]) {
   shairport_sync_remote_control_call_volume_down(SHAIRPORT_SYNC_REMOTE_CONTROL(proxy3), NULL, NULL,
                                                  NULL);
 
-  /*
   // sleep(1);
     shairport_sync_set_loudness_filter_active(SHAIRPORT_SYNC(proxy), TRUE);
     sleep(10);
@@ -287,9 +286,10 @@ int main(int argc, char *argv[]) {
     sleep(1);
 
     shairport_sync_call_remote_command(SHAIRPORT_SYNC(proxy), "string",NULL,NULL,NULL);
-    */
+
   sleep(1);
   g_print("Finished test. Listening for property changes...\n");
+*/
   // g_main_loop_quit(loop);
   pthread_join(dbus_thread, NULL);
   printf("exiting program.\n");
