@@ -4608,7 +4608,7 @@ void *player_thread_func(void *arg) {
 #endif
                 ) {
 
-                  float(*fbufs)[1024] = malloc(conn->input_num_channels * sizeof(*fbufs));
+                  float(*fbufs)[inframe->length] = malloc(conn->input_num_channels * sizeof(*fbufs));
                   // debug(1, "size of array allocated is %d bytes.", conn->input_num_channels *
                   // sizeof(*fbufs));
                   int32_t *tbuf32 = conn->tbuf;
