@@ -1,3 +1,9 @@
+Version 5.4-dev-17-g9781cff3
+==
+**Bug Fix**
+* Fix a memory allocation bug in the convolution code. This occurred at high output rates, e.g. 192,000 frames per second.
+  Thanks (again!) to [Christopher Wawak](https://github.com/cwawak) for the [report](https://github.com/mikebrady/shairport-sync/issues/2261) and the fix.
+
 Version 5.4-dev-12-g3b7f300e
 ==
 **Enhancements**
