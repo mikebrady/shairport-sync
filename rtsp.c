@@ -4205,7 +4205,7 @@ static void *rtsp_conversation_thread_func(void *pconn) {
 
           int y = req->contentlength;
           if (y > 0) {
-            char obf[4096];
+            char obf[2 * 4096 + 1]; // two hex chars per input byte, plus a terminating nul
             if (y > 4096)
               y = 4096;
             char *p = req->content;
