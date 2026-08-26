@@ -858,7 +858,7 @@ message_process(const uint8_t *data, size_t data_len, const char **errmsg)
 #endif
 
   error = pair_tlv_get_value(response, TLVType_Error);
-  if (error)
+  if (error && error->size > 0)
     {
       if (error->value[0] == TLVError_Authentication)
 	*errmsg = "Device returned an authentication failure";
