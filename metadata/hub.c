@@ -117,9 +117,7 @@ int update_uint64_record(uint64_record_t *record, const uint64_t value) {
   return changed;
 }
 
-int invalidate_string_record(char **str) {
-  return update_string_record(str, NULL);
-}
+int invalidate_string_record(char **str) { return update_string_record(str, NULL); }
 
 int is_valid_uint64_record(uint64_record_t *record) {
   int valid = 0;
@@ -392,7 +390,7 @@ int metadata_hub_process_picture(const char *data, const size_t length) {
 int metadata_packet_item_changed = 0; // set if any parsed part of a metadata stream changes
 metadata_npi_bundle new_npi;
 char *temporary_cover_art_pathname = NULL;
-uint64_record_t temporary_item_id; 
+uint64_record_t temporary_item_id;
 
 void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uint32_t length) {
   // metadata coming in from the audio source or from Shairport Sync itself passes through here
@@ -425,14 +423,15 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       uint64_t ul = ntohl(*(uint32_t *)(data + sizeof(uint32_t))); // and the low order 32 bits
       vl = vl + ul;
       debug(4, "MH Item ID seen: \"%" PRIx64 "\" of length %u.", vl, length);
-      metadata_packet_item_changed |= update_uint64_record(&metadata_store.npi.item_id, vl); // item id
+      metadata_packet_item_changed |=
+          update_uint64_record(&metadata_store.npi.item_id, vl); // item id
       update_uint64_record(&new_npi.item_id, vl);
     } break;
     case 'astm': {
       uint32_t ui = ntohl(*(uint32_t *)data);
       debug(3, "MH Song Time seen: \"%u\" milliseconds, of length %u.", ui, length);
-      metadata_packet_item_changed |=
-          update_uint64_record(&metadata_store.npi.songtime_in_microseconds, ui * 1000); // microseconds
+      metadata_packet_item_changed |= update_uint64_record(
+          &metadata_store.npi.songtime_in_microseconds, ui * 1000); // microseconds
       update_uint64_record(&new_npi.songtime_in_microseconds, ui * 1000);
     } break;
     case 'asal':
@@ -558,27 +557,27 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     case 'pcen':
       break;
     case 'dapo': {
-        char *dacp_port_string = strndup(data, length);
-        debug(3, "DACP port is \"%s\"", dacp_port_string);
-        free(dacp_port_string);
-      }
-      break;
+      char *dacp_port_string = strndup(data, length);
+      debug(3, "DACP port is \"%s\"", dacp_port_string);
+      free(dacp_port_string);
+    } break;
     case 'mdst':
       debug(3, "MH Metadata stream processing start.");
       // There is a difficulty with this NPI metadata as it comes in.
-      
-      // As it comes in, we don't know whether it is an update to the current NPI data or whether it is for
-      // a new track, hence completely new NPI data.
-      
+
+      // As it comes in, we don't know whether it is an update to the current NPI data or whether it
+      // is for a new track, hence completely new NPI data.
+
       // So, we will do create a new empty NPI structure and add each incoming item to it as well as
-      // updating it into the current NPI data. 
+      // updating it into the current NPI data.
       // When we get a track ID, if it's the same as the current NPI track ID,
       // then keep the current updated NPI.
       // Otherwise, copy the new NPI into the current NPI.
-      
+
       metadata_packet_item_changed = 0;
       memset(&new_npi, 0, sizeof(new_npi)); // initialise the new npi structure
-      // the picture arrives separately from the npi stuff, and may (?) arrive before or after it, so we have to keep it
+      // the picture arrives separately from the npi stuff, and may (?) arrive before or after it,
+      // so we have to keep it
       temporary_cover_art_pathname = metadata_store.npi.cover_art_pathname;
       // the item id wold be updated if it changes, so we need to keep the current one
       temporary_item_id = metadata_store.npi.item_id;
@@ -586,16 +585,18 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     case 'mden':
       // here, we decide whether to take the updated npi data or to take the
       // completely new one.
-      
-      new_npi.cover_art_pathname = temporary_cover_art_pathname; // we must preserve any existing picture
-      
+
+      new_npi.cover_art_pathname =
+          temporary_cover_art_pathname; // we must preserve any existing picture
+
       // if the track_id of the new npi differs from the current npi
-      if ((temporary_item_id.valid != 0) && (new_npi.item_id.valid != 0) && (temporary_item_id.item != new_npi.item_id.item)) {
+      if ((temporary_item_id.valid != 0) && (new_npi.item_id.valid != 0) &&
+          (temporary_item_id.item != new_npi.item_id.item)) {
         debug(3, "MH Metadata detected for a new track: %" PRIu64 ".", new_npi.item_id.item);
         metadata_store.npi = new_npi;
-        metadata_packet_item_changed = 1;  
+        metadata_packet_item_changed = 1;
       }
-    
+
       if (metadata_packet_item_changed != 0)
         debug(3, "MH Metadata stream processing end with changes.");
       else
@@ -620,15 +621,15 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       if (changed) {
         debug(3, "MH Progress String set to: \"%s\"", metadata_store.progress_string);
         // we need to extract the three numbers
-        if (parse_prlg(metadata_store.progress_string,
-          &metadata_store.progress_first_timestamp,
-          &metadata_store.progress_current_timestamp,
-          &metadata_store.progress_last_timestamp) != 0) {
-            debug(1, "error parsing the progress string \"%s\"", metadata_store.progress_string);
-          } else {          
-            debug(4, "progress timestamps: %u/%u/%u", metadata_store.progress_first_timestamp, metadata_store.progress_current_timestamp, metadata_store.progress_last_timestamp);          
-            debug(4, "current timestamp: %u",metadata_store.head_rtp_timestamp);          
-          }
+        if (parse_prlg(metadata_store.progress_string, &metadata_store.progress_first_timestamp,
+                       &metadata_store.progress_current_timestamp,
+                       &metadata_store.progress_last_timestamp) != 0) {
+          debug(1, "error parsing the progress string \"%s\"", metadata_store.progress_string);
+        } else {
+          debug(4, "progress timestamps: %u/%u/%u", metadata_store.progress_first_timestamp,
+                metadata_store.progress_current_timestamp, metadata_store.progress_last_timestamp);
+          debug(4, "current timestamp: %u", metadata_store.head_rtp_timestamp);
+        }
       }
       break;
     case 'phbt':

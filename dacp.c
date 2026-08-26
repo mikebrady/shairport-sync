@@ -791,8 +791,8 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
                   break;
                 case 'cana': // artist name
                   debug(2, "DACP Artist Name seen");
-                  if (update_string_record_with_data(&metadata_store.npi.artist_name, sp - item_size,
-                                                     item_size)) {
+                  if (update_string_record_with_data(&metadata_store.npi.artist_name,
+                                                     sp - item_size, item_size)) {
                     debug(2, "DACP Artist Name set to: \"%s\"", metadata_store.npi.artist_name);
                     metadata_changed |= 1;
                   }
@@ -839,8 +839,9 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
                   ui = ntohl(*(uint32_t *)(t));
                   debug(2, "DACP Song Time seen: \"%u\" milliseconds, of length %u.", ui,
                         item_size);
-                  metadata_changed |= update_uint64_record(&metadata_store.npi.songtime_in_microseconds,
-                                                           ui * 1000); // microseconds
+                  metadata_changed |=
+                      update_uint64_record(&metadata_store.npi.songtime_in_microseconds,
+                                           ui * 1000); // microseconds
                   /*
                   if (ui64 != metadata_store.npi.songtime_in_microseconds) {
                     metadata_store.npi.songtime_in_microseconds = ui64;

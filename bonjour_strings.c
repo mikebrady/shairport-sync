@@ -24,9 +24,9 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <inttypes.h>
 #include "bonjour_strings.h"
 #include "common.h"
+#include <inttypes.h>
 
 char *txt_records[128];
 char *secondary_txt_records[128];
@@ -98,8 +98,10 @@ void build_bonjour_strings(__attribute((unused)) rtsp_conn_info *conn) {
         bnprintf(fwString, sizeof(fwString), "fv=%s", config.firmware_version);
     txt_records[entry_number++] = bnprintf(ap1StatusFlagsString, sizeof(ap1StatusFlagsString),
                                            "sf=0x%" PRIX32 "", config.airplay_statusflags);
-  // secondary_txt_records[entry_number++] = bnprintf(statusflagsString, sizeof(statusflagsString),
-  //                                                  "flags=0x%" PRIX32 "", config.airplay_statusflags);
+    // secondary_txt_records[entry_number++] = bnprintf(statusflagsString,
+    // sizeof(statusflagsString),
+    //                                                  "flags=0x%" PRIX32 "",
+    //                                                  config.airplay_statusflags);
 #ifdef CONFIG_METADATA
     if (config.get_coverart == 0)
       txt_records[entry_number++] = "md=0,2";
@@ -165,8 +167,9 @@ void build_bonjour_strings(__attribute((unused)) rtsp_conn_info *conn) {
   secondary_txt_records[entry_number++] =
       bnprintf(featuresString, sizeof(featuresString), "features=0x%" PRIX64 ",0x%" PRIX64 "",
                features_lo, features_hi); // features_hi and features_lo already calculated.
-  secondary_txt_records[entry_number++] = bnprintf(statusflagsString, sizeof(statusflagsString),
-                                                   "flags=0x%" PRIX32 "", config.airplay_statusflags);
+  secondary_txt_records[entry_number++] =
+      bnprintf(statusflagsString, sizeof(statusflagsString), "flags=0x%" PRIX32 "",
+               config.airplay_statusflags);
   if ((conn != NULL) && (conn->airplay_gid != 0)) {
     snprintf(gidString, sizeof(gidString), "gid=%s", conn->airplay_gid);
   } else {

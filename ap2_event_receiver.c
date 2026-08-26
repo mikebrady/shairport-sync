@@ -61,23 +61,21 @@ ssize_t ap2_event_port_send_message(rtsp_conn_info *conn, char *data, size_t dat
         if ((result < 12) ||
             (((strncmp((char *)packet, "RTSP/1.0 ", 9) != 0) &&
               (strncmp((char *)packet, "RTSP/1.1 ", 9) != 0))) ||
-            (packet[9] < '0') || (packet[9] > '9') ||
-            (packet[10] < '0') || (packet[10] > '9') ||
+            (packet[9] < '0') || (packet[9] > '9') || (packet[10] < '0') || (packet[10] > '9') ||
             (packet[11] < '0') || (packet[11] > '9') ||
-            ((packet[12] != ' ') && (packet[12] != '\r') &&
-             (packet[12] != '\n') && (packet[12] != '\0'))) {
+            ((packet[12] != ' ') && (packet[12] != '\r') && (packet[12] != '\n') &&
+             (packet[12] != '\0'))) {
           debug(1, "Connection %d: invalid RTSP response from the Event Port.",
                 conn->connection_number);
           result = -1;
         } else {
-          unsigned int response_code =
-              ((unsigned int)(packet[9] - '0') * 100) +
-              ((unsigned int)(packet[10] - '0') * 10) +
-              (unsigned int)(packet[11] - '0');
+          unsigned int response_code = ((unsigned int)(packet[9] - '0') * 100) +
+                                       ((unsigned int)(packet[10] - '0') * 10) +
+                                       (unsigned int)(packet[11] - '0');
 
           if ((response_code < 200) || (response_code >= 300)) {
-            debug(1, "Connection %d: Event Port returned RTSP status %u.",
-                  conn->connection_number, response_code);
+            debug(1, "Connection %d: Event Port returned RTSP status %u.", conn->connection_number,
+                  response_code);
             result = -1;
           }
         }

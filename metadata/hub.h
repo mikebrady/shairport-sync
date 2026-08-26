@@ -76,14 +76,15 @@ typedef struct metadata_npi_bundle { // now playing information
 } metadata_npi_bundle;
 
 typedef struct metadata_bundle {
-  char *client_ip; // IP number used by the audio source (i.e. the "client")
-  char *client_name;                 // the name of the client device, if available
-  char *server_ip;                   // IP number used by Shairport Sync
-  char *stream_type;                 // Realtime or Buffered
-  char *source_format;               // Format of incoming audio, e.g. AAC/44100/S16_LE/2
-  char *output_format;               // Format of outgoing audio, e.g. 44100/S32_LE/2 (always PCM)
-  char *progress_string;             // progress string, emitted by the source from time to time
-  uint32_t progress_first_timestamp, progress_current_timestamp, progress_last_timestamp; // parsed from the progress string
+  char *client_ip;       // IP number used by the audio source (i.e. the "client")
+  char *client_name;     // the name of the client device, if available
+  char *server_ip;       // IP number used by Shairport Sync
+  char *stream_type;     // Realtime or Buffered
+  char *source_format;   // Format of incoming audio, e.g. AAC/44100/S16_LE/2
+  char *output_format;   // Format of outgoing audio, e.g. 44100/S32_LE/2 (always PCM)
+  char *progress_string; // progress string, emitted by the source from time to time
+  uint32_t progress_first_timestamp, progress_current_timestamp,
+      progress_last_timestamp;       // parsed from the progress string
   char *frame_position_string;       // frame position string emitted by SPS on request
   char *first_frame_position_string; // first frame position string emitted by SPS on request
   int player_thread_active;          // true if a play thread is running
@@ -113,7 +114,8 @@ typedef struct metadata_bundle {
 } metadata_bundle;
 
 extern struct metadata_bundle metadata_store;
-extern metadata_watcher metadata_watchers[number_of_watchers]; // functions to call if the metadata is changed.
+extern metadata_watcher
+    metadata_watchers[number_of_watchers]; // functions to call if the metadata is changed.
 
 void add_metadata_watcher(metadata_watcher fn);
 

@@ -1489,311 +1489,311 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
   conn->packet_count++;
   conn->packet_count_since_flush++;
   conn->time_of_last_audio_packet = time_now;
-//  if (conn->connection_state_to_output) { // if we are supposed to be processing these packets
-    abuf_t *abuf = 0;
-    if (!conn->ab_synced) {
-      conn->ab_write = seqno;
-      conn->ab_read = seqno;
-      conn->ab_synced = 1;
-      conn->first_packet_timestamp = 0;
-      debug(2, "Connection %d: synced by first packet, timestamp %u, seqno %u.",
-            conn->connection_number, actual_timestamp, seqno);
-    }
-    if (conn->ab_write ==
-        seqno) { // if this is the expected packet (which could be the first packet...)
-      if (conn->input_frame_rate_starting_point_is_valid == 0) {
-        if ((conn->packet_count_since_flush >= 500) && (conn->packet_count_since_flush <= 510)) {
-          conn->frames_inward_measurement_start_time = time_now;
-          conn->frames_inward_frames_received_at_measurement_start_time = actual_timestamp;
-          conn->input_frame_rate_starting_point_is_valid = 1; // valid now
-        }
+  //  if (conn->connection_state_to_output) { // if we are supposed to be processing these packets
+  abuf_t *abuf = 0;
+  if (!conn->ab_synced) {
+    conn->ab_write = seqno;
+    conn->ab_read = seqno;
+    conn->ab_synced = 1;
+    conn->first_packet_timestamp = 0;
+    debug(2, "Connection %d: synced by first packet, timestamp %u, seqno %u.",
+          conn->connection_number, actual_timestamp, seqno);
+  }
+  if (conn->ab_write ==
+      seqno) { // if this is the expected packet (which could be the first packet...)
+    if (conn->input_frame_rate_starting_point_is_valid == 0) {
+      if ((conn->packet_count_since_flush >= 500) && (conn->packet_count_since_flush <= 510)) {
+        conn->frames_inward_measurement_start_time = time_now;
+        conn->frames_inward_frames_received_at_measurement_start_time = actual_timestamp;
+        conn->input_frame_rate_starting_point_is_valid = 1; // valid now
       }
-      conn->frames_inward_measurement_time = time_now;
-      conn->frames_inward_frames_received_at_measurement_time = actual_timestamp;
+    }
+    conn->frames_inward_measurement_time = time_now;
+    conn->frames_inward_frames_received_at_measurement_time = actual_timestamp;
+    abuf = conn->audio_buffer + BUFIDX(seqno);
+    conn->ab_write = seqno + 1; // move the write pointer to the next free space
+  } else {
+    int16_t after_ab_write_gap = seqno - conn->ab_write;
+    if (after_ab_write_gap > 0) {
+      int i;
+      for (i = 0; i < after_ab_write_gap; i++) {
+        abuf = conn->audio_buffer + BUFIDX(conn->ab_write + i);
+        abuf->ready = 0; // to be sure, to be sure
+        abuf->resend_request_number = 0;
+        abuf->initialisation_time =
+            time_now;          // this represents when the packet was noticed to be missing
+        abuf->status = 1 << 0; // signifying missing
+        abuf->resend_time = 0;
+        abuf->timestamp = 0;
+        abuf->sequence_number = 0;
+      }
       abuf = conn->audio_buffer + BUFIDX(seqno);
-      conn->ab_write = seqno + 1; // move the write pointer to the next free space
+      //        rtp_request_resend(ab_write, gap);
+      //        resend_requests++;
+      conn->ab_write = seqno + 1;
     } else {
-      int16_t after_ab_write_gap = seqno - conn->ab_write;
-      if (after_ab_write_gap > 0) {
-        int i;
-        for (i = 0; i < after_ab_write_gap; i++) {
-          abuf = conn->audio_buffer + BUFIDX(conn->ab_write + i);
-          abuf->ready = 0; // to be sure, to be sure
-          abuf->resend_request_number = 0;
-          abuf->initialisation_time =
-              time_now;          // this represents when the packet was noticed to be missing
-          abuf->status = 1 << 0; // signifying missing
-          abuf->resend_time = 0;
-          abuf->timestamp = 0;
-          abuf->sequence_number = 0;
-        }
+      int16_t after_ab_read_gap = seqno - conn->ab_read;
+      if (after_ab_read_gap >= 0) { // older than expected but not too late
+        debug(3, "buffer %u is older than expected but not too late", seqno);
+        conn->late_packets++;
         abuf = conn->audio_buffer + BUFIDX(seqno);
-        //        rtp_request_resend(ab_write, gap);
-        //        resend_requests++;
-        conn->ab_write = seqno + 1;
-      } else {
-        int16_t after_ab_read_gap = seqno - conn->ab_read;
-        if (after_ab_read_gap >= 0) { // older than expected but not too late
-          debug(3, "buffer %u is older than expected but not too late", seqno);
-          conn->late_packets++;
-          abuf = conn->audio_buffer + BUFIDX(seqno);
-        } else { // too late.
-          debug(3, "buffer %u is too late", seqno);
-          conn->too_late_packets++;
-        }
+      } else { // too late.
+        debug(3, "buffer %u is too late", seqno);
+        conn->too_late_packets++;
       }
     }
-    if (abuf) {
-      if (free_audio_buffer_payload(abuf)) {
-        if (seqno == abuf->sequence_number)
-          debug(3, "audio block %u received for a second (or more) time?", seqno);
-        else
-          debug(3, "audio block %u with prior sequence number %u  -- payload not freed until now!",
-                seqno, abuf->sequence_number);
-      }
-      abuf->initialisation_time = time_now;
-      abuf->resend_time = 0;
-      abuf->length = 0; // may not be needed
+  }
+  if (abuf) {
+    if (free_audio_buffer_payload(abuf)) {
+      if (seqno == abuf->sequence_number)
+        debug(3, "audio block %u received for a second (or more) time?", seqno);
+      else
+        debug(3, "audio block %u with prior sequence number %u  -- payload not freed until now!",
+              seqno, abuf->sequence_number);
+    }
+    abuf->initialisation_time = time_now;
+    abuf->resend_time = 0;
+    abuf->length = 0; // may not be needed
 
-      if (ssrc == ALAC_44100_S16_2) {
-        // This could be a Classic AirPlay or an AirPlay 2 Realtime packet.
-        // It always has a length of 352 frames per packet.
-        // And it's always 16-bit interleaved stereo.
-        uint8_t *data_to_use = data;
-        uint8_t *intermediate_buffer = malloc(len); // encryption is not compression...
+    if (ssrc == ALAC_44100_S16_2) {
+      // This could be a Classic AirPlay or an AirPlay 2 Realtime packet.
+      // It always has a length of 352 frames per packet.
+      // And it's always 16-bit interleaved stereo.
+      uint8_t *data_to_use = data;
+      uint8_t *intermediate_buffer = malloc(len); // encryption is not compression...
 
-        // decrypt it if necessary
-        if (conn->stream.encrypted) {
-          unsigned char iv[16];
-          int aeslen = len & ~0xf;
-          memcpy(iv, conn->stream.aesiv, sizeof(iv));
+      // decrypt it if necessary
+      if (conn->stream.encrypted) {
+        unsigned char iv[16];
+        int aeslen = len & ~0xf;
+        memcpy(iv, conn->stream.aesiv, sizeof(iv));
 #ifdef CONFIG_MBEDTLS
-          mbedtls_aes_crypt_cbc(&conn->dctx, MBEDTLS_AES_DECRYPT, aeslen, iv, data,
-                                intermediate_buffer);
+        mbedtls_aes_crypt_cbc(&conn->dctx, MBEDTLS_AES_DECRYPT, aeslen, iv, data,
+                              intermediate_buffer);
 #endif
 #ifdef CONFIG_POLARSSL
-          aes_crypt_cbc(&conn->dctx, AES_DECRYPT, aeslen, iv, data, intermediate_buffer);
+        aes_crypt_cbc(&conn->dctx, AES_DECRYPT, aeslen, iv, data, intermediate_buffer);
 #endif
 #ifdef CONFIG_OPENSSL
-          openssl_aes_decrypt_cbc(data, aeslen, conn->stream.aeskey, iv, intermediate_buffer);
-          // AES_cbc_encrypt(data, intermediate_buffer, aeslen, &conn->aes, iv, AES_DECRYPT);
+        openssl_aes_decrypt_cbc(data, aeslen, conn->stream.aeskey, iv, intermediate_buffer);
+        // AES_cbc_encrypt(data, intermediate_buffer, aeslen, &conn->aes, iv, AES_DECRYPT);
 #endif
-          memcpy(intermediate_buffer + aeslen, data + aeslen, len - aeslen);
-          data_to_use = intermediate_buffer;
-        }
+        memcpy(intermediate_buffer + aeslen, data + aeslen, len - aeslen);
+        data_to_use = intermediate_buffer;
+      }
 
-        // Use the selected decoder
-        if ((config.decoder_in_use == 1 << decoder_hammerton) ||
-            (config.decoder_in_use == 1 << decoder_apple_alac)) {
-          abuf->data = malloc(conn->frames_per_packet * conn->input_bytes_per_frame);
-          if (abuf->data != NULL) {
-            unencrypted_packet_decode(conn, data_to_use, len, abuf->data);
-            input_packets_used = conn->frames_per_packet; // return this to the caller
-            abuf->length = conn->frames_per_packet;       // these decoders don't transcode
-          } else {
-            debug(1, "audio block not allocated!");
-          }
-        } else if (config.decoder_in_use == 1 << decoder_ffmpeg_alac) {
-#ifdef CONFIG_FFMPEG
-          prepare_decoding_chain(conn, ALAC_44100_S16_2);
-          abuf->avframe = block_to_avframe(conn, data_to_use, len);
-          abuf->ssrc = ALAC_44100_S16_2;
-          if (abuf->avframe) {
-            input_packets_used = abuf->avframe->nb_samples;
-          }
-          if (mute) {
-            // it's important to have already run it through the decoder before dropping it
-            // especially if it an AAC decoder
-            debug(2, "ap1 muting frame %u.", actual_timestamp);
-            abuf->length = abuf->avframe->nb_samples;
-            av_frame_free(&abuf->avframe);
-            abuf->avframe = NULL;
-          }
-          if (len <= 8) {
-            debug(2,
-                  "Connection %d, using FFMPEG on an ALAC_44100_S16_2 stream, a short audio packet "
-                  "%u, rtptime %u, of length %zu has been decoded but not discarded. Contents "
-                  "follow:",
-                  conn->connection_number, seqno, actual_timestamp, len);
-            debug_print_buffer(2, data, len);
-          }
-#else
-          debug(1, "FFMPEG support has not been built into this version Shairport Sync!");
-#endif
+      // Use the selected decoder
+      if ((config.decoder_in_use == 1 << decoder_hammerton) ||
+          (config.decoder_in_use == 1 << decoder_apple_alac)) {
+        abuf->data = malloc(conn->frames_per_packet * conn->input_bytes_per_frame);
+        if (abuf->data != NULL) {
+          unencrypted_packet_decode(conn, data_to_use, len, abuf->data);
+          input_packets_used = conn->frames_per_packet; // return this to the caller
+          abuf->length = conn->frames_per_packet;       // these decoders don't transcode
         } else {
-          debug(1, "Unknown decoder!");
+          debug(1, "audio block not allocated!");
         }
-
-        // may be used during decryption
-        if (intermediate_buffer != NULL) {
-          free(intermediate_buffer);
-          intermediate_buffer = NULL;
-        }
-
-        abuf->ready = 1;
-        abuf->status = 0; // signifying that it was received
-        abuf->timestamp = actual_timestamp;
-        abuf->timestamp_gap = timestamp_gap; // needed to decide if a resync is needed
-        abuf->sequence_number = seqno;
-      } else {
-        // This is AirPlay 2 -- always use FFmpeg
+      } else if (config.decoder_in_use == 1 << decoder_ffmpeg_alac) {
 #ifdef CONFIG_FFMPEG
-
-        // Use the appropriate FFMPEG decoder
-
-        // decoding is done now, transcoding to S32 and resampling is
-        // deferred to the player thread, to be sure all the blocks
-        // of data are present
-
-        prepare_decoding_chain(conn, ssrc); // dynamically set the decoding environment
-
-        abuf->avframe = block_to_avframe(conn, data, len);
-        abuf->ssrc = ssrc; // tag the avframe with its specific SSRC
+        prepare_decoding_chain(conn, ALAC_44100_S16_2);
+        abuf->avframe = block_to_avframe(conn, data_to_use, len);
+        abuf->ssrc = ALAC_44100_S16_2;
         if (abuf->avframe) {
           input_packets_used = abuf->avframe->nb_samples;
         }
         if (mute) {
           // it's important to have already run it through the decoder before dropping it
-          debug(2, "ap2 muting frame %u.", actual_timestamp);
+          // especially if it an AAC decoder
+          debug(2, "ap1 muting frame %u.", actual_timestamp);
           abuf->length = abuf->avframe->nb_samples;
           av_frame_free(&abuf->avframe);
           abuf->avframe = NULL;
         }
         if (len <= 8) {
           debug(2,
-                "Connection %d: using FFMPEG on a %s stream, a short audio packet %u, rtptime %u, "
-                "of length %zu has been decoded but not discarded. Contents follow:",
-                conn->connection_number, get_ssrc_name(ssrc), seqno, actual_timestamp, len);
+                "Connection %d, using FFMPEG on an ALAC_44100_S16_2 stream, a short audio packet "
+                "%u, rtptime %u, of length %zu has been decoded but not discarded. Contents "
+                "follow:",
+                conn->connection_number, seqno, actual_timestamp, len);
           debug_print_buffer(2, data, len);
         }
-        abuf->ready = 1;
-        abuf->status = 0; // signifying that it was received
-        abuf->timestamp = actual_timestamp;
-        abuf->timestamp_gap = timestamp_gap;
-        abuf->sequence_number = seqno;
 #else
-        debug(1, "FFMPEG support has not been included, so the packet is discarded.");
-        abuf->ready = 0;
-        abuf->status = 1 << 1; // bad packet, discarded
-        abuf->resend_request_number = 0;
-        abuf->timestamp = 0;
-        abuf->timestamp_gap = 0;
-        abuf->sequence_number = 0;
+        debug(1, "FFMPEG support has not been built into this version Shairport Sync!");
 #endif
-      }
-    }
-    /*
-    {
-    uint64_t the_time_this_frame_should_be_played;
-                  frame_to_local_time(abuf->timestamp,
-                                      &the_time_this_frame_should_be_played, conn);
-    int64_t lead_time = the_time_this_frame_should_be_played - get_absolute_time_in_ns();
-    debug(1, "put_packet %u, lead time is %.3f ms.", abuf->timestamp, lead_time * 0.000001);
-    }
-    */
-    int rc = pthread_cond_signal(&conn->flowcontrol);
-    if (rc)
-      debug(1, "Error signalling flowcontrol.");
-
-    // resend checks
-    {
-      uint64_t minimum_wait_time =
-          (uint64_t)(config.resend_control_first_check_time * (uint64_t)1000000000);
-      uint64_t resend_repeat_interval =
-          (uint64_t)(config.resend_control_check_interval_time * (uint64_t)1000000000);
-      uint64_t minimum_remaining_time = (uint64_t)((config.resend_control_last_check_time +
-                                                    config.audio_backend_buffer_desired_length) *
-                                                   (uint64_t)1000000000);
-      uint64_t latency_time = (uint64_t)(conn->latency * (uint64_t)1000000000);
-      latency_time = latency_time / (uint64_t)conn->input_rate;
-
-      // find the first frame that is missing, if known
-      int x = conn->ab_read;
-      if (first_possibly_missing_frame >= 0) {
-        // if it's within the range
-        int16_t buffer_size = conn->ab_write - conn->ab_read; // must be positive
-        if (buffer_size >= 0) {
-          int16_t position_in_buffer = first_possibly_missing_frame - conn->ab_read;
-          if ((position_in_buffer >= 0) && (position_in_buffer < buffer_size))
-            x = first_possibly_missing_frame;
-        }
+      } else {
+        debug(1, "Unknown decoder!");
       }
 
-      first_possibly_missing_frame = -1; // has not been set
+      // may be used during decryption
+      if (intermediate_buffer != NULL) {
+        free(intermediate_buffer);
+        intermediate_buffer = NULL;
+      }
 
-      int missing_frame_run_count = 0;
-      int start_of_missing_frame_run = -1;
-      int number_of_missing_frames = 0;
-      while (x != conn->ab_write) {
-        abuf_t *check_buf = conn->audio_buffer + BUFIDX(x);
-        if (!check_buf->ready) {
-          if (first_possibly_missing_frame < 0)
-            first_possibly_missing_frame = x;
-          number_of_missing_frames++;
-          // debug(1, "frame %u's initialisation_time is 0x%" PRIx64 ", latency_time is 0x%"
-          // PRIx64 ", time_now is 0x%" PRIx64 ", minimum_remaining_time is 0x%" PRIx64 ".", x,
-          // check_buf->initialisation_time, latency_time, time_now, minimum_remaining_time);
-          int too_late = ((check_buf->initialisation_time < (time_now - latency_time)) ||
-                          ((check_buf->initialisation_time - (time_now - latency_time)) <
-                           minimum_remaining_time));
-          int too_early = ((time_now - check_buf->initialisation_time) < minimum_wait_time);
-          int too_soon_after_last_request =
-              ((check_buf->resend_time != 0) &&
-               ((time_now - check_buf->resend_time) <
-                resend_repeat_interval)); // time_now can never be less than the time_tag
+      abuf->ready = 1;
+      abuf->status = 0; // signifying that it was received
+      abuf->timestamp = actual_timestamp;
+      abuf->timestamp_gap = timestamp_gap; // needed to decide if a resync is needed
+      abuf->sequence_number = seqno;
+    } else {
+      // This is AirPlay 2 -- always use FFmpeg
+#ifdef CONFIG_FFMPEG
 
-          if (too_late)
-            check_buf->status |= 1 << 2; // too late
-          else
-            check_buf->status &= 0xFF - (1 << 2); // not too late
-          if (too_early)
-            check_buf->status |= 1 << 3; // too early
-          else
-            check_buf->status &= 0xFF - (1 << 3); // not too early
-          if (too_soon_after_last_request)
-            check_buf->status |= 1 << 4; // too soon after last request
-          else
-            check_buf->status &= 0xFF - (1 << 4); // not too soon after last request
+      // Use the appropriate FFMPEG decoder
 
-          if ((!too_soon_after_last_request) && (!too_late) && (!too_early)) {
-            if (start_of_missing_frame_run == -1) {
-              start_of_missing_frame_run = x;
-              missing_frame_run_count = 1;
-            } else {
-              missing_frame_run_count++;
-            }
-            check_buf->resend_time = time_now; // setting the time to now because we are
-                                               // definitely going to take action
-            check_buf->resend_request_number++;
-            debug(3, "Frame %d is missing with ab_read of %u and ab_write of %u.", x, conn->ab_read,
-                  conn->ab_write);
+      // decoding is done now, transcoding to S32 and resampling is
+      // deferred to the player thread, to be sure all the blocks
+      // of data are present
+
+      prepare_decoding_chain(conn, ssrc); // dynamically set the decoding environment
+
+      abuf->avframe = block_to_avframe(conn, data, len);
+      abuf->ssrc = ssrc; // tag the avframe with its specific SSRC
+      if (abuf->avframe) {
+        input_packets_used = abuf->avframe->nb_samples;
+      }
+      if (mute) {
+        // it's important to have already run it through the decoder before dropping it
+        debug(2, "ap2 muting frame %u.", actual_timestamp);
+        abuf->length = abuf->avframe->nb_samples;
+        av_frame_free(&abuf->avframe);
+        abuf->avframe = NULL;
+      }
+      if (len <= 8) {
+        debug(2,
+              "Connection %d: using FFMPEG on a %s stream, a short audio packet %u, rtptime %u, "
+              "of length %zu has been decoded but not discarded. Contents follow:",
+              conn->connection_number, get_ssrc_name(ssrc), seqno, actual_timestamp, len);
+        debug_print_buffer(2, data, len);
+      }
+      abuf->ready = 1;
+      abuf->status = 0; // signifying that it was received
+      abuf->timestamp = actual_timestamp;
+      abuf->timestamp_gap = timestamp_gap;
+      abuf->sequence_number = seqno;
+#else
+      debug(1, "FFMPEG support has not been included, so the packet is discarded.");
+      abuf->ready = 0;
+      abuf->status = 1 << 1; // bad packet, discarded
+      abuf->resend_request_number = 0;
+      abuf->timestamp = 0;
+      abuf->timestamp_gap = 0;
+      abuf->sequence_number = 0;
+#endif
+    }
+  }
+  /*
+  {
+  uint64_t the_time_this_frame_should_be_played;
+                frame_to_local_time(abuf->timestamp,
+                                    &the_time_this_frame_should_be_played, conn);
+  int64_t lead_time = the_time_this_frame_should_be_played - get_absolute_time_in_ns();
+  debug(1, "put_packet %u, lead time is %.3f ms.", abuf->timestamp, lead_time * 0.000001);
+  }
+  */
+  int rc = pthread_cond_signal(&conn->flowcontrol);
+  if (rc)
+    debug(1, "Error signalling flowcontrol.");
+
+  // resend checks
+  {
+    uint64_t minimum_wait_time =
+        (uint64_t)(config.resend_control_first_check_time * (uint64_t)1000000000);
+    uint64_t resend_repeat_interval =
+        (uint64_t)(config.resend_control_check_interval_time * (uint64_t)1000000000);
+    uint64_t minimum_remaining_time = (uint64_t)((config.resend_control_last_check_time +
+                                                  config.audio_backend_buffer_desired_length) *
+                                                 (uint64_t)1000000000);
+    uint64_t latency_time = (uint64_t)(conn->latency * (uint64_t)1000000000);
+    latency_time = latency_time / (uint64_t)conn->input_rate;
+
+    // find the first frame that is missing, if known
+    int x = conn->ab_read;
+    if (first_possibly_missing_frame >= 0) {
+      // if it's within the range
+      int16_t buffer_size = conn->ab_write - conn->ab_read; // must be positive
+      if (buffer_size >= 0) {
+        int16_t position_in_buffer = first_possibly_missing_frame - conn->ab_read;
+        if ((position_in_buffer >= 0) && (position_in_buffer < buffer_size))
+          x = first_possibly_missing_frame;
+      }
+    }
+
+    first_possibly_missing_frame = -1; // has not been set
+
+    int missing_frame_run_count = 0;
+    int start_of_missing_frame_run = -1;
+    int number_of_missing_frames = 0;
+    while (x != conn->ab_write) {
+      abuf_t *check_buf = conn->audio_buffer + BUFIDX(x);
+      if (!check_buf->ready) {
+        if (first_possibly_missing_frame < 0)
+          first_possibly_missing_frame = x;
+        number_of_missing_frames++;
+        // debug(1, "frame %u's initialisation_time is 0x%" PRIx64 ", latency_time is 0x%"
+        // PRIx64 ", time_now is 0x%" PRIx64 ", minimum_remaining_time is 0x%" PRIx64 ".", x,
+        // check_buf->initialisation_time, latency_time, time_now, minimum_remaining_time);
+        int too_late = ((check_buf->initialisation_time < (time_now - latency_time)) ||
+                        ((check_buf->initialisation_time - (time_now - latency_time)) <
+                         minimum_remaining_time));
+        int too_early = ((time_now - check_buf->initialisation_time) < minimum_wait_time);
+        int too_soon_after_last_request =
+            ((check_buf->resend_time != 0) &&
+             ((time_now - check_buf->resend_time) <
+              resend_repeat_interval)); // time_now can never be less than the time_tag
+
+        if (too_late)
+          check_buf->status |= 1 << 2; // too late
+        else
+          check_buf->status &= 0xFF - (1 << 2); // not too late
+        if (too_early)
+          check_buf->status |= 1 << 3; // too early
+        else
+          check_buf->status &= 0xFF - (1 << 3); // not too early
+        if (too_soon_after_last_request)
+          check_buf->status |= 1 << 4; // too soon after last request
+        else
+          check_buf->status &= 0xFF - (1 << 4); // not too soon after last request
+
+        if ((!too_soon_after_last_request) && (!too_late) && (!too_early)) {
+          if (start_of_missing_frame_run == -1) {
+            start_of_missing_frame_run = x;
+            missing_frame_run_count = 1;
+          } else {
+            missing_frame_run_count++;
           }
-          // if (too_late) {
-          //   debug(1,"too late to get missing frame %u.", x);
-          // }
+          check_buf->resend_time = time_now; // setting the time to now because we are
+                                             // definitely going to take action
+          check_buf->resend_request_number++;
+          debug(3, "Frame %d is missing with ab_read of %u and ab_write of %u.", x, conn->ab_read,
+                conn->ab_write);
         }
-        // if (number_of_missing_frames != 0)
-        //  debug(1,"check with x = %u, ab_read = %u, ab_write = %u, first_possibly_missing_frame
-        //  = %d.", x, conn->ab_read, conn->ab_write, first_possibly_missing_frame);
-        x = (x + 1) & 0xffff;
-        if (((check_buf->ready) || (x == conn->ab_write)) && (missing_frame_run_count > 0)) {
-          // send a resend request
-          if (missing_frame_run_count > 1)
-            debug(3, "request resend of %d packets starting at seqno %u.", missing_frame_run_count,
-                  start_of_missing_frame_run);
-          if (config.disable_resend_requests == 0) {
-            // debug_mutex_unlock(&conn->ab_mutex, 3);
-            rtp_request_resend(start_of_missing_frame_run, missing_frame_run_count, conn);
-            // debug_mutex_lock(&conn->ab_mutex, 20000, 1);
-            conn->resend_requests++;
-          }
-          start_of_missing_frame_run = -1;
-          missing_frame_run_count = 0;
-        }
+        // if (too_late) {
+        //   debug(1,"too late to get missing frame %u.", x);
+        // }
       }
-      if (number_of_missing_frames == 0)
-        first_possibly_missing_frame = conn->ab_write;
+      // if (number_of_missing_frames != 0)
+      //  debug(1,"check with x = %u, ab_read = %u, ab_write = %u, first_possibly_missing_frame
+      //  = %d.", x, conn->ab_read, conn->ab_write, first_possibly_missing_frame);
+      x = (x + 1) & 0xffff;
+      if (((check_buf->ready) || (x == conn->ab_write)) && (missing_frame_run_count > 0)) {
+        // send a resend request
+        if (missing_frame_run_count > 1)
+          debug(3, "request resend of %d packets starting at seqno %u.", missing_frame_run_count,
+                start_of_missing_frame_run);
+        if (config.disable_resend_requests == 0) {
+          // debug_mutex_unlock(&conn->ab_mutex, 3);
+          rtp_request_resend(start_of_missing_frame_run, missing_frame_run_count, conn);
+          // debug_mutex_lock(&conn->ab_mutex, 20000, 1);
+          conn->resend_requests++;
+        }
+        start_of_missing_frame_run = -1;
+        missing_frame_run_count = 0;
+      }
     }
+    if (number_of_missing_frames == 0)
+      first_possibly_missing_frame = conn->ab_write;
+  }
   // } // remove this
   pthread_cleanup_pop(1);
   // debug_mutex_unlock(&conn->ab_mutex, 0);
@@ -2058,21 +2058,21 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
     // we must have timing information before we can do anything here
     if ((have_timestamp_timing_information(conn)) && (conn->input_format_is_valid != 0)) {
 
-/*
-      int rco = get_requested_connection_state_to_output();
+      /*
+            int rco = get_requested_connection_state_to_output();
 
-      if (conn->connection_state_to_output != rco) {
-        conn->connection_state_to_output = rco;
-        // change happening
-        if (conn->connection_state_to_output == 0) { // going off
-          debug(2, "request flush because connection_state_to_output is off");
-          pthread_mutex_lock(&conn->flush_mutex);
-          conn->flush_requested = 1;
-          conn->flush_rtp_timestamp = 0;
-          pthread_mutex_unlock(&conn->flush_mutex);
-        }
-      }
-*/
+            if (conn->connection_state_to_output != rco) {
+              conn->connection_state_to_output = rco;
+              // change happening
+              if (conn->connection_state_to_output == 0) { // going off
+                debug(2, "request flush because connection_state_to_output is off");
+                pthread_mutex_lock(&conn->flush_mutex);
+                conn->flush_requested = 1;
+                conn->flush_rtp_timestamp = 0;
+                pthread_mutex_unlock(&conn->flush_mutex);
+              }
+            }
+      */
       if (config.output->is_running)
         if (config.output->is_running() != 0) { // if the back end isn't running for any reason
           debug(2, "request flush because back end is not running");
@@ -3668,7 +3668,7 @@ void *player_thread_func(void *arg) {
 #ifdef CONFIG_AIRPLAY_2
   if (conn->timing_type == ts_ntp) {
 #endif
-    debug(3,"Connection %d: creating audio/contol/timing threads.", conn->connection_number);
+    debug(3, "Connection %d: creating audio/contol/timing threads.", conn->connection_number);
     // create and start the timing, control and audio receiver threads
     named_pthread_create(&conn->rtp_audio_thread, NULL, &rtp_audio_receiver, (void *)conn,
                          "ap1_audio_%d", conn->connection_number);
@@ -4094,7 +4094,8 @@ void *player_thread_func(void *arg) {
                     statistics_item("Too Late", "%*" PRIu64 "", 8, conn->too_late_packets);
                     statistics_item("Resend Reqs", "%*" PRIu64 "", 11, conn->resend_requests);
                     if (minimum_dac_queue_size == UINT64_MAX) {
-                      statistics_item("Min DAC Queue", "          n/a"); // same size as below, right justified                 
+                      statistics_item("Min DAC Queue",
+                                      "          n/a"); // same size as below, right justified
                     } else {
                       statistics_item("Min DAC Queue", "%*" PRIu64 "", 13, minimum_dac_queue_size);
                     }
@@ -4288,14 +4289,14 @@ void *player_thread_func(void *arg) {
 #ifdef CONFIG_METADATA_HUB
             // Get or calculate the timestamp of the frame at the top of the queue
             // If there is no delay, then it's inframe->timestamp.
-            
+
             // If there is a delay, we need to get the time and convert it into
             // frames at the input rate and subtract if from inframe->timestamp
             // to get the estimated timestamp of whatever is about to be played.
-                        
-            metadata_store.head_rtp_timestamp = inframe->timestamp;          
+
+            metadata_store.head_rtp_timestamp = inframe->timestamp;
 #endif
-            
+
             if (resp == 0) {
 
               uint64_t the_time_this_frame_should_be_played;
@@ -4330,15 +4331,15 @@ void *player_thread_func(void *arg) {
 #ifdef CONFIG_METADATA_HUB
               // calculate the effect of for the output queue size
               uint64_t output_buffer_delay_time_in_input_frames =
-                output_buffer_delay_time * conn->input_rate;
-              output_buffer_delay_time_in_input_frames = output_buffer_delay_time_in_input_frames / 1000000000;
-              
-              uint32_t output_buffer_delay_time_in_input_frames_32 = output_buffer_delay_time_in_input_frames;
+                  output_buffer_delay_time * conn->input_rate;
+              output_buffer_delay_time_in_input_frames =
+                  output_buffer_delay_time_in_input_frames / 1000000000;
+
+              uint32_t output_buffer_delay_time_in_input_frames_32 =
+                  output_buffer_delay_time_in_input_frames;
               metadata_store.head_rtp_timestamp -= output_buffer_delay_time_in_input_frames_32;
 
-
-#endif              
-              
+#endif
 
               uint64_t the_time_this_frame_will_be_played =
                   delay_measurement_time + output_buffer_delay_time;
@@ -4632,7 +4633,8 @@ void *player_thread_func(void *arg) {
 #endif
                 ) {
 
-                  float(*fbufs)[inframe->length] = malloc(conn->input_num_channels * sizeof(*fbufs));
+                  float(*fbufs)[inframe->length] =
+                      malloc(conn->input_num_channels * sizeof(*fbufs));
                   // debug(1, "size of array allocated is %d bytes.", conn->input_num_channels *
                   // sizeof(*fbufs));
                   int32_t *tbuf32 = conn->tbuf;
@@ -4658,9 +4660,11 @@ void *player_thread_func(void *arg) {
 
                   if (config.convolution_enabled) {
                     if (
-                        // if any of these are true, we need to create a new convolver                        
-                        (current_convolver_rate != RATE_FROM_ENCODED_FORMAT(config.current_output_configuration)) ||
-                        (current_convolver_channels != CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration)) ||
+                        // if any of these are true, we need to create a new convolver
+                        (current_convolver_rate !=
+                         RATE_FROM_ENCODED_FORMAT(config.current_output_configuration)) ||
+                        (current_convolver_channels !=
+                         CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration)) ||
                         (current_convolver_maximum_length_in_seconds !=
                          config.convolution_max_length_in_seconds) ||
                         (config.convolution_ir_files_updated == 1)) {
@@ -4668,13 +4672,15 @@ void *player_thread_func(void *arg) {
                       // look for a convolution ir file with a matching rate and channel count
 
                       convolver_is_valid = 0; // declare any current convolver as invalid
-                      current_convolver_rate = RATE_FROM_ENCODED_FORMAT(config.current_output_configuration);
-                      current_convolver_channels = CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration);
+                      current_convolver_rate =
+                          RATE_FROM_ENCODED_FORMAT(config.current_output_configuration);
+                      current_convolver_channels =
+                          CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration);
                       current_convolver_maximum_length_in_seconds =
                           config.convolution_max_length_in_seconds;
                       config.convolution_ir_files_updated = 0;
-                      debug(3, "looking for a %u/%u finite impulse response file.", current_convolver_rate,
-                            current_convolver_channels);
+                      debug(3, "looking for a %u/%u finite impulse response file.",
+                            current_convolver_rate, current_convolver_channels);
                       char *convolver_file_found = NULL;
                       unsigned int ir = 0;
                       while ((ir < config.convolution_ir_file_count) &&
@@ -4691,7 +4697,8 @@ void *player_thread_func(void *arg) {
                       // if no luck, try for a single-channel IR file
                       if (convolver_file_found == NULL) {
                         ir = 0;
-                        debug(3, "looking for a %u/1 finite impulse response file.", current_convolver_rate);
+                        debug(3, "looking for a %u/1 finite impulse response file.",
+                              current_convolver_rate);
                         while ((ir < config.convolution_ir_file_count) &&
                                (convolver_file_found == NULL)) {
                           if ((config.convolution_ir_files[ir].samplerate ==
@@ -4703,30 +4710,42 @@ void *player_thread_func(void *arg) {
                           }
                         }
                         if (convolver_file_found != NULL) {
-                          debug(1, "The %u/1 finite impulse response file \"%s\" will be used for convolution.", current_convolver_rate,
-                            convolver_file_found);
+                          debug(1,
+                                "The %u/1 finite impulse response file \"%s\" will be used for "
+                                "convolution.",
+                                current_convolver_rate, convolver_file_found);
                         }
                       } else {
-                        debug(1, "The %u/%u finite impulse response file \"%s\" will be used for convolution.", current_convolver_rate,
-                            current_convolver_channels, convolver_file_found);
+                        debug(1,
+                              "The %u/%u finite impulse response file \"%s\" will be used for "
+                              "convolution.",
+                              current_convolver_rate, current_convolver_channels,
+                              convolver_file_found);
                       }
                       if (convolver_file_found != NULL) {
                         // we have an apparently suitable convolution ir file, so lets initialise
                         // a convolver
-                        convolver_is_valid = convolver_init(
-                            convolver_file_found, current_convolver_channels,
-                            config.convolution_max_length_in_seconds, 1024); // power of 2 suggested for the block length
+                        convolver_is_valid =
+                            convolver_init(convolver_file_found, current_convolver_channels,
+                                           config.convolution_max_length_in_seconds,
+                                           1024); // power of 2 suggested for the block length
                         convolver_wait_for_all();
                         if ((convolver_is_valid == 0) && (convolver_error_notified == 0)) {
-                          debug(1, "can not initialise a %u/%u convolver from the \"%s\" finite impulse response file.", current_convolver_rate,
-                                current_convolver_channels, convolver_file_found);
+                          debug(1,
+                                "can not initialise a %u/%u convolver from the \"%s\" finite "
+                                "impulse response file.",
+                                current_convolver_rate, current_convolver_channels,
+                                convolver_file_found);
                           convolver_error_notified = 1;
                         }
                       } else if (convolver_error_notified == 0) {
-                        debug(1, "Convolution is disabled because a suitable %u/%u or %u/1 finite impulse response file can not be found.", current_convolver_rate, current_convolver_channels, current_convolver_rate);             
+                        debug(1,
+                              "Convolution is disabled because a suitable %u/%u or %u/1 finite "
+                              "impulse response file can not be found.",
+                              current_convolver_rate, current_convolver_channels,
+                              current_convolver_rate);
                         convolver_error_notified = 1;
                       }
-
                     }
                     if (convolver_is_valid != 0) {
                       for (j = 0; j < current_convolver_channels; j++) {
@@ -4758,14 +4777,17 @@ void *player_thread_func(void *arg) {
                   }
 #endif
                   if (conn->do_loudness) {
-                    loudness_process_blocks((float *)fbufs, inframe->length,
-                                            CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration),
-                                            (float)conn->fix_volume / 65536);
+                    loudness_process_blocks(
+                        (float *)fbufs, inframe->length,
+                        CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration),
+                        (float)conn->fix_volume / 65536);
                   }
 
                   // Interleave and convert back to int32_t
                   for (i = 0; i < inframe->length; i++) {
-                    for (j = 0; j < CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration); j++) {
+                    for (j = 0;
+                         j < CHANNELS_FROM_ENCODED_FORMAT(config.current_output_configuration);
+                         j++) {
                       tbuf32[conn->input_num_channels * i + j] = fbufs[j][i];
                     }
                   }

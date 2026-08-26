@@ -109,10 +109,10 @@ static int get_permissible_configuration_settings() {
               s++;
           }
           if (fo == 0) {
-            debug(4, "sndio: output device can't deal with %u channel%s.", c, c==1 ? "" : "s");
+            debug(4, "sndio: output device can't deal with %u channel%s.", c, c == 1 ? "" : "s");
             config.channel_set &= ~(1 << c); // remove this channel count
           } else {
-            debug(3, "sndio: output device can have %u channel%s.", c, c==1 ? "" : "s");
+            debug(3, "sndio: output device can have %u channel%s.", c, c == 1 ? "" : "s");
           }
         }
       }
@@ -190,7 +190,7 @@ static int get_permissible_configuration_settings() {
             if ((config.format_set & (1 << f)) != 0) {
               for (c = 0; c <= 8; c++) {
                 if ((config.channel_set & (1 << c)) != 0) {
-                  
+
                   struct sio_par proposed_par, actual_par;
                   struct sndio_formats *format_info = sps_format_lookup(f);
                   sio_initpar(&proposed_par);
@@ -209,9 +209,11 @@ static int get_permissible_configuration_settings() {
                           (actual_par.sig == proposed_par.sig)) {
                         permissible_configurations[r][f][c] =
                             0; // i.e. no error, so remove the EINVAL
-                        debug(4, "sndio: the configuration \"%u/%s/%u\" is available.", sps_rate_actual_rate(r), sps_format_description_string(f), c);
+                        debug(4, "sndio: the configuration \"%u/%s/%u\" is available.",
+                              sps_rate_actual_rate(r), sps_format_description_string(f), c);
                       } else {
-                        debug(4, "sndio: the configuration \"%u/%s/%u\" is not available.", sps_rate_actual_rate(r), sps_format_description_string(f), c);
+                        debug(4, "sndio: the configuration \"%u/%s/%u\" is not available.",
+                              sps_rate_actual_rate(r), sps_format_description_string(f), c);
                       }
                     } else {
                       debug(1,

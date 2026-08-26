@@ -227,7 +227,6 @@ const char *short_format_description(int32_t encoded_format) {
 // true if Shairport Sync is supposed to be sending output to the output device, false otherwise
 // static volatile int requested_connection_state_to_output = 1;
 
-
 /*
 // this stuff is to direct logging to syslog via libdaemon or directly
 // alternatively you can direct it to stderr using a command line option
@@ -499,7 +498,8 @@ uint16_t bind_UDP_port(int ip_family, const char *self_ip_address, uint32_t scop
 
 // int get_requested_connection_state_to_output() { return requested_connection_state_to_output; }
 
-// void set_requested_connection_state_to_output(int v) { requested_connection_state_to_output = v; }
+// void set_requested_connection_state_to_output(int v) { requested_connection_state_to_output = v;
+// }
 
 void getErrorText(char *destinationString, size_t destinationStringLength) {
 #pragma GCC diagnostic push

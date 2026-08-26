@@ -384,11 +384,14 @@ static int avahi_update(char **txt_records, char **secondary_txt_records) {
       avahi_string_list_free(text_record_string_list);
     if (*txt_records != NULL) {
       text_record_string_list = avahi_string_list_new_from_array((const char **)txt_records, -1);
-      err = avahi_entry_group_update_service_txt_strlst(group, selected_interface, AVAHI_PROTO_UNSPEC,
-                                                        0, service_name, config.regtype, NULL,
-                                                        text_record_string_list);
+      err = avahi_entry_group_update_service_txt_strlst(
+          group, selected_interface, AVAHI_PROTO_UNSPEC, 0, service_name, config.regtype, NULL,
+          text_record_string_list);
       if (err != 0)
-        debug(1, "avahi_entry_group_update_service_txt_strlst error \"%s\" updating primary txt records.", avahi_strerror(err));
+        debug(1,
+              "avahi_entry_group_update_service_txt_strlst error \"%s\" updating primary txt "
+              "records.",
+              avahi_strerror(err));
     }
   }
 
@@ -398,11 +401,14 @@ static int avahi_update(char **txt_records, char **secondary_txt_records) {
     if (*secondary_txt_records != NULL) {
       ap2_text_record_string_list =
           avahi_string_list_new_from_array((const char **)secondary_txt_records, -1);
-      err = avahi_entry_group_update_service_txt_strlst(group, selected_interface, AVAHI_PROTO_UNSPEC,
-                                                        0, ap2_service_name, config.regtype2, NULL,
-                                                        ap2_text_record_string_list);
+      err = avahi_entry_group_update_service_txt_strlst(
+          group, selected_interface, AVAHI_PROTO_UNSPEC, 0, ap2_service_name, config.regtype2, NULL,
+          ap2_text_record_string_list);
       if (err != 0)
-        debug(1, "avahi_entry_group_update_service_txt_strlst error \"%s\" updating secondary txt records.", avahi_strerror(err));
+        debug(1,
+              "avahi_entry_group_update_service_txt_strlst error \"%s\" updating secondary txt "
+              "records.",
+              avahi_strerror(err));
     }
   }
 

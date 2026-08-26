@@ -248,7 +248,8 @@ void cleanup_threads(void) {
 }
 
 int terminate_conn(int connection_number) {
-  // this will look for a connection by number, cancel it, join it, delete it and send an pre-mpted metadata message.
+  // this will look for a connection by number, cancel it, join it, delete it and send an pre-mpted
+  // metadata message.
   int found = 0;
   pthread_mutex_lock(&conns_lock);
   // look for an empty slot first
@@ -265,8 +266,10 @@ int terminate_conn(int connection_number) {
   pthread_mutex_unlock(&conns_lock);
 #ifdef CONFIG_METADATA
   if (found) {
-    debug(1, "Connection %d: is being terminated; terminate_conn is sending 'prmp'", connection_number);
-    send_ssnc_metadata('prmp', (const char *)&connection_number, sizeof(connection_number), 1); // PRe-eMPted 
+    debug(1, "Connection %d: is being terminated; terminate_conn is sending 'prmp'",
+          connection_number);
+    send_ssnc_metadata('prmp', (const char *)&connection_number, sizeof(connection_number),
+                       1); // PRe-eMPted
   }
 #endif
   return found;
@@ -320,10 +323,10 @@ void release_play_lock(rtsp_conn_info *conn) {
         principal_conn->airplay_gid = NULL; // stop using the client's GID as our GID.
       }
 #endif
-    config.airplay_statusflags &= (0xffffffff - (1 << 17)); // ReceiverSessionIsActive
-    build_bonjour_strings(principal_conn);
-    mdns_update(txt_records, secondary_txt_records);
-    debug(1, "Connection %d: (%s) has released play lock.", conn->connection_number,
+      config.airplay_statusflags &= (0xffffffff - (1 << 17)); // ReceiverSessionIsActive
+      build_bonjour_strings(principal_conn);
+      mdns_update(txt_records, secondary_txt_records);
+      debug(1, "Connection %d: (%s) has released play lock.", conn->connection_number,
             get_category_string(conn->airplay_stream_category));
     }
     principal_conn = NULL; // let it go
@@ -366,20 +369,22 @@ play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) 
     }
 
     if (principal_conn == conn) {
-        response = play_lock_already_acquired;
+      response = play_lock_already_acquired;
     } else if (principal_conn == NULL) {
-      // no other connection already has play lock 
+      // no other connection already has play lock
       principal_conn = conn;
       config.airplay_statusflags |= (1 << 17); // ReceiverSessionIsActive
       build_bonjour_strings(conn);
       mdns_update(txt_records, secondary_txt_records);
       response = play_lock_acquired_without_breaking_in;
     } else if (allow_session_interruption != 0) { // principal conn is not NULL,
-      debug(4, "Connection %d: (%s) about to be terminated.", principal_conn->connection_number, get_category_string(conn->airplay_stream_category));
+      debug(4, "Connection %d: (%s) about to be terminated.", principal_conn->connection_number,
+            get_category_string(conn->airplay_stream_category));
       rtsp_conn_info *previous_principal_conn = principal_conn;
       principal_conn = conn; // make the conn the new principal_conn
-      debug(1,  "Connection %d: (%s) is pre-empting play lock from connection %d.", conn->connection_number,
-            get_category_string(conn->airplay_stream_category), previous_principal_conn->connection_number);
+      debug(1, "Connection %d: (%s) is pre-empting play lock from connection %d.",
+            conn->connection_number, get_category_string(conn->airplay_stream_category),
+            previous_principal_conn->connection_number);
       terminate_conn(previous_principal_conn->connection_number);
       /*
       if (principal_conn == NULL) {
@@ -403,15 +408,15 @@ play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) 
         response = play_lock_acquired_by_breaking_in;
       }
     }
-//    if ((principal_conn != NULL) && (response != play_lock_already_acquired))
+    //    if ((principal_conn != NULL) && (response != play_lock_already_acquired))
     if (response != play_lock_already_acquired) {
       debug(1, "Connection %d: (%s) has acquired play lock.", conn->connection_number,
             get_category_string(conn->airplay_stream_category));
     }
     pthread_cleanup_pop(1); // release the principal_conn lock
   } else {
-    debug(1, "Connection %d: (%s) get_play_lock must have a non-NULL conn.", conn->connection_number,
-          get_category_string(conn->airplay_stream_category));
+    debug(1, "Connection %d: (%s) get_play_lock must have a non-NULL conn.",
+          conn->connection_number, get_category_string(conn->airplay_stream_category));
   }
   return response;
 }
@@ -555,7 +560,9 @@ ssize_t read_from_rtsp_connection(rtsp_conn_info *conn, void *buf, size_t count)
     if ((result <= 0) && (errno != 0)) {
       char errorstring[1024];
       strerror_r(errno, (char *)errorstring, sizeof(errorstring));
-      debug(1, "Connection %d: read_from_rtsp_connection error %d \"%s\" attempting to read up to %zu bytes.",
+      debug(1,
+            "Connection %d: read_from_rtsp_connection error %d \"%s\" attempting to read up to %zu "
+            "bytes.",
             conn->connection_number, errno, errorstring, count);
     }
   } else {
@@ -1080,12 +1087,13 @@ void generateTxtDataValueInfo(rtsp_conn_info *conn, void **response, size_t *res
           &qualifier_response_data, &qualifier_response_data_length) == 0)
     debug(1, "Problem");
 
-  // if (add_pstring_to_malloc(bnprintf(localString, sizeof(localString), "osvers=%s", config.osvers),
+  // if (add_pstring_to_malloc(bnprintf(localString, sizeof(localString), "osvers=%s",
+  // config.osvers),
   //                           &qualifier_response_data, &qualifier_response_data_length) == 0)
   //   debug(1, "Problem");
 
   if (add_pstring_to_malloc(bnprintf(localString, sizeof(localString), "vv=%u", config.vv),
-          &qualifier_response_data, &qualifier_response_data_length) == 0)
+                            &qualifier_response_data, &qualifier_response_data_length) == 0)
     debug(1, "Problem");
   *response = qualifier_response_data;
   *responseLength = qualifier_response_data_length;
@@ -1137,8 +1145,9 @@ plist_t generateInfoPlist(rtsp_conn_info *conn) {
     plist_t supported_formats_plist = plist_new_dict();
     if (supported_formats_plist != NULL) {
       // plist_dict_set_item(supported_formats_plist, "audioStream", plist_new_uint(21235712));
-      plist_dict_set_item(supported_formats_plist, "audioStream", plist_new_uint(262144)); // just ALAC/S16/2
-      
+      plist_dict_set_item(supported_formats_plist, "audioStream",
+                          plist_new_uint(262144)); // just ALAC/S16/2
+
       {
         bufferStreamFormats |= 0x00000400000L; // AAC-LC/44.1K/F24/2
         bufferStreamFormats |= 0x40000;        // ALAC/44100/S16/2
@@ -2452,7 +2461,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
             if (ptp_shm_interface_open() !=
                 0) // it should be open already, but just in case it isn't...
               die("Can not access the NQPTP service. Has it stopped running?");
-              
+
             debug_log_rtsp_message(3, "SETUP (no streams) \"PTP\" message", req);
             plist_t groupUUID = plist_dict_get_item(messagePlist, "groupUUID");
             if (groupUUID) {
@@ -3376,9 +3385,9 @@ static void handle_set_parameter(rtsp_conn_info *conn, rtsp_message *req, rtsp_m
 }
 
 static void handle_announce(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
-  //debug(1, "Connection %d: ANNOUNCE %s Content-Length %d", conn->connection_number,
-  //      req->path, req->contentlength);
-  //debug_log_rtsp_message_conn(conn, 1, "ANNOUNCE", req);
+  // debug(1, "Connection %d: ANNOUNCE %s Content-Length %d", conn->connection_number,
+  //       req->path, req->contentlength);
+  // debug_log_rtsp_message_conn(conn, 1, "ANNOUNCE", req);
 #ifdef CONFIG_AIRPLAY_2
   conn->airplay_stream_category = classic_airplay_stream; // already set in Classic AirPlay build
   play_lock_r get_play_status = get_play_lock(
@@ -4081,7 +4090,8 @@ static void *rtsp_conversation_thread_func(void *pconn) {
   rtsp_conn_info *conn = pconn;
 
   // #include <syscall.h>
-  // debug(1, "Connection: %d: rtsp_conversation_thread_func PID %ld", conn->connection_number, syscall(SYS_gettid));
+  // debug(1, "Connection: %d: rtsp_conversation_thread_func PID %ld", conn->connection_number,
+  // syscall(SYS_gettid));
 
   int rc = pthread_mutex_init(&conn->flush_mutex, NULL);
   if (rc)
@@ -4274,7 +4284,7 @@ static void *rtsp_conversation_thread_func(void *pconn) {
       }
     }
   }
-  
+
   release_play_lock(conn);
   pthread_cleanup_pop(1);
   // debug(1, "Connection %d: exit.", conn->connection_number);

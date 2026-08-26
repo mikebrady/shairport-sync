@@ -705,13 +705,14 @@ static int actual_open_alsa_device() {
     ret = snd_pcm_open(&alsa_handle, alsa_out_dev, SND_PCM_STREAM_PLAYBACK, 0);
     // EHOSTDOWN seems to signify that it's a PipeWire pseudo device that can't be accessed by this
     // user. So, try the first device ALSA device and log it.
-    if (ret == -EHOSTDOWN){  
+    if (ret == -EHOSTDOWN) {
       if (strcmp(alsa_out_dev, "default") == 0) {
-        die("the default ALSA device can not be opened. This can happen if PipeWire or PulseAudio is installed but not running for this user.");
+        die("the default ALSA device can not be opened. This can happen if PipeWire or PulseAudio "
+            "is installed but not running for this user.");
       } else {
         die("the ALSA device \"%s\" can not be opened.", alsa_out_dev);
       }
-    }    
+    }
     if (ret == 0) {
       if (alsa_handle_status == -EBUSY)
         warn("The output device \"%s\" is no longer busy and will be used by Shairport Sync.",
@@ -1675,7 +1676,7 @@ static int set_mute_state() {
     close_mixer();
   }
   pthread_mutex_unlock(&alsa_mixer_mutex); // release the mutex
-  pthread_cleanup_pop(0);                   // release the mutex
+  pthread_cleanup_pop(0);                  // release the mutex
   pthread_setcancelstate(oldState, NULL);
   return response;
 }

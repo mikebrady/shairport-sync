@@ -82,8 +82,8 @@
 #include "common.h"
 #include "rtp.h"
 #include "rtsp.h"
-#include "utilities/string_utilities.h"
 #include "utilities/exit.h"
+#include "utilities/string_utilities.h"
 
 #if defined(CONFIG_DACP_CLIENT)
 #include "dacp.h"
@@ -125,8 +125,8 @@
 #endif
 
 #ifdef CONFIG_CONVOLUTION
-#include <sndfile.h>
 #include "FFTConvolver/convolver.h"
+#include <sndfile.h>
 #endif
 
 pid_t pid;
@@ -510,15 +510,16 @@ int parse_options(int argc, char **argv) {
   }
 
   if (log_to_syslog_selected) {
-    inform("the diagnostic \"log-to-syslog\" command_line_option is obsolete and is ignored. All logging is to STDERR, which is directed to the system log when Shairport Sync is running as a service.");
-/*
-#ifdef CONFIG_LIBDAEMON
-    log_to_default = 0; // a specific log output modality has been selected.
-#endif
-    log_to_syslog();
-*/
+    inform("the diagnostic \"log-to-syslog\" command_line_option is obsolete and is ignored. All "
+           "logging is to STDERR, which is directed to the system log when Shairport Sync is "
+           "running as a service.");
+    /*
+    #ifdef CONFIG_LIBDAEMON
+        log_to_default = 0; // a specific log output modality has been selected.
+    #endif
+        log_to_syslog();
+    */
   }
-
 
 #ifdef CONFIG_LIBDAEMON
   if ((daemonisewith) && (daemonisewithout))
@@ -783,7 +784,7 @@ int parse_options(int argc, char **argv) {
               "inclusive.",
               value);
       }
-      
+
       if (config_lookup_string(config.cfg, "diagnostics.get_plist_metadata", &str)) {
         if (strcasecmp(str, "no") == 0)
           config.get_plist_metadata = 0;
@@ -883,26 +884,27 @@ int parse_options(int argc, char **argv) {
 
       /* Get the diagnostics output default. */
       if (config_lookup_string(config.cfg, "diagnostics.log_output_to", &str)) {
-      /*
-#ifdef CONFIG_LIBDAEMON
-        log_to_default = 0; // a specific log output modality has been selected.
-#endif
-        if (strcasecmp(str, "syslog") == 0)
-          log_to_syslog();
-        else if (strcasecmp(str, "stdout") == 0) {
-          log_to_stdout();
-        } else if (strcasecmp(str, "stderr") == 0) {
-          log_to_stderr();
-        } else {
-          config.log_file_path = (char *)str;
-          config.log_fd = -1;
-          log_to_file();
-        }
-      */
-        warn("the diagnostic \"log_output_to\" setting is obsolete and is ignored. All logging is to STDERR, which is directed to the system log when Shairport Sync is running as a service.");
+        /*
+  #ifdef CONFIG_LIBDAEMON
+          log_to_default = 0; // a specific log output modality has been selected.
+  #endif
+          if (strcasecmp(str, "syslog") == 0)
+            log_to_syslog();
+          else if (strcasecmp(str, "stdout") == 0) {
+            log_to_stdout();
+          } else if (strcasecmp(str, "stderr") == 0) {
+            log_to_stderr();
+          } else {
+            config.log_file_path = (char *)str;
+            config.log_fd = -1;
+            log_to_file();
+          }
+        */
+        warn("the diagnostic \"log_output_to\" setting is obsolete and is ignored. All logging is "
+             "to STDERR, which is directed to the system log when Shairport Sync is running as a "
+             "service.");
       }
-      
-      
+
       /* Get the ignore_volume_control setting. */
       if (config_lookup_string(config.cfg, "general.ignore_volume_control", &str)) {
         if (strcasecmp(str, "no") == 0)
@@ -1685,7 +1687,7 @@ int parse_options(int argc, char **argv) {
   // config.airplay_statusflags |= 1 << 11; // DeviceSupportsRelay
 
   // here, we are finally finished reading the options
-  
+
   // now look at some of the status flags, though an initial value has been given further back
 
   // Advertised with mDNS and returned with GET /info, see
@@ -1696,7 +1698,6 @@ int parse_options(int argc, char **argv) {
   // config.airplay_statusflags |= 1 << 11; // DeviceSupportsRelay
   // config.airplay_statusflags |= 1 << 19; // Unknown. Seems to control whether individual volume
   // controls are shown and whether the SPS devices shows when its active.
-
 
   // finish the Airplay 2 options
 
@@ -1781,16 +1782,17 @@ int parse_options(int argc, char **argv) {
   config.airplay_features = 0x00010340401C4A00; // no AP2 metadata (b50), no AP1 text (b17), no AP1
                                                 // progress (b16), no AP1 artwork (b15)
                                                 // no HomeKit Pairing ability
-  
+
   // These are important for allowing Shairport Sync to be added to Apple home.
   config.airplay_features |= (((uint64_t)1 << 46) | ((uint64_t)1 << 47));
-  // Bit 46 seems to mean	SupportsHKPairingAndAccessControl	HomeKit-based pairing and access control support
-  // Bit 47 seems necessary too, but is undocumented.
+  // Bit 46 seems to mean	SupportsHKPairingAndAccessControl	HomeKit-based pairing and
+  // access control support Bit 47 seems necessary too, but is undocumented.
 
   // This is undocumented, but is set on the APX.
   // config.airplay_features |= (uint64_t)1 << 22 ;
 
-  // debug(1, "Features: 0x%" PRIx64 ", unmask: 0x%" PRIx64 ", mask: 0x%" PRIx64 ".", config.airplay_features, unmask, mask);
+  // debug(1, "Features: 0x%" PRIx64 ", unmask: 0x%" PRIx64 ", mask: 0x%" PRIx64 ".",
+  // config.airplay_features, unmask, mask);
 
   // features=0x0001C340445D0A00 -- AirPort Express
 
@@ -1811,10 +1813,9 @@ int parse_options(int argc, char **argv) {
   if (config.metadata_enabled != 0) {
     if (config.get_plist_metadata != 0) {
       config.airplay_features |=
-        (uint64_t)1 << 50; // richer metadata in a binary plist, including more state information
-      config.airplay_features |=
-        (uint64_t)1 << 16; // ask for progress too
-  
+          (uint64_t)1 << 50; // richer metadata in a binary plist, including more state information
+      config.airplay_features |= (uint64_t)1 << 16; // ask for progress too
+
     } else {
       // older metadata flags artwork, progress and text respectively
       config.airplay_features |= (((uint64_t)1 << 16) | ((uint64_t)1 << 17));
@@ -2062,7 +2063,6 @@ const char *pid_file_proc(void) {
 }
 #endif
 
-
 void exit_rtsp_listener() {
   debug(3, "exit_rtsp_listener begins");
   pthread_cancel(rtsp_listener_thread);
@@ -2071,158 +2071,158 @@ void exit_rtsp_listener() {
 }
 
 void exit_function() {
-    // the following is to ensure that if libdaemon has been included
-    // that most of this code will be skipped when the parent process is exiting
-    // exec
+  // the following is to ensure that if libdaemon has been included
+  // that most of this code will be skipped when the parent process is exiting
+  // exec
 #ifdef CONFIG_LIBDAEMON
-    if ((this_is_the_daemon_process) ||
-        (config.daemonise == 0)) { // if this is the daemon process that is exiting or it's not
-                                   // actually daemonised at all
+  if ((this_is_the_daemon_process) ||
+      (config.daemonise == 0)) { // if this is the daemon process that is exiting or it's not
+                                 // actually daemonised at all
 #endif
-      /*
-      Actually, there is no terminate_mqtt() function.
-      #ifdef CONFIG_MQTT
-              if (config.mqtt_enabled) {
-                      terminate_mqtt();
-              }
-      #endif
-      */
+    /*
+    Actually, there is no terminate_mqtt() function.
+    #ifdef CONFIG_MQTT
+            if (config.mqtt_enabled) {
+                    terminate_mqtt();
+            }
+    #endif
+    */
 
-      debug(2, "Stopping the activity monitor.");
-      activity_monitor_stop();
-      debug(2, "Stopping the activity monitor done.");
+    debug(2, "Stopping the activity monitor.");
+    activity_monitor_stop();
+    debug(2, "Stopping the activity monitor done.");
 
 #ifdef CONFIG_DACP_CLIENT
-      debug(2, "Stopping DACP Monitor");
-      dacp_monitor_stop();
-      debug(2, "Stopping DACP Monitor Done");
+    debug(2, "Stopping DACP Monitor");
+    dacp_monitor_stop();
+    debug(2, "Stopping DACP Monitor Done");
 #endif
 
 #if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
-        if (glib_worker_loop != NULL) { // may not have been initialised
-          g_main_loop_quit(glib_worker_loop);
-          debug(3, "GMainLoop stop requested");
-        }
-        if (glib_worker_thread != NULL) {
-          g_thread_join(glib_worker_thread);
-          debug(3, "GLib worker thread joined");
-        }
+    if (glib_worker_loop != NULL) { // may not have been initialised
+      g_main_loop_quit(glib_worker_loop);
+      debug(3, "GMainLoop stop requested");
+    }
+    if (glib_worker_thread != NULL) {
+      g_thread_join(glib_worker_thread);
+      debug(3, "GLib worker thread joined");
+    }
 
 #endif
 
 #ifdef CONFIG_METADATA_HUB
-      debug(2, "Stopping metadata hub");
-      metadata_hub_stop();
-      debug(2, "Stopping metadata done");
+    debug(2, "Stopping metadata hub");
+    metadata_hub_stop();
+    debug(2, "Stopping metadata done");
 #endif
 
 #ifdef CONFIG_METADATA
-      debug(2, "Stopping metadata");
-      metadata_stop(); // close down the metadata pipe
-      debug(2, "Stopping metadata done");
+    debug(2, "Stopping metadata");
+    metadata_stop(); // close down the metadata pipe
+    debug(2, "Stopping metadata done");
 #endif
 
-      if ((config.output) && (config.output->deinit)) {
-        debug(2, "Deinitialise the audio backend.");
-        config.output->deinit();
-        debug(2, "Deinitialise the audio backend done.");
-      }
+    if ((config.output) && (config.output->deinit)) {
+      debug(2, "Deinitialise the audio backend.");
+      config.output->deinit();
+      debug(2, "Deinitialise the audio backend done.");
+    }
 
 #ifdef CONFIG_SOXR
-      {
-        int oldState;
-        pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
-        if (soxr_time_check_thread != NULL) {
-          pthread_cancel(*soxr_time_check_thread);
-          pthread_join(*soxr_time_check_thread, NULL);
-          free(soxr_time_check_thread);
-          soxr_time_check_thread = NULL;
-        }
-        pthread_setcancelstate(oldState, NULL);
+    {
+      int oldState;
+      pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState); // make this un-cancellable
+      if (soxr_time_check_thread != NULL) {
+        pthread_cancel(*soxr_time_check_thread);
+        pthread_join(*soxr_time_check_thread, NULL);
+        free(soxr_time_check_thread);
+        soxr_time_check_thread = NULL;
       }
+      pthread_setcancelstate(oldState, NULL);
+    }
 
 #endif
 
-      if (config.service_name)
-        free(config.service_name);
+    if (config.service_name)
+      free(config.service_name);
 
 #ifdef CONFIG_MQTT
-      if (config.mqtt_empty_payload_substitute)
-        free(config.mqtt_empty_payload_substitute);
+    if (config.mqtt_empty_payload_substitute)
+      free(config.mqtt_empty_payload_substitute);
 #endif
 
 #ifdef CONFIG_CONVOLUTION
-      if (config.convolution_ir_files) {
-        free_ir_filenames(config.convolution_ir_files, config.convolution_ir_file_count);
-        config.convolution_ir_files = NULL;
-        config.convolution_ir_file_count = 0;
-      }
-      convolver_pool_closedown();
+    if (config.convolution_ir_files) {
+      free_ir_filenames(config.convolution_ir_files, config.convolution_ir_file_count);
+      config.convolution_ir_files = NULL;
+      config.convolution_ir_file_count = 0;
+    }
+    convolver_pool_closedown();
 #endif
 
-      if (config.regtype)
-        free(config.regtype);
-      if (config.model)
-        free(config.model);
-      if (config.srcvers)
-        free(config.srcvers);
-      if (config.osvers)
-        free(config.osvers);
+    if (config.regtype)
+      free(config.regtype);
+    if (config.model)
+      free(config.model);
+    if (config.srcvers)
+      free(config.srcvers);
+    if (config.osvers)
+      free(config.osvers);
 
 #ifdef CONFIG_AIRPLAY_2
-      if (config.regtype2)
-        free(config.regtype2);
-      if (config.nqptp_shared_memory_interface_name)
-        free(config.nqptp_shared_memory_interface_name);
-      if (config.airplay_device_id)
-        free(config.airplay_device_id);
-      if (config.airplay_pi)
-        free(config.airplay_pi);
-      if (config.airplay_pgid)
-        free(config.airplay_pgid);
-      if (config.airplay_psi)
-        free(config.airplay_psi);
-      if (config.pk_string)
-        free(config.pk_string);
-      if (config.firmware_version)
-        free(config.firmware_version);
-      ptp_shm_interface_close(); // close it if it's open
+    if (config.regtype2)
+      free(config.regtype2);
+    if (config.nqptp_shared_memory_interface_name)
+      free(config.nqptp_shared_memory_interface_name);
+    if (config.airplay_device_id)
+      free(config.airplay_device_id);
+    if (config.airplay_pi)
+      free(config.airplay_pi);
+    if (config.airplay_pgid)
+      free(config.airplay_pgid);
+    if (config.airplay_psi)
+      free(config.airplay_psi);
+    if (config.pk_string)
+      free(config.pk_string);
+    if (config.firmware_version)
+      free(config.firmware_version);
+    ptp_shm_interface_close(); // close it if it's open
 #endif
 
 #ifdef CONFIG_LIBDAEMON
-      if (this_is_the_daemon_process) {
-        daemon_retval_send(0);
-        daemon_pid_file_remove();
-        daemon_signal_done();
-        if (config.computed_piddir)
-          free(config.computed_piddir);
-      }
+    if (this_is_the_daemon_process) {
+      daemon_retval_send(0);
+      daemon_pid_file_remove();
+      daemon_signal_done();
+      if (config.computed_piddir)
+        free(config.computed_piddir);
     }
+  }
 #endif
-    if (config.cfg)
-      config_destroy(config.cfg);
-    if (config_file_real_path)
-      free(config_file_real_path);
-    if (config.appName)
-      free(config.appName);
+  if (config.cfg)
+    config_destroy(config.cfg);
+  if (config_file_real_path)
+    free(config_file_real_path);
+  if (config.appName)
+    free(config.appName);
 
-    // probably should be freeing malloc'ed memory here, including strdup-created strings...
+  // probably should be freeing malloc'ed memory here, including strdup-created strings...
 
 #ifdef CONFIG_LIBDAEMON
-    if (this_is_the_daemon_process) { // this is the daemon that is exiting
-      mdns_unregister(); // once the dacp handler is done and all player threrads are done it should
+  if (this_is_the_daemon_process) { // this is the daemon that is exiting
+    mdns_unregister(); // once the dacp handler is done and all player threrads are done it should
                        // be safe
-      debug(1, "libdaemon daemon process exit");
-    } else {
-      if (config.daemonise)
-        debug(1, "libdaemon parent process exit");
-      else
-        debug(1, "normal exit");
-    }
+    debug(1, "libdaemon daemon process exit");
+  } else {
+    if (config.daemonise)
+      debug(1, "libdaemon parent process exit");
+    else
+      debug(1, "normal exit");
+  }
 #else
-    mdns_unregister(); // once the dacp handler is done and all player threads are done it should
-                       // be safe
-    debug(2, "normal exit");
+  mdns_unregister(); // once the dacp handler is done and all player threads are done it should
+                     // be safe
+  debug(2, "normal exit");
 #endif
 }
 
@@ -2553,15 +2553,15 @@ int main(int argc, char **argv) {
     exit(EXIT_SUCCESS);
   }
 
-/*
-  // Check if we are called with -log-to-syslog
-  if (argc >= 2 && (strcmp(argv[1], "--log-to-syslog") == 0)) {
-    log_to_syslog_select_is_first_command_line_argument = 1;
-    log_to_syslog();
-  } else {
-    log_to_stderr();
-  }
-*/
+  /*
+    // Check if we are called with -log-to-syslog
+    if (argc >= 2 && (strcmp(argv[1], "--log-to-syslog") == 0)) {
+      log_to_syslog_select_is_first_command_line_argument = 1;
+      log_to_syslog();
+    } else {
+      log_to_stderr();
+    }
+  */
 
   pid = getpid();
   config.log_fd = -1;
@@ -2777,10 +2777,10 @@ int main(int argc, char **argv) {
     } else { /* pid == 0 means we are the daemon */
 
       this_is_the_daemon_process = 1;
-/*
-      if (log_to_default != 0) // if a specific logging mode has not been selected
-        log_to_syslog();       // automatically send logs to the daemon_log
-*/
+      /*
+            if (log_to_default != 0) // if a specific logging mode has not been selected
+              log_to_syslog();       // automatically send logs to the daemon_log
+      */
 
       /* Close FDs */
       if (daemon_close_all(-1) < 0) {
@@ -3376,13 +3376,13 @@ int main(int argc, char **argv) {
   debug(option_print_level, "convolution maximum length is %f seconds.",
         config.convolution_max_length_in_seconds);
   debug(option_print_level, "convolution gain is %f", config.convolution_gain);
-  int convolution_ir_files_status = sanity_check_ir_files(option_print_level, config.convolution_ir_files,
-                        config.convolution_ir_file_count);
-  if (convolution_ir_files_status != 0) { // if non zero, it's the index of the errant file + 1                 
-    debug(option_print_level, "convolution impulse response file \"%s\" %s", config.convolution_ir_files[convolution_ir_files_status - 1].filename,
-          sf_strerror(NULL));
-    warn("Error accessing the convolution impulse response file \"%s\". %s", config.convolution_ir_files[convolution_ir_files_status - 1].filename,
-         sf_strerror(NULL));
+  int convolution_ir_files_status = sanity_check_ir_files(
+      option_print_level, config.convolution_ir_files, config.convolution_ir_file_count);
+  if (convolution_ir_files_status != 0) { // if non zero, it's the index of the errant file + 1
+    debug(option_print_level, "convolution impulse response file \"%s\" %s",
+          config.convolution_ir_files[convolution_ir_files_status - 1].filename, sf_strerror(NULL));
+    warn("Error accessing the convolution impulse response file \"%s\". %s",
+         config.convolution_ir_files[convolution_ir_files_status - 1].filename, sf_strerror(NULL));
   }
 #endif
   debug(option_print_level, "loudness_enabled is %s.",
@@ -3536,7 +3536,7 @@ int main(int argc, char **argv) {
   // you'll see two threads named "listener" or whatever...
   named_pthread_create(&rtsp_listener_thread, NULL, &rtsp_listen_loop, NULL, "listener");
   atexit(exit_rtsp_listener);
-  
+
   // wait forever...
   while (1) {
     usleep(1000000);

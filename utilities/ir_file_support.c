@@ -1,6 +1,6 @@
 /*
  * Utilities for dealing with ir (Finite Impulse Response) file lists.
- 
+
  * This file is part of Shairport Sync
  * Copyright (c) Mike Brady 2026
  * All rights reserved.
@@ -25,18 +25,18 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
- 
+
 /* Parse comma-separated filenames with optional quotes
  * Returns array of ir_file_info_t structs (caller must free both array and filenames)
  * count is set to number of filenames found
  * Returns NULL on error
  */
- 
-#include <ctype.h> // isspace()
-#include <stdlib.h> // malloc
+
+#include "ir_file_support.h"
+#include <ctype.h>    // isspace()
 #include <inttypes.h> // PRId64
 #include <sndfile.h>
-#include "ir_file_support.h"
+#include <stdlib.h> // malloc
 
 ir_file_info_t *parse_ir_filenames(const char *input, unsigned int *file_count) {
   if (!input || !file_count)
@@ -203,7 +203,7 @@ ir_file_info_t *parse_ir_filenames(const char *input, unsigned int *file_count) 
 
 /* Do a quick sanity check on the files -- see if they can be opened as sound files */
 unsigned int sanity_check_ir_files(const int option_print_level, ir_file_info_t *files,
-                           unsigned int count) {
+                                   unsigned int count) {
   int error_detected = 0; // means all okay
   if (files != NULL) {
     unsigned int i = 0;
@@ -219,12 +219,11 @@ unsigned int sanity_check_ir_files(const int option_print_level, ir_file_info_t 
         debug(option_print_level,
               "convolution impulse response file %u, \"%s\": %" PRId64
               " frames (%.1f seconds), %d channel%s at %d frames per second.",
-              i + 1,
-              files[i].filename, sfinfo.frames, (float)sfinfo.frames / sfinfo.samplerate,
+              i + 1, files[i].filename, sfinfo.frames, (float)sfinfo.frames / sfinfo.samplerate,
               sfinfo.channels, sfinfo.channels == 1 ? "" : "s", sfinfo.samplerate);
         sf_close(file);
       } else {
-        error_detected = i + 1; 
+        error_detected = i + 1;
         /*
         debug(option_print_level, "convolution impulse response file \"%s\" %s", files[i].filename,
               sf_strerror(NULL));

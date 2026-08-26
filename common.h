@@ -31,11 +31,9 @@ typedef enum {
 #define SAFAMILY sa_family
 #endif
 
-
 #ifdef CONFIG_CONVOLUTION
 #include "utilities/ir_file_support.h"
 #endif
-
 
 #if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
 #include <glib.h>
@@ -187,7 +185,7 @@ typedef struct {
   double resend_control_check_interval_time; // wait this long between making requests
   double resend_control_last_check_time; // if the packet is missing this close to the time of use,
                                          // give up
-                                         
+
   int get_plist_metadata; // set to non-zero to get richer plist metadata
   pthread_mutex_t lock;
   config_t *cfg;
@@ -396,7 +394,7 @@ typedef struct {
   char *model;
   char *srcvers;
   char *osvers;
-  unsigned int vv;                // may be associated with different volume control arrangements
+  unsigned int vv; // may be associated with different volume control arrangements
   uint32_t airplay_statusflags;
 
 #ifdef CONFIG_AIRPLAY_2
@@ -548,11 +546,9 @@ void command_set_volume(double volume);
 
 int mkpath(const char *path, mode_t mode);
 
-#define pthread_mutex_lock_and_cleanup_push(mu)                                                 \
-  if (pthread_mutex_lock(mu) == 0)                                   \
+#define pthread_mutex_lock_and_cleanup_push(mu)                                                    \
+  if (pthread_mutex_lock(mu) == 0)                                                                 \
   pthread_cleanup_push(mutex_unlock, (void *)mu)
-
-
 
 int do_pthread_setname(pthread_t *restrict thread, const char *format, ...);
 
@@ -573,7 +569,6 @@ char *get_version_string(); // mallocs a string space -- remember to free it aft
 
 int64_t generate_zero_frames(char *outp, size_t number_of_frames, int with_dither,
                              int64_t random_number_in, uint32_t encoded_output_format);
-
 
 int string_update_with_size(char **str, int *flag, char *s, size_t len);
 

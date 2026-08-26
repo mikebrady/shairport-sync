@@ -33,7 +33,6 @@
 #include "mpris-interface.h"
 #include "utilities/g_variant_pretty_print.h"
 
-
 GMainLoop *loop;
 
 // Pretty-prints a single property value. If the value is itself an "av"

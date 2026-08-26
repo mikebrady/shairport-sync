@@ -645,7 +645,8 @@ void *rtp_timing_sender(void *arg) {
                  (struct sockaddr *)&conn->rtp_client_timing_socket, msgsize) == -1) {
         char em[1024];
         strerror_r(errno, em, sizeof(em));
-        debug(1, "Connection %d: error %d using send-to to timing socket %d: \"%s\".", conn->connection_number, errno, conn->timing_socket, em);
+        debug(1, "Connection %d: error %d using send-to to timing socket %d: \"%s\".",
+              conn->connection_number, errno, conn->timing_socket, em);
       }
     } else {
       debug(3, "Timing Sender Thread -- dropping outgoing packet to simulate bad network.");
@@ -1611,7 +1612,8 @@ int32_t decipher_player_put_packet(uint8_t *ciphered_audio_alt, ssize_t nread,
       player_put_packet(ALAC_44100_S16_2, sequence_number, timestamp, m, plen, 0, 0,
                         conn); // 0 = no mute, 0 = non discontinuous
     } else {
-      debug(4, "No session key, so the audio packet of %zd bytes can not be deciphered -- skipped.", nread);
+      debug(4, "No session key, so the audio packet of %zd bytes can not be deciphered -- skipped.",
+            nread);
       debug_print_buffer(4, ciphered_audio_alt, nread);
     }
     return sequence_number;
@@ -1622,7 +1624,8 @@ int32_t decipher_player_put_packet(uint8_t *ciphered_audio_alt, ssize_t nread,
 }
 
 void *rtp_ap2_control_receiver(void *arg) {
-  const int32_t ap2_realttime_stream_latency_fudge_factor = 11025; // seems to bring everything into sync
+  const int32_t ap2_realttime_stream_latency_fudge_factor =
+      11025; // seems to bring everything into sync
   //  #include <syscall.h>
   //  debug(1, "rtp_ap2_control_receiver PID %d", syscall(SYS_gettid));
   pthread_cleanup_push(rtp_ap2_control_handler_cleanup_handler, arg);
@@ -1698,28 +1701,37 @@ void *rtp_ap2_control_receiver(void *arg) {
               // this updates the anchor information contained in the packet
               int32_t stream_specified_latency = frame_2 - frame_1; // this is the latency expected
               if (stream_specified_latency != 77175)
-                debug(1, "Stream-specified latency is %d frames. Normally it is 77175.", stream_specified_latency);
-              int32_t net_source_latency = stream_specified_latency + ap2_realttime_stream_latency_fudge_factor;
+                debug(1, "Stream-specified latency is %d frames. Normally it is 77175.",
+                      stream_specified_latency);
+              int32_t net_source_latency =
+                  stream_specified_latency + ap2_realttime_stream_latency_fudge_factor;
 
               // Now to accommodate a backend buffer of the desired length.
               // Note that it's in input-rate frames, not output-rate frames!
-              
-              net_source_latency = net_source_latency - (int32_t)(config.audio_backend_buffer_desired_length *
-                                                    conn->input_rate);
-                                                                               
+
+              net_source_latency =
+                  net_source_latency -
+                  (int32_t)(config.audio_backend_buffer_desired_length * conn->input_rate);
+
               // Now we want to check the user-specified latency offset.
 
-              // We want to warn the user if they have asked for a negative latency that is too great --
-              // one that would require packets to arrive before they actually do,
-              // (which is about two seconds before they are to be played).
-              
-              int32_t net_latency = net_source_latency + (int32_t)(config.audio_backend_latency_offset * conn->input_rate);
-              
+              // We want to warn the user if they have asked for a negative latency that is too
+              // great -- one that would require packets to arrive before they actually do, (which
+              // is about two seconds before they are to be played).
+
+              int32_t net_latency =
+                  net_source_latency +
+                  (int32_t)(config.audio_backend_latency_offset * conn->input_rate);
+
               if (net_latency <= 0) {
                 if (conn->latency_warning_issued == 0) {
-                  warn("The stream latency (%g seconds) is too short to accommodate an audio backend latency offset of "
-                       "%g seconds and a backend buffer of %g seconds. The audio_backend_latency_offset has been set to zero.",
-                       ((stream_specified_latency + ap2_realttime_stream_latency_fudge_factor) * 1.0) / conn->input_rate,
+                  warn("The stream latency (%g seconds) is too short to accommodate an audio "
+                       "backend latency offset of "
+                       "%g seconds and a backend buffer of %g seconds. The "
+                       "audio_backend_latency_offset has been set to zero.",
+                       ((stream_specified_latency + ap2_realttime_stream_latency_fudge_factor) *
+                        1.0) /
+                           conn->input_rate,
                        config.audio_backend_latency_offset,
                        config.audio_backend_buffer_desired_length);
                   config.audio_backend_latency_offset = 0.0;
@@ -1727,8 +1739,11 @@ void *rtp_ap2_control_receiver(void *arg) {
                   conn->latency_warning_issued = 1;
                 }
               }
-              conn->latency = net_latency; // this is the time window within which packets can be accepted without being too late
-              set_ptp_anchor_info(conn, clock_id, frame_1 - ap2_realttime_stream_latency_fudge_factor, remote_packet_time_ns);
+              conn->latency = net_latency; // this is the time window within which packets can be
+                                           // accepted without being too late
+              set_ptp_anchor_info(conn, clock_id,
+                                  frame_1 - ap2_realttime_stream_latency_fudge_factor,
+                                  remote_packet_time_ns);
               if (conn->anchor_clock != clock_id) {
                 debug(2, "Connection %d: Change Anchor Clock: %" PRIx64 ".",
                       conn->connection_number, clock_id);

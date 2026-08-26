@@ -168,10 +168,11 @@ void *rtp_buffered_audio_processor(void *arg) {
 
   const size_t leading_free_space_length =
       256; // leave this many bytes free to make room for prefixes that might be added later
-      
+
   unsigned char *m = malloc(buffer_packet_size + leading_free_space_length);
   if (m == NULL)
-    debug(1, "cannot allocate an audio m buffer of %zu bytes!", buffer_packet_size + leading_free_space_length);
+    debug(1, "cannot allocate an audio m buffer of %zu bytes!",
+          buffer_packet_size + leading_free_space_length);
   pthread_cleanup_push(malloc_cleanup, &m);
   // unsigned char m[32 * 1024 + leading_free_space_length];
 
