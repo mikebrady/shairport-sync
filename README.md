@@ -28,7 +28,7 @@ Shairport Sync does not support AirPlay video or photo streaming.
 * A native D-Bus interface, including access to metadata, artwork and system settings. Remote control is also available for Classic AirPlay clients.
 * Better Volume Control — Shairport Sync offers finer control at very top and very bottom of the volume range. See http://tangentsoft.net/audio/atten.html for a good discussion of audio "attenuators", upon which volume control in Shairport Sync is modelled. See also the diagram of the volume transfer function in the documents folder. In addition, Shairport Sync can offer an extended volume control range on devices with a restricted range.
 * Flexible output rates, formats and channels with built-in transcoding.
-* Remote Control (Classic AirPLay only) – Remote control commands -- such as `play`, `pause`, and volume-setting commands -- can be sent to Classic AirPlay clients via the D-Bus, MPRIS and MQTT interfaces. Remote Control is unfortunately not available for AirPlay 2 clients, as the system used has not been discovered.
+* Remote control commands -- such as `play`, `pause`, and volume-setting commands -- can be sent to Classic AirPlay clients via the D-Bus, MPRIS and MQTT interfaces. Switch to the `development` branch to get experimental support for remote control with AirPlay 2 clients.
 
 Some features require configuration at build time – see [CONFIGURATION FLAGS.md](CONFIGURATION%20FLAGS.md).
 
