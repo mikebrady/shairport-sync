@@ -172,7 +172,6 @@ property_preflight_mpris_media_player2_player_validate_property(const gchar *pro
 static gint64 property_preflight_mpris_estimate_position_microseconds(void) {
 
   static gint64 position = 0;
-  debug(1, "Calculate Position");
   pthread_rwlock_rdlock(&principal_conn_lock); // don't let the principal_conn be changed
   pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
   if ((principal_conn != NULL) && (principal_conn->input_rate != 0)) {
@@ -184,6 +183,8 @@ static gint64 property_preflight_mpris_estimate_position_microseconds(void) {
     int32_t frames_remaining =
         metadata_store.progress_last_timestamp - metadata_store.head_rtp_timestamp;
 
+    // if the timestamp that is about to be played is between the start and the finish, accept it as
+    // valid.
     if ((frames_total >= 0) && (frames_played >= 0) && (frames_remaining >= 0)) {
       debug(4, "progress: %g seconds, rate: %u.",
             (1.0 * frames_played) / principal_conn->input_rate, principal_conn->input_rate);
