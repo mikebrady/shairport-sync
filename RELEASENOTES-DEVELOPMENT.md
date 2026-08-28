@@ -1,3 +1,14 @@
+Version 5.4-dev-26-g2101e854
+==
+**Enhancement**
+* The [`MPRIS` `Position`](https://mpris2.readthedocs.io/en/latest/interfaces.html) property now works; that is, it gives an indication of the progress of progress while playing a track or playlist. This works for both classic AirPlay and AirPlay 2 clients.
+
+  Addresses Issue [1191](https://github.com/mikebrady/shairport-sync/issues/1191).
+
+  Please note that the value isn't always completely correct -- it may take a little while to update when the player changes or updates, and it also depends on the support offered by the player.
+
+  If you use [`playerctl`](https://github.com/altdesktop/playerctl), please note that it has a [bug](https://github.com/altdesktop/playerctl/pull/373) when setting properties on any MPRIS interface that is on the D-Bus "system" bus.
+
 Version 5.4-dev-17-g9781cff3
 ==
 **Bug Fix**
