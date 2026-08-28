@@ -15,7 +15,7 @@ Alternatively, email <address>. -->
 
 Please include as much as you can:
 
-- the affected version or commit — the output of `shairport-sync -V` is ideal;
+- the affected version or commit — the output of `shairport-sync --displayConfig` or, failing that, `shairport-sync -V` is ideal;
 - how the instance is built and configured (AirPlay 1 vs 2, relevant build
   options, mDNS backend, etc.) and how the issue is reachable;
 - the impact (crash, memory disclosure, code execution, denial of service, …);
