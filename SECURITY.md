@@ -22,8 +22,7 @@ Please include as much as you can:
 - steps to reproduce, ideally a minimal proof of concept;
 - any suggested fix.
 
-shairport-sync is maintained by volunteers, so responses are best-effort rather
-than on a fixed timeline. Please allow a reasonable opportunity to release a fix
+Please allow a reasonable opportunity to release a fix
 before disclosing the issue publicly.
 
 ## Supported Versions
