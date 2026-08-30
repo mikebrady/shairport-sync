@@ -360,6 +360,39 @@ uint16_t nextFreeUDPPort() {
   return UDPPortIndex;
 }
 
+// Resolve config.interface (a device name) to its first non-loopback IP
+// address, so that listening sockets can be bound to that interface only
+// instead of the wildcard address. This mirrors the interface-matching walk
+// already used in mdns_tinysvcmdns.c for mDNS advertisement, applied here to
+// socket binding instead.
+int resolve_interface_to_address(char *addr_out, size_t addr_out_len, int *family_out) {
+  if (config.interface == NULL)
+    return -1;
+  struct ifaddrs *ifaddr, *ifa;
+  int result = -1;
+  if (getifaddrs(&ifaddr) == -1)
+    return -1;
+  for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+    if (ifa->ifa_addr == NULL)
+      continue;
+    if (strcmp(config.interface, ifa->ifa_name) != 0)
+      continue;
+    if (ifa->ifa_addr->sa_family == AF_INET) {
+      inet_ntop(AF_INET, &((struct sockaddr_in *)ifa->ifa_addr)->sin_addr, addr_out, addr_out_len);
+      *family_out = AF_INET;
+      result = 0;
+      break;
+    } else if (ifa->ifa_addr->sa_family == AF_INET6) {
+      inet_ntop(AF_INET6, &((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr, addr_out, addr_out_len);
+      *family_out = AF_INET6;
+      result = 0;
+      break;
+    }
+  }
+  freeifaddrs(ifaddr);
+  return result;
+}
+
 // if port is zero, pick any port
 // otherwise, try the given port only
 int bind_socket_and_port(int type, int ip_family, const char *self_ip_address, uint32_t scope_id,

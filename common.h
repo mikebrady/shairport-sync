@@ -589,6 +589,12 @@ int bind_socket_and_port(int type, int ip_family, const char *self_ip_address, u
 
 uint16_t bind_UDP_port(int ip_family, const char *self_ip_address, uint32_t scope_id, int *sock);
 
+// Resolve config.interface (a device name, e.g. "macvlan0") to its first
+// non-loopback IPv4/IPv6 address. Returns 0 on success, -1 if config.interface
+// is NULL or no matching address was found. addr_out must be at least
+// INET6_ADDRSTRLEN bytes. family_out receives AF_INET or AF_INET6.
+int resolve_interface_to_address(char *addr_out, size_t addr_out_len, int *family_out);
+
 // for pthread_push and pop
 // careful with the difference between cleanup and unlock!
 

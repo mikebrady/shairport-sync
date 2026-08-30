@@ -4372,13 +4372,30 @@ void *rtsp_listen_loop(__attribute((unused)) void *arg) {
   memset(&hints, 0, sizeof(hints));
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
-  hints.ai_flags = AI_PASSIVE;
 
   snprintf(portstr, 6, "%d", config.port);
 
   // debug(1,"listen socket port request is \"%s\".",portstr);
 
-  ret = getaddrinfo(NULL, portstr, &hints, &info);
+  // If general.interface names a specific network interface, resolve it to
+  // its IP address and bind the RTSP listener to that address only, instead
+  // of the wildcard (0.0.0.0 / ::) address. This allows multiple
+  // shairport-sync instances -- each bound to a distinct interface/IP, e.g.
+  // via macvlan -- to coexist on one host, each listening on its own address.
+  // Falls back to the original wildcard-bind behavior when general.interface
+  // is not set, or the named interface can't be resolved to an address.
+  char bound_ip[INET6_ADDRSTRLEN];
+  int bound_family;
+  const char *bind_node = NULL;
+  if (resolve_interface_to_address(bound_ip, sizeof(bound_ip), &bound_family) == 0) {
+    bind_node = bound_ip;
+    debug(1, "rtsp_listen_loop: binding to interface \"%s\" address \"%s\" instead of wildcard.",
+          config.interface, bound_ip);
+  } else {
+    hints.ai_flags = AI_PASSIVE;
+  }
+
+  ret = getaddrinfo(bind_node, portstr, &hints, &info);
   if (ret) {
     die("getaddrinfo failed: %s", gai_strerror(ret));
   }
