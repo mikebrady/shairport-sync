@@ -363,6 +363,12 @@ void rr_entry_destroy(struct rr_entry *rr) {
       free(rr->data.SRV.target);
     break;
 
+  case RR_AAAA:
+    // the AAAA address is heap-allocated when the record is parsed/created
+    if (rr->data.AAAA.addr)
+      free(rr->data.AAAA.addr);
+    break;
+
   default:
     // nothing to free
     break;
