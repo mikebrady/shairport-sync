@@ -1131,13 +1131,9 @@ plist_t generateInfoPlist(rtsp_conn_info *conn) {
     plist_dict_set_item(response_plist, "senderAddress", plist_new_string(senderAddress));
     plist_dict_set_item(response_plist, "initialVolume", plist_new_real(suggested_volume(conn)));
     plist_dict_set_item(response_plist, "vv", plist_new_uint(config.vv));
-    // don't display volume control if we're asking to ignore the volume control
-    if (config.ignore_volume_control == 0) {
-      plist_dict_set_item(response_plist, "volumeControlType",
-                          plist_new_uint(config.volumeControlType));
-    } else {
-      plist_dict_set_item(response_plist, "volumeControlType", plist_new_uint(0));
-    }
+    // Local volume handling must not affect the volume capability advertised to the sender.
+    plist_dict_set_item(response_plist, "volumeControlType",
+                        plist_new_uint(config.volumeControlType));
     pthread_cleanup_pop(1); // release the principal_conn lock
     // Create a dictionary of supported formats for the bufferStream
     uint64_t bufferStreamFormats = 0L;
