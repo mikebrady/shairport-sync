@@ -1708,7 +1708,34 @@ int parse_options(int argc, char **argv) {
            config.appName, temporary_airplay_id);
   // debug(1, "smi name: \"%s\"", shared_memory_interface_name);
 
-  config.nqptp_shared_memory_interface_name = strdup(NQPTP_INTERFACE_NAME);
+  // Every AirPlay 2 instance on a host needs its own nqptp shared memory
+  // interface if more than one of them can be playing at once. nqptp keys its
+  // clock table, its "clock is active" state and its master clock on the
+  // interface name the client sends at the front of every control message, so
+  // instances sharing one name share one clock: the "T" (stop timing) that an
+  // instance sends when its room leaves an AirPlay 2 group then clears the
+  // clock that every other instance on the host is still using, and they stop
+  // playing without any error. Give each instance a distinct name to keep them
+  // independent. The default is unchanged, so a single instance -- and any
+  // existing configuration -- behaves exactly as before.
+  config.nqptp_shared_memory_interface_name = NULL;
+  if (config.cfg != NULL) {
+    const char *smi_str;
+    if (config_lookup_string(config.cfg, "general.nqptp_shared_memory_interface_name", &smi_str)) {
+      // it is passed to shm_open(3), so it must be "/" followed by up to 62
+      // characters with no further "/" -- and nqptp stores it in a 64-byte field
+      if ((smi_str[0] != '/') || (strlen(smi_str) < 2) || (strlen(smi_str) > 63) ||
+          (strchr(smi_str + 1, '/') != NULL))
+        die("Invalid general.nqptp_shared_memory_interface_name \"%s\" -- it must begin with a "
+            "\"/\", contain no other \"/\", and be between 2 and 63 characters long.",
+            smi_str);
+      config.nqptp_shared_memory_interface_name = strdup(smi_str);
+      debug(1, "nqptp shared memory interface name: \"%s\".",
+            config.nqptp_shared_memory_interface_name);
+    }
+  }
+  if (config.nqptp_shared_memory_interface_name == NULL)
+    config.nqptp_shared_memory_interface_name = strdup(NQPTP_INTERFACE_NAME);
 
   // create the config.ap1_prefix[i]
   char apids[6 * 2 + 5 + 1]; // six pairs of digits, 5 colons and a NUL
