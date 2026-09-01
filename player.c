@@ -5315,8 +5315,33 @@ void player_flush(uint32_t timestamp, rtsp_conn_info *conn) {
 #endif
 }
 
+// Export the current session's identity into the environment so that the
+// sessioncontrol hooks (run_this_before_play_begins / run_this_after_play_ends)
+// can tell a brand-new AirPlay stream from an additional room joining an
+// AirPlay 2 group that is already playing. command_start() and command_stop()
+// fork and execv, so the child inherits whatever is set here. One
+// shairport-sync process serves one session at a time, so there is no
+// cross-session race on these variables.
+static void export_session_identity(rtsp_conn_info *conn) {
+  char numbuf[16];
+  if (conn == NULL)
+    return;
+  setenv("SPS_CLIENT_IP", conn->client_ip_string, 1);
+  snprintf(numbuf, sizeof(numbuf), "%u", (unsigned int)conn->connection_number);
+  setenv("SPS_CONNECTION_NUMBER", numbuf, 1);
+#ifdef CONFIG_AIRPLAY_2
+  setenv("SPS_GROUP_ID", conn->airplay_gid ? conn->airplay_gid : "", 1);
+  snprintf(numbuf, sizeof(numbuf), "%u", (unsigned int)conn->groupContainsGroupLeader);
+  setenv("SPS_GROUP_CONTAINS_LEADER", numbuf, 1);
+#else
+  setenv("SPS_GROUP_ID", "", 1);
+  setenv("SPS_GROUP_CONTAINS_LEADER", "0", 1);
+#endif
+}
+
 int player_play(rtsp_conn_info *conn) {
   debug(2, "Connection %d: player_play.", conn->connection_number);
+  export_session_identity(conn);
   command_start(); // before startup, and before the prepare() method runs
   // give the output device as much advance warning as possible to get ready
   // and make sure it's done before launching the player thread
@@ -5389,6 +5414,7 @@ int player_stop(rtsp_conn_info *conn) {
 #ifdef CONFIG_METADATA
     send_ssnc_metadata('pend', NULL, 0, 1); // contains cancellation points
 #endif
+    export_session_identity(conn);
     command_stop();
   }
   return response;
