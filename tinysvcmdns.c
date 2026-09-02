@@ -1512,6 +1512,9 @@ void *main_loop(struct mdnsd *svr) {
                                   (struct sockaddr *)&fromaddr, &sockaddr_size);
       if (recvsize < 0) {
         log_message(LOG_ERR, "recv(): %m");
+        // recvsize is passed to mdns_parse_pkt() as a size_t; a negative value
+        // would become huge and defeat every bounds check. Skip this datagram.
+        continue;
       }
 
       DEBUG_PRINTF("data from=%s size=%ld\n", inet_ntoa(fromaddr.sin_addr), (long)recvsize);
