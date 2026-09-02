@@ -2768,6 +2768,18 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
       if (item != NULL) {
         plist_get_data_val(item, (char **)&conn->session_key,
                            &item_value); // item_value is the session key length (?)
+        // The session key is used later as a fixed 32-byte ChaCha20-Poly1305-IETF
+        // key (see rtp.c). Reject any other length instead of reading past the end
+        // of a short key on every packet decrypt.
+        if (item_value != 32) {
+          warn("Connection %d: SETUP \"shk\" session key length is %" PRIu64
+               ", not 32 bytes; ignoring it.",
+               conn->connection_number, item_value);
+          if (conn->session_key != NULL) {
+            free(conn->session_key);
+            conn->session_key = NULL;
+          }
+        }
       } else {
         warn("No session key (shk) property in setup! This is fatal!");
       }
