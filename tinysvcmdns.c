@@ -272,7 +272,13 @@ static uint8_t *uncompress_nlabel(uint8_t *pkt_buf, size_t pkt_len, size_t off) 
     return NULL;
 
   // calculate length of uncompressed label
+  size_t hops = 0;
   for (p = pkt_buf + off; *p && p < e; p++) {
+    // A compression pointer that points forward or into a cycle can make this
+    // loop run forever. Bound the number of steps to the packet size, which no
+    // legitimate name can exceed.
+    if (++hops > pkt_len)
+      return NULL;
     size_t llen = 0;
     if ((*p & 0xC0) == 0xC0) {
       uint8_t *p2 = pkt_buf + (((p[0] & ~0xC0) << 8) | p[1]);
@@ -290,7 +296,12 @@ static uint8_t *uncompress_nlabel(uint8_t *pkt_buf, size_t pkt_len, size_t off) 
     return NULL;
 
   // FIXME: must merge this with above code
+  hops = 0;
   for (p = pkt_buf + off; *p && p < e; p++) {
+    if (++hops > pkt_len) {
+      free(str);
+      return NULL;
+    }
     size_t llen = 0;
     if ((*p & 0xC0) == 0xC0) {
       uint8_t *p2 = pkt_buf + (((p[0] & ~0xC0) << 8) | p[1]);
