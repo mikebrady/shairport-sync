@@ -1131,13 +1131,9 @@ plist_t generateInfoPlist(rtsp_conn_info *conn) {
     plist_dict_set_item(response_plist, "senderAddress", plist_new_string(senderAddress));
     plist_dict_set_item(response_plist, "initialVolume", plist_new_real(suggested_volume(conn)));
     plist_dict_set_item(response_plist, "vv", plist_new_uint(config.vv));
-    // don't display volume control if we're asking to ignore the volume control
-    if (config.ignore_volume_control == 0) {
-      plist_dict_set_item(response_plist, "volumeControlType",
-                          plist_new_uint(config.volumeControlType));
-    } else {
-      plist_dict_set_item(response_plist, "volumeControlType", plist_new_uint(0));
-    }
+    // Local volume handling must not affect the volume capability advertised to the sender.
+    plist_dict_set_item(response_plist, "volumeControlType",
+                        plist_new_uint(config.volumeControlType));
     pthread_cleanup_pop(1); // release the principal_conn lock
     // Create a dictionary of supported formats for the bufferStream
     uint64_t bufferStreamFormats = 0L;
@@ -2514,11 +2510,15 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
                     char *ip_address = NULL;
                     plist_get_string_val(n, &ip_address);
                     // debug(1, "Timing peer: %s", ip_address);
-                    strncat(timing_list_message, " ",
-                            sizeof(timing_list_message) - 1 - strlen(timing_list_message));
-                    strncat(timing_list_message, ip_address,
-                            sizeof(timing_list_message) - 1 - strlen(timing_list_message));
-                    free(ip_address);
+                    // plist_get_string_val() leaves ip_address NULL if the array item
+                    // is not a string; skip it rather than passing NULL to strncat.
+                    if (ip_address != NULL) {
+                      strncat(timing_list_message, " ",
+                              sizeof(timing_list_message) - 1 - strlen(timing_list_message));
+                      strncat(timing_list_message, ip_address,
+                              sizeof(timing_list_message) - 1 - strlen(timing_list_message));
+                      free(ip_address);
+                    }
                   }
                 } else {
                   debug(1, "SETUP on Connection %d: No timingPeerInfo addresses in the array.",
@@ -2726,6 +2726,18 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
         plist_get_data_val(item, (char **)&conn->session_key,
                            &item_value); // item_value is the session key length (?)
         debug(4, "session_key length is %" PRIu64 ".", item_value);
+        // The session key is used later as a fixed 32-byte ChaCha20-Poly1305-IETF
+        // key (see rtp.c). Reject any other length instead of reading past the end
+        // of a short key on every packet decrypt.
+        if (item_value != 32) {
+          warn("Connection %d: SETUP \"shk\" session key length is %" PRIu64
+               ", not 32 bytes; ignoring it.",
+               conn->connection_number, item_value);
+          if (conn->session_key != NULL) {
+            free(conn->session_key);
+            conn->session_key = NULL;
+          }
+        }
       } else {
         warn("No session key (shk) property in setup! This is fatal!");
         // This doesn't work right now. Not sure how to proceed.

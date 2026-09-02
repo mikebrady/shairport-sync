@@ -272,7 +272,13 @@ static uint8_t *uncompress_nlabel(uint8_t *pkt_buf, size_t pkt_len, size_t off) 
     return NULL;
 
   // calculate length of uncompressed label
+  size_t hops = 0;
   for (p = pkt_buf + off; *p && p < e; p++) {
+    // A compression pointer that points forward or into a cycle can make this
+    // loop run forever. Bound the number of steps to the packet size, which no
+    // legitimate name can exceed.
+    if (++hops > pkt_len)
+      return NULL;
     size_t llen = 0;
     if ((*p & 0xC0) == 0xC0) {
       uint8_t *p2 = pkt_buf + (((p[0] & ~0xC0) << 8) | p[1]);
@@ -290,7 +296,12 @@ static uint8_t *uncompress_nlabel(uint8_t *pkt_buf, size_t pkt_len, size_t off) 
     return NULL;
 
   // FIXME: must merge this with above code
+  hops = 0;
   for (p = pkt_buf + off; *p && p < e; p++) {
+    if (++hops > pkt_len) {
+      free(str);
+      return NULL;
+    }
     size_t llen = 0;
     if ((*p & 0xC0) == 0xC0) {
       uint8_t *p2 = pkt_buf + (((p[0] & ~0xC0) << 8) | p[1]);
@@ -361,6 +372,12 @@ void rr_entry_destroy(struct rr_entry *rr) {
   case RR_SRV:
     if (rr->data.SRV.target)
       free(rr->data.SRV.target);
+    break;
+
+  case RR_AAAA:
+    // the AAAA address is heap-allocated when the record is parsed/created
+    if (rr->data.AAAA.addr)
+      free(rr->data.AAAA.addr);
     break;
 
   default:
@@ -1501,6 +1518,9 @@ void *main_loop(struct mdnsd *svr) {
                                   (struct sockaddr *)&fromaddr, &sockaddr_size);
       if (recvsize < 0) {
         log_message(LOG_ERR, "recv(): %m");
+        // recvsize is passed to mdns_parse_pkt() as a size_t; a negative value
+        // would become huge and defeat every bounds check. Skip this datagram.
+        continue;
       }
 
       DEBUG_PRINTF("data from=%s size=%ld\n", inet_ntoa(fromaddr.sin_addr), (long)recvsize);
