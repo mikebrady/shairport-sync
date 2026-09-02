@@ -1491,18 +1491,8 @@ int parse_options(int argc, char **argv) {
 #endif
 #endif
 #ifdef CONFIG_AIRPLAY_2
-      long long aid;
-
-      // replace the airplay_device_id with this, if provided
-      if (config_lookup_int64(config.cfg, "general.airplay_device_id", &aid)) {
-        temporary_airplay_id = aid;
-      }
-
-      // add the airplay_device_id_offset if provided
-      if (config_lookup_int64(config.cfg, "general.airplay_device_id_offset", &aid)) {
-        temporary_airplay_id += aid;
-      }
-
+      // The AirPlay 2 device id (general.airplay_device_id / _offset) is applied
+      // in one place further down, once --address is also resolved.
 #endif
 
     } else {
@@ -1624,18 +1614,8 @@ int parse_options(int argc, char **argv) {
 #endif
 
 #ifdef CONFIG_AIRPLAY_2
-    long long aid;
-
-    // replace the airplay_device_id with this, if provided
-    if (config_lookup_int64(config.cfg, "general.airplay_device_id", &aid)) {
-      temporary_airplay_id = aid;
-    }
-
-    // add the airplay_device_id_offset if provided
-    if (config_lookup_int64(config.cfg, "general.airplay_device_id_offset", &aid)) {
-      temporary_airplay_id += aid;
-    }
-
+    // The AirPlay 2 device id (general.airplay_device_id / _offset) is applied
+    // in one place further down, once --address is also resolved.
 #endif
 #endif
   }
@@ -1748,6 +1728,22 @@ int parse_options(int argc, char **argv) {
 
 #ifdef CONFIG_AIRPLAY_2
 
+  // Derive the AirPlay 2 device id now that --address and the configuration file
+  // are both resolved. get_device_id() bases it on the MAC of the --address
+  // interface when one is set (from the command line or general.address), or the
+  // first non-loopback MAC otherwise, so several instances on distinct addresses
+  // are distinct with no per-instance id to set. An explicit general.airplay_device_id
+  // then replaces it and general.airplay_device_id_offset adds to it, as before.
+  get_device_id((uint8_t *)&config.hw_addr, 6);
+  temporary_airplay_id = nctoh64(config.hw_addr) >> 16;
+  if (config.cfg != NULL) {
+    long long aid;
+    if (config_lookup_int64(config.cfg, "general.airplay_device_id", &aid))
+      temporary_airplay_id = aid;
+    if (config_lookup_int64(config.cfg, "general.airplay_device_id_offset", &aid))
+      temporary_airplay_id += aid;
+  }
+
   char shared_memory_interface_name[256] = "";
   snprintf(shared_memory_interface_name, sizeof(shared_memory_interface_name), "/%s-%" PRIx64 "",
            config.appName, temporary_airplay_id);
@@ -1780,6 +1776,28 @@ int parse_options(int argc, char **argv) {
     if (config.nqptp_shared_memory_interface_name != NULL)
       free(config.nqptp_shared_memory_interface_name);
     config.nqptp_shared_memory_interface_name = strdup(cli_nqptp_shared_memory_interface_name);
+  }
+
+  // If no name was set explicitly (config or command line) but a specific --address
+  // is in use, derive a per-instance name from the address, so several AirPlay 2
+  // instances on distinct addresses each get their own nqptp clock with no extra
+  // configuration. nqptp learns the name from the control message it is sent, so
+  // nothing has to match on the nqptp side. e.g. 192.168.1.118 -> "/nqptp-192-168-1-118".
+  if ((config.nqptp_shared_memory_interface_name == NULL) && (config.address != NULL) &&
+      (config.address[0] != '\0') && (strchr(config.address, '/') == NULL)) {
+    char addr[48];
+    size_t i;
+    for (i = 0; (config.address[i] != '\0') && (i < sizeof(addr) - 1); i++)
+      addr[i] =
+          ((config.address[i] == '.') || (config.address[i] == ':')) ? '-' : config.address[i];
+    addr[i] = '\0';
+    char derived[64]; // a POSIX shm name is at most 63 characters plus the NUL
+    int n = snprintf(derived, sizeof(derived), "/nqptp-%s", addr);
+    if ((n > 0) && (n < (int)sizeof(derived))) { // only if it fits the shm-name limit
+      config.nqptp_shared_memory_interface_name = strdup(derived);
+      debug(1, "nqptp shared memory interface name derived from address: \"%s\".",
+            config.nqptp_shared_memory_interface_name);
+    }
   }
   if (config.nqptp_shared_memory_interface_name == NULL)
     config.nqptp_shared_memory_interface_name = strdup(NQPTP_INTERFACE_NAME);
@@ -2654,7 +2672,9 @@ int main(int argc, char **argv) {
 
   config.service_type = APST_auto; // this may be changed by the settings...
 
-  // get a device id -- the first non-local MAC address
+  // get a device id -- the first non-local MAC address. When an instance is bound
+  // to a specific --address, the device id is re-derived from that interface's MAC
+  // in parse_options() once the address is known (see get_device_id).
   get_device_id((uint8_t *)&config.hw_addr, 6);
 
   // get the endianness

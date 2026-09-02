@@ -52,6 +52,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include <arpa/inet.h>
 #include <ifaddrs.h>
 #include <net/if.h>
 
@@ -2245,12 +2246,43 @@ int get_device_id(uint8_t *id, int int_length) {
       t = id;
       int found = 0;
 
+      // When bound to a specific --address, take the device id from the MAC of the
+      // interface that owns that address, not just the first non-loopback one, so
+      // several AirPlay 2 instances on one host get distinct identities from their
+      // addresses alone. An empty target keeps the original "first MAC" behaviour.
+      char target_ifname[IF_NAMESIZE];
+      target_ifname[0] = '\0';
+      if ((config.address != NULL) && (config.address[0] != '\0')) {
+        struct in_addr a4;
+        struct in6_addr a6;
+        int is4 = (inet_pton(AF_INET, config.address, &a4) == 1);
+        int is6 = ((is4 == 0) && (inet_pton(AF_INET6, config.address, &a6) == 1));
+        struct ifaddrs *xa;
+        for (xa = ifaddr; xa != NULL; xa = xa->ifa_next) {
+          if (xa->ifa_addr == NULL)
+            continue;
+          if (is4 && (xa->ifa_addr->sa_family == AF_INET) &&
+              (memcmp(&((struct sockaddr_in *)xa->ifa_addr)->sin_addr, &a4, sizeof(a4)) == 0)) {
+            strncpy(target_ifname, xa->ifa_name, IF_NAMESIZE - 1);
+            target_ifname[IF_NAMESIZE - 1] = '\0';
+            break;
+          }
+          if (is6 && (xa->ifa_addr->sa_family == AF_INET6) &&
+              (memcmp(&((struct sockaddr_in6 *)xa->ifa_addr)->sin6_addr, &a6, sizeof(a6)) == 0)) {
+            strncpy(target_ifname, xa->ifa_name, IF_NAMESIZE - 1);
+            target_ifname[IF_NAMESIZE - 1] = '\0';
+            break;
+          }
+        }
+      }
+
       for (ifa = ifaddr; ((ifa != NULL) && (found == 0)); ifa = ifa->ifa_next) {
 #ifdef AF_PACKET
         if ((ifa->ifa_addr) && (ifa->ifa_addr->sa_family == AF_PACKET)) {
           struct sockaddr_ll *s = (struct sockaddr_ll *)ifa->ifa_addr;
           if (((ifa->ifa_flags & IFF_UP) != 0) && ((ifa->ifa_flags & IFF_RUNNING) != 0) &&
-              ((ifa->ifa_flags & IFF_LOOPBACK) == 0) && (ifa->ifa_addr != 0)) {
+              ((ifa->ifa_flags & IFF_LOOPBACK) == 0) && (ifa->ifa_addr != 0) &&
+              ((target_ifname[0] == '\0') || (strcmp(ifa->ifa_name, target_ifname) == 0))) {
             found = 1;
             response = 0;
             for (i = 0; ((i < s->sll_halen) && (i < int_length)); i++) {
@@ -2262,7 +2294,8 @@ int get_device_id(uint8_t *id, int int_length) {
 #ifdef AF_LINK
         struct sockaddr_dl *sdl = (struct sockaddr_dl *)ifa->ifa_addr;
         if ((sdl) && (sdl->sdl_family == AF_LINK)) {
-          if (sdl->sdl_type == IFT_ETHER) {
+          if ((sdl->sdl_type == IFT_ETHER) &&
+              ((target_ifname[0] == '\0') || (strcmp(ifa->ifa_name, target_ifname) == 0))) {
             found = 1;
             response = 0;
             uint8_t *s = (uint8_t *)LLADDR(sdl);
