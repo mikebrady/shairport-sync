@@ -174,26 +174,84 @@ static gint64 property_preflight_mpris_estimate_position_microseconds(void) {
   static gint64 position = 0;
   pthread_rwlock_rdlock(&principal_conn_lock); // don't let the principal_conn be changed
   pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
-  if ((principal_conn != NULL) && (principal_conn->input_rate != 0)) {
-
-    int32_t frames_total =
-        metadata_store.progress_last_timestamp - metadata_store.progress_first_timestamp;
-    int32_t frames_played =
-        metadata_store.head_rtp_timestamp - metadata_store.progress_first_timestamp;
-    int32_t frames_remaining =
-        metadata_store.progress_last_timestamp - metadata_store.head_rtp_timestamp;
-
-    // if the timestamp that is about to be played is between the start and the finish, accept it as
-    // valid.
-    if ((frames_total >= 0) && (frames_played >= 0) && (frames_remaining >= 0)) {
-      debug(4, "progress: %g seconds, rate: %u.",
-            (1.0 * frames_played) / principal_conn->input_rate, principal_conn->input_rate);
-      position = 1000000; // microseconds
-      position = position * frames_played;
-      position = position / principal_conn->input_rate;
+  if (principal_conn != NULL) {
+    // first, figure out if we are using the progress string or the AirPlay plist information
+    int using_progress_string = 1; // guess it is the older progress string
+#ifdef CONFIG_AIRPLAY_2
+    // if we are playing an AirPlay 2 stream and we are not asking for progress strings
+    if (principal_conn->airplay_type == ap_2) {
+      if ((config.airplay_features & ((uint64_t)1 << 16)) == 0) {
+        debug(1, "Not using the progress_string!");
+        using_progress_string = 0;        
+      } else {
+        // no need to validate the progress string, it seems
+        metadata_store.progress_string_validation = PROGRESS_STRING_VALIDATE_S2_PROGRESS_STRING_IS_VALID;
+      }
     }
+#endif
+    
+    if  (principal_conn->input_rate != 0) {
+      if ((using_progress_string != 0) && (metadata_store.progress_string_validation == PROGRESS_STRING_VALIDATE_S2_PROGRESS_STRING_IS_VALID)) {
+        // Use the information in the progress string to estimate the position.
+        // But there is a wrinkle.
+        // When an iOS device connects over a Classic stream,
+        // it _may_ start playing silence, without playing the track.
+        // In that cases, we can't use the rtp_timestamp of the output to update position.
+        // So, we have to figure out how to distinguish this playing activity -- playing silence --
+        // from playing the track.
+
+        // The following seems to be true:
+        // When a connection is made form an iOS device,
+        // then, when a progress string arrives before
+        // a metadata bundle, it should be ignored. 
+        // It does not always indicate the static position of the track.
+        // It does not signal that the track is playing.
+        
+        // A progress string that arrives after a metadata bundle indicates the
+        // position of the track and that the track is playing.
+        // So that's what the three states of PROGRESS_STRING_VALIDATE are for:
+        // checking that the progress string is one that has come after a metadata bundle.
+        
+        // That first progress string is not reliable, so we'll settle for zero frames played.
+        // otherwise, it kinda should be:  
+        // metadata_store.progress_current_timestamp - metadata_store.progress_first_timestamp;
+
+        // If we haven't seen a metadata bundle yet, the track isn't actually playing.
+        // If we have seen a metadata bundle, we need to wait for a subsequent
+        // progress string to indicate that play has started...
+        // (Even though the iOS player might actually be actually sending frames of silence
+        // to Shairport Sync -- see the longer comment above.
+        
+        int32_t frames_total =
+            metadata_store.progress_last_timestamp - metadata_store.progress_first_timestamp;
+        int32_t frames_played =
+              metadata_store.head_rtp_timestamp - metadata_store.progress_first_timestamp;
+        int32_t frames_remaining =
+            metadata_store.progress_last_timestamp - metadata_store.head_rtp_timestamp;
+    
+        debug(1, "position: %g seconds, rate: %u. Start , Current, End Timestamps: %u, %u, %u. Total, played, remaining frames: %d, %d, %d, total time: %g.",
+          (1.0 * frames_played) / principal_conn->input_rate, principal_conn->input_rate,
+          metadata_store.progress_first_timestamp,
+          metadata_store.progress_current_timestamp,
+          metadata_store.progress_last_timestamp,
+          frames_total,
+          frames_played,
+          frames_remaining,
+          (1.0 * frames_total) / principal_conn->input_rate
+          );
+    
+        // if the timestamp that is about to be played is between the start and the finish, accept it as
+        // valid.
+        if ((frames_total >= 0) && (frames_played >= 0) && (frames_remaining >= 0)) {
+          position = 1000000; // microseconds
+          position = position * frames_played;
+          position = position / principal_conn->input_rate;
+        }
+      }
+    } 
   }
   pthread_cleanup_pop(1); // release the principal_conn lock
+  debug(1, "position: %g seconds.", position * 0.000001);
   return position;
 }
 

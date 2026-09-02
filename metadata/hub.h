@@ -7,6 +7,12 @@
 #define number_of_watchers 2
 
 typedef enum {
+  PROGRESS_STRING_VALIDATE_S0_WAITING_FOR_METADATA_BUNDLE,
+  PROGRESS_STRING_VALIDATE_S1_WAITING_FOR_SUBSEQUENT_PROGRESS_STRING,
+  PROGRESS_STRING_VALIDATE_S2_PROGRESS_STRING_IS_VALID
+} progress_string_validation_type;
+
+typedef enum {
   PS_NOT_AVAILABLE = 0,
   PS_STOPPED,
   PS_PAUSED,
@@ -76,6 +82,7 @@ typedef struct metadata_npi_bundle { // now playing information
 } metadata_npi_bundle;
 
 typedef struct metadata_bundle {
+  progress_string_validation_type progress_string_validation; // used to help calculating position using the progress string triple, usually in Classic mode. 
   char *client_ip;       // IP number used by the audio source (i.e. the "client")
   char *client_name;     // the name of the client device, if available
   char *server_ip;       // IP number used by Shairport Sync

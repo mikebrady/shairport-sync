@@ -2453,7 +2453,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
 
 #ifdef CONFIG_METADATA
             send_ssnc_metadata('conn', conn->client_ip_string, strlen(conn->client_ip_string),
-                               1); // before disconnecting an existing play
+                               1);
             send_ssnc_metadata('clip', conn->client_ip_string, strlen(conn->client_ip_string), 1);
             send_ssnc_metadata('svip', conn->self_ip_string, strlen(conn->self_ip_string), 1);
 #endif
@@ -3427,6 +3427,14 @@ static void handle_announce(rtsp_conn_info *conn, rtsp_message *req, rtsp_messag
     conn->timing_type = ts_ntp;
     conn->type = 96; // this is the AirPlay 2 code for Realtime Audio -- not sure it's right
 #endif
+
+#ifdef CONFIG_METADATA
+    send_ssnc_metadata('conn', conn->client_ip_string, strlen(conn->client_ip_string),
+                       1);
+    send_ssnc_metadata('clip', conn->client_ip_string, strlen(conn->client_ip_string), 1);
+    send_ssnc_metadata('svip', conn->self_ip_string, strlen(conn->self_ip_string), 1);
+#endif
+
     conn->stream.type = ast_unknown;
     resp->respcode = 200; // presumed OK
     char *pssid = NULL;

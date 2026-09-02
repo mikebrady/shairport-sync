@@ -552,6 +552,14 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     }
   } else if (type == 'ssnc') {
     switch (code) {
+    case 'conn': //a new connection -- some things might need to be reset
+      debug(1, "metadata hub sees a new connection");
+      invalidate_string_record(&metadata_store.progress_string);
+      metadata_store.progress_first_timestamp = 0;
+      metadata_store.progress_current_timestamp = 0;
+      metadata_store.progress_last_timestamp = 0;
+      metadata_store.progress_string_validation = PROGRESS_STRING_VALIDATE_S0_WAITING_FOR_METADATA_BUNDLE;
+      break;
     // ignore the following
     case 'pcst':
     case 'pcen':
@@ -562,6 +570,8 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       free(dacp_port_string);
     } break;
     case 'mdst':
+      if (metadata_store.progress_string_validation == PROGRESS_STRING_VALIDATE_S0_WAITING_FOR_METADATA_BUNDLE)
+        metadata_store.progress_string_validation = PROGRESS_STRING_VALIDATE_S1_WAITING_FOR_SUBSEQUENT_PROGRESS_STRING;
       debug(3, "MH Metadata stream processing start.");
       // There is a difficulty with this NPI metadata as it comes in.
 
@@ -620,6 +630,9 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       changed = update_string_record_with_data(&metadata_store.progress_string, data, length);
       if (changed) {
         debug(3, "MH Progress String set to: \"%s\"", metadata_store.progress_string);
+        if (metadata_store.progress_string_validation == PROGRESS_STRING_VALIDATE_S1_WAITING_FOR_SUBSEQUENT_PROGRESS_STRING)
+          metadata_store.progress_string_validation = PROGRESS_STRING_VALIDATE_S2_PROGRESS_STRING_IS_VALID;
+
         // we need to extract the three numbers
         if (parse_prlg(metadata_store.progress_string, &metadata_store.progress_first_timestamp,
                        &metadata_store.progress_current_timestamp,
