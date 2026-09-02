@@ -2510,11 +2510,15 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
                     char *ip_address = NULL;
                     plist_get_string_val(n, &ip_address);
                     // debug(1, "Timing peer: %s", ip_address);
-                    strncat(timing_list_message, " ",
-                            sizeof(timing_list_message) - 1 - strlen(timing_list_message));
-                    strncat(timing_list_message, ip_address,
-                            sizeof(timing_list_message) - 1 - strlen(timing_list_message));
-                    free(ip_address);
+                    // plist_get_string_val() leaves ip_address NULL if the array item
+                    // is not a string; skip it rather than passing NULL to strncat.
+                    if (ip_address != NULL) {
+                      strncat(timing_list_message, " ",
+                              sizeof(timing_list_message) - 1 - strlen(timing_list_message));
+                      strncat(timing_list_message, ip_address,
+                              sizeof(timing_list_message) - 1 - strlen(timing_list_message));
+                      free(ip_address);
+                    }
                   }
                 } else {
                   debug(1, "SETUP on Connection %d: No timingPeerInfo addresses in the array.",
