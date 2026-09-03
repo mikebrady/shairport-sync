@@ -33,6 +33,7 @@
 #include <plist/plist.h>
 #include <string.h>
 #include <time.h>
+#include <stdio.h>
 
 #include "plist_gvariant_stuff.h"
 
