@@ -547,7 +547,6 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       metadata_store.progress_first_timestamp = 0;
       metadata_store.progress_current_timestamp = 0;
       metadata_store.progress_last_timestamp = 0;
-      metadata_store.progress_string_validation = PROGRESS_STRING_VALIDATE_S0_WAITING_FOR_METADATA_BUNDLE;
       break;
     // ignore the following
     case 'pcst':
@@ -560,8 +559,6 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     } break;
     case 'mdst':
       // start of a metadata bundle...
-      if (metadata_store.progress_string_validation == PROGRESS_STRING_VALIDATE_S0_WAITING_FOR_METADATA_BUNDLE)
-        metadata_store.progress_string_validation = PROGRESS_STRING_VALIDATE_S1_WAITING_FOR_SUBSEQUENT_PROGRESS_STRING;
       debug(4, "MH Metadata stream processing start.");
       // There is a difficulty with this NPI metadata as it comes in.
 
@@ -620,9 +617,6 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       changed = update_string_record_with_data(&metadata_store.progress_string, data, length);
       if (changed) {
         debug(3, "MH Progress String set to: \"%s\"", metadata_store.progress_string);
-        if (metadata_store.progress_string_validation == PROGRESS_STRING_VALIDATE_S1_WAITING_FOR_SUBSEQUENT_PROGRESS_STRING)
-          metadata_store.progress_string_validation = PROGRESS_STRING_VALIDATE_S2_PROGRESS_STRING_IS_VALID;
-
         // we need to extract the three numbers
         if (parse_prlg(metadata_store.progress_string, &metadata_store.progress_first_timestamp,
                        &metadata_store.progress_current_timestamp,
@@ -693,7 +687,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       if (metadata_store.npi.play_start_time.valid) {
         uint64_t playing_time = get_absolute_time_in_ns() - metadata_store.npi.play_start_time.value;
         metadata_store.npi.elapsed_time_ns += playing_time;
-        debug(1, "pend stop updating elapsed time to %g.", 1E-9 * metadata_store.npi.elapsed_time_ns);
+        debug(4, "pend updating elapsed time to %g.", 1E-9 * metadata_store.npi.elapsed_time_ns);
       }
       metadata_store.npi.play_start_time.valid = 0;     
       // play has stopped, so we can invalidate the start time
@@ -710,7 +704,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       if (metadata_store.npi.play_start_time.valid) {
         uint64_t playing_time = get_absolute_time_in_ns() - metadata_store.npi.play_start_time.value;
         metadata_store.npi.elapsed_time_ns += playing_time;
-        debug(1, "anchor pause updating elapsed time to %g.", 1E-9 * metadata_store.npi.elapsed_time_ns);
+        debug(4, "anchor pause updating elapsed time to %g.", 1E-9 * metadata_store.npi.elapsed_time_ns);
       }
       metadata_store.npi.play_start_time.valid = 0;     
       // play has paused, so we can invalidate the start time

@@ -177,7 +177,6 @@ static gint64 property_preflight_mpris_estimate_position_microseconds(void) {
   if (principal_conn != NULL) {
     // first, figure out if we are using the progress string or the AirPlay plist information
     int using_progress_string = 1; // guess it is the older progress string
-    metadata_store.progress_string_validation = PROGRESS_STRING_VALIDATE_S2_PROGRESS_STRING_IS_VALID;
 #ifdef CONFIG_AIRPLAY_2
     // if we are playing an AirPlay 2 stream then we will not use the progress strings
     // because they seem unreliable

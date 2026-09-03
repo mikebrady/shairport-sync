@@ -255,7 +255,7 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
                       
                       // Set the time at which playing was considered to start to
                       // the time at which this message was received.
-                      debug(1, "Setting start time, and setting it valid to indicate that play has started");
+                      debug(4, "Setting start time, and setting it valid to indicate that play has started");
                       update_uint64_record(
                         &metadata_store.npi.play_start_time, get_absolute_time_in_ns());
                     }
