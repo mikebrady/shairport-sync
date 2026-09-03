@@ -177,21 +177,17 @@ static gint64 property_preflight_mpris_estimate_position_microseconds(void) {
   if (principal_conn != NULL) {
     // first, figure out if we are using the progress string or the AirPlay plist information
     int using_progress_string = 1; // guess it is the older progress string
+    metadata_store.progress_string_validation = PROGRESS_STRING_VALIDATE_S2_PROGRESS_STRING_IS_VALID;
 #ifdef CONFIG_AIRPLAY_2
-    // if we are playing an AirPlay 2 stream and we are not asking for progress strings
+    // if we are playing an AirPlay 2 stream then we will not use the progress strings
+    // because they seem unreliable
     if (principal_conn->airplay_type == ap_2) {
-      if ((config.airplay_features & ((uint64_t)1 << 16)) == 0) {
-        debug(1, "Not using the progress_string!");
-        using_progress_string = 0;        
-      } else {
-        // no need to validate the progress string, it seems
-        metadata_store.progress_string_validation = PROGRESS_STRING_VALIDATE_S2_PROGRESS_STRING_IS_VALID;
-      }
+      using_progress_string = 0;        
     }
 #endif
     
-    if  (principal_conn->input_rate != 0) {
-      if ((using_progress_string != 0) && (metadata_store.progress_string_validation == PROGRESS_STRING_VALIDATE_S2_PROGRESS_STRING_IS_VALID)) {
+    if  (using_progress_string != 0) {
+      if ((principal_conn->input_rate != 0) && (metadata_store.progress_string_validation == PROGRESS_STRING_VALIDATE_S2_PROGRESS_STRING_IS_VALID)) {
         // Use the information in the progress string to estimate the position.
         // But there is a wrinkle.
         // When an iOS device connects over a Classic stream,
@@ -248,10 +244,19 @@ static gint64 property_preflight_mpris_estimate_position_microseconds(void) {
           position = position / principal_conn->input_rate;
         }
       }
-    } 
+    } else {
+      // Using the plist information.    
+      // If Shairport Sync is playing, add the play time to the stored elapsed time.
+      if (metadata_store.npi.play_start_time.valid) {
+        position = get_absolute_time_in_ns() - metadata_store.npi.play_start_time.value;      
+      } else {
+        position = 0;        
+      }
+      position += metadata_store.npi.elapsed_time_ns;   
+      position /= 1000; // to microseconds       
+    }
   }
   pthread_cleanup_pop(1); // release the principal_conn lock
-  debug(1, "position: %g seconds.", position * 0.000001);
   return position;
 }
 

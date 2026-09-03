@@ -104,37 +104,18 @@ int update_string_record(char **str, const char *s) {
     result = update_string_record_with_data(str, s, strlen(s));
   return result;
 }
+int invalidate_string_record(char **str) { return update_string_record(str, NULL); }
 
 int update_uint64_record(uint64_record_t *record, const uint64_t value) {
   int changed = 0;
   if (record != NULL) {
-    changed = ((record->item != value) || (record->valid == 0));
-    record->item = value;
+    changed = ((record->value != value) || (record->valid == 0));
+    record->value = value;
     record->valid = 1;
   } else {
     debug(1, "passing a NULL uint64_record_t pointer to update_uint64_record!");
   }
   return changed;
-}
-
-int invalidate_string_record(char **str) { return update_string_record(str, NULL); }
-
-int is_valid_uint64_record(uint64_record_t *record) {
-  int valid = 0;
-  if (record != NULL) {
-    valid = record->valid;
-  } else {
-    debug(1, "passing a NULL uint64_record_t pointer to is_valid_uint64_record!");
-  }
-  return valid;
-}
-
-void invalidate_uint64_record(uint64_record_t *record) {
-  if (record != NULL) {
-    record->valid = 0;
-  } else {
-    debug(1, "passing a NULL uint64_record_t pointer to invalidate_uint64_record!");
-  }
 }
 
 void metadata_hub_init(void) {
@@ -409,6 +390,10 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
   pthread_cleanup_push(metadata_hub_unlock_hub_mutex_cleanup, NULL);
   if (type == 'core') {
     switch (code) {
+    case 'caps': {
+      // get the one-byte number as an unsigned number
+      debug(1, "MH Player State seen: \"%d\" of length %u.", (unsigned)data[0], length);
+    } break;    
     case 'asdk': {
       // get the one-byte number as an unsigned number
       debug(3, "MH Song Data Kind seen: \"%d\" of length %u.", (unsigned)data[0], length);
@@ -570,9 +555,10 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       free(dacp_port_string);
     } break;
     case 'mdst':
+      // start of a metadata bundle...
       if (metadata_store.progress_string_validation == PROGRESS_STRING_VALIDATE_S0_WAITING_FOR_METADATA_BUNDLE)
         metadata_store.progress_string_validation = PROGRESS_STRING_VALIDATE_S1_WAITING_FOR_SUBSEQUENT_PROGRESS_STRING;
-      debug(3, "MH Metadata stream processing start.");
+      debug(1, "MH Metadata stream processing start.");
       // There is a difficulty with this NPI metadata as it comes in.
 
       // As it comes in, we don't know whether it is an update to the current NPI data or whether it
@@ -601,8 +587,8 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
 
       // if the track_id of the new npi differs from the current npi
       if ((temporary_item_id.valid != 0) && (new_npi.item_id.valid != 0) &&
-          (temporary_item_id.item != new_npi.item_id.item)) {
-        debug(3, "MH Metadata detected for a new track: %" PRIu64 ".", new_npi.item_id.item);
+          (temporary_item_id.value != new_npi.item_id.value)) {
+        debug(3, "MH Metadata detected for a new track: %" PRIu64 ".", new_npi.item_id.value);
         metadata_store.npi = new_npi;
         metadata_packet_item_changed = 1;
       }
@@ -628,6 +614,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       break;
     case 'prgr':
       changed = update_string_record_with_data(&metadata_store.progress_string, data, length);
+      debug(1, "progress string: \"%s\"", metadata_store.progress_string);
       if (changed) {
         debug(3, "MH Progress String set to: \"%s\"", metadata_store.progress_string);
         if (metadata_store.progress_string_validation == PROGRESS_STRING_VALIDATE_S1_WAITING_FOR_SUBSEQUENT_PROGRESS_STRING)
@@ -698,12 +685,36 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       metadata_store.player_thread_active = 1;
       break;
     case 'pend':
+#ifdef CONFIG_AIRPLAY_2
+      // calculate added play time when play stops (typically AirPlay 2 Realtime Stream)
+      debug(1, "pend stop");
+      if (metadata_store.npi.play_start_time.valid) {
+        uint64_t playing_time = get_absolute_time_in_ns() - metadata_store.npi.play_start_time.value;
+        metadata_store.npi.elapsed_time_ns += playing_time;
+        debug(1, "pend stop updating elapsed time to %g.", 1E-9 * metadata_store.npi.elapsed_time_ns);
+      }
+      metadata_store.npi.play_start_time.valid = 0;     
+      // play has stopped, so we can invalidate the start time
+      // to signal that Shairport Sync is not playing      
+#endif     
       changed = ((metadata_store.player_state != PS_STOPPED) ||
                  (metadata_store.player_thread_active == 1));
       metadata_store.player_state = PS_STOPPED;
       metadata_store.player_thread_active = 0;
       break;
     case 'paus':
+#ifdef CONFIG_AIRPLAY_2
+      // calculate added play time when play pauses (typically AirPlay 2 Buffered Stream)
+      debug(1, "anchor pause");
+      if (metadata_store.npi.play_start_time.valid) {
+        uint64_t playing_time = get_absolute_time_in_ns() - metadata_store.npi.play_start_time.value;
+        metadata_store.npi.elapsed_time_ns += playing_time;
+        debug(1, "anchor pause updating elapsed time to %g.", 1E-9 * metadata_store.npi.elapsed_time_ns);
+      }
+      metadata_store.npi.play_start_time.valid = 0;     
+      // play has paused, so we can invalidate the start time
+      // to signal that Shairport Sync is not playing      
+#endif     
       changed = (metadata_store.player_state != PS_PAUSED);
       metadata_store.player_state = PS_PAUSED;
       break;
@@ -809,11 +820,11 @@ int send_metadata_to_hub_queue(const uint32_t type, const uint32_t code, const c
 void metadata_hub_reset_npi(metadata_npi_bundle *npi) {
   debug(4, "metadata_hub_reset_npi");
   invalidate_string_record(&npi->cover_art_pathname);
-  invalidate_uint64_record(&npi->item_id);
+  npi->item_id.valid = 0;
   npi->item_composite_id_is_valid = 0;
-  invalidate_uint64_record(&npi->song_data_kind);
+  npi->song_data_kind.valid = 0;
   invalidate_string_record(&npi->track_name);
-  invalidate_uint64_record(&npi->track_number);
+  npi->track_number.valid = 0;
   invalidate_string_record(&npi->artist_name);
   invalidate_string_record(&npi->album_artist_name);
   invalidate_string_record(&npi->album_name);
@@ -827,8 +838,10 @@ void metadata_hub_reset_npi(metadata_npi_bundle *npi) {
   invalidate_string_record(&npi->sort_artist);
   invalidate_string_record(&npi->sort_album);
   invalidate_string_record(&npi->sort_composer);
-  invalidate_uint64_record(&npi->songtime_in_microseconds);
+  npi->songtime_in_microseconds.valid = 0;
 #ifdef CONFIG_AIRPLAY_2
+  npi->play_start_time.valid = 0;
+  npi->elapsed_time_ns = 0;
   if (npi->npi_plist != NULL) {
     plist_free(npi->npi_plist);
     npi->npi_plist = NULL;

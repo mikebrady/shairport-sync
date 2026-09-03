@@ -1814,7 +1814,7 @@ int parse_options(int argc, char **argv) {
     if (config.get_plist_metadata != 0) {
       config.airplay_features |=
           (uint64_t)1 << 50; // richer metadata in a binary plist, including more state information
-      config.airplay_features |= (uint64_t)1 << 16; // ask for progress too
+      // config.airplay_features |= (uint64_t)1 << 16; // ask for progress too
 
     } else {
       // older metadata flags artwork, progress and text respectively

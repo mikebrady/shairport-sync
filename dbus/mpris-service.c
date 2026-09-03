@@ -125,10 +125,10 @@ void mpris_metadata_watcher(struct metadata_bundle *argc) {
   }
 
   // Add in the Track ID based on the 'mper' metadata if it is non-zero
-  if (is_valid_uint64_record(&argc->npi.item_id)) {
+  if (argc->npi.item_id.valid) {
     char trackidstring[128];
     snprintf(trackidstring, sizeof(trackidstring), "/org/gnome/ShairportSync/%" PRIu64 "",
-             argc->npi.item_id.item);
+             argc->npi.item_id.value);
     GVariant *trackid = g_variant_new("o", trackidstring);
     g_variant_builder_add(dict_builder, "{sv}", "mpris:trackid", trackid);
   }
@@ -140,8 +140,8 @@ void mpris_metadata_watcher(struct metadata_bundle *argc) {
   }
 
   // Add the track number if it is valid
-  if (is_valid_uint64_record(&argc->npi.track_number)) {
-    GVariant *tracknumber = g_variant_new("x", argc->npi.track_number.item);
+  if (argc->npi.track_number.valid) {
+    GVariant *tracknumber = g_variant_new("x", argc->npi.track_number.value);
     g_variant_builder_add(dict_builder, "{sv}", "xesam:trackNumber", tracknumber);
   }
 
@@ -169,7 +169,7 @@ void mpris_metadata_watcher(struct metadata_bundle *argc) {
     g_variant_builder_add(dict_builder, "{sv}", "xesam:genre", genre);
   }
 
-  if (is_valid_uint64_record(&argc->npi.songtime_in_microseconds)) {
+  if (argc->npi.songtime_in_microseconds.valid) {
     GVariant *tracklength = g_variant_new("x", argc->npi.songtime_in_microseconds);
     g_variant_builder_add(dict_builder, "{sv}", "mpris:length", tracklength);
   }

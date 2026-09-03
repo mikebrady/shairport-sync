@@ -238,10 +238,26 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
                     if (duration_item != NULL) {
                       double duration;
                       plist_get_real_val(duration_item, &duration);
-                      // debug(1, "Send duration: %f", duration);
+                      // debug(1, "duration: %g", duration);
                       duration = duration * 1000000.0; // convert to microseconds
                       metadata_changed |= update_uint64_record(
                           &metadata_store.npi.songtime_in_microseconds, (uint64_t)(duration));
+                    }
+                    
+                    // look for the elapsed time on the current track at this time
+                    plist_t elapsed_time_item = plist_dict_get_item(
+                        metadata_store.npi.npi_plist, "kMRMediaRemoteNowPlayingInfoElapsedTime");
+                    if (elapsed_time_item != NULL) {
+                      double elapsed_time = 0.0;
+                      plist_get_real_val(elapsed_time_item, &elapsed_time);  // we should have a figure for elapsed time
+                      uint64_t local_elapsed_time_ns = (uint64_t)(elapsed_time * 1E9);
+                      metadata_store.npi.elapsed_time_ns = local_elapsed_time_ns;
+                      
+                      // Set the time at which playing was considered to start to
+                      // the time at which this message was received.
+                      debug(1, "Setting start time, and setting it valid to indicate that play has started");
+                      update_uint64_record(
+                        &metadata_store.npi.play_start_time, get_absolute_time_in_ns());
                     }
                   }
 
