@@ -3432,7 +3432,7 @@ static void handle_announce(rtsp_conn_info *conn, rtsp_message *req, rtsp_messag
 
 #ifdef CONFIG_AIRPLAY_2
     // In AirPlay 2, an ANNOUNCE signifies the start of an AirPlay 1 session.
-    debug(1, "Connection %d: %s connection from %s:%u to self at %s:%u.", conn->connection_number,
+    debug(4, "Connection %d: %s connection from %s:%u to self at %s:%u.", conn->connection_number,
           get_category_string(conn->airplay_stream_category), conn->client_ip_string,
           conn->client_rtsp_port, conn->self_ip_string, conn->self_rtsp_port);
     conn->airplay_type = ap_1;
