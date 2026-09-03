@@ -50,6 +50,7 @@
 
 #include <avahi-client/lookup.h>
 #include <avahi-common/alternative.h>
+#include <avahi-common/address.h>
 
 void threaded_poll_unlock(void *arg) { avahi_threaded_poll_unlock((AvahiThreadedPoll *)arg); }
 
@@ -272,18 +273,74 @@ static void register_service(AvahiClient *c) {
       selected_interface = config.interface_index;
     else
       selected_interface = AVAHI_IF_UNSPEC;
+
+    // When general.address / --address binds this instance to one local IP,
+    // publish its service(s) against a hostname of their own rather than the
+    // system's default hostname. avahi_entry_group_add_service_strlst() with
+    // host=NULL advertises the SRV record against the system hostname, which
+    // resolves to whichever address the Avahi daemon associates with it, so
+    // every instance on the host resolves to the same address no matter which
+    // one it is bound to: clients discover distinct service names but can end
+    // up connecting to a different instance than the one they selected.
+    char instance_hostname[256];
+    const char *host_to_use = NULL; // NULL => default Avahi behaviour, unchanged
+    if ((config.address != NULL) && (config.address[0] != '\0')) {
+      AvahiAddress addr;
+      memset(&addr, 0, sizeof(addr));
+      if (avahi_address_parse(config.address, AVAHI_PROTO_UNSPEC, &addr) != NULL) {
+        // Build the label from the address itself, which is unique among the
+        // instances on this host by construction -- config.service_name is a
+        // free-form display string that may hold characters not valid in a
+        // hostname.
+        char address_label[INET6_ADDRSTRLEN];
+        size_t i;
+        strncpy(address_label, config.address, sizeof(address_label) - 1);
+        address_label[sizeof(address_label) - 1] = '\0';
+        for (i = 0; address_label[i] != '\0'; i++)
+          if ((address_label[i] == '.') || (address_label[i] == ':'))
+            address_label[i] = '-';
+        snprintf(instance_hostname, sizeof(instance_hostname), "shairport-%s.local", address_label);
+
+        // The Avahi daemon already auto-publishes an address record mapping
+        // this same IP to the system's default hostname. Publishing a second
+        // hostname for that address is not a collision as far as this API is
+        // concerned. AVAHI_PUBLISH_NO_REVERSE is used because only forward
+        // (A/AAAA) resolution is needed -- asking for the reverse mapping
+        // would collide with the PTR record the daemon already publishes for
+        // the system hostname. (AVAHI_PUBLISH_ALLOW_MULTIPLE is rejected here
+        // with AVAHI_ERR_INVALID_FLAGS: it is accepted only by the lower-level
+        // avahi_entry_group_add_record(). NO_REVERSE alone is sufficient.)
+        int aret = avahi_entry_group_add_address(group, selected_interface, addr.proto,
+                                                 AVAHI_PUBLISH_NO_REVERSE, instance_hostname, &addr);
+        if (aret == 0) {
+          host_to_use = instance_hostname;
+          debug(1, "avahi: published distinct hostname \"%s\" -> \"%s\".", instance_hostname,
+                config.address);
+        } else {
+          debug(1,
+                "avahi: avahi_entry_group_add_address failed (%d) for hostname \"%s\" -- falling "
+                "back to the default host advertisement.",
+                aret, instance_hostname);
+        }
+      } else {
+        debug(1,
+              "avahi: avahi_address_parse failed for \"%s\" -- falling back to the default host "
+              "advertisement.",
+              config.address);
+      }
+    }
     if (ap2_text_record_string_list) {
       ret = avahi_entry_group_add_service_strlst(group, selected_interface, AVAHI_PROTO_UNSPEC, 0,
-                                                 ap2_service_name, config.regtype2, NULL, NULL,
-                                                 port, ap2_text_record_string_list);
+                                                 ap2_service_name, config.regtype2, NULL,
+                                                 host_to_use, port, ap2_text_record_string_list);
       if (ret == AVAHI_ERR_COLLISION) {
         die("Error: AirPlay 2 name \"%s\" is already in use.", ap2_service_name);
       }
     }
     if ((ret == 0) && (text_record_string_list)) {
       ret = avahi_entry_group_add_service_strlst(group, selected_interface, AVAHI_PROTO_UNSPEC, 0,
-                                                 service_name, config.regtype, NULL, NULL, port,
-                                                 text_record_string_list);
+                                                 service_name, config.regtype, NULL, host_to_use,
+                                                 port, text_record_string_list);
       if (ret == AVAHI_ERR_COLLISION) {
         die("Error: AirPlay 1 name \"%s\" is already in use.", service_name);
       }
