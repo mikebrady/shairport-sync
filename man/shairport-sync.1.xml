@@ -48,6 +48,7 @@
       <opt>[-L </opt><arg>latency</arg><opt> | --latency=</opt><arg>latency</arg><opt>]</opt>
       <opt>[-m </opt><arg>backend</arg><opt> | --mdns=</opt><arg>backend</arg><opt>]</opt>
       <opt>[-M | --metadata-enable]</opt>
+      <opt>[--nqptp-shared-memory-interface-name=</opt><arg>name</arg><opt>]</opt>
       <opt>[-o </opt><arg>backend</arg><opt> | --output=</opt><arg>backend</arg><opt>]</opt>
       <opt>[-p </opt><arg>port</arg><opt> | --port=</opt><arg>port</arg><opt>]</opt>
       <opt>[--password=</opt><arg>secret</arg><opt>]</opt>
@@ -310,6 +311,22 @@
 		Force the use of the specified mDNS backend to advertise the
     player on the network. The default is to try all mDNS backends in order until one
     works.
+		</p></optdesc>
+	  </option>
+
+	  <option>
+		<p><opt>--nqptp-shared-memory-interface-name=</opt><arg>name</arg></p>
+		<optdesc><p>
+		Use the nqptp shared memory interface called <arg>name</arg>, overriding the
+		<opt>general.nqptp_shared_memory_interface_name</opt> setting in the configuration
+		file. The default is <opt>/nqptp</opt>.
+		</p><p>
+		This is an advanced setting and is needed only when running more than one AirPlay 2
+		instance on the same machine. nqptp keeps a separate clock for each shared memory
+		interface name, so instances that share a name share a clock; give each instance its
+		own name to keep them independent. It is available on the command line so that
+		instances that differ only in the settings that must differ can share one
+		configuration file. Only available in AirPlay 2 builds.
 		</p></optdesc>
 	  </option>
 

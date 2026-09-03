@@ -357,6 +357,12 @@ void usage(char *progname) {
     printf("    -t, --timeout=SECONDS   Go back to idle mode from play mode after a break in communications of this many seconds (default 60). Set to 0 never to exit play mode.\n");
     printf("    --tolerance=TOLERANCE   [Deprecated] Allow a synchronization error of TOLERANCE frames (default 88) before trying to correct it.\n");
     printf("    --logOutputLevel        Log the output level setting -- a debugging option, useful for determining the optimum maximum volume.\n");
+#ifdef CONFIG_AIRPLAY_2
+    printf("    --nqptp-shared-memory-interface-name=NAME\n");
+    printf("                            Use the nqptp shared memory interface called NAME. Default is \"%s\".\n", NQPTP_INTERFACE_NAME);
+    printf("                            An advanced setting, needed only when running more than one AirPlay 2 instance on this machine:\n");
+    printf("                            give each instance its own name so that they do not share a clock.\n");
+#endif
 
 #ifdef CONFIG_LIBDAEMON
     printf("    -d, --daemon            Daemonise.\n");
@@ -387,12 +393,30 @@ void usage(char *progname) {
 #endif
 }
 
+#ifdef CONFIG_AIRPLAY_2
+// The nqptp shared memory interface name is passed to shm_open(3) and is stored
+// by nqptp in a 64-byte field, so it must be a "/" followed by between one and
+// 62 characters, with no further "/". "source" names where the value came from,
+// for the error message.
+void check_nqptp_shared_memory_interface_name(const char *name, const char *source) {
+  if ((name[0] != '/') || (strlen(name) < 2) || (strlen(name) > 63) ||
+      (strchr(name + 1, '/') != NULL))
+    die("Invalid %s \"%s\" -- it must begin with a \"/\", contain no other \"/\", and be between "
+        "2 and 63 characters long.",
+        source, name);
+}
+#endif
+
 int parse_options(int argc, char **argv) {
   // there are potential memory leaks here -- it's called a second time, previously allocated
   // strings will dangle.
   char *cli_service_type_string = NULL;
   char *raw_service_name = NULL; /* Used to pick up the service name before possibly expanding it */
   char *stuffing = NULL;         /* used for picking up the stuffing option */
+#ifdef CONFIG_AIRPLAY_2
+  char *cli_nqptp_shared_memory_interface_name =
+      NULL; /* used for picking up the nqptp shared memory interface name */
+#endif
 #if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
   char *dbus_default_message_bus =
       NULL; /* used for picking the "system" or "session" bus as the default */
@@ -425,6 +449,10 @@ int parse_options(int argc, char **argv) {
       {"timeout", 't', POPT_ARG_INT, &config.timeout, 't', NULL, NULL},
       {"password", 0, POPT_ARG_STRING, &config.password, 0, NULL, NULL},
       {"service-type", 0, POPT_ARG_STRING, &cli_service_type_string, 0, NULL, NULL},
+#ifdef CONFIG_AIRPLAY_2
+      {"nqptp-shared-memory-interface-name", 0, POPT_ARG_STRING,
+       &cli_nqptp_shared_memory_interface_name, 0, NULL, NULL},
+#endif
 #if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
       {"dbus-default-message-bus", 0, POPT_ARG_STRING, &dbus_default_message_bus, 0, NULL, NULL},
 #endif
@@ -1722,20 +1750,24 @@ int parse_options(int argc, char **argv) {
   if (config.cfg != NULL) {
     const char *smi_str;
     if (config_lookup_string(config.cfg, "general.nqptp_shared_memory_interface_name", &smi_str)) {
-      // it is passed to shm_open(3), so it must be "/" followed by up to 62
-      // characters with no further "/" -- and nqptp stores it in a 64-byte field
-      if ((smi_str[0] != '/') || (strlen(smi_str) < 2) || (strlen(smi_str) > 63) ||
-          (strchr(smi_str + 1, '/') != NULL))
-        die("Invalid general.nqptp_shared_memory_interface_name \"%s\" -- it must begin with a "
-            "\"/\", contain no other \"/\", and be between 2 and 63 characters long.",
-            smi_str);
+      check_nqptp_shared_memory_interface_name(smi_str,
+                                               "general.nqptp_shared_memory_interface_name");
       config.nqptp_shared_memory_interface_name = strdup(smi_str);
-      debug(1, "nqptp shared memory interface name: \"%s\".",
-            config.nqptp_shared_memory_interface_name);
     }
+  }
+  // the command line takes precedence over the configuration file, as it does
+  // for the other settings that must differ between instances on one host
+  if (cli_nqptp_shared_memory_interface_name != NULL) {
+    check_nqptp_shared_memory_interface_name(cli_nqptp_shared_memory_interface_name,
+                                             "--nqptp-shared-memory-interface-name");
+    if (config.nqptp_shared_memory_interface_name != NULL)
+      free(config.nqptp_shared_memory_interface_name);
+    config.nqptp_shared_memory_interface_name = strdup(cli_nqptp_shared_memory_interface_name);
   }
   if (config.nqptp_shared_memory_interface_name == NULL)
     config.nqptp_shared_memory_interface_name = strdup(NQPTP_INTERFACE_NAME);
+  debug(1, "nqptp shared memory interface name: \"%s\".",
+        config.nqptp_shared_memory_interface_name);
 
   // create the config.ap1_prefix[i]
   char apids[6 * 2 + 5 + 1]; // six pairs of digits, 5 colons and a NUL
