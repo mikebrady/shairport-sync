@@ -397,6 +397,12 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
         debug(4, ">> MH playing state changine from %d to %d.", metadata_store.npi.playing_state, (unsigned)data[0]);
         metadata_store.npi.playing_state = (unsigned)data[0];
         new_npi.playing_state = (unsigned)data[0];
+        
+        // if the sream is stopped, the prior progress string is unreliable, it seems,
+        // so drop it
+        if ((unsigned)data[0] == 2) {
+          invalidate_string_record(&metadata_store.progress_string);
+        }
       }
     } break;    
     case 'asdk': {
