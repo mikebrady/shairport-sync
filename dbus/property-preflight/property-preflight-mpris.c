@@ -187,7 +187,7 @@ static gint64 property_preflight_mpris_estimate_position_microseconds(void) {
 #endif
     
     if  (using_progress_string != 0) {
-      if ((principal_conn->input_rate != 0) && (metadata_store.progress_string_validation == PROGRESS_STRING_VALIDATE_S2_PROGRESS_STRING_IS_VALID)) {
+      if ((principal_conn->input_rate != 0) && (metadata_store.npi.playing_state != 2) && (metadata_store.progress_string != NULL)) {
         // Use the information in the progress string to estimate the position.
         // But there is a wrinkle.
         // When an iOS device connects over a Classic stream,
@@ -225,7 +225,7 @@ static gint64 property_preflight_mpris_estimate_position_microseconds(void) {
         int32_t frames_remaining =
             metadata_store.progress_last_timestamp - metadata_store.head_rtp_timestamp;
     
-        debug(1, "position: %g seconds, rate: %u. Start , Current, End Timestamps: %u, %u, %u. Total, played, remaining frames: %d, %d, %d, total time: %g.",
+        debug(4, "position: %g seconds, rate: %u. Start , Current, End Timestamps: %u, %u, %u. Total, played, remaining frames: %d, %d, %d, total time: %g.",
           (1.0 * frames_played) / principal_conn->input_rate, principal_conn->input_rate,
           metadata_store.progress_first_timestamp,
           metadata_store.progress_current_timestamp,

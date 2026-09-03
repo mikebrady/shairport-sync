@@ -154,52 +154,53 @@ void build_bonjour_strings(__attribute((unused)) rtsp_conn_info *conn) {
   }
 #endif
 
-#ifdef CONFIG_AIRPLAY_2
   // make up a secondary set of text records
   entry_number = 0;
-
-  secondary_txt_records[entry_number++] = "acl=0";
-  // secondary_txt_records[entry_number++] = "btaddr=00:00:00:00:00:00";
-  secondary_txt_records[entry_number++] =
-      bnprintf(deviceIdString, sizeof(deviceIdString), "deviceid=%s", config.airplay_device_id);
-  secondary_txt_records[entry_number++] =
-      bnprintf(fexString, sizeof(fexString), "fex=%s", config.airplay_fex);
-  secondary_txt_records[entry_number++] =
-      bnprintf(featuresString, sizeof(featuresString), "features=0x%" PRIX64 ",0x%" PRIX64 "",
-               features_lo, features_hi); // features_hi and features_lo already calculated.
-  secondary_txt_records[entry_number++] =
-      bnprintf(statusflagsString, sizeof(statusflagsString), "flags=0x%" PRIX32 "",
-               config.airplay_statusflags);
-  if ((conn != NULL) && (conn->airplay_gid != 0)) {
-    snprintf(gidString, sizeof(gidString), "gid=%s", conn->airplay_gid);
-  } else {
-    snprintf(gidString, sizeof(gidString), "gid=%s", config.airplay_pi);
+#ifdef CONFIG_AIRPLAY_2
+  if (config.service_type == APST_airplay2) {
+    secondary_txt_records[entry_number++] = "acl=0";
+    // secondary_txt_records[entry_number++] = "btaddr=00:00:00:00:00:00";
+    secondary_txt_records[entry_number++] =
+        bnprintf(deviceIdString, sizeof(deviceIdString), "deviceid=%s", config.airplay_device_id);
+    secondary_txt_records[entry_number++] =
+        bnprintf(fexString, sizeof(fexString), "fex=%s", config.airplay_fex);
+    secondary_txt_records[entry_number++] =
+        bnprintf(featuresString, sizeof(featuresString), "features=0x%" PRIX64 ",0x%" PRIX64 "",
+                 features_lo, features_hi); // features_hi and features_lo already calculated.
+    secondary_txt_records[entry_number++] =
+        bnprintf(statusflagsString, sizeof(statusflagsString), "flags=0x%" PRIX32 "",
+                 config.airplay_statusflags);
+    if ((conn != NULL) && (conn->airplay_gid != 0)) {
+      snprintf(gidString, sizeof(gidString), "gid=%s", conn->airplay_gid);
+    } else {
+      snprintf(gidString, sizeof(gidString), "gid=%s", config.airplay_pi);
+    }
+    secondary_txt_records[entry_number++] = gidString;
+  
+    if ((conn != NULL) && (conn->groupContainsGroupLeader != 0)) {
+      secondary_txt_records[entry_number++] = "igl=0";
+      secondary_txt_records[entry_number++] = "gcgl=1";
+    } else {
+      secondary_txt_records[entry_number++] = "igl=0";
+      secondary_txt_records[entry_number++] = "gcgl=0";
+    }
+    // if ((conn != NULL) && (conn->airplay_gid != 0)) // if it's in a group
+    //   secondary_txt_records[entry_number++] = "isGroupLeader=0";
+    secondary_txt_records[entry_number++] =
+        bnprintf(modelString, sizeof(modelString), "model=%s", config.model);
+    secondary_txt_records[entry_number++] = "protovers=1.1";
+    secondary_txt_records[entry_number++] =
+        bnprintf(piString, sizeof(piString), "pi=%s", config.airplay_pi);
+    secondary_txt_records[entry_number++] =
+        bnprintf(psiString, sizeof(psiString), "psi=%s", config.airplay_psi);
+    secondary_txt_records[entry_number++] = pkString; // already calculated
+    secondary_txt_records[entry_number++] =
+        bnprintf(srcversString, sizeof(srcversString), "srcvers=%s", config.srcvers);
+    // secondary_txt_records[entry_number++] =
+    //     bnprintf(osversString, sizeof(osversString), "osvers=%s", config.osvers);
+    // secondary_txt_records[entry_number++] = "vv=2";
+    secondary_txt_records[entry_number++] = fwString; // already calculated
   }
-  secondary_txt_records[entry_number++] = gidString;
-
-  if ((conn != NULL) && (conn->groupContainsGroupLeader != 0)) {
-    secondary_txt_records[entry_number++] = "igl=0";
-    secondary_txt_records[entry_number++] = "gcgl=1";
-  } else {
-    secondary_txt_records[entry_number++] = "igl=0";
-    secondary_txt_records[entry_number++] = "gcgl=0";
-  }
-  // if ((conn != NULL) && (conn->airplay_gid != 0)) // if it's in a group
-  //   secondary_txt_records[entry_number++] = "isGroupLeader=0";
-  secondary_txt_records[entry_number++] =
-      bnprintf(modelString, sizeof(modelString), "model=%s", config.model);
-  secondary_txt_records[entry_number++] = "protovers=1.1";
-  secondary_txt_records[entry_number++] =
-      bnprintf(piString, sizeof(piString), "pi=%s", config.airplay_pi);
-  secondary_txt_records[entry_number++] =
-      bnprintf(psiString, sizeof(psiString), "psi=%s", config.airplay_psi);
-  secondary_txt_records[entry_number++] = pkString; // already calculated
-  secondary_txt_records[entry_number++] =
-      bnprintf(srcversString, sizeof(srcversString), "srcvers=%s", config.srcvers);
-  // secondary_txt_records[entry_number++] =
-  //     bnprintf(osversString, sizeof(osversString), "osvers=%s", config.osvers);
-  // secondary_txt_records[entry_number++] = "vv=2";
-  secondary_txt_records[entry_number++] = fwString; // already calculated
-  secondary_txt_records[entry_number++] = NULL;
 #endif
+  secondary_txt_records[entry_number++] = NULL;
 }

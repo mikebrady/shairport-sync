@@ -392,7 +392,12 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     switch (code) {
     case 'caps': {
       // get the one-byte number as an unsigned number
-      debug(1, "MH Player State seen: \"%d\" of length %u.", (unsigned)data[0], length);
+      debug(4, "MH Player State seen: \"%d\" of length %u.", (unsigned)data[0], length);
+      if (((unsigned)metadata_store.npi.playing_state != (unsigned)data[0])) {
+        debug(4, ">> MH playing state changine from %d to %d.", metadata_store.npi.playing_state, (unsigned)data[0]);
+        metadata_store.npi.playing_state = (unsigned)data[0];
+        new_npi.playing_state = (unsigned)data[0];
+      }
     } break;    
     case 'asdk': {
       // get the one-byte number as an unsigned number
@@ -538,7 +543,6 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
   } else if (type == 'ssnc') {
     switch (code) {
     case 'conn': //a new connection -- some things might need to be reset
-      debug(1, "metadata hub sees a new connection");
       invalidate_string_record(&metadata_store.progress_string);
       metadata_store.progress_first_timestamp = 0;
       metadata_store.progress_current_timestamp = 0;
@@ -558,7 +562,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       // start of a metadata bundle...
       if (metadata_store.progress_string_validation == PROGRESS_STRING_VALIDATE_S0_WAITING_FOR_METADATA_BUNDLE)
         metadata_store.progress_string_validation = PROGRESS_STRING_VALIDATE_S1_WAITING_FOR_SUBSEQUENT_PROGRESS_STRING;
-      debug(1, "MH Metadata stream processing start.");
+      debug(4, "MH Metadata stream processing start.");
       // There is a difficulty with this NPI metadata as it comes in.
 
       // As it comes in, we don't know whether it is an update to the current NPI data or whether it
@@ -614,7 +618,6 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       break;
     case 'prgr':
       changed = update_string_record_with_data(&metadata_store.progress_string, data, length);
-      debug(1, "progress string: \"%s\"", metadata_store.progress_string);
       if (changed) {
         debug(3, "MH Progress String set to: \"%s\"", metadata_store.progress_string);
         if (metadata_store.progress_string_validation == PROGRESS_STRING_VALIDATE_S1_WAITING_FOR_SUBSEQUENT_PROGRESS_STRING)
@@ -687,7 +690,6 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     case 'pend':
 #ifdef CONFIG_AIRPLAY_2
       // calculate added play time when play stops (typically AirPlay 2 Realtime Stream)
-      debug(1, "pend stop");
       if (metadata_store.npi.play_start_time.valid) {
         uint64_t playing_time = get_absolute_time_in_ns() - metadata_store.npi.play_start_time.value;
         metadata_store.npi.elapsed_time_ns += playing_time;
@@ -705,7 +707,6 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     case 'paus':
 #ifdef CONFIG_AIRPLAY_2
       // calculate added play time when play pauses (typically AirPlay 2 Buffered Stream)
-      debug(1, "anchor pause");
       if (metadata_store.npi.play_start_time.valid) {
         uint64_t playing_time = get_absolute_time_in_ns() - metadata_store.npi.play_start_time.value;
         metadata_store.npi.elapsed_time_ns += playing_time;
@@ -839,6 +840,7 @@ void metadata_hub_reset_npi(metadata_npi_bundle *npi) {
   invalidate_string_record(&npi->sort_album);
   invalidate_string_record(&npi->sort_composer);
   npi->songtime_in_microseconds.valid = 0;
+  npi->playing_state = 0;
 #ifdef CONFIG_AIRPLAY_2
   npi->play_start_time.valid = 0;
   npi->elapsed_time_ns = 0;

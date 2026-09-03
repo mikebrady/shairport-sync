@@ -326,7 +326,7 @@ void release_play_lock(rtsp_conn_info *conn) {
       config.airplay_statusflags &= (0xffffffff - (1 << 17)); // ReceiverSessionIsActive
       build_bonjour_strings(principal_conn);
       mdns_update(txt_records, secondary_txt_records);
-      debug(1, "Connection %d: (%s) has released play lock.", conn->connection_number,
+      debug(4, "Connection %d: (%s) has released play lock.", conn->connection_number,
             get_category_string(conn->airplay_stream_category));
     }
     principal_conn = NULL; // let it go
@@ -410,7 +410,7 @@ play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) 
     }
     //    if ((principal_conn != NULL) && (response != play_lock_already_acquired))
     if (response != play_lock_already_acquired) {
-      debug(1, "Connection %d: (%s) has acquired play lock.", conn->connection_number,
+      debug(4, "Connection %d: (%s) has acquired play lock.", conn->connection_number,
             get_category_string(conn->airplay_stream_category));
     }
     pthread_cleanup_pop(1); // release the principal_conn lock
