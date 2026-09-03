@@ -181,12 +181,13 @@ static gint64 property_preflight_mpris_estimate_position_microseconds(void) {
     // if we are playing an AirPlay 2 stream then we will not use the progress strings
     // because they seem unreliable
     if (principal_conn->airplay_type == ap_2) {
-      using_progress_string = 0;        
+      using_progress_string = 0;
     }
 #endif
-    
-    if  (using_progress_string != 0) {
-      if ((principal_conn->input_rate != 0) && (metadata_store.npi.playing_state != 2) && (metadata_store.progress_string != NULL)) {
+
+    if (using_progress_string != 0) {
+      if ((principal_conn->input_rate != 0) && (metadata_store.npi.playing_state != 2) &&
+          (metadata_store.progress_string != NULL)) {
         // Use the information in the progress string to estimate the position.
         // But there is a wrinkle.
         // When an iOS device connects over a Classic stream,
@@ -198,17 +199,17 @@ static gint64 property_preflight_mpris_estimate_position_microseconds(void) {
         // The following seems to be true:
         // When a connection is made form an iOS device,
         // then, when a progress string arrives before
-        // a metadata bundle, it should be ignored. 
+        // a metadata bundle, it should be ignored.
         // It does not always indicate the static position of the track.
         // It does not signal that the track is playing.
-        
+
         // A progress string that arrives after a metadata bundle indicates the
         // position of the track and that the track is playing.
         // So that's what the three states of PROGRESS_STRING_VALIDATE are for:
         // checking that the progress string is one that has come after a metadata bundle.
-        
+
         // That first progress string is not reliable, so we'll settle for zero frames played.
-        // otherwise, it kinda should be:  
+        // otherwise, it kinda should be:
         // metadata_store.progress_current_timestamp - metadata_store.progress_first_timestamp;
 
         // If we haven't seen a metadata bundle yet, the track isn't actually playing.
@@ -216,27 +217,24 @@ static gint64 property_preflight_mpris_estimate_position_microseconds(void) {
         // progress string to indicate that play has started...
         // (Even though the iOS player might actually be actually sending frames of silence
         // to Shairport Sync -- see the longer comment above.
-        
+
         int32_t frames_total =
             metadata_store.progress_last_timestamp - metadata_store.progress_first_timestamp;
         int32_t frames_played =
-              metadata_store.head_rtp_timestamp - metadata_store.progress_first_timestamp;
+            metadata_store.head_rtp_timestamp - metadata_store.progress_first_timestamp;
         int32_t frames_remaining =
             metadata_store.progress_last_timestamp - metadata_store.head_rtp_timestamp;
-    
-        debug(4, "position: %g seconds, rate: %u. Start , Current, End Timestamps: %u, %u, %u. Total, played, remaining frames: %d, %d, %d, total time: %g.",
-          (1.0 * frames_played) / principal_conn->input_rate, principal_conn->input_rate,
-          metadata_store.progress_first_timestamp,
-          metadata_store.progress_current_timestamp,
-          metadata_store.progress_last_timestamp,
-          frames_total,
-          frames_played,
-          frames_remaining,
-          (1.0 * frames_total) / principal_conn->input_rate
-          );
-    
-        // if the timestamp that is about to be played is between the start and the finish, accept it as
-        // valid.
+
+        debug(4,
+              "position: %g seconds, rate: %u. Start , Current, End Timestamps: %u, %u, %u. Total, "
+              "played, remaining frames: %d, %d, %d, total time: %g.",
+              (1.0 * frames_played) / principal_conn->input_rate, principal_conn->input_rate,
+              metadata_store.progress_first_timestamp, metadata_store.progress_current_timestamp,
+              metadata_store.progress_last_timestamp, frames_total, frames_played, frames_remaining,
+              (1.0 * frames_total) / principal_conn->input_rate);
+
+        // if the timestamp that is about to be played is between the start and the finish, accept
+        // it as valid.
         if ((frames_total >= 0) && (frames_played >= 0) && (frames_remaining >= 0)) {
           position = 1000000; // microseconds
           position = position * frames_played;
@@ -244,15 +242,15 @@ static gint64 property_preflight_mpris_estimate_position_microseconds(void) {
         }
       }
     } else {
-      // Using the plist information.    
+      // Using the plist information.
       // If Shairport Sync is playing, add the play time to the stored elapsed time.
       if (metadata_store.npi.play_start_time.valid) {
-        position = get_absolute_time_in_ns() - metadata_store.npi.play_start_time.value;      
+        position = get_absolute_time_in_ns() - metadata_store.npi.play_start_time.value;
       } else {
-        position = 0;        
+        position = 0;
       }
-      position += metadata_store.npi.elapsed_time_ns;   
-      position /= 1000; // to microseconds       
+      position += metadata_store.npi.elapsed_time_ns;
+      position /= 1000; // to microseconds
     }
   }
   pthread_cleanup_pop(1); // release the principal_conn lock

@@ -394,17 +394,18 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       // get the one-byte number as an unsigned number
       debug(4, "MH Player State seen: \"%d\" of length %u.", (unsigned)data[0], length);
       if (((unsigned)metadata_store.npi.playing_state != (unsigned)data[0])) {
-        debug(4, ">> MH playing state changine from %d to %d.", metadata_store.npi.playing_state, (unsigned)data[0]);
+        debug(4, ">> MH playing state changine from %d to %d.", metadata_store.npi.playing_state,
+              (unsigned)data[0]);
         metadata_store.npi.playing_state = (unsigned)data[0];
         new_npi.playing_state = (unsigned)data[0];
-        
+
         // if the sream is stopped, the prior progress string is unreliable, it seems,
         // so drop it
         if ((unsigned)data[0] == 2) {
           invalidate_string_record(&metadata_store.progress_string);
         }
       }
-    } break;    
+    } break;
     case 'asdk': {
       // get the one-byte number as an unsigned number
       debug(3, "MH Song Data Kind seen: \"%d\" of length %u.", (unsigned)data[0], length);
@@ -548,7 +549,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     }
   } else if (type == 'ssnc') {
     switch (code) {
-    case 'conn': //a new connection -- some things might need to be reset
+    case 'conn': // a new connection -- some things might need to be reset
       invalidate_string_record(&metadata_store.progress_string);
       metadata_store.progress_first_timestamp = 0;
       metadata_store.progress_current_timestamp = 0;
@@ -691,14 +692,15 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
 #ifdef CONFIG_AIRPLAY_2
       // calculate added play time when play stops (typically AirPlay 2 Realtime Stream)
       if (metadata_store.npi.play_start_time.valid) {
-        uint64_t playing_time = get_absolute_time_in_ns() - metadata_store.npi.play_start_time.value;
+        uint64_t playing_time =
+            get_absolute_time_in_ns() - metadata_store.npi.play_start_time.value;
         metadata_store.npi.elapsed_time_ns += playing_time;
         debug(4, "pend updating elapsed time to %g.", 1E-9 * metadata_store.npi.elapsed_time_ns);
       }
-      metadata_store.npi.play_start_time.valid = 0;     
+      metadata_store.npi.play_start_time.valid = 0;
       // play has stopped, so we can invalidate the start time
-      // to signal that Shairport Sync is not playing      
-#endif     
+      // to signal that Shairport Sync is not playing
+#endif
       changed = ((metadata_store.player_state != PS_STOPPED) ||
                  (metadata_store.player_thread_active == 1));
       metadata_store.player_state = PS_STOPPED;
@@ -708,14 +710,16 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
 #ifdef CONFIG_AIRPLAY_2
       // calculate added play time when play pauses (typically AirPlay 2 Buffered Stream)
       if (metadata_store.npi.play_start_time.valid) {
-        uint64_t playing_time = get_absolute_time_in_ns() - metadata_store.npi.play_start_time.value;
+        uint64_t playing_time =
+            get_absolute_time_in_ns() - metadata_store.npi.play_start_time.value;
         metadata_store.npi.elapsed_time_ns += playing_time;
-        debug(4, "anchor pause updating elapsed time to %g.", 1E-9 * metadata_store.npi.elapsed_time_ns);
+        debug(4, "anchor pause updating elapsed time to %g.",
+              1E-9 * metadata_store.npi.elapsed_time_ns);
       }
-      metadata_store.npi.play_start_time.valid = 0;     
+      metadata_store.npi.play_start_time.valid = 0;
       // play has paused, so we can invalidate the start time
-      // to signal that Shairport Sync is not playing      
-#endif     
+      // to signal that Shairport Sync is not playing
+#endif
       changed = (metadata_store.player_state != PS_PAUSED);
       metadata_store.player_state = PS_PAUSED;
       break;

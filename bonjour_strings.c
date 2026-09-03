@@ -176,7 +176,7 @@ void build_bonjour_strings(__attribute((unused)) rtsp_conn_info *conn) {
       snprintf(gidString, sizeof(gidString), "gid=%s", config.airplay_pi);
     }
     secondary_txt_records[entry_number++] = gidString;
-  
+
     if ((conn != NULL) && (conn->groupContainsGroupLeader != 0)) {
       secondary_txt_records[entry_number++] = "igl=0";
       secondary_txt_records[entry_number++] = "gcgl=1";

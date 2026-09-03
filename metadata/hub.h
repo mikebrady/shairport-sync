@@ -33,7 +33,7 @@ typedef enum {
 
 typedef struct {
   uint64_t value; // the value
-  int valid;     // set to true if valid
+  int valid;      // set to true if valid
 } uint64_record_t;
 
 int update_string_record_with_data(char **str, const char *data, size_t length); // data and length
@@ -70,12 +70,14 @@ typedef struct metadata_npi_bundle { // now playing information
   char *sort_album;
   char *sort_composer;
   uint64_record_t songtime_in_microseconds;
-  int playing_state; // this is unreliable, but 1 seems to mean in playing mode, 2 seems to mean not in tune playing mode, even if audio is being streamed...
-  // We'll use it so that we will only recognise and increment progress if we have a progress string and the playing_state is 1.  
+  int playing_state; // this is unreliable, but 1 seems to mean in playing mode, 2 seems to mean not
+                     // in tune playing mode, even if audio is being streamed...
+  // We'll use it so that we will only recognise and increment progress if we have a progress string
+  // and the playing_state is 1.
 #ifdef CONFIG_AIRPLAY_2
-  uint64_t elapsed_time_ns; // nanoseconds of play of the current track
+  uint64_t elapsed_time_ns;        // nanoseconds of play of the current track
   uint64_record_t play_start_time; // valid if playing, invalid otherwise
-  plist_t npi_plist; // this can contain information a lot more than we use...
+  plist_t npi_plist;               // this can contain information a lot more than we use...
 #endif
 } metadata_npi_bundle;
 

@@ -2448,8 +2448,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
                   get_category_string(conn->airplay_stream_category));
 
 #ifdef CONFIG_METADATA
-            send_ssnc_metadata('conn', conn->client_ip_string, strlen(conn->client_ip_string),
-                               1);
+            send_ssnc_metadata('conn', conn->client_ip_string, strlen(conn->client_ip_string), 1);
             send_ssnc_metadata('clip', conn->client_ip_string, strlen(conn->client_ip_string), 1);
             send_ssnc_metadata('svip', conn->self_ip_string, strlen(conn->self_ip_string), 1);
 #endif
@@ -3441,8 +3440,7 @@ static void handle_announce(rtsp_conn_info *conn, rtsp_message *req, rtsp_messag
 #endif
 
 #ifdef CONFIG_METADATA
-    send_ssnc_metadata('conn', conn->client_ip_string, strlen(conn->client_ip_string),
-                       1);
+    send_ssnc_metadata('conn', conn->client_ip_string, strlen(conn->client_ip_string), 1);
     send_ssnc_metadata('clip', conn->client_ip_string, strlen(conn->client_ip_string), 1);
     send_ssnc_metadata('svip', conn->self_ip_string, strlen(conn->self_ip_string), 1);
 #endif
