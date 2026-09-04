@@ -1909,24 +1909,24 @@ int parse_options(int argc, char **argv) {
     ptp_send_control_message_string(
         "T"); // send this message to get nqptp to create the named shm interface
     int response = 0;
-    /*
-    uint64_t nqptp_start_waiting_time = get_absolute_time_in_ns();
-    int continue_waiting = 0;
-    int64_t time_spent_waiting = 0;
-    do {
-      continue_waiting = 0;
-      response = ptp_shm_interface_open();
-      if ((response == -1) && (errno == ENOENT)) {
-        time_spent_waiting = get_absolute_time_in_ns() - nqptp_start_waiting_time;
-        if (time_spent_waiting < 10000000000L) {
-          continue_waiting = 1;
-          usleep(50000);
-        }
-      }
-    } while (continue_waiting != 0);
-    */
 
-    response = ptp_shm_interface_open(); // look for NQPTP service
+    // nqptp creates the named shared-memory interface only on receiving the "T"
+    // message sent just above, so with a brand-new interface name (for example a
+    // per-instance general.nqptp_shared_memory_interface_name) there is a brief
+    // window in which it does not exist yet. Retry the probe for a short time
+    // rather than giving up on the first miss -- otherwise a first start with a
+    // fresh name reports "NQPTP service not found" and, under "auto", silently
+    // falls back to classic AirPlay on port 5000. Only ENOENT ("not created yet")
+    // is retried; any other result falls through immediately.
+    uint64_t nqptp_probe_deadline = get_absolute_time_in_ns() + 2000000000L; // 2 s
+    do {
+      response = ptp_shm_interface_open(); // look for the NQPTP service
+      if ((response == -1) && (errno == ENOENT) &&
+          (get_absolute_time_in_ns() < nqptp_probe_deadline))
+        usleep(50000); // 50 ms, then retry
+      else
+        break;
+    } while (1);
 
     if ((response == -1) && (errno == ENOENT)) {
       debug(1, "NQPTP service not found.");
