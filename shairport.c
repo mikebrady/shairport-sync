@@ -413,6 +413,7 @@ int parse_options(int argc, char **argv) {
       {"version", 'V', POPT_ARG_NONE, NULL, 0, NULL, NULL},
       {"displayConfig", 'X', POPT_ARG_NONE, &display_config_selected, 0, NULL, NULL},
       {"port", 'p', POPT_ARG_INT, &config.port, 0, NULL, NULL},
+      {"address", 0, POPT_ARG_STRING, &config.address, 0, NULL, NULL},
       {"name", 'a', POPT_ARG_STRING, &raw_service_name, 0, NULL, NULL},
       {"output", 'o', POPT_ARG_STRING, &config.output_name, 0, NULL, NULL},
       {"on-start", 'B', POPT_ARG_STRING, &config.cmd_start, 0, NULL, NULL},
@@ -686,6 +687,12 @@ int parse_options(int argc, char **argv) {
         else
           config.port = value;
       }
+
+      /* Get the local address to bind the listening socket to. NULL = all
+         addresses. The CLI --address (applied in the second popt pass below)
+         overrides this, mirroring general.port / -p. */
+      if (config_lookup_string(config.cfg, "general.address", &str))
+        config.address = strdup(str);
 
       /* Get the udp port base setting. */
       if (config_lookup_int(config.cfg, "general.udp_port_base", &value)) {
