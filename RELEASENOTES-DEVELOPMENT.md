@@ -1,3 +1,29 @@
+Version 5.6-dev
+==
+This update is recommended for all users of the `development` branch of Shairport Sync.
+
+**Note:**
+The version number has been bumped to `5.6-dev` so that it can be stated that _"these security updates apply to any version of Shairport Sync from 5.5 onwards"_. Version 5.5 is the current main non-development release version.
+
+**Security Updates**
+
+This update contains important security updates:
+  * An AirPlay 2 client could crash Shairport Sync by sending a SETUP request whose `timingPeerInfo.Addresses` array contains a non-string element. Fixed by improved checking.
+  * The AirPlay-2 SETUP `shk` (session key) value's length was not validated, so a short `shk` could cause an out-of-bounds read, potentially leaking information or causing a crash. Fixed by improved validation.
+  * On a classic-AirPlay session using the (deprecated) Hammerton decoder that negotiates an uncompressed PCM session, the audio buffer is sized for exactly one packet, but the decode copy was bounded by the received packet length and was not checked against the allocation. Thus, a single oversized UDP audio packet could overflow the heap with attacker-controlled data. Fixed by extra bounds checking.
+
+    **Note** that use of the Hammerton decoder continues to be deprecated for security reasons.
+  * A unauthenticated client on an AirPlay 2 receiver could overflow a stack buffer by sending an RTSP request with an unrecognised method and a large body. Fixed by sizing the buffer correctly.
+  * A remote, unauthenticated client could crash the daemon with a two-byte pairing message. Fixed by improved operand checking.
+  * A number of updates have been made for classic-AirPlay builds that use the (deprecated) `tinysvcmdns` mDNS library.
+
+    **Note** that the `tinysvcmdns` library is no longer maintained upstream, and its use is strongly deprecated for security reasons.
+
+Sincere thanks to [Haavar Valeur](https://github.com/haavar) for these security reports.
+
+**Enhancement**
+*  The volume control on the client player is no longer automatically hidden when `ignore_volume_control` is set. Thanks to [paintarm287](https://github.com/paintarm287) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2272).
+
 Version 5.4-dev-26-g2101e854
 ==
 **Enhancement**
@@ -7,7 +33,7 @@ Version 5.4-dev-26-g2101e854
 
   Please note that the value isn't always completely correct -- it may take a little while to update when the player changes or updates, and it also depends on the support offered by the player.
 
-  If you use [`playerctl`](https://github.com/altdesktop/playerctl), please note that it has a [bug](https://github.com/altdesktop/playerctl/pull/373) when setting properties on any MPRIS interface that is on the D-Bus "system" bus.
+  If you use [`playerctl`](https://github.com/altdesktop/playerctl), be aware that it has a [bug](https://github.com/altdesktop/playerctl/pull/373) when setting properties on any MPRIS interface that is on the D-Bus "system" bus.
 
 Version 5.4-dev-17-g9781cff3
 ==
