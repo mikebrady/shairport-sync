@@ -178,9 +178,10 @@ static gint64 property_preflight_mpris_estimate_position_microseconds(void) {
     // first, figure out if we are using the progress string or the AirPlay plist information
     int using_progress_string = 1; // guess it is the older progress string
 #ifdef CONFIG_AIRPLAY_2
-    // if we are playing an AirPlay 2 stream then we will not use the progress strings
-    // because they seem unreliable
-    if (principal_conn->airplay_type == ap_2) {
+    // if we are playing an AirPlay 2 stream then
+    // we will only use the progress strings if plists have been disabled
+    // because the plist information is more reliable
+    if ((principal_conn->airplay_type == ap_2) && ((config.airplay_features & ((uint64_t)1 << 50)) != 0)) {
       using_progress_string = 0;
     }
 #endif
