@@ -282,16 +282,25 @@ static void register_service(AvahiClient *c) {
     // every instance on the host resolves to the same address no matter which
     // one it is bound to: clients discover distinct service names but can end
     // up connecting to a different instance than the one they selected.
+    //
+    // The label carries BOTH the address and the RTSP port, because the address
+    // alone is not unique per instance. Instances may share one address and be
+    // told apart only by general.port -- an eleven-room host on a single IP with
+    // ports 7000..7010 is a normal deployment -- and in that arrangement an
+    // address-only label gives all eleven the same hostname, which is exactly
+    // the collision this code exists to prevent. Including the port makes the
+    // hostname unique whichever way the instances are separated.
     char instance_hostname[256];
     const char *host_to_use = NULL; // NULL => default Avahi behaviour, unchanged
     if ((config.address != NULL) && (config.address[0] != '\0')) {
       AvahiAddress addr;
       memset(&addr, 0, sizeof(addr));
       if (avahi_address_parse(config.address, AVAHI_PROTO_UNSPEC, &addr) != NULL) {
-        // Build the label from the address itself, which is unique among the
-        // instances on this host by construction -- config.service_name is a
-        // free-form display string that may hold characters not valid in a
-        // hostname.
+        // Build the label from the address and port, which together are unique
+        // among the instances on this host by construction -- config.service_name
+        // is a free-form display string that may hold characters not valid in a
+        // hostname. Dots and colons become hyphens so an IPv6 literal yields a
+        // valid single DNS label.
         char address_label[INET6_ADDRSTRLEN];
         size_t i;
         strncpy(address_label, config.address, sizeof(address_label) - 1);
@@ -299,7 +308,8 @@ static void register_service(AvahiClient *c) {
         for (i = 0; address_label[i] != '\0'; i++)
           if ((address_label[i] == '.') || (address_label[i] == ':'))
             address_label[i] = '-';
-        snprintf(instance_hostname, sizeof(instance_hostname), "shairport-%s.local", address_label);
+        snprintf(instance_hostname, sizeof(instance_hostname), "shairport-%s-%d.local",
+                 address_label, port);
 
         // The Avahi daemon already auto-publishes an address record mapping
         // this same IP to the system's default hostname. Publishing a second
