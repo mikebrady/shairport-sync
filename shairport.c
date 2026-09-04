@@ -2822,14 +2822,17 @@ int main(int argc, char **argv) {
 
 #endif
 
+  // Default the RTSP port only if the user did not set one (-p / general.port);
+  // config.port is 0 when unset. Honouring an explicit port -- and advertising it,
+  // since mdns_register passes config.port -- lets several AirPlay 2 instances share
+  // one IP on distinct ports. (AirPlay 2 clients follow the SRV-advertised port,
+  // verified on iOS; a port set for AirPlay 2 was previously ignored.)
 #ifdef CONFIG_AIRPLAY_2
-  if (config.service_type == APST_airplay2) {
-    config.port = 7000;
-  } else {
-    config.port = 5000;
-  }
+  if (config.port == 0)
+    config.port = (config.service_type == APST_airplay2) ? 7000 : 5000;
 #else
-  config.port = 5000;
+  if (config.port == 0)
+    config.port = 5000;
 #endif
 
 #ifdef CONFIG_AIRPLAY_2
