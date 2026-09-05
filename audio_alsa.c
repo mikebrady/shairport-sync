@@ -1981,19 +1981,35 @@ static int do_play(void *buf, int samples) {
     snd_pcm_sframes_t my_delay;
     ret = delay_and_status(&state, &my_delay, NULL);
 
+    if (ret == -EPIPE) {
+      state = SND_PCM_STATE_XRUN;
+      ret = 0;
+    }
     if (ret == 0) { // will be non-zero if an error or a stall
       // just check the state of the DAC
 
       if ((state != SND_PCM_STATE_PREPARED) && (state != SND_PCM_STATE_RUNNING)) {
         debug(1, "alsa: DAC in unexpected state %s prior to writing.", snd_pcm_state_name(state));
       }
+      int recovered = 0;
       if (state == SND_PCM_STATE_XRUN) {
-        ret = snd_pcm_recover(alsa_handle, ret, 1);
+        frames_sent_break_occurred = 1;
+        // A successful status query returns zero, not the error needed for recovery.
+        ret = snd_pcm_recover(alsa_handle, -EPIPE, 1);
+        recovered = 1;
       }
 
       snd_pcm_state_t prior_state = state; // keep this for afterwards....
       debug(4, "alsa: write %d frames.", samples);
-      ret = alsa_pcm_write(alsa_handle, buf, samples);
+      if (ret == 0) {
+        ret = alsa_pcm_write(alsa_handle, buf, samples);
+        if (ret == -EPIPE && !recovered) {
+          frames_sent_break_occurred = 1;
+          int recovery_result = snd_pcm_recover(alsa_handle, -EPIPE, 1);
+          // Recovery does not enqueue audio. Retry the rejected block once.
+          ret = recovery_result == 0 ? alsa_pcm_write(alsa_handle, buf, samples) : recovery_result;
+        }
+      }
       if (ret == -EIO) {
         debug(1, "alsa: I/O Error.");
         usleep(20000); // give it a breather...
@@ -2006,25 +2022,7 @@ static int do_play(void *buf, int samples) {
         frames_sent_break_occurred = 1; // note than an output error has occurred
         if (ret == -EPIPE) {            /* underrun */
 
-          // It could be that the DAC was in the SND_PCM_STATE_XRUN state before
-          // sending the samples to be output. If so, it will still be in
-          // the SND_PCM_STATE_XRUN state after the call and it needs to be recovered.
-
-          // The underrun occurred in the past, so flagging an
-          // error at this point is misleading.
-
-          // In fact, having put samples in the buffer, we are about to fix it by now
-          // issuing a snd_pcm_recover().
-
-          // So, if state is SND_PCM_STATE_XRUN now, only report it if the state was
-          // not SND_PCM_STATE_XRUN prior to the call, i.e. report it only
-          // if we are not trying to recover from a previous underrun.
-
-          if (prior_state == SND_PCM_STATE_XRUN)
-            debug(1, "alsa: recovering from a previous underrun.");
-          else
-            debug(1, "alsa: underrun while writing %d samples to alsa device.", samples);
-          ret = snd_pcm_recover(alsa_handle, ret, 1);
+          debug(1, "alsa: underrun persists after one recovery attempt.");
         } else if (ret == -ESTRPIPE) { /* suspended */
           if (state != prior_state)
             debug(1, "alsa: suspended while writing %d samples to alsa device.", samples);
