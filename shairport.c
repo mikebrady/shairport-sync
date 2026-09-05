@@ -637,8 +637,20 @@ int parse_options(int argc, char **argv) {
     debug(2, "can't resolve the configuration file \"%s\".", config.configfile);
   } else {
     debug(1, "looking for configuration file at full path \"%s\"", config_file_real_path);
-    /* Read the file. If there is an error, report it and exit. */
-    if (config_read_file(&config_file_stuff, config_file_real_path)) {
+    /* Read the file into memory and expand ${NAME} environment-variable
+       references before parsing it, so that one shared configuration file can
+       serve many instances and so that secrets can live in the environment.
+       See expand_environment_variables() for the syntax. A file containing no
+       "${" is unchanged by this, so it is parsed exactly as before. */
+    char *config_text = read_file_to_string(config_file_real_path);
+    if (config_text == NULL)
+      die("Error reading configuration file \"%s\": \"%s\".", config_file_real_path,
+          strerror(errno));
+    char *expanded_config_text = expand_environment_variables(config_text, config_file_real_path);
+    free(config_text);
+    /* Parse the expanded text. If there is an error, report it and exit. */
+    if (config_read_string(&config_file_stuff, expanded_config_text)) {
+      free(expanded_config_text);
       config_set_auto_convert(&config_file_stuff,
                               1); // allow autoconversion from int/float to int/float
       // make config.cfg point to it
@@ -1460,13 +1472,12 @@ int parse_options(int argc, char **argv) {
 #endif
 
     } else {
-      if (config_error_type(&config_file_stuff) == CONFIG_ERR_FILE_IO)
-        die("Error reading configuration file \"%s\": \"%s\".", config_file_real_path,
-            config_error_text(&config_file_stuff));
-      else {
-        die("Line %d of the configuration file \"%s\":\n%s", config_error_line(&config_file_stuff),
-            config_error_file(&config_file_stuff), config_error_text(&config_file_stuff));
-      }
+      // The file was read successfully above, so any error here is a parse
+      // error in the (environment-expanded) text. config_read_string() does not
+      // record a filename, so fall back to config_file_real_path.
+      const char *error_file = config_error_file(&config_file_stuff);
+      die("Line %d of the configuration file \"%s\":\n%s", config_error_line(&config_file_stuff),
+          error_file ? error_file : config_file_real_path, config_error_text(&config_file_stuff));
     }
 
 #if defined(CONFIG_DBUS_INTERFACE)
