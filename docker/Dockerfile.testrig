@@ -62,8 +62,14 @@ RUN apt-get install -y --no-install-recommends \
     libavutil-dev libavcodec-dev libavformat-dev
 ##### SPS-AIRPLAY-2-MINIMUM-DEV END #####
 
+##### SPS-CLASSIC-MINIMUM-DEV #####
+FROM dev AS shairport-sync-classic-minimum-dev
+RUN apt-get install -y --no-install-recommends \
+    libpopt-dev libconfig-dev libasound2-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev systemd-dev
+##### SPS-CLASSIC-MINIMUM-DEV END #####
+
 ##### SPS-CLASSIC-MINIMUM #####
-FROM shairport-sync-airplay-2-minimum-dev AS shairport-sync-classic-minimum
+FROM shairport-sync-classic-minimum-dev AS shairport-sync-classic-minimum
 ARG SHAIRPORT_SYNC_BRANCH
 WORKDIR /shairport-sync-classic-minimum
 COPY . .
@@ -83,8 +89,135 @@ RUN DESTDIR=install make install
 WORKDIR /
 ##### SPS-CLASSIC-MINIMUM END #####
 
+##### SPS-CLASSIC-MAXIMUM #####
+FROM shairport-sync-classic-minimum-dev AS shairport-sync-classic-maximum
+RUN apt-get install -y   --no-install-recommends \
+  libglib2.0-dev libsndfile1-dev libpipewire-0.3-dev libsndio-dev libpulse-dev libmosquitto-dev
+ARG SHAIRPORT_SYNC_BRANCH
+WORKDIR /shairport-sync-classic-maximum
+COPY . .
+RUN rm -rf build
+# the above three lines or the following...
+# RUN git clone --depth=1 -b "SHAIRPORT_SYNC_BRANCH" https://github.com/mikebrady/sps-private shairport-sync
+
+# RUN git checkout "$SHAIRPORT_SYNC_BRANCH"
+# the following is to remove any build directory that might be there
+# not needed if the source is a clone of the repository
+# RUN rm -rf build
+WORKDIR /shairport-sync-classic-maximum/build
+RUN autoreconf -i ../
+RUN ../configure --sysconfdir=/etc --with-alsa --with-pulseaudio --with-soxr --with-avahi --with-ssl=openssl \
+        --with-metadata --with-metadata-pipe --with-metadata-multicast \
+        --with-dummy --with-pipe --with-dbus-interface \
+        --with-stdout --with-mpris-interface --with-mqtt-client \
+        --with-convolution --with-pipewire \
+         --with-systemd-install
+RUN make -j$(nproc)
+RUN DESTDIR=install make install
+WORKDIR /
+##### SPS-CLASSIC-MAXIMUM END #####
+
+
+##### SPS-CLASSIC-MAXIMUM-FFMPEG #####
+FROM shairport-sync-classic-minimum-dev AS shairport-sync-classic-maximum-ffmpeg
+RUN apt-get install -y \
+  libglib2.0-dev libsndfile1-dev libpipewire-0.3-dev libsndio-dev libpulse-dev libmosquitto-dev \
+  libavutil-dev libavcodec-dev libavformat-dev
+ARG SHAIRPORT_SYNC_BRANCH
+WORKDIR /shairport-sync-classic-maximum-ffmpeg
+COPY . .
+RUN rm -rf build
+# the above three lines or the following...
+# RUN git clone --depth=1 -b "SHAIRPORT_SYNC_BRANCH" https://github.com/mikebrady/sps-private shairport-sync
+
+# RUN git checkout "$SHAIRPORT_SYNC_BRANCH"
+# the following is to remove any build directory that might be there
+# not needed if the source is a clone of the repository
+# RUN rm -rf build
+WORKDIR /shairport-sync-classic-maximum-ffmpeg/build
+RUN autoreconf -i ../
+RUN ../configure --sysconfdir=/etc --with-alsa --with-pulseaudio --with-soxr --with-avahi --with-ssl=openssl \
+        --with-ffmpeg --with-metadata --with-metadata-pipe --with-metadata-multicast \
+        --with-dummy --with-pipe --with-dbus-interface \
+        --with-stdout --with-mpris-interface --with-mqtt-client \
+        --with-convolution --with-pipewire \
+         --with-systemd-install
+RUN make -j$(nproc)
+RUN DESTDIR=install make install
+WORKDIR /
+##### SPS-CLASSIC-MAXIMUM END #####
+
+##### SPS-CLASSIC-MINIMUM-METADATA #####
+FROM shairport-sync-classic-minimum-dev AS shairport-sync-classic-minimum-metadata
+ARG SHAIRPORT_SYNC_BRANCH
+WORKDIR /shairport-sync-classic-minimum-metadata
+COPY . .
+RUN rm -rf build
+# the above three lines or the following...
+# RUN git clone --depth=1 -b "SHAIRPORT_SYNC_BRANCH" https://github.com/mikebrady/sps-private shairport-sync
+
+# RUN git checkout "$SHAIRPORT_SYNC_BRANCH"
+# the following is to remove any build directory that might be there
+# not needed if the source is a clone of the repository
+# RUN rm -rf build
+WORKDIR /shairport-sync-classic-minimum-metadata/build
+RUN autoreconf -i ../
+RUN ../configure --sysconfdir=/etc --with-alsa --with-avahi --with-ssl=openssl --with-metadata --with-systemd-install
+RUN make -j$(nproc)
+RUN DESTDIR=install make install
+WORKDIR /
+##### SPS-CLASSIC-MINIMUM-METADATA END #####
+
+##### SPS-CLASSIC-DBUS #####
+FROM shairport-sync-classic-minimum-dev AS shairport-sync-classic-dbus
+RUN apt-get install -y   --no-install-recommends \
+  libglib2.0-dev
+ARG SHAIRPORT_SYNC_BRANCH
+WORKDIR /shairport-sync-classic-dbus
+COPY . .
+RUN rm -rf build
+# the above three lines or the following...
+# RUN git clone --depth=1 -b "SHAIRPORT_SYNC_BRANCH" https://github.com/mikebrady/sps-private shairport-sync
+
+# RUN git checkout "$SHAIRPORT_SYNC_BRANCH"
+# the following is to remove any build directory that might be there
+# not needed if the source is a clone of the repository
+# RUN rm -rf build
+WORKDIR /shairport-sync-classic-dbus/build
+RUN autoreconf -i ../
+RUN ../configure --sysconfdir=/etc --with-alsa --with-avahi --with-ssl=openssl --with-dbus --with-systemd-install
+RUN make -j$(nproc)
+RUN DESTDIR=install make install
+WORKDIR /
+##### SPS-CLASSIC-DBUS #####
+
+##### SPS-CLASSIC-MPRIS #####
+FROM shairport-sync-classic-minimum-dev AS shairport-sync-classic-mpris
+RUN apt-get install -y   --no-install-recommends \
+  libglib2.0-dev
+ARG SHAIRPORT_SYNC_BRANCH
+WORKDIR /shairport-sync-classic-mpris
+COPY . .
+RUN rm -rf build
+# the above three lines or the following...
+# RUN git clone --depth=1 -b "SHAIRPORT_SYNC_BRANCH" https://github.com/mikebrady/sps-private shairport-sync
+
+# RUN git checkout "$SHAIRPORT_SYNC_BRANCH"
+# the following is to remove any build directory that might be there
+# not needed if the source is a clone of the repository
+# RUN rm -rf build
+WORKDIR /shairport-sync-classic-mpris/build
+RUN autoreconf -i ../
+RUN ../configure --sysconfdir=/etc --with-alsa --with-avahi --with-ssl=openssl --with-mpris --with-systemd-install
+RUN make -j$(nproc)
+RUN DESTDIR=install make install
+WORKDIR /
+##### SPS-CLASSIC-MPRIS #####
+
 ##### SPS-CLASSIC-FFMPEG-MINIMUM #####
-FROM shairport-sync-airplay-2-minimum-dev AS shairport-sync-classic-ffmpeg-minimum
+FROM shairport-sync-classic-minimum-dev AS shairport-sync-classic-ffmpeg-minimum
+RUN apt-get install -y \
+  libavutil-dev libavcodec-dev libavformat-dev
 ARG SHAIRPORT_SYNC_BRANCH
 WORKDIR /shairport-sync-classic-ffmpeg-minimum
 COPY . .
