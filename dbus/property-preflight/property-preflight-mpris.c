@@ -187,37 +187,10 @@ static gint64 property_preflight_mpris_estimate_position_microseconds(void) {
 #endif
 
     if (using_progress_string != 0) {
+      // A playing state of 2 seems to mean "not really playing" even if audio (probably silence)
+      // is coming through from the player.
       if ((principal_conn->input_rate != 0) && (metadata_store.npi.playing_state != 2) &&
           (metadata_store.progress_string != NULL)) {
-        // Use the information in the progress string to estimate the position.
-        // But there is a wrinkle.
-        // When an iOS device connects over a Classic stream,
-        // it _may_ start playing silence, without playing the track.
-        // In that cases, we can't use the rtp_timestamp of the output to update position.
-        // So, we have to figure out how to distinguish this playing activity -- playing silence --
-        // from playing the track.
-
-        // The following seems to be true:
-        // When a connection is made form an iOS device,
-        // then, when a progress string arrives before
-        // a metadata bundle, it should be ignored.
-        // It does not always indicate the static position of the track.
-        // It does not signal that the track is playing.
-
-        // A progress string that arrives after a metadata bundle indicates the
-        // position of the track and that the track is playing.
-        // So that's what the three states of PROGRESS_STRING_VALIDATE are for:
-        // checking that the progress string is one that has come after a metadata bundle.
-
-        // That first progress string is not reliable, so we'll settle for zero frames played.
-        // otherwise, it kinda should be:
-        // metadata_store.progress_current_timestamp - metadata_store.progress_first_timestamp;
-
-        // If we haven't seen a metadata bundle yet, the track isn't actually playing.
-        // If we have seen a metadata bundle, we need to wait for a subsequent
-        // progress string to indicate that play has started...
-        // (Even though the iOS player might actually be actually sending frames of silence
-        // to Shairport Sync -- see the longer comment above.
 
         int32_t frames_total =
             metadata_store.progress_last_timestamp - metadata_store.progress_first_timestamp;
@@ -244,13 +217,15 @@ static gint64 property_preflight_mpris_estimate_position_microseconds(void) {
       }
     } else {
       // Using the plist information.
-      // If Shairport Sync is playing, add the play time to the stored elapsed time.
-      if (metadata_store.npi.play_start_time.valid) {
-        position = get_absolute_time_in_ns() - metadata_store.npi.play_start_time.value;
+      // If Shairport Sync is playing, start with the play time since the NowPlayingInfoTimestamp.
+      if (metadata_store.npi.nowPlayingInfoTimestamp.valid) {
+        position = get_absolute_time_in_ns() - metadata_store.npi.nowPlayingInfoTimestamp.value;
       } else {
-        position = 0;
+        // Otherwise, add the stored subsequent elapsed time
+        position = metadata_store.npi.nowPlayingInfoSubsequentElapsedTime;
       }
-      position += metadata_store.npi.elapsed_time_ns;
+      // add in the elapsed time recorded in the nowPlayingInfo bundle
+      position += metadata_store.npi.nowPlayingInfoPriorElapsedTime;
       position /= 1000; // to microseconds
     }
   }
