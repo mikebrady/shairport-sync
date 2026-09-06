@@ -25,6 +25,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <plist/plist.h>
 #include "metadata_hub_handle_command_plist.h"
 #include "common.h"
 #include "core.h"
@@ -70,8 +71,6 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
     if (command_type != NULL) {
       char *command_type_string = NULL;
       plist_get_string_val(command_type, &command_type_string);
-      // debug(1, "Connection %d: POST /command plist type \"%s\" received.",
-      // conn->connection_number, command_type_string); debug_log_rtsp_message(1, NULL, req);
       if (command_type_string != NULL) {
         if (strcmp(command_type_string, "updateMRNowPlayingInfo") == 0) {
           plist_t command_params = plist_dict_get_item(command_dict, "params");
@@ -83,6 +82,7 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
               if (command_params_type_string != NULL) {
                 if (strcmp(command_params_type_string, "npi-text") == 0) {
                   int merge_policy_is_replace = 0;
+
                   int metadata_changed =
                       1; // we can't easily tell if the metadata is changing, unfortunately.
                   // debug(1, "updateMRNowPlayingInfo");
@@ -243,23 +243,73 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
                       metadata_changed |= update_uint64_record(
                           &metadata_store.npi.songtime_in_microseconds, (uint64_t)(duration));
                     }
+                    
+                    
 
-                    // look for the elapsed time on the current track at this time
-                    plist_t elapsed_time_item = plist_dict_get_item(
-                        metadata_store.npi.npi_plist, "kMRMediaRemoteNowPlayingInfoElapsedTime");
-                    if (elapsed_time_item != NULL) {
-                      double elapsed_time = 0.0;
-                      plist_get_real_val(elapsed_time_item,
-                                         &elapsed_time); // we should have a figure for elapsed time
-                      uint64_t local_elapsed_time_ns = (uint64_t)(elapsed_time * 1E9);
-                      metadata_store.npi.elapsed_time_ns = local_elapsed_time_ns;
+        
+                    double playback_rate = 0.0;
+                    // look for the playback rate, to check it's actually playing
+                    plist_t playback_rate_item = plist_dict_get_item(
+                        metadata_store.npi.npi_plist, "kMRMediaRemoteNowPlayingInfoPlaybackRate");
+                    if (playback_rate_item != NULL) {
+                      
+                      plist_get_real_val(playback_rate_item,
+                                         &playback_rate);
+                    }
+                    // if the playback rate is 0, we will ignore the other data -- it seems to be unreliable
 
-                      // Set the time at which playing was considered to start to
-                      // the time at which this message was received.
-                      debug(4, "Setting start time, and setting it valid to indicate that play has "
-                               "started");
-                      update_uint64_record(&metadata_store.npi.play_start_time,
-                                           get_absolute_time_in_ns());
+                    if (playback_rate > 0) {
+
+                      // look for the timestamp for this item
+                      plist_t timestamp_item = plist_dict_get_item(
+                        metadata_store.npi.npi_plist, "kMRMediaRemoteNowPlayingInfoTimestamp");
+                      
+                      // must have a timestamp
+                      if (timestamp_item != NULL) {
+#ifdef HAVE_LIBPLIST_GE_2_7_0
+                        debug(1, "TODO: get timestamp from plist");
+#else                    
+                        uint32_t sec = 0, usec = 0;
+                        plist_get_date_val(timestamp_item, (int32_t*)&sec, (int32_t*)&usec);
+                        uint64_t info_timestamp = sec;
+                        info_timestamp = info_timestamp * 1000000;
+                        info_timestamp = info_timestamp + usec;
+                        info_timestamp = info_timestamp * 1000; // nanoseconds
+#endif                        
+                        info_timestamp = info_timestamp  - metadata_store.localTimeToAppleTimeOffset.value; // convert to local time ns
+                        metadata_store.npi.nowPlayingInfoTimestamp.value = info_timestamp;
+                        metadata_store.npi.nowPlayingInfoTimestamp.valid = 1; // indicates that the system is playing
+                        metadata_store.npi.nowPlayingInfoPriorElapsedTime = 0;
+                        metadata_store.npi.nowPlayingInfoSubsequentElapsedTime = 0;
+
+                        // look for the elapsed time on the current track at this time
+                        plist_t elapsed_time_item = plist_dict_get_item(
+                            metadata_store.npi.npi_plist, "kMRMediaRemoteNowPlayingInfoElapsedTime");
+                        // must have elapsed time
+                        if (elapsed_time_item != NULL) {
+                          double elapsed_time = 0.0;
+                          plist_get_real_val(elapsed_time_item, &elapsed_time); // we should have a figure for elapsed time
+                          if (elapsed_time < 0) {
+                            debug(1, "negative priot elapsed time -- set to zero.");
+                            metadata_store.npi.nowPlayingInfoPriorElapsedTime = 0;
+                          } else {
+                            metadata_store.npi.nowPlayingInfoPriorElapsedTime = (uint64_t)(elapsed_time * 1E9);               
+                          }
+                          
+                          /*
+                          // now we have the start time in apple absolute time nanoseconds
+                          // we need to convert them to local absolute time
+                          uint64_t local_start_time_ns = start_play_time.value - metadata_store.localTimeToAppleTimeOffset.value;
+                          
+                          int64_t difference_to_now_ns = local_start_time_ns - get_absolute_time_in_ns();
+                          if (difference_to_now_ns < 0) {
+                            debug(1, "start of play was %g seconds ago. Offset is %g. Playback rate is %g.", -(difference_to_now_ns * 1E-9), elapsed_time, playback_rate);
+                          } else {
+                            debug(1, "start of play is %g seconds from now. Offset is %g. Playback rate is %g.", difference_to_now_ns * 1E-9, elapsed_time, playback_rate);
+                          }
+                          */
+                        }
+                      }
                     }
                   }
 
