@@ -266,16 +266,19 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
                       
                       // must have a timestamp
                       if (timestamp_item != NULL) {
+                        uint64_t info_timestamp = 0;
+                        uint32_t usec = 0;
 #ifdef HAVE_LIBPLIST_GE_2_7_0
-                        debug(1, "TODO: get timestamp from plist");
-#else                    
-                        uint32_t sec = 0, usec = 0;
+                        plist_get_unix_date_val(timestamp_item, (int64_t*)&info_timestamp);
+                        info_timestamp = info_timestamp - 978307200;
+#else                   
+                        uint32_t sec = 0; 
                         plist_get_date_val(timestamp_item, (int32_t*)&sec, (int32_t*)&usec);
-                        uint64_t info_timestamp = sec;
+                        info_timestamp = sec;
+#endif                        
                         info_timestamp = info_timestamp * 1000000;
                         info_timestamp = info_timestamp + usec;
                         info_timestamp = info_timestamp * 1000; // nanoseconds
-#endif                        
                         info_timestamp = info_timestamp  - metadata_store.localTimeToAppleTimeOffset.value; // convert to local time ns
                         metadata_store.npi.nowPlayingInfoTimestamp.value = info_timestamp;
                         metadata_store.npi.nowPlayingInfoTimestamp.valid = 1; // indicates that the system is playing
