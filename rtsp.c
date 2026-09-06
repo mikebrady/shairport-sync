@@ -55,6 +55,7 @@
 #include "config.h"
 #include "utilities/network_utilities.h"
 #include "utilities/rtsp_message_utilities.h"
+#include "utilities/string_utilities.h"
 
 #ifdef CONFIG_OPENSSL
 #include <openssl/evp.h>
@@ -1529,6 +1530,7 @@ void handle_post(rtsp_conn_info *conn, rtsp_message *req,
 #endif
 
 #ifdef CONFIG_AIRPLAY_2
+
 struct pairings {
   char device_id[PAIR_AP_DEVICE_ID_LEN_MAX];
   uint8_t public_key[32];
@@ -1607,13 +1609,6 @@ static void pairing_list_cb(pair_cb enum_cb, void *enum_cb_arg,
 
 void handle_pair_add(rtsp_conn_info *conn __attribute__((unused)), rtsp_message *req,
                      rtsp_message *resp) {
-
-  char *hdr = msg_get_header(req, "X-Apple-Client-Name");
-  if (hdr) {
-    if (conn->ap2_client_name)
-      free(conn->ap2_client_name);
-    conn->ap2_client_name = strdup(hdr);
-  }
   debug(1, "Connection %d from \"%s\": handle_pair_add", conn->connection_number,
         conn->ap2_client_name);
   debug_log_rtsp_message_conn(conn, 1, "pair-add request", req);
@@ -1634,12 +1629,6 @@ void handle_pair_add(rtsp_conn_info *conn __attribute__((unused)), rtsp_message 
 
 void handle_pair_list(rtsp_conn_info *conn __attribute__((unused)), rtsp_message *req,
                       rtsp_message *resp) {
-  char *hdr = msg_get_header(req, "X-Apple-Client-Name");
-  if (hdr) {
-    if (conn->ap2_client_name)
-      free(conn->ap2_client_name);
-    conn->ap2_client_name = strdup(hdr);
-  }
   debug(1, "Connection %d from \"%s\": handle_pair_list", conn->connection_number,
         conn->ap2_client_name);
   uint8_t *body = NULL;
@@ -1659,13 +1648,6 @@ void handle_pair_list(rtsp_conn_info *conn __attribute__((unused)), rtsp_message
 
 void handle_pair_remove(rtsp_conn_info *conn __attribute__((unused)), rtsp_message *req,
                         rtsp_message *resp) {
-
-  char *hdr = msg_get_header(req, "X-Apple-Client-Name");
-  if (hdr) {
-    if (conn->ap2_client_name)
-      free(conn->ap2_client_name);
-    conn->ap2_client_name = strdup(hdr);
-  }
   debug(1, "Connection %d from \"%s\": handle_pair_remove", conn->connection_number,
         conn->ap2_client_name);
   uint8_t *body = NULL;
@@ -1684,12 +1666,6 @@ void handle_pair_remove(rtsp_conn_info *conn __attribute__((unused)), rtsp_messa
 }
 
 void handle_pair_verify(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
-  char *hdr = msg_get_header(req, "X-Apple-Client-Name");
-  if (hdr) {
-    if (conn->ap2_client_name)
-      free(conn->ap2_client_name);
-    conn->ap2_client_name = strdup(hdr);
-  }
   // try to pick up the stages
   uint8_t *b = (uint8_t *)req->content;
   char mstage = '-';
@@ -1750,13 +1726,6 @@ out:
 }
 
 void handle_pair_pin_start(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
-
-  char *hdr = msg_get_header(req, "X-Apple-Client-Name");
-  if (hdr) {
-    if (conn->ap2_client_name)
-      free(conn->ap2_client_name);
-    conn->ap2_client_name = strdup(hdr);
-  }
   debug(4, "Connection %d from \"%s\": handle_pair_pin_start, Content-Length %d",
         conn->connection_number, conn->ap2_client_name, req->contentlength);
   debug_log_rtsp_message_conn(conn, 4, "handle_pair_pin_start", req);
@@ -1772,13 +1741,6 @@ void handle_pair_pin_start(rtsp_conn_info *conn, rtsp_message *req, rtsp_message
 }
 
 void handle_pair_setup(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
-
-  char *hdr = msg_get_header(req, "X-Apple-Client-Name");
-  if (hdr) {
-    if (conn->ap2_client_name)
-      free(conn->ap2_client_name);
-    conn->ap2_client_name = strdup(hdr);
-  }
   debug(4, "Connection %d from \"%s\": handle_pair_setup, Content-Length %d",
         conn->connection_number, conn->ap2_client_name, req->contentlength);
   debug_log_rtsp_message_conn(conn, 4, "pair-setup request", req);
@@ -1843,13 +1805,6 @@ out:
 
 void handle_fp_setup(__attribute__((unused)) rtsp_conn_info *conn, rtsp_message *req,
                      rtsp_message *resp) {
-
-  char *hdr = msg_get_header(req, "X-Apple-Client-Name");
-  if (hdr) {
-    if (conn->ap2_client_name)
-      free(conn->ap2_client_name);
-    conn->ap2_client_name = strdup(hdr);
-  }
   debug(2, "Connection %d from \"%s\": handle_fp_setup,", conn->connection_number,
         conn->ap2_client_name);
   debug_log_rtsp_message_conn(conn, 2, "fp-setup request", req);
@@ -2123,6 +2078,30 @@ void handle_audio_mode(rtsp_conn_info *conn, rtsp_message *req,
 
 void handle_post(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
   resp->respcode = 200;
+  
+  char *hdr = msg_get_header(req, "X-Apple-AbsoluteTime");
+  if (hdr) {
+    // We will calculate the offset between local absolute time and appleAbsoluteTime
+    // in nanoseconds and send it as metadata so that it lands in the metadata hub
+    // where it can be used later
+    uint64_t localTimeToAppleAbsoluteTimeOffset = 0;
+    if (parse_u64(hdr,&localTimeToAppleAbsoluteTimeOffset) == 0) {
+      debug(4, "Apple Absolute Time is %" PRIu64 ".", localTimeToAppleAbsoluteTimeOffset);
+      // given that these seconds are from the Unix Epoch or the Mac/Cocoa Epoch,
+      // this won't overflow until the year 2554 at the earliest.
+      localTimeToAppleAbsoluteTimeOffset = localTimeToAppleAbsoluteTimeOffset * (uint64_t)1000000000;
+      localTimeToAppleAbsoluteTimeOffset = localTimeToAppleAbsoluteTimeOffset - get_absolute_time_in_ns();
+      // send to the hub...
+      debug(4, "AATX of %" PRIu64 " sent to metadata.", localTimeToAppleAbsoluteTimeOffset);
+      send_ssnc_metadata('aatx', (const char *)&localTimeToAppleAbsoluteTimeOffset, sizeof(uint64_t), 1);
+    }
+  }
+  hdr = msg_get_header(req, "X-Apple-Client-Name");
+  if (hdr) {
+    if (conn->ap2_client_name)
+      free(conn->ap2_client_name);
+    conn->ap2_client_name = strdup(hdr);
+  }
   if (strcmp(req->path, "/pair-setup") == 0) {
     handle_pair_setup(conn, req, resp);
   } else if (strcmp(req->path, "/pair-verify") == 0) {
@@ -2524,7 +2503,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
                         conn->connection_number);
                 }
               } else {
-                debug(1, "SETUP on Connection %d: Can't find timingPeerInfo addresses",
+                debug(2, "SETUP on Connection %d: Can't find timingPeerInfo addresses",
                       conn->connection_number);
               }
               // make up the timing peer info list part of the response...
@@ -4154,9 +4133,6 @@ static void *rtsp_conversation_thread_func(void *pconn) {
   while (conn->stop == 0) {
     pthread_testcancel();
     int debug_level = 4; // for printing the request and response
-
-    // check to see if a conn has been zeroed
-
     pthread_mutex_lock(&conns_lock);
     int i;
     for (i = 0; i < nconns; i++) {
