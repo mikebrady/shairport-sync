@@ -392,9 +392,9 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     switch (code) {
     case 'caps': {
       // get the one-byte number as an unsigned number
-      debug(4, "MH Player State seen: \"%d\" of length %u.", (unsigned)data[0], length);
+      debug(1, "MH Playing State seen: \"%d\" of length %u.", (unsigned)data[0], length);
       if (((unsigned)metadata_store.npi.playing_state != (unsigned)data[0])) {
-        debug(4, ">> MH playing state changine from %d to %d.", metadata_store.npi.playing_state,
+        debug(4, ">> MH playing state changing from %d to %d.", metadata_store.npi.playing_state,
               (unsigned)data[0]);
         metadata_store.npi.playing_state = (unsigned)data[0];
         new_npi.playing_state = (unsigned)data[0];
@@ -549,7 +549,27 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     }
   } else if (type == 'ssnc') {
     switch (code) {
+    case 'aatx': // apple absolute time offset from local time in nanoseconds
+      uint64_t localTimeToAppleTimeOffset = 0;
+      if (metadata_store.localTimeToAppleTimeOffset.valid == 0) {
+        // the number is coming from this machine, so no ntoh or hton needed.
+        memcpy(&localTimeToAppleTimeOffset, data, sizeof(localTimeToAppleTimeOffset));
+        metadata_store.localTimeToAppleTimeOffset.value = localTimeToAppleTimeOffset;
+        metadata_store.localTimeToAppleTimeOffset.valid = 1;
+      }
+        /*
+        // diagnostic...
+        uint64_t appleAbsoluteTime = metadata_store.localTimeToAppleTimeOffset.value + get_absolute_time_in_ns();
+        appleAbsoluteTime = appleAbsoluteTime / (uint64_t)1000000000;
+        debug(1, "AATX of %" PRIu64 " received. Apple Absolute Time is now: %" PRIu64 ".", localTimeToAppleTimeOffset, appleAbsoluteTime);
+        */
+             
+      break;
+    // ignore the following
+
     case 'conn': // a new connection -- some things might need to be reset
+      
+      metadata_hub_reset_npi(&metadata_store.npi);
       invalidate_string_record(&metadata_store.progress_string);
       metadata_store.progress_first_timestamp = 0;
       metadata_store.progress_current_timestamp = 0;
@@ -690,16 +710,17 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       break;
     case 'pend':
 #ifdef CONFIG_AIRPLAY_2
-      // calculate added play time when play stops (typically AirPlay 2 Realtime Stream)
-      if (metadata_store.npi.play_start_time.valid) {
+      // calculate added play time when play ends (typically AirPlay 2 Buffered Stream)
+      if (metadata_store.npi.nowPlayingInfoTimestamp.valid) {
         uint64_t playing_time =
-            get_absolute_time_in_ns() - metadata_store.npi.play_start_time.value;
-        metadata_store.npi.elapsed_time_ns += playing_time;
-        debug(4, "pend updating elapsed time to %g.", 1E-9 * metadata_store.npi.elapsed_time_ns);
+            get_absolute_time_in_ns() - metadata_store.npi.nowPlayingInfoTimestamp.value;
+        metadata_store.npi.nowPlayingInfoSubsequentElapsedTime = playing_time;
+        debug(4, "play end setting nowPlayingInfoSubsequentElapsedTime to: %g.",
+              1E-9 * metadata_store.npi.nowPlayingInfoSubsequentElapsedTime);
       }
-      metadata_store.npi.play_start_time.valid = 0;
-      // play has stopped, so we can invalidate the start time
+      // play has stopped, so we can invalidate the timestamp time
       // to signal that Shairport Sync is not playing
+      metadata_store.npi.nowPlayingInfoTimestamp.valid = 0;
 #endif
       changed = ((metadata_store.player_state != PS_STOPPED) ||
                  (metadata_store.player_thread_active == 1));
@@ -709,16 +730,16 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     case 'paus':
 #ifdef CONFIG_AIRPLAY_2
       // calculate added play time when play pauses (typically AirPlay 2 Buffered Stream)
-      if (metadata_store.npi.play_start_time.valid) {
+      if (metadata_store.npi.nowPlayingInfoTimestamp.valid) {
         uint64_t playing_time =
-            get_absolute_time_in_ns() - metadata_store.npi.play_start_time.value;
-        metadata_store.npi.elapsed_time_ns += playing_time;
-        debug(4, "anchor pause updating elapsed time to %g.",
-              1E-9 * metadata_store.npi.elapsed_time_ns);
+            get_absolute_time_in_ns() - metadata_store.npi.nowPlayingInfoTimestamp.value;
+        metadata_store.npi.nowPlayingInfoSubsequentElapsedTime = playing_time;
+        debug(4, "anchor pause setting nowPlayingInfoSubsequentElapsedTime to: %g.",
+              1E-9 * metadata_store.npi.nowPlayingInfoSubsequentElapsedTime);
       }
-      metadata_store.npi.play_start_time.valid = 0;
-      // play has paused, so we can invalidate the start time
+      // play has paused, so we can invalidate the timestamp time
       // to signal that Shairport Sync is not playing
+      metadata_store.npi.nowPlayingInfoTimestamp.valid = 0;
 #endif
       changed = (metadata_store.player_state != PS_PAUSED);
       metadata_store.player_state = PS_PAUSED;
@@ -846,8 +867,9 @@ void metadata_hub_reset_npi(metadata_npi_bundle *npi) {
   npi->songtime_in_microseconds.valid = 0;
   npi->playing_state = 0;
 #ifdef CONFIG_AIRPLAY_2
-  npi->play_start_time.valid = 0;
-  npi->elapsed_time_ns = 0;
+  // npi->nowPlayingInfoTimestamp.valid = 0;
+  // npi->nowPlayingInfoPriorElapsedTime = 0;
+  // npi->nowPlayingInfoSubsequentElapsedTime = 0;
   if (npi->npi_plist != NULL) {
     plist_free(npi->npi_plist);
     npi->npi_plist = NULL;
