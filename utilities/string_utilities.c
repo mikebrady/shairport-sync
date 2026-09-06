@@ -192,3 +192,37 @@ char *service_name(const char *raw_service_name) {
   free(vs);
   return response;
 }
+
+int parse_u64(const char *str, uint64_t *out) {
+    if (str == NULL || *str == '\0') {
+        return -1; /* empty input */
+    }
+
+    errno = 0;
+    char *endptr;
+    uintmax_t val = strtoumax(str, &endptr, 10);
+
+    /* No digits parsed at all */
+    if (endptr == str) {
+        return -1;
+    }
+
+    /* Trailing junk after the number (allow trailing whitespace if you like) */
+    if (*endptr != '\0') {
+        return -1;
+    }
+
+    /* Overflow of uintmax_t itself */
+    if (errno == ERANGE) {
+        return -1;
+    }
+
+    /* Fits in uintmax_t but too big for uint64_t (only matters if
+       uintmax_t is wider than 64 bits on some exotic platform) */
+    if (val > UINT64_MAX) {
+        return -1;
+    }
+
+    *out = (uint64_t)val;
+    return 0;
+}
