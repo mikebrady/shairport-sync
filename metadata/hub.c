@@ -550,8 +550,8 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
   } else if (type == 'ssnc') {
     switch (code) {
     case 'aatx': // apple absolute time offset from local time in nanoseconds
-      uint64_t localTimeToAppleTimeOffset = 0;
       if (metadata_store.localTimeToAppleTimeOffset.valid == 0) {
+        uint64_t localTimeToAppleTimeOffset = 0;
         // the number is coming from this machine, so no ntoh or hton needed.
         memcpy(&localTimeToAppleTimeOffset, data, sizeof(localTimeToAppleTimeOffset));
         metadata_store.localTimeToAppleTimeOffset.value = localTimeToAppleTimeOffset;
