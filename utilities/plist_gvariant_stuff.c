@@ -133,13 +133,10 @@ static GVariant *plist_node_to_gvariant(plist_t node) {
 
   case PLIST_DATE: {
     int32_t sec = 0, usec = 0;
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
+#ifdef HAVE_LIBPLIST_GE_2_7_0
+    debug(1, "TODO: get timestamp from plist");
+#else                    
     plist_get_date_val(node, &sec, &usec);
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
 #endif
 
     // Apple/Cocoa epoch (2001-01-01T00:00:00Z) offset from Unix epoch.
