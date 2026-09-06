@@ -181,7 +181,8 @@ static gint64 property_preflight_mpris_estimate_position_microseconds(void) {
     // if we are playing an AirPlay 2 stream then
     // we will only use the progress strings if plists have been disabled
     // because the plist information is more reliable
-    if ((principal_conn->airplay_type == ap_2) && ((config.airplay_features & ((uint64_t)1 << 50)) != 0)) {
+    if ((principal_conn->airplay_type == ap_2) &&
+        ((config.airplay_features & ((uint64_t)1 << 50)) != 0)) {
       using_progress_string = 0;
     }
 #endif

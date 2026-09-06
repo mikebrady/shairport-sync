@@ -2078,22 +2078,25 @@ void handle_audio_mode(rtsp_conn_info *conn, rtsp_message *req,
 
 void handle_post(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
   resp->respcode = 200;
-  
+
   char *hdr = msg_get_header(req, "X-Apple-AbsoluteTime");
   if (hdr) {
     // We will calculate the offset between local absolute time and appleAbsoluteTime
     // in nanoseconds and send it as metadata so that it lands in the metadata hub
     // where it can be used later
     uint64_t localTimeToAppleAbsoluteTimeOffset = 0;
-    if (parse_u64(hdr,&localTimeToAppleAbsoluteTimeOffset) == 0) {
+    if (parse_u64(hdr, &localTimeToAppleAbsoluteTimeOffset) == 0) {
       debug(4, "Apple Absolute Time is %" PRIu64 ".", localTimeToAppleAbsoluteTimeOffset);
       // given that these seconds are from the Unix Epoch or the Mac/Cocoa Epoch,
       // this won't overflow until the year 2554 at the earliest.
-      localTimeToAppleAbsoluteTimeOffset = localTimeToAppleAbsoluteTimeOffset * (uint64_t)1000000000;
-      localTimeToAppleAbsoluteTimeOffset = localTimeToAppleAbsoluteTimeOffset - get_absolute_time_in_ns();
+      localTimeToAppleAbsoluteTimeOffset =
+          localTimeToAppleAbsoluteTimeOffset * (uint64_t)1000000000;
+      localTimeToAppleAbsoluteTimeOffset =
+          localTimeToAppleAbsoluteTimeOffset - get_absolute_time_in_ns();
       // send to the hub...
       debug(4, "AATX of %" PRIu64 " sent to metadata.", localTimeToAppleAbsoluteTimeOffset);
-      send_ssnc_metadata('aatx', (const char *)&localTimeToAppleAbsoluteTimeOffset, sizeof(uint64_t), 1);
+      send_ssnc_metadata('aatx', (const char *)&localTimeToAppleAbsoluteTimeOffset,
+                         sizeof(uint64_t), 1);
     }
   }
   hdr = msg_get_header(req, "X-Apple-Client-Name");

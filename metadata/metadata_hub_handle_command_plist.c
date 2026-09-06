@@ -25,12 +25,12 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <plist/plist.h>
 #include "metadata_hub_handle_command_plist.h"
 #include "common.h"
 #include "core.h"
 #include "hub.h"
 #include "utilities/rtsp_message_utilities.h"
+#include <plist/plist.h>
 
 // merge items in the second plist into the first
 
@@ -243,72 +243,77 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
                       metadata_changed |= update_uint64_record(
                           &metadata_store.npi.songtime_in_microseconds, (uint64_t)(duration));
                     }
-                    
-                    
 
-        
                     double playback_rate = 0.0;
                     // look for the playback rate, to check it's actually playing
                     plist_t playback_rate_item = plist_dict_get_item(
                         metadata_store.npi.npi_plist, "kMRMediaRemoteNowPlayingInfoPlaybackRate");
                     if (playback_rate_item != NULL) {
-                      
-                      plist_get_real_val(playback_rate_item,
-                                         &playback_rate);
+
+                      plist_get_real_val(playback_rate_item, &playback_rate);
                     }
-                    // if the playback rate is 0, we will ignore the other data -- it seems to be unreliable
+                    // if the playback rate is 0, we will ignore the other data -- it seems to be
+                    // unreliable
 
                     if (playback_rate > 0) {
 
                       // look for the timestamp for this item
                       plist_t timestamp_item = plist_dict_get_item(
-                        metadata_store.npi.npi_plist, "kMRMediaRemoteNowPlayingInfoTimestamp");
-                      
+                          metadata_store.npi.npi_plist, "kMRMediaRemoteNowPlayingInfoTimestamp");
+
                       // must have a timestamp
                       if (timestamp_item != NULL) {
                         uint64_t info_timestamp = 0;
                         uint32_t usec = 0;
 #ifdef HAVE_LIBPLIST_GE_2_7_0
-                        plist_get_unix_date_val(timestamp_item, (int64_t*)&info_timestamp);
+                        plist_get_unix_date_val(timestamp_item, (int64_t *)&info_timestamp);
                         info_timestamp = info_timestamp - 978307200;
-#else                   
-                        uint32_t sec = 0; 
-                        plist_get_date_val(timestamp_item, (int32_t*)&sec, (int32_t*)&usec);
+#else
+                        uint32_t sec = 0;
+                        plist_get_date_val(timestamp_item, (int32_t *)&sec, (int32_t *)&usec);
                         info_timestamp = sec;
-#endif                        
+#endif
                         info_timestamp = info_timestamp * 1000000;
                         info_timestamp = info_timestamp + usec;
                         info_timestamp = info_timestamp * 1000; // nanoseconds
-                        info_timestamp = info_timestamp  - metadata_store.localTimeToAppleTimeOffset.value; // convert to local time ns
+                        info_timestamp = info_timestamp - metadata_store.localTimeToAppleTimeOffset
+                                                              .value; // convert to local time ns
                         metadata_store.npi.nowPlayingInfoTimestamp.value = info_timestamp;
-                        metadata_store.npi.nowPlayingInfoTimestamp.valid = 1; // indicates that the system is playing
+                        metadata_store.npi.nowPlayingInfoTimestamp.valid =
+                            1; // indicates that the system is playing
                         metadata_store.npi.nowPlayingInfoPriorElapsedTime = 0;
                         metadata_store.npi.nowPlayingInfoSubsequentElapsedTime = 0;
 
                         // look for the elapsed time on the current track at this time
-                        plist_t elapsed_time_item = plist_dict_get_item(
-                            metadata_store.npi.npi_plist, "kMRMediaRemoteNowPlayingInfoElapsedTime");
+                        plist_t elapsed_time_item =
+                            plist_dict_get_item(metadata_store.npi.npi_plist,
+                                                "kMRMediaRemoteNowPlayingInfoElapsedTime");
                         // must have elapsed time
                         if (elapsed_time_item != NULL) {
                           double elapsed_time = 0.0;
-                          plist_get_real_val(elapsed_time_item, &elapsed_time); // we should have a figure for elapsed time
+                          plist_get_real_val(
+                              elapsed_time_item,
+                              &elapsed_time); // we should have a figure for elapsed time
                           if (elapsed_time < 0) {
                             debug(1, "negative priot elapsed time -- set to zero.");
                             metadata_store.npi.nowPlayingInfoPriorElapsedTime = 0;
                           } else {
-                            metadata_store.npi.nowPlayingInfoPriorElapsedTime = (uint64_t)(elapsed_time * 1E9);               
+                            metadata_store.npi.nowPlayingInfoPriorElapsedTime =
+                                (uint64_t)(elapsed_time * 1E9);
                           }
-                          
+
                           /*
                           // now we have the start time in apple absolute time nanoseconds
                           // we need to convert them to local absolute time
-                          uint64_t local_start_time_ns = start_play_time.value - metadata_store.localTimeToAppleTimeOffset.value;
-                          
-                          int64_t difference_to_now_ns = local_start_time_ns - get_absolute_time_in_ns();
-                          if (difference_to_now_ns < 0) {
-                            debug(1, "start of play was %g seconds ago. Offset is %g. Playback rate is %g.", -(difference_to_now_ns * 1E-9), elapsed_time, playback_rate);
-                          } else {
-                            debug(1, "start of play is %g seconds from now. Offset is %g. Playback rate is %g.", difference_to_now_ns * 1E-9, elapsed_time, playback_rate);
+                          uint64_t local_start_time_ns = start_play_time.value -
+                          metadata_store.localTimeToAppleTimeOffset.value;
+
+                          int64_t difference_to_now_ns = local_start_time_ns -
+                          get_absolute_time_in_ns(); if (difference_to_now_ns < 0) { debug(1, "start
+                          of play was %g seconds ago. Offset is %g. Playback rate is %g.",
+                          -(difference_to_now_ns * 1E-9), elapsed_time, playback_rate); } else {
+                            debug(1, "start of play is %g seconds from now. Offset is %g. Playback
+                          rate is %g.", difference_to_now_ns * 1E-9, elapsed_time, playback_rate);
                           }
                           */
                         }

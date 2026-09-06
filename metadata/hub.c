@@ -557,18 +557,19 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
         metadata_store.localTimeToAppleTimeOffset.value = localTimeToAppleTimeOffset;
         metadata_store.localTimeToAppleTimeOffset.valid = 1;
       }
-        /*
-        // diagnostic...
-        uint64_t appleAbsoluteTime = metadata_store.localTimeToAppleTimeOffset.value + get_absolute_time_in_ns();
-        appleAbsoluteTime = appleAbsoluteTime / (uint64_t)1000000000;
-        debug(1, "AATX of %" PRIu64 " received. Apple Absolute Time is now: %" PRIu64 ".", localTimeToAppleTimeOffset, appleAbsoluteTime);
-        */
-             
+      /*
+      // diagnostic...
+      uint64_t appleAbsoluteTime = metadata_store.localTimeToAppleTimeOffset.value +
+      get_absolute_time_in_ns(); appleAbsoluteTime = appleAbsoluteTime / (uint64_t)1000000000;
+      debug(1, "AATX of %" PRIu64 " received. Apple Absolute Time is now: %" PRIu64 ".",
+      localTimeToAppleTimeOffset, appleAbsoluteTime);
+      */
+
       break;
-    // ignore the following
+      // ignore the following
 
     case 'conn': // a new connection -- some things might need to be reset
-      
+
       metadata_hub_reset_npi(&metadata_store.npi);
       invalidate_string_record(&metadata_store.progress_string);
       metadata_store.progress_first_timestamp = 0;

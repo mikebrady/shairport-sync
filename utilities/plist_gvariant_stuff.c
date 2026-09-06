@@ -31,9 +31,9 @@
 
 #include <glib.h>
 #include <plist/plist.h>
+#include <stdio.h>
 #include <string.h>
 #include <time.h>
-#include <stdio.h>
 
 #include "plist_gvariant_stuff.h"
 
@@ -138,8 +138,8 @@ static GVariant *plist_node_to_gvariant(plist_t node) {
     int64_t sec_64 = 0;
     plist_get_unix_date_val(node, &sec_64);
     unix_sec = (time_t)sec_64;
-#else  
-    int32_t sec = 0;                
+#else
+    int32_t sec = 0;
     plist_get_date_val(node, &sec, &usec);
     unix_sec = (time_t)sec;
     // We need to move to the Unix Epoch to use the gmtime_r() function
