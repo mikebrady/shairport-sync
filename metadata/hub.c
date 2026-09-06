@@ -549,6 +549,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     }
   } else if (type == 'ssnc') {
     switch (code) {
+#ifdef CONFIG_AIRPLAY_2
     case 'aatx': // apple absolute time offset from local time in nanoseconds
       if (metadata_store.localTimeToAppleTimeOffset.valid == 0) {
         uint64_t localTimeToAppleTimeOffset = 0;
@@ -564,10 +565,8 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       debug(1, "AATX of %" PRIu64 " received. Apple Absolute Time is now: %" PRIu64 ".",
       localTimeToAppleTimeOffset, appleAbsoluteTime);
       */
-
       break;
-      // ignore the following
-
+#endif
     case 'conn': // a new connection -- some things might need to be reset
 
       metadata_hub_reset_npi(&metadata_store.npi);

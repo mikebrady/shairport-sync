@@ -216,7 +216,10 @@ static gint64 property_preflight_mpris_estimate_position_microseconds(void) {
           position = position / principal_conn->input_rate;
         }
       }
-    } else {
+    } 
+    
+#ifdef CONFIG_AIRPLAY_2    
+    else {
       // Using the plist information.
       // If Shairport Sync is playing, start with the play time since the NowPlayingInfoTimestamp.
       if (metadata_store.npi.nowPlayingInfoTimestamp.valid) {
@@ -229,6 +232,8 @@ static gint64 property_preflight_mpris_estimate_position_microseconds(void) {
       position += metadata_store.npi.nowPlayingInfoPriorElapsedTime;
       position /= 1000; // to microseconds
     }
+#endif
+
   }
   pthread_cleanup_pop(1); // release the principal_conn lock
   return position;

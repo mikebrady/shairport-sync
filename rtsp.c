@@ -2079,7 +2079,16 @@ void handle_audio_mode(rtsp_conn_info *conn, rtsp_message *req,
 void handle_post(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
   resp->respcode = 200;
 
-  char *hdr = msg_get_header(req, "X-Apple-AbsoluteTime");
+  char *hdr = msg_get_header(req, "X-Apple-Client-Name");
+  if (hdr) {
+    if (conn->ap2_client_name)
+      free(conn->ap2_client_name);
+    conn->ap2_client_name = strdup(hdr);
+  }
+  
+#ifdef CONFIG_AIRPLAY_2
+#ifdef CONFIG_METADATA
+  hdr = msg_get_header(req, "X-Apple-AbsoluteTime");
   if (hdr) {
     // We will calculate the offset between local absolute time and appleAbsoluteTime
     // in nanoseconds and send it as metadata so that it lands in the metadata hub
@@ -2099,12 +2108,9 @@ void handle_post(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
                          sizeof(uint64_t), 1);
     }
   }
-  hdr = msg_get_header(req, "X-Apple-Client-Name");
-  if (hdr) {
-    if (conn->ap2_client_name)
-      free(conn->ap2_client_name);
-    conn->ap2_client_name = strdup(hdr);
-  }
+#endif
+#endif
+   
   if (strcmp(req->path, "/pair-setup") == 0) {
     handle_pair_setup(conn, req, resp);
   } else if (strcmp(req->path, "/pair-verify") == 0) {
