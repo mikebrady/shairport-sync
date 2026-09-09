@@ -2525,7 +2525,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
                         conn->connection_number);
                 }
               } else {
-                debug(1, "SETUP on Connection %d: Can't find timingPeerInfo addresses",
+                debug(2, "SETUP on Connection %d: Can't find timingPeerInfo addresses",
                       conn->connection_number);
               }
               // make up the timing peer info list part of the response...
