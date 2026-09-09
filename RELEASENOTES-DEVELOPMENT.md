@@ -1,3 +1,8 @@
+Version 5.6-dev-9-gf6a78f40
+==
+**Bug Fix**
+* Fix a bug whereby unrecognised packets of buffered audio were not correctly handled, especially if the very first packet of audio was not recognised. 
+
 Version 5.6-dev
 ==
 This update is recommended for all users of the `development` branch of Shairport Sync.
