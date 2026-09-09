@@ -168,10 +168,11 @@ void *rtp_buffered_audio_processor(void *arg) {
 
   const size_t leading_free_space_length =
       256; // leave this many bytes free to make room for prefixes that might be added later
-      
+
   unsigned char *m = malloc(buffer_packet_size + leading_free_space_length);
   if (m == NULL)
-    debug(1, "cannot allocate an audio m buffer of %zu bytes!", buffer_packet_size + leading_free_space_length);
+    debug(1, "cannot allocate an audio m buffer of %zu bytes!",
+          buffer_packet_size + leading_free_space_length);
   pthread_cleanup_push(malloc_cleanup, &m);
   // unsigned char m[32 * 1024 + leading_free_space_length];
 
@@ -198,7 +199,6 @@ void *rtp_buffered_audio_processor(void *arg) {
                                   // will be made true by flushing or by playing the block
   int finished = 0;
 
-  uint64_t blocks_read_since_play_began = 0;
   uint64_t blocks_read = 0;
 
   int ap2_immediate_flush_requested = 0; // for diagnostics, probably
@@ -223,7 +223,6 @@ void *rtp_buffered_audio_processor(void *arg) {
       // play newly started
       debug(2, "Play started.");
       new_audio_block_needed = 1;
-      blocks_read_since_play_began = 0;
     }
 
     if ((play_enabled != 0) && (conn->ap2_play_enabled == 0)) {
@@ -270,7 +269,6 @@ void *rtp_buffered_audio_processor(void *arg) {
         if (nread > 0) {
           // got the block
           blocks_read++;                  // note, this doesn't mean they are valid audio blocks
-          blocks_read_since_play_began++; // 1 means previous seq_no and timestamps are invalid
 
           // get the sequence number
           // see https://en.wikipedia.org/wiki/Real-time_Transport_Protocol#Packet_header
@@ -296,36 +294,32 @@ void *rtp_buffered_audio_processor(void *arg) {
             }
           }
 
-          if ((payload_ssrc != previous_ssrc) && (ssrc_is_recognised(payload_ssrc) == 0)) {
-            debug(2, "Unrecognised SSRC: %u.", payload_ssrc);
-          }
-
-          if (blocks_read_since_play_began == 1) {
-            debug(2, "Preparing initial decoding chain for %s.", get_ssrc_name(payload_ssrc));
-            prepare_decoding_chain(conn, payload_ssrc); // needed to set the input rate...
-            sequence_number_for_player =
-                seq_no & 0xffff; // this is arbitrary -- the sequence_number_for_player numbers will
-                                 // be sequential irrespective of seq_no jumps...
-          }
-
-          if (blocks_read_since_play_began > 1) {
-
-            uint32_t t_expected_seqno = (previous_seqno + 1) & 0x7fffff;
-            if (t_expected_seqno != seq_no) {
-              debug(2,
-                    "reading block %u, the sequence number differs from the expected sequence "
-                    "number %u. The previous sequence number was %u",
-                    seq_no, t_expected_seqno, previous_seqno);
-            }
-            uint32_t t_expected_timestamp =
-                previous_timestamp + get_ssrc_block_length(previous_ssrc);
-            int32_t diff = timestamp - t_expected_timestamp;
-            if (diff != 0) {
-              debug(2, "reading block %u, the timestamp %u differs from expected_timestamp %u.",
-                    seq_no, timestamp, t_expected_timestamp);
+          if ((ssrc_is_recognised(payload_ssrc) != 0) && (payload_ssrc != SSRC_NONE)) {
+            new_audio_block_needed = 0; // a valid block has been read.
+            // if necessary, set the input rate...
+            if (conn->input_rate == 0) {
+              debug(2, "Preparing initial decoding chain for %s.", get_ssrc_name(payload_ssrc));
+              prepare_decoding_chain(conn, payload_ssrc); // needed to set the input rate...
+              sequence_number_for_player =
+                  seq_no & 0xffff; // this is arbitrary -- the sequence_number_for_player numbers will
+                                   // be sequential irrespective of seq_no jumps...
+            } else {
+              uint32_t t_expected_seqno = (previous_seqno + 1) & 0x7fffff;
+              if (t_expected_seqno != seq_no) {
+                debug(2,
+                      "reading block %u, the sequence number differs from the expected sequence "
+                      "number %u. The previous sequence number was %u",
+                      seq_no, t_expected_seqno, previous_seqno);
+              }
+              uint32_t t_expected_timestamp =
+                  previous_timestamp + get_ssrc_block_length(previous_ssrc);
+              int32_t diff = timestamp - t_expected_timestamp;
+              if (diff != 0) {
+                debug(2, "reading block %u, the timestamp %u differs from expected_timestamp %u.",
+                      seq_no, timestamp, t_expected_timestamp);
+              }
             }
           }
-          new_audio_block_needed = 0; // block has been read.
         }
       }
 
@@ -353,10 +347,19 @@ void *rtp_buffered_audio_processor(void *arg) {
           }
           if ((blocks_read != 0) &&
               ((a_minus_b_mod23(seq_no, conn->ap2_immediate_flush_until_sequence_number) > 0))) {
-            debug(1,
-                  "immediate flush may have escaped its endpoint! Seq_no is %u, "
-                  "conn->ap2_immediate_flush_until_sequence_number is %u.",
-                  seq_no, conn->ap2_immediate_flush_until_sequence_number);
+
+            if (payload_ssrc == SSRC_NONE) {
+              debug(2,
+                    "immediate flush endpoint followed by a SSRC_NONE packet. Seq_no is %u, "
+                    "conn->ap2_immediate_flush_until_sequence_number is %u.",
+                    seq_no, conn->ap2_immediate_flush_until_sequence_number);
+
+            } else {
+              debug(1,
+                    "immediate flush may have escaped its endpoint! Seq_no is %u, "
+                    "conn->ap2_immediate_flush_until_sequence_number is %u.",
+                    seq_no, conn->ap2_immediate_flush_until_sequence_number);
+            }
           }
 
           if ((blocks_read != 0) &&
@@ -368,6 +371,8 @@ void *rtp_buffered_audio_processor(void *arg) {
 
             conn->ap2_immediate_flush_requested = 0;
             ap2_immediate_flush_requested = 0;
+            // debug(1, "flushed to %u, requested %u.", seq_no,
+            // conn->ap2_immediate_flush_until_sequence_number);
 
             // turn off all deferred requests. Not sure if this is right...
             unsigned int f = 0;
@@ -480,16 +485,6 @@ void *rtp_buffered_audio_processor(void *arg) {
 
         int have_valid_time = (frame_to_local_time(timestamp, &buffer_should_be_time, conn) == 0);
 
-        // calculate the lead time to make sure it's not too early...
-        int64_t lead_time = buffer_should_be_time - get_absolute_time_in_ns();
-
-        // debug(1,"play_enabled: %d, have_valid_time: %d,
-        // audio_decoded_buffer_below_desired_length: %d, lead_time * 1E-9: %f,
-        // (config.audio_decoded_buffer_desired_length + 0.1): %f, player_buffer_occupancy: %zu",
-        //  play_enabled, have_valid_time, audio_decoded_buffer_below_desired_length, lead_time *
-        //  1E-9, (config.audio_decoded_buffer_desired_length + 0.1), player_buffer_occupancy
-        // );
-
         // A slight problem here is that counting the number of buffers may not be sufficient,
         // because the actual device may be
         // taking data in large quantities at a single time.
@@ -498,23 +493,26 @@ void *rtp_buffered_audio_processor(void *arg) {
         // is enough of a lead time maintained for sufficient audio to be available to prevent
         // the device from under-running.
 
-        // If means that the Shairport Sync player might riun out of audio occasionally, but
+        // If means that the Shairport Sync player might run out of audio occasionally, but
         // as long as the device has enough in its buffer, everything is fine.
 
         // But it also means that Shairport Sync's buffers must be sufficient to hold all the
         // entire lead-time's amount of audio in case the device has a zero-sized buffer.
-        
+
         if (have_valid_time != 0) {
-          if ((play_enabled != 0) && (lead_time * 1E-9 < (config.audio_decoded_buffer_desired_length + 0.1))) {
-              //            && (audio_decoded_buffer_below_desired_length != 0)  
+          // calculate the lead time to make sure it's not too early...
+          int64_t lead_time = buffer_should_be_time - get_absolute_time_in_ns();
+          if ((play_enabled != 0) &&
+              (lead_time * 1E-9 < (config.audio_decoded_buffer_desired_length + 0.1))) {
+            //            && (audio_decoded_buffer_below_desired_length != 0)
             very_early_packets_signalled = 0; // reset very early packet warning signaller
-  
+
             // try to identify blocks that are timed to before the last buffer, and drop 'em
             int64_t time_from_last_buffer_time =
                 buffer_should_be_time - previous_buffer_should_be_time;
-  
+
             if ((packets_played_in_this_sequence == 0) || (time_from_last_buffer_time > 0)) {
-  
+
               payload_length = 0;
               if (ssrc_is_recognised(payload_ssrc) != 0) {
                 // prepare_decoding_chain(conn, payload_ssrc);
@@ -528,12 +526,12 @@ void *rtp_buffered_audio_processor(void *arg) {
                     memcpy(
                         nonce + 4, packet + nread - 8,
                         8); // front-pad the 8-byte nonce received to get the 12-byte nonce expected
-  
+
                     // https://libsodium.gitbook.io/doc/secret-key_cryptography/aead/chacha20-poly1305/ietf_chacha20-poly1305_construction
                     // Note: the eight-byte nonce must be front-padded out to 12 bytes.
-  
-                    // Leave leading_free_space_length bytes at the start for possible headers like an
-                    // ADTS header (7 bytes)
+
+                    // Leave leading_free_space_length bytes at the start for possible headers like
+                    // an ADTS header (7 bytes)
                     memset(m, 0, leading_free_space_length);
                     response = crypto_aead_chacha20poly1305_ietf_decrypt(
                         payload_pointer,     // where the decrypted payload will start
@@ -550,20 +548,22 @@ void *rtp_buffered_audio_processor(void *arg) {
                       debug(1, "Error decrypting audio packet %u -- packet length %zd.", seq_no,
                             nread);
                   } else {
-                    debug(2, "No session key, so the audio packet can not be deciphered -- skipped.");
+                    debug(2,
+                          "No session key, so the audio packet can not be deciphered -- skipped.");
                   }
-  
+
                   if ((response == 0) && (new_payload_length > 0)) {
                     // now we have the deciphered block, so send it to the player if we can
                     payload_length = new_payload_length;
-  
+
                     if (ssrc_is_aac(payload_ssrc)) {
                       payload_pointer =
                           payload_pointer - 7; // including the 7-byte leader for the ADTS
                       payload_length = payload_length + 7;
-  
+
                       // now, fill in the 7-byte ADTS information, which seems to be needed by the
-                      // decoder we made room for it in the front of the buffer by filling from m + 7.
+                      // decoder we made room for it in the front of the buffer by filling from m
+                      // + 7.
                       int channelConfiguration = 2; // 2: 2 channels: front-left, front-right
                       if (payload_ssrc == AAC_48000_F24_5P1)
                         channelConfiguration = 6; // 6: 6 channels: front-center, front-left,
@@ -600,7 +600,8 @@ void *rtp_buffered_audio_processor(void *arg) {
                               "Positive means later, i.e. a gap. First timestamp was %u, payload "
                               "type: \"%s\".",
                               conn->connection_number, seq_no, timestamp, expected_timestamp,
-                              timestamp_difference, 1000.0 * timestamp_difference / conn->input_rate,
+                              timestamp_difference,
+                              1000.0 * timestamp_difference / conn->input_rate,
                               first_timestamp_in_this_sequence, get_ssrc_name(payload_ssrc));
                         // mute the first packet after a discontinuity
                         if (ssrc_is_aac(payload_ssrc)) {
@@ -614,11 +615,11 @@ void *rtp_buffered_audio_processor(void *arg) {
                     }
                     int skip_this_block = 0;
                     if (timestamp_difference < 0) {
-  
-                      // uncomment this to work back to replace buffers that have been already decoded
-                      // and placed in the player queue with the incoming new buffers this is a bit
-                      // trickier, but maybe the new buffers are better than the previous ones they
-                      // will replace (?)
+
+                      // uncomment this to work back to replace buffers that have been already
+                      // decoded and placed in the player queue with the incoming new buffers this
+                      // is a bit trickier, but maybe the new buffers are better than the previous
+                      // ones they will replace (?)
                       /*
                       seq_t revised_seqno = get_revised_seqno(conn, timestamp);
                       if (revised_seqno != sequence_number_for_player) {
@@ -629,12 +630,13 @@ void *rtp_buffered_audio_processor(void *arg) {
                         timestamp_difference = 0;
                       }
                       */
-  
+
                       // uncomment this to drop incoming new buffers that are too old and for whose
-                      // timings buffers have already been decoded and placed in the player queue this
-                      // is easier, but maybe the new late buffers are better than the previous ones
+                      // timings buffers have already been decoded and placed in the player queue
+                      // this is easier, but maybe the new late buffers are better than the previous
+                      // ones
                       // (?)
-  
+
                       int32_t abs_timestamp_difference = -timestamp_difference;
                       if ((size_t)abs_timestamp_difference > get_ssrc_block_length(payload_ssrc)) {
                         skip_this_block = 1;
@@ -679,19 +681,21 @@ void *rtp_buffered_audio_processor(void *arg) {
             }
             new_audio_block_needed = 1; // the block has been used up and is no longer current
           } else {
-            if ((very_early_packets_signalled == 0) && (lead_time * 1E-9 > (config.audio_decoded_buffer_desired_length + 0.2))) {
+            if ((very_early_packets_signalled == 0) &&
+                (lead_time * 1E-9 > (config.audio_decoded_buffer_desired_length + 0.2))) {
               debug(1,
-                    "incoming frame suddenly (?) has a lead time of %f seconds, with a desired "
+                    "incoming frame, sequence number %u suddenly has a lead time of %f seconds, "
+                    "with a desired "
                     "decoded buffer length of %f.",
-                    1.0 * lead_time * 1E-9, config.audio_decoded_buffer_desired_length);
+                    seq_no, 1.0 * lead_time * 1E-9, config.audio_decoded_buffer_desired_length);
               very_early_packets_signalled = 1;
             }
             usleep(((1000000 * conn->frames_per_packet) / conn->input_rate) *
                    2); // wait for approximately the length of two packets
           }
         } else {
-          debug(3, "just you wait, Henry Higgins, without valid timing information...");
-          usleep(20000); // just you wait, Henry Higgins...        
+          debug(4, "just you wait, Henry Higgins, without valid timing information...");
+          usleep(20000); // just you wait, Henry Higgins...
         }
       }
     }
