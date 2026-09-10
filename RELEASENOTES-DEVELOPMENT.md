@@ -21,7 +21,7 @@ All these new settings default to unchanged behaviour.
 You must update NQPTP to the latest `development` version to explore these changes.
 
 NQPTP:
-* An [update](https://github.com/mikebrady/nqptp/pull/50) to [NQPTP](https://github.com/mikebrady) restores per-client handling so that several AirPlay 2 instances on one host can share a group. Thanks to [Jay Love](https://github.com/jslove). 
+* An [update](https://github.com/mikebrady/nqptp/pull/50) to [NQPTP](https://github.com/mikebrady) restores per-client handling so that several AirPlay 2 instances on one host can share a group. Thanks to [Jay Love](https://github.com/jslove) for this update. 
 
 Shairport Sync:
 * An optional new `nqptp_shared_memory_interface_name` setting has been added to the `general` section of the configuration file to allow the Sharted Memory ("SHM") interface name to be set. Different instances of Shairport Sync can thus specify different SHM interfaces to NQPTP. Thanks to [Jay Love](https://github.com/jslove) for this enhancement. Shairport Sync has been [updated](https://github.com/mikebrady/shairport-sync/pull/2278) to wait for up to 0.5 seconds for its own interface to NQPTP has come online. Thanks to [Haavar Valeur](https://github.com/haavar).
