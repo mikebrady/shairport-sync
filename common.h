@@ -305,6 +305,7 @@ typedef struct {
                    // by default “_raop._tcp.” for AirPlay 2.
   char *interface; // a string containg the interface name, or NULL if nothing specified
   int interface_index;                        // only valid if the interface string is non-NULL
+  char *address; // local IP address to bind the RTSP listening socket to, or NULL for all addresses
   double audio_backend_buffer_desired_length; // this will be the length in seconds of the
                                               // audio backend buffer -- the DAC buffer for ALSA
   double audio_backend_buffer_interpolation_threshold_in_seconds; // below this, soxr interpolation

@@ -4345,7 +4345,15 @@ void *rtsp_listen_loop(__attribute((unused)) void *arg) {
 
   // debug(1,"listen socket port request is \"%s\".",portstr);
 
-  ret = getaddrinfo(NULL, portstr, &hints, &info);
+  // If a local address is configured (--address / general.address), bind the
+  // listener to just that address; NULL preserves the all-addresses behaviour.
+  // For an IP literal, getaddrinfo returns just that one address, so the bind
+  // loop below binds a single socket instead of the v4+v6 wildcard pair.
+  char *bind_node = (config.address && config.address[0]) ? config.address : NULL;
+  if (bind_node)
+    debug(1, "rtsp_listen_loop: binding listener to address \"%s\".", bind_node);
+
+  ret = getaddrinfo(bind_node, portstr, &hints, &info);
   if (ret) {
     die("getaddrinfo failed: %s", gai_strerror(ret));
   }
