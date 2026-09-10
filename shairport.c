@@ -357,6 +357,12 @@ void usage(char *progname) {
     printf("    -t, --timeout=SECONDS   Go back to idle mode from play mode after a break in communications of this many seconds (default 60). Set to 0 never to exit play mode.\n");
     printf("    --tolerance=TOLERANCE   [Deprecated] Allow a synchronization error of TOLERANCE frames (default 88) before trying to correct it.\n");
     printf("    --logOutputLevel        Log the output level setting -- a debugging option, useful for determining the optimum maximum volume.\n");
+#ifdef CONFIG_AIRPLAY_2
+    printf("    --nqptp-shared-memory-interface-name=NAME\n");
+    printf("                            Use the nqptp shared memory interface called NAME. Default is \"%s\".\n", NQPTP_INTERFACE_NAME);
+    printf("                            An advanced setting, needed only when running more than one AirPlay 2 instance on this machine:\n");
+    printf("                            give each instance its own name so that they do not share a clock.\n");
+#endif
 
 #ifdef CONFIG_LIBDAEMON
     printf("    -d, --daemon            Daemonise.\n");
@@ -387,12 +393,30 @@ void usage(char *progname) {
 #endif
 }
 
+#ifdef CONFIG_AIRPLAY_2
+// The nqptp shared memory interface name is passed to shm_open(3) and is stored
+// by nqptp in a 64-byte field, so it must be a "/" followed by between one and
+// 62 characters, with no further "/". "source" names where the value came from,
+// for the error message.
+void check_nqptp_shared_memory_interface_name(const char *name, const char *source) {
+  if ((name[0] != '/') || (strlen(name) < 2) || (strlen(name) > 63) ||
+      (strchr(name + 1, '/') != NULL))
+    die("Invalid %s \"%s\" -- it must begin with a \"/\", contain no other \"/\", and be between "
+        "2 and 63 characters long.",
+        source, name);
+}
+#endif
+
 int parse_options(int argc, char **argv) {
   // there are potential memory leaks here -- it's called a second time, previously allocated
   // strings will dangle.
   char *cli_service_type_string = NULL;
   char *raw_service_name = NULL; /* Used to pick up the service name before possibly expanding it */
   char *stuffing = NULL;         /* used for picking up the stuffing option */
+#ifdef CONFIG_AIRPLAY_2
+  char *cli_nqptp_shared_memory_interface_name =
+      NULL; /* used for picking up the nqptp shared memory interface name */
+#endif
 #if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
   char *dbus_default_message_bus =
       NULL; /* used for picking the "system" or "session" bus as the default */
@@ -426,6 +450,10 @@ int parse_options(int argc, char **argv) {
       {"timeout", 't', POPT_ARG_INT, &config.timeout, 't', NULL, NULL},
       {"password", 0, POPT_ARG_STRING, &config.password, 0, NULL, NULL},
       {"service-type", 0, POPT_ARG_STRING, &cli_service_type_string, 0, NULL, NULL},
+#ifdef CONFIG_AIRPLAY_2
+      {"nqptp-shared-memory-interface-name", 0, POPT_ARG_STRING,
+       &cli_nqptp_shared_memory_interface_name, 0, NULL, NULL},
+#endif
 #if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
       {"dbus-default-message-bus", 0, POPT_ARG_STRING, &dbus_default_message_bus, 0, NULL, NULL},
 #endif
@@ -638,8 +666,20 @@ int parse_options(int argc, char **argv) {
     debug(2, "can't resolve the configuration file \"%s\".", config.configfile);
   } else {
     debug(1, "looking for configuration file at full path \"%s\"", config_file_real_path);
-    /* Read the file. If there is an error, report it and exit. */
-    if (config_read_file(&config_file_stuff, config_file_real_path)) {
+    /* Read the file into memory and expand ${NAME} environment-variable
+       references before parsing it, so that one shared configuration file can
+       serve many instances and so that secrets can live in the environment.
+       See expand_environment_variables() for the syntax. A file containing no
+       "${" is unchanged by this, so it is parsed exactly as before. */
+    char *config_text = read_file_to_string(config_file_real_path);
+    if (config_text == NULL)
+      die("Error reading configuration file \"%s\": \"%s\".", config_file_real_path,
+          strerror(errno));
+    char *expanded_config_text = expand_environment_variables(config_text, config_file_real_path);
+    free(config_text);
+    /* Parse the expanded text. If there is an error, report it and exit. */
+    if (config_read_string(&config_file_stuff, expanded_config_text)) {
+      free(expanded_config_text);
       config_set_auto_convert(&config_file_stuff,
                               1); // allow autoconversion from int/float to int/float
       // make config.cfg point to it
@@ -1467,13 +1507,12 @@ int parse_options(int argc, char **argv) {
 #endif
 
     } else {
-      if (config_error_type(&config_file_stuff) == CONFIG_ERR_FILE_IO)
-        die("Error reading configuration file \"%s\": \"%s\".", config_file_real_path,
-            config_error_text(&config_file_stuff));
-      else {
-        die("Line %d of the configuration file \"%s\":\n%s", config_error_line(&config_file_stuff),
-            config_error_file(&config_file_stuff), config_error_text(&config_file_stuff));
-      }
+      // The file was read successfully above, so any error here is a parse
+      // error in the (environment-expanded) text. config_read_string() does not
+      // record a filename, so fall back to config_file_real_path.
+      const char *error_file = config_error_file(&config_file_stuff);
+      die("Line %d of the configuration file \"%s\":\n%s", config_error_line(&config_file_stuff),
+          error_file ? error_file : config_file_real_path, config_error_text(&config_file_stuff));
     }
 
 #if defined(CONFIG_DBUS_INTERFACE)
@@ -1715,7 +1754,38 @@ int parse_options(int argc, char **argv) {
            config.appName, temporary_airplay_id);
   // debug(1, "smi name: \"%s\"", shared_memory_interface_name);
 
-  config.nqptp_shared_memory_interface_name = strdup(NQPTP_INTERFACE_NAME);
+  // Every AirPlay 2 instance on a host needs its own nqptp shared memory
+  // interface if more than one of them can be playing at once. nqptp keys its
+  // clock table, its "clock is active" state and its master clock on the
+  // interface name the client sends at the front of every control message, so
+  // instances sharing one name share one clock: the "T" (stop timing) that an
+  // instance sends when its room leaves an AirPlay 2 group then clears the
+  // clock that every other instance on the host is still using, and they stop
+  // playing without any error. Give each instance a distinct name to keep them
+  // independent. The default is unchanged, so a single instance -- and any
+  // existing configuration -- behaves exactly as before.
+  config.nqptp_shared_memory_interface_name = NULL;
+  if (config.cfg != NULL) {
+    const char *smi_str;
+    if (config_lookup_string(config.cfg, "general.nqptp_shared_memory_interface_name", &smi_str)) {
+      check_nqptp_shared_memory_interface_name(smi_str,
+                                               "general.nqptp_shared_memory_interface_name");
+      config.nqptp_shared_memory_interface_name = strdup(smi_str);
+    }
+  }
+  // the command line takes precedence over the configuration file, as it does
+  // for the other settings that must differ between instances on one host
+  if (cli_nqptp_shared_memory_interface_name != NULL) {
+    check_nqptp_shared_memory_interface_name(cli_nqptp_shared_memory_interface_name,
+                                             "--nqptp-shared-memory-interface-name");
+    if (config.nqptp_shared_memory_interface_name != NULL)
+      free(config.nqptp_shared_memory_interface_name);
+    config.nqptp_shared_memory_interface_name = strdup(cli_nqptp_shared_memory_interface_name);
+  }
+  if (config.nqptp_shared_memory_interface_name == NULL)
+    config.nqptp_shared_memory_interface_name = strdup(NQPTP_INTERFACE_NAME);
+  debug(1, "nqptp shared memory interface name: \"%s\".",
+        config.nqptp_shared_memory_interface_name);
 
   // create the config.ap1_prefix[i]
   char apids[6 * 2 + 5 + 1]; // six pairs of digits, 5 colons and a NUL
@@ -1916,24 +1986,24 @@ int parse_options(int argc, char **argv) {
     ptp_send_control_message_string(
         "T"); // send this message to get nqptp to create the named shm interface
     int response = 0;
-    /*
-    uint64_t nqptp_start_waiting_time = get_absolute_time_in_ns();
-    int continue_waiting = 0;
-    int64_t time_spent_waiting = 0;
-    do {
-      continue_waiting = 0;
-      response = ptp_shm_interface_open();
-      if ((response == -1) && (errno == ENOENT)) {
-        time_spent_waiting = get_absolute_time_in_ns() - nqptp_start_waiting_time;
-        if (time_spent_waiting < 10000000000L) {
-          continue_waiting = 1;
-          usleep(50000);
-        }
-      }
-    } while (continue_waiting != 0);
-    */
 
-    response = ptp_shm_interface_open(); // look for NQPTP service
+    // nqptp creates the named shared-memory interface only on receiving the "T"
+    // message sent just above, so with a brand-new interface name (for example a
+    // per-instance general.nqptp_shared_memory_interface_name) there is a brief
+    // window in which it does not exist yet. Retry the probe for a short time
+    // rather than giving up on the first miss -- otherwise a first start with a
+    // fresh name reports "NQPTP service not found" and, under "auto", silently
+    // falls back to classic AirPlay on port 5000. Only ENOENT ("not created yet")
+    // is retried; any other result falls through immediately.
+    uint64_t nqptp_probe_deadline = get_absolute_time_in_ns() + 500000000L; // 0.5 s
+    do {
+      response = ptp_shm_interface_open(); // look for the NQPTP service
+      if ((response == -1) && (errno == ENOENT) &&
+          (get_absolute_time_in_ns() < nqptp_probe_deadline))
+        usleep(50000); // 50 ms, then retry
+      else
+        break;
+    } while (1);
 
     if ((response == -1) && (errno == ENOENT)) {
       debug(1, "NQPTP service not found.");
@@ -2829,14 +2899,17 @@ int main(int argc, char **argv) {
 
 #endif
 
+  // Default the RTSP port only if the user did not set one (-p / general.port);
+  // config.port is 0 when unset. Honouring an explicit port -- and advertising it,
+  // since mdns_register passes config.port -- lets several AirPlay 2 instances share
+  // one IP on distinct ports. (AirPlay 2 clients follow the SRV-advertised port,
+  // verified on iOS; a port set for AirPlay 2 was previously ignored.)
 #ifdef CONFIG_AIRPLAY_2
-  if (config.service_type == APST_airplay2) {
-    config.port = 7000;
-  } else {
-    config.port = 5000;
-  }
+  if (config.port == 0)
+    config.port = (config.service_type == APST_airplay2) ? 7000 : 5000;
 #else
-  config.port = 5000;
+  if (config.port == 0)
+    config.port = 5000;
 #endif
 
 #ifdef CONFIG_AIRPLAY_2
