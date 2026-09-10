@@ -1,3 +1,12 @@
+##Simple Docker Test Rig
+
+## This Dockerfile specifies a few builds of Shairport Sync to check for compilation errors and warnings.
+
+## To use it, CD into the directory it is in an execute the command:
+## docker buildx bake --allow=fs.read=..
+
+## By default it builds the main NQPTP branch and build Shairport Sync from the directory it is in.
+
 ARG NQPTP_BRANCH=main
 ARG FFMPEG_BRANCH=release/8.1
 ARG SHAIRPORT_SYNC_BRANCH=.

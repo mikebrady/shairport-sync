@@ -1,3 +1,60 @@
+Version 5.6-dev-25-gc1fcba5b
+==
+**Enhancements**
+* A native volume control is now available for PipeWire.  A new setting in the `pipewire` section of the configuration file:
+  ```
+  pipewire = {
+          ...
+          mixer_type = <mixer_type>; // pipewire mixer_type either "sink" or "stream"
+          ...
+  };
+  ```
+  
+   allows you to specify whether the volume control should be of Shairport Sync's output alone (`"stream"`) or of the overall system volume (`"sink"`). Thanks to [gearhead](https://github.com/gearhead) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2284).
+
+**Multiple AirPlay 2 Instance Support**
+
+As you may know, it has seemed to be impossible to run multiple of instances of Shairport Sync in AirPlay 2 mode on one system. Some recent developments and enhancements may have overcome some of the difficulties.
+
+All these new settings default to unchanged behaviour.
+
+You must update NQPTP to the latest `development` version to explore these changes.
+
+NQPTP:
+* An [update](https://github.com/mikebrady/nqptp/pull/50) to [NQPTP](https://github.com/mikebrady) restores per-client handling so that several AirPlay 2 instances on one host can share a group. Thanks to [Jay Love](https://github.com/jslove) for this update. 
+
+Shairport Sync:
+* An optional new `nqptp_shared_memory_interface_name` setting has been added to the `general` section of the configuration file to allow the Sharted Memory ("SHM") interface name to be set. Different instances of Shairport Sync can thus specify different SHM interfaces to NQPTP. Thanks to [Jay Love](https://github.com/jslove) for this enhancement. Shairport Sync has been [updated](https://github.com/mikebrady/shairport-sync/pull/2278) to wait for up to 0.5 seconds for its own interface to NQPTP has come online. Thanks to [Haavar Valeur](https://github.com/haavar).
+* An optional new `address` setting in the `general` section of the configuration file directs Shairport Sync to process AirPlay traffic only at that specific address. Different instances of Shairport Sync can thus be set up to work on different addresses. Thanks to [Haavar Valeur](https://github.com/haavar) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2275). If the `address` setting is used, a [further update](https://github.com/mikebrady/shairport-sync/pull/2276) thanks to [Jay Love](https://github.com/jslove) publishes a machine-unique mDNS hostname formed from the machine name combined with the address and port number.
+* Session identity information is now passed to environment variables available to the `run_this_before_play_begins` `run_this_after_play_ends` hooks. Hooked apps have access to the following environment variables:
+
+  | Environment Variable | Source Information |
+  |----|----|
+  | SPS_CLIENT_IP | conn→client_ip_string |
+  | SPS_CONNECTION_NUMBER | conn→connection_number |
+  | SPS_GROUP_ID | conn→airplay_gid, the AirPlay 2 group UUID from the SETUP plist ("" if none) |
+  |SPS_GROUP_CONTAINS_LEADER | conn→groupContainsGroupLeader |
+
+  Thanks to [Jay Love](https://github.com/jslove) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2274).
+
+* To make handling of multiple configurations easier, support has been added for environment variables in the configuration file. The configuration file is read into memory and `${NAME}` references are expanded from the process environment before passing it to Shairport Sync.
+
+  | Syntax |
+  |----|
+  | `${NAME}` is replaced by the value of environment variable `NAME`, where `NAME` matches `[A-Za-z_][A-Za-z0-9_]*`. The braces are required, so a bare `$NAME` or a stray `$` is never touched.|
+  | `$${` is replaced by a literal `${`, so a setting can still contain a literal `${`. |
+  | Referencing an undefined variable is a fatal error. |
+
+  Thanks to [Haavar Valeur](https://github.com/haavar) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2280).
+  
+**Bug Fix**
+* The `general` `port` setting was ignored in AirPlay 2 operation. Thanks to [Haavar Valeur](https://github.com/haavar) for the [fix](https://github.com/mikebrady/shairport-sync/pull/2277).
+
+Version 5.6-dev-9-gf6a78f40
+==
+**Bug Fix**
+* Fix a bug whereby unrecognised packets of buffered audio were not correctly handled, especially if the very first packet of audio was not recognised. 
+
 Version 5.6-dev
 ==
 This update is recommended for all users of the `development` branch of Shairport Sync.

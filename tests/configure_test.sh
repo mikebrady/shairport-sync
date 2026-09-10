@@ -115,12 +115,11 @@ TESTCOUNT=0
 check_for_success x$1 --with-pkg-config --with-ssl=mbedtls
 check_for_success x$1 --with-ssl=openssl x OpenSSL
 check_for_success x$1 --with-ssl=mbedtls x mbedTLS
-# check_for_success x$1 --with-ssl=polarssl x PolarSSL
+
 check_for_configuration_fail x$1 --with-ssl
 check_for_configuration_fail x$1 --without-ssl=openssl
 check_for_configuration_fail x$1 --without-ssl=mbedtls
-# check_for_configuration_fail x$1 --without-ssl=polarssl
-check_for_configuration_fail x$1
+
 check_for_success x$1 --with-alsa --with-ssl=mbedtls ALSA
 check_for_success x$1 --without-alsa --with-ssl=mbedtls x ALSA
 
@@ -157,18 +156,11 @@ check_for_success x$1 --without-avahi --with-ssl=mbedtls x Avahi
 check_for_success x$1 --with-tinysvcmdns --with-ssl=mbedtls tinysvcmdns
 check_for_success x$1 --without-tinysvcmdns --with-ssl=mbedtls x tinysvcmdns
 
-# check_for_success x$1 --with-jack --with-ssl=mbedtls jack
-# check_for_success x$1 --without-jack --with-ssl=mbedtls x jack
-
 check_for_success x$1 --with-sndio --with-ssl=mbedtls sndio
 check_for_success x$1 --without-sndio --with-ssl=mbedtls x sndio
 
 check_for_success x$1 --with-ao --with-ssl=mbedtls ao
 check_for_success x$1 --without-ao --with-ssl=mbedtls x ao
-
-# the following is disabled because there is no soundio library for Raspberry OS
-#check_for_success x$1 --with-soundio --with-ssl=mbedtls soundio
-# check_for_success x$1 --without-soundio --with-ssl=mbedtls x soundio
 
 check_for_success x$1 --with-pulseaudio --with-ssl=mbedtls PulseAudio
 check_for_success x$1 --without-pulseaudio --with-ssl=mbedtls x PulseAudio
@@ -205,6 +197,8 @@ check_for_success x$1 --without-systemd-startup '--sysconfdir=/etc --with-alsa -
 check_for_success x$1 --with-systemv '--sysconfdir=/etc --with-libdaemon --with-alsa --with-soxr --with-avahi --with-ssl=openssl' OpenSSL-Avahi-ALSA-soxr-sysconfdir:/etc
 check_for_success x$1 --without-systemv '--sysconfdir=/etc --with-libdaemon --with-alsa --with-soxr --with-avahi --with-ssl=openssl' OpenSSL-Avahi-ALSA-soxr-sysconfdir:/etc
 
+echo "Cleaning up..."
+make -s distclean
 cd $CWD
 echo "$TESTCOUNT tests completed."
 
