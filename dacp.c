@@ -28,7 +28,6 @@
 
 #include "dacp.h"
 #include "common.h"
-#include "config.h"
 
 #include <arpa/inet.h>
 #include <errno.h>

@@ -1,6 +1,5 @@
 #pragma once
 #include "common.h"
-#include "config.h"
 #include "rtsp.h"
 #include <pthread.h>
 
@@ -30,11 +29,6 @@ typedef enum {
   RS_ONE,
   RS_ALL,
 } repeat_status_type;
-
-typedef struct {
-  uint64_t value; // the value
-  int valid;      // set to true if valid
-} uint64_record_t;
 
 int update_string_record_with_data(char **str, const char *data, size_t length); // data and length
 int update_string_record(char **str, const char *s); // returns true if the string has changed
@@ -120,8 +114,6 @@ typedef struct metadata_bundle {
   double airplay_volume;
 #ifdef CONFIG_AIRPLAY_2
   plist_t supported_commands_plist;
-  uint64_record_t localTimeToAppleTimeOffset; // add this to get_absolute_time_in_ns to get Apple
-                                              // Absolute Time in nanoseconds.
 #endif
   uint32_t head_rtp_timestamp; // the timestamp of the frame at the head of the output queue
   metadata_npi_bundle npi;

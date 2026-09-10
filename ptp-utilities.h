@@ -1,7 +1,6 @@
 #ifndef __PTP_UTILITIES_H
 #define __PTP_UTILITIES_H
 
-#include "config.h"
 #include "nqptp-shm-structures.h"
 #include <stdint.h>
 

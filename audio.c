@@ -27,7 +27,6 @@
 
 #include "audio.h"
 #include "common.h"
-#include "config.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

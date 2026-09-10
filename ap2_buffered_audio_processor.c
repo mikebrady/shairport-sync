@@ -199,7 +199,6 @@ void *rtp_buffered_audio_processor(void *arg) {
                                   // will be made true by flushing or by playing the block
   int finished = 0;
 
-  uint64_t blocks_read_since_play_began = 0;
   uint64_t blocks_read = 0;
 
   int ap2_immediate_flush_requested = 0; // for diagnostics, probably
@@ -224,7 +223,6 @@ void *rtp_buffered_audio_processor(void *arg) {
       // play newly started
       debug(2, "Play started.");
       new_audio_block_needed = 1;
-      blocks_read_since_play_began = 0;
     }
 
     if ((play_enabled != 0) && (conn->ap2_play_enabled == 0)) {
@@ -271,7 +269,6 @@ void *rtp_buffered_audio_processor(void *arg) {
         if (nread > 0) {
           // got the block
           blocks_read++;                  // note, this doesn't mean they are valid audio blocks
-          blocks_read_since_play_began++; // 1 means previous seq_no and timestamps are invalid
 
           // get the sequence number
           // see https://en.wikipedia.org/wiki/Real-time_Transport_Protocol#Packet_header
@@ -286,10 +283,14 @@ void *rtp_buffered_audio_processor(void *arg) {
           if (payload_ssrc != SSRC_NONE)
             previous_ssrc = payload_ssrc;
           payload_ssrc = nctohl(&packet[8]);
+          
+          if (ssrc_is_recognised(payload_ssrc) == 0) {
+              debug(1, "Unrecognised SSRC: \"%s\" in packet %" PRIu64 ".", get_ssrc_name(payload_ssrc), blocks_read);
+          }
 
           if ((payload_ssrc != previous_ssrc) && (payload_ssrc != SSRC_NONE)) {
             if (ssrc_is_recognised(payload_ssrc) == 0) {
-              debug(2, "Unrecognised SSRC: %u.", payload_ssrc);
+              debug(2, "Unrecognised SSRC: \"%s\" in packet %" PRIu64 ".", get_ssrc_name(payload_ssrc), blocks_read);
             } else {
               debug(2, "Connection %d: incoming audio encoding is%s \"%s\".",
                     conn->connection_number, previous_ssrc == SSRC_NONE ? "" : " switching to",
@@ -297,20 +298,18 @@ void *rtp_buffered_audio_processor(void *arg) {
             }
           }
 
-          if ((payload_ssrc != previous_ssrc) && (ssrc_is_recognised(payload_ssrc) == 0)) {
-            debug(2, "Unrecognised SSRC: %u.", payload_ssrc);
-          }
-
-          if (blocks_read_since_play_began == 1) {
-            debug(2, "Preparing initial decoding chain for %s.", get_ssrc_name(payload_ssrc));
-            prepare_decoding_chain(conn, payload_ssrc); // needed to set the input rate...
-            sequence_number_for_player =
-                seq_no & 0xffff; // this is arbitrary -- the sequence_number_for_player numbers will
-                                 // be sequential irrespective of seq_no jumps...
-          }
-
-          if (blocks_read_since_play_began > 1) {
-
+          if (ssrc_is_recognised(payload_ssrc) != 0) {
+            new_audio_block_needed = 0; // a valid block has been read.
+            // if necessary, set the input rate...
+            if (conn->input_rate == 0) {
+              debug(2, "Preparing initial decoding chain for %s.", get_ssrc_name(payload_ssrc));
+              prepare_decoding_chain(conn, payload_ssrc); // needed to set the input rate...
+              sequence_number_for_player =
+                  seq_no & 0xffff; // this is arbitrary -- the sequence_number_for_player numbers will
+                                   // be sequential irrespective of seq_no jumps...
+            }
+          } 
+          if (blocks_read > 1) {
             uint32_t t_expected_seqno = (previous_seqno + 1) & 0x7fffff;
             if (t_expected_seqno != seq_no) {
               debug(2,
@@ -325,8 +324,7 @@ void *rtp_buffered_audio_processor(void *arg) {
               debug(2, "reading block %u, the timestamp %u differs from expected_timestamp %u.",
                     seq_no, timestamp, t_expected_timestamp);
             }
-          }
-          new_audio_block_needed = 0; // block has been read.
+          }          
         }
       }
 
@@ -354,10 +352,19 @@ void *rtp_buffered_audio_processor(void *arg) {
           }
           if ((blocks_read != 0) &&
               ((a_minus_b_mod23(seq_no, conn->ap2_immediate_flush_until_sequence_number) > 0))) {
-            debug(1,
-                  "immediate flush may have escaped its endpoint! Seq_no is %u, "
-                  "conn->ap2_immediate_flush_until_sequence_number is %u.",
-                  seq_no, conn->ap2_immediate_flush_until_sequence_number);
+
+            if (payload_ssrc == SSRC_NONE) {
+              debug(2,
+                    "immediate flush endpoint followed by a SSRC_NONE packet. Seq_no is %u, "
+                    "conn->ap2_immediate_flush_until_sequence_number is %u.",
+                    seq_no, conn->ap2_immediate_flush_until_sequence_number);
+
+            } else {
+              debug(1,
+                    "immediate flush may have escaped its endpoint! Seq_no is %u, "
+                    "conn->ap2_immediate_flush_until_sequence_number is %u.",
+                    seq_no, conn->ap2_immediate_flush_until_sequence_number);
+            }
           }
 
           if ((blocks_read != 0) &&

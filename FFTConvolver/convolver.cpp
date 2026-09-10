@@ -46,7 +46,7 @@ void convolver_pool_init(size_t numThreads, size_t numConvolvers) {
   if (!pool.init(numThreads, numConvolvers)) {
     debug(1, "failed to initialize thread pool!");
   } else {
-    debug(1, "thread pool initialized with %u thread%s and %u convolver%s.", numThreads,
+    debug(1, "thread pool initialized with %zu thread%s and %zu convolver%s.", numThreads,
           numThreads == 1 ? "" : "s", numConvolvers, numConvolvers == 1 ? "" : "s");
   }
 }
@@ -98,7 +98,7 @@ int convolver_init(const char *filename, unsigned char channel_count, double max
           }
           debug(2,
                 "convolution impulse response filter initialized from \"%s\" with %d channel%s and "
-                "%d samples",
+                "%zu samples",
                 filename, info.channels, info.channels == 1 ? "" : "s", size);
           sf_close(file);
           free((void *)abuffer);

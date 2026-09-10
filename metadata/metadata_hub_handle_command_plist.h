@@ -4,4 +4,4 @@
 
 #include "rtsp.h"
 
-void metadata_hub_handle_command_plist(const plist_t command_dict);
+void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t command_dict);

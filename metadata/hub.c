@@ -40,7 +40,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "config.h"
 
 #include "common.h"
 #include "core.h"
@@ -219,6 +218,7 @@ char *metadata_write_image_file(const char *buf, int len) {
   char *path = NULL;                                         // this will be what is returned
   if (strcmp(config.cover_art_cache_dir, "") != 0) { // an empty string means do not write the file
 
+  // create the md5 hash for the filename.
     uint8_t img_md5[16];
     // uint8_t ap_md5[16];
 
@@ -259,6 +259,7 @@ char *metadata_write_image_file(const char *buf, int len) {
     char *ext;
     char png[] = "png";
     char jpg[] = "jpg";
+    char tif[] = "tif";
     int i;
     for (i = 0; i < 16; i++)
       snprintf(&img_md5_str[i * 2], 3, "%02x", (uint8_t)img_md5[i]);
@@ -267,6 +268,10 @@ char *metadata_write_image_file(const char *buf, int len) {
       ext = jpg;
     else if (strncmp(buf, "\x89\x50\x4E\x47\x0D\x0A\x1A\x0A", 8) == 0)
       ext = png;
+    else if (strncmp(buf, "\x4D\x4D\x00\x2A", 4) == 0) // TIFF big endian
+      ext = tif;
+    else if (strncmp(buf, "\x49\x49\x2A\x00", 4) == 0) // TIFF little endian
+      ext = tif;
     else {
       debug(1, "Unidentified image type of cover art -- jpg extension used.");
       ext = jpg;
@@ -392,18 +397,14 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     switch (code) {
     case 'caps': {
       // get the one-byte number as an unsigned number
-      debug(1, "MH Playing State seen: \"%d\" of length %u.", (unsigned)data[0], length);
       if (((unsigned)metadata_store.npi.playing_state != (unsigned)data[0])) {
         debug(4, ">> MH playing state changing from %d to %d.", metadata_store.npi.playing_state,
               (unsigned)data[0]);
         metadata_store.npi.playing_state = (unsigned)data[0];
         new_npi.playing_state = (unsigned)data[0];
-
-        // if the sream is stopped, the prior progress string is unreliable, it seems,
-        // so drop it
-        if ((unsigned)data[0] == 2) {
-          invalidate_string_record(&metadata_store.progress_string);
-        }
+        // a playing state of 2 seems to mean no programme is playing
+        // even if audio is coming through from the player
+        // it is used to validate progress string information
       }
     } break;
     case 'asdk': {
@@ -549,26 +550,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
     }
   } else if (type == 'ssnc') {
     switch (code) {
-#ifdef CONFIG_AIRPLAY_2
-    case 'aatx': // apple absolute time offset from local time in nanoseconds
-      if (metadata_store.localTimeToAppleTimeOffset.valid == 0) {
-        uint64_t localTimeToAppleTimeOffset = 0;
-        // the number is coming from this machine, so no ntoh or hton needed.
-        memcpy(&localTimeToAppleTimeOffset, data, sizeof(localTimeToAppleTimeOffset));
-        metadata_store.localTimeToAppleTimeOffset.value = localTimeToAppleTimeOffset;
-        metadata_store.localTimeToAppleTimeOffset.valid = 1;
-      }
-      /*
-      // diagnostic...
-      uint64_t appleAbsoluteTime = metadata_store.localTimeToAppleTimeOffset.value +
-      get_absolute_time_in_ns(); appleAbsoluteTime = appleAbsoluteTime / (uint64_t)1000000000;
-      debug(1, "AATX of %" PRIu64 " received. Apple Absolute Time is now: %" PRIu64 ".",
-      localTimeToAppleTimeOffset, appleAbsoluteTime);
-      */
-      break;
-#endif
     case 'conn': // a new connection -- some things might need to be reset
-
       metadata_hub_reset_npi(&metadata_store.npi);
       invalidate_string_record(&metadata_store.progress_string);
       metadata_store.progress_first_timestamp = 0;

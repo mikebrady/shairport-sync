@@ -65,7 +65,7 @@ void plist_merge(plist_t base, plist_t changes) {
   free(it);
 }
 
-void metadata_hub_handle_command_plist(const plist_t command_dict) {
+void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t command_dict) {
   if (command_dict != NULL) {
     plist_t command_type = plist_dict_get_item(command_dict, "type");
     if (command_type != NULL) {
@@ -276,8 +276,16 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
                         info_timestamp = info_timestamp * 1000000;
                         info_timestamp = info_timestamp + usec;
                         info_timestamp = info_timestamp * 1000; // nanoseconds
-                        info_timestamp = info_timestamp - metadata_store.localTimeToAppleTimeOffset
-                                                              .value; // convert to local time ns
+                        
+                        // if we don't have a real time reference
+                        if (conn->localTimeToAppleAbsoluteTimeOffset.valid != 0) {
+                          // debug(1, "set nowPlayingInfoTimestamp value with apple absolute time (typically AP2 Buffered)");
+                          info_timestamp = info_timestamp - conn->localTimeToAppleAbsoluteTimeOffset.value; // convert to local time ns
+                        } else {
+                          // if we don't have a real time reference
+                          // debug(1, "set nowPlayingInfoTimestamp value without apple absolute time (typically AP2 Realtime)");
+                          info_timestamp = get_absolute_time_in_ns(); // assume the time given is now                       
+                        }
                         metadata_store.npi.nowPlayingInfoTimestamp.value = info_timestamp;
                         metadata_store.npi.nowPlayingInfoTimestamp.valid =
                             1; // indicates that the system is playing
@@ -295,7 +303,7 @@ void metadata_hub_handle_command_plist(const plist_t command_dict) {
                               elapsed_time_item,
                               &elapsed_time); // we should have a figure for elapsed time
                           if (elapsed_time < 0) {
-                            debug(1, "negative priot elapsed time -- set to zero.");
+                            debug(1, "negative prior elapsed time -- set to zero.");
                             metadata_store.npi.nowPlayingInfoPriorElapsedTime = 0;
                           } else {
                             metadata_store.npi.nowPlayingInfoPriorElapsedTime =

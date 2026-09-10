@@ -36,7 +36,6 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
-#include "config.h"
 
 #include "activity_monitor.h"
 #include "common.h"

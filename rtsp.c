@@ -52,7 +52,6 @@
 #include <sys/ioctl.h>
 
 #include "activity_monitor.h"
-#include "config.h"
 #include "utilities/network_utilities.h"
 #include "utilities/rtsp_message_utilities.h"
 #include "utilities/string_utilities.h"
@@ -267,7 +266,7 @@ int terminate_conn(int connection_number) {
   pthread_mutex_unlock(&conns_lock);
 #ifdef CONFIG_METADATA
   if (found) {
-    debug(1, "Connection %d: is being terminated; terminate_conn is sending 'prmp'",
+    debug(4, "Connection %d: is being terminated; terminate_conn is sending 'prmp'",
           connection_number);
     send_ssnc_metadata('prmp', (const char *)&connection_number, sizeof(connection_number),
                        1); // PRe-eMPted
@@ -383,7 +382,7 @@ play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) 
             get_category_string(conn->airplay_stream_category));
       rtsp_conn_info *previous_principal_conn = principal_conn;
       principal_conn = conn; // make the conn the new principal_conn
-      debug(1, "Connection %d: (%s) is pre-empting play lock from connection %d.",
+      debug(4, "Connection %d: (%s) is pre-empting play lock from connection %d.",
             conn->connection_number, get_category_string(conn->airplay_stream_category),
             previous_principal_conn->connection_number);
       terminate_conn(previous_principal_conn->connection_number);
@@ -2052,7 +2051,7 @@ void handle_command(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
       plist_t command_dict = NULL;
       plist_from_memory(req->content, req->contentlength, &command_dict);
       if (command_dict != NULL) {
-        metadata_hub_handle_command_plist(command_dict);
+        metadata_hub_handle_command_plist(conn, command_dict);
         plist_free(command_dict);
       } else {
         debug(1, "Connection %d: POST /command  -- cannot extract the plist",
@@ -2090,22 +2089,22 @@ void handle_post(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
 #ifdef CONFIG_METADATA
   hdr = msg_get_header(req, "X-Apple-AbsoluteTime");
   if (hdr) {
-    // We will calculate the offset between local absolute time and appleAbsoluteTime
-    // in nanoseconds and send it as metadata so that it lands in the metadata hub
-    // where it can be used later
-    uint64_t localTimeToAppleAbsoluteTimeOffset = 0;
-    if (parse_u64(hdr, &localTimeToAppleAbsoluteTimeOffset) == 0) {
-      debug(4, "Apple Absolute Time is %" PRIu64 ".", localTimeToAppleAbsoluteTimeOffset);
-      // given that these seconds are from the Unix Epoch or the Mac/Cocoa Epoch,
-      // this won't overflow until the year 2554 at the earliest.
-      localTimeToAppleAbsoluteTimeOffset =
-          localTimeToAppleAbsoluteTimeOffset * (uint64_t)1000000000;
-      localTimeToAppleAbsoluteTimeOffset =
-          localTimeToAppleAbsoluteTimeOffset - get_absolute_time_in_ns();
-      // send to the hub...
-      debug(4, "AATX of %" PRIu64 " sent to metadata.", localTimeToAppleAbsoluteTimeOffset);
-      send_ssnc_metadata('aatx', (const char *)&localTimeToAppleAbsoluteTimeOffset,
-                         sizeof(uint64_t), 1);
+    // We will calculate the offset between local absolute time and Apple-AbsoluteTime
+    // amd store that.
+    if (conn->localTimeToAppleAbsoluteTimeOffset.valid == 0) {
+      uint64_t localTimeToAppleAbsoluteTimeOffset = 0;
+      if (parse_u64(hdr, &localTimeToAppleAbsoluteTimeOffset) == 0) {
+        // debug(1, "Apple Absolute Time is %" PRIu64 ".", localTimeToAppleAbsoluteTimeOffset);
+        // Convert to nanoseconds in 64 bits.
+        // Given that these seconds are from the Unix Epoch or the Mac/Cocoa Epoch,
+        // this won't overflow until the year 2554 at the earliest.
+        localTimeToAppleAbsoluteTimeOffset =
+            localTimeToAppleAbsoluteTimeOffset * (uint64_t)1000000000;
+        localTimeToAppleAbsoluteTimeOffset =
+            localTimeToAppleAbsoluteTimeOffset - get_absolute_time_in_ns();
+        conn->localTimeToAppleAbsoluteTimeOffset.value = localTimeToAppleAbsoluteTimeOffset;
+        conn->localTimeToAppleAbsoluteTimeOffset.valid = 1;
+      }
     }
   }
 #endif

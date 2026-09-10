@@ -44,7 +44,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "config.h"
 
 #ifdef CONFIG_MBEDTLS
 #include <mbedtls/aes.h>

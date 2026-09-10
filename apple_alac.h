@@ -26,7 +26,6 @@
 #ifndef __APPLE_ALAC_H
 #define __APPLE_ALAC_H
 
-#include "config.h"
 #include <stdint.h>
 
 #ifdef __cplusplus

@@ -32,7 +32,6 @@
 #include <alac/EndianPortable.h>
 
 #include "apple_alac.h"
-#include "config.h"
 
 typedef struct magicCookie {
   ALACSpecificConfig config;

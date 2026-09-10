@@ -35,7 +35,6 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include "config.h"
 
 #include "activity_monitor.h"
 #include "audio.h"

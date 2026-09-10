@@ -10,7 +10,6 @@ extern "C" {
 #include <sys/types.h> // for mode_t
 #include <unistd.h>    // for useconds_t
 
-#include "config.h"
 #include "definitions.h"
 #include "mdns.h"
 

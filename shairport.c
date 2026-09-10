@@ -42,7 +42,6 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include "config.h"
 
 #ifdef CONFIG_FFMPEG
 #include <libavutil/log.h>

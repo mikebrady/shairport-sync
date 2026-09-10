@@ -28,7 +28,6 @@
 #include <pthread.h>
 #include <stdlib.h>
 
-#include "config.h"
 
 #include "common.h"
 #include "mdns.h"

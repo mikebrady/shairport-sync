@@ -4,7 +4,6 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
-#include "config.h"
 #include "definitions.h"
 
 #ifdef CONFIG_MBEDTLS
@@ -215,6 +214,11 @@ typedef enum {
   classic_airplay_stream
 } airplay_stream_c; // "c" for category
 
+typedef struct {
+  uint64_t value; // the value
+  int valid;      // set to true if valid
+} uint64_record_t;
+
 #ifdef CONFIG_AIRPLAY_2
 typedef enum { ts_ntp, ts_ptp } timing_t;
 typedef enum { ap_1, ap_2 } airplay_t;
@@ -414,6 +418,7 @@ typedef struct {
                                // (will be unspecified if not build for AirPlay 2)
 
 #ifdef CONFIG_AIRPLAY_2
+  uint64_record_t localTimeToAppleAbsoluteTimeOffset; // add this to get_absolute_time_in_ns to get Apple Absolute Time
   plist_t sessionPlist;
   char *airplay_gid; // UUID in the Bonjour advertisement -- if NULL, the group UUID is the same as
                      // the pi UUID
