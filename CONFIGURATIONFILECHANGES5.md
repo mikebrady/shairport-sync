@@ -62,8 +62,11 @@ The `alac_decoder` setting has changed:
 * `output_rate = "auto"`.
 * `output_format = "auto"`.  
 * `output_channels = "auto"`.
+* `mixer_type = "sink"`.
 
 **What this means:** PipeWire now has the same flexible format/rate/channel options as ALSA.
+
+* New: `'mixer_type' allows the user to control either the native pipewire stream or the sink volume.`
 
 ### PulseAudio Backend
 
