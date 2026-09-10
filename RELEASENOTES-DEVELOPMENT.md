@@ -1,3 +1,25 @@
+Version 5.6-dev-58-g3670f361
+==
+**Stuff you probably shouldn't ignore**
+* In AirPlay 2 mode, the old (classic AirPlay) way of fetching metadata is no longer used -- more comprehensive metadata is provided in plists and is used instead.
+  The plist metadata provides the normal MPRIS and D-Bus data, but if you are taking metadata directly from the metadata pipe or from the multicast, it will have changed.
+  You can revert to the old way, for a while, using the `get_plist_metadata` option in the `diagnostics` section of the configuration file. Set it to \"no\" to revert to the old way.
+* The `get_plist_metadata` option in the `diagnostics` section of the configuration file now defaults to `"yes"`.
+
+**Enhancements**
+* Much more accurate and improved MPRIS Progress is provided now for AirPlay 2 -- both Buffered and Realtime audio feeds -- and for Classic AirPlay.
+* TIFF images are recognised in the metadata stream and stored in files with the `.tif` file extension.
+
+**Bug Fixes**
+* Fixed a small bug in the generation of Bonjour strings.
+* The `--with-metadata-pipe` build setting is included in the Docker image build to restore previous functionality.
+
+**Other Developments**
+* Test routines have been updated -- please look in the `tests` folder.
+* A simple Docker Build Test Rig is provided in the `tests` folder.
+* A simple script that reads MPRIS Progress every second is provided in the `tests` folder.
+* The `config.h` file is now included automatically via a compiler flag. References to it have therefore been removed from source files.
+
 Version 5.6-dev-25-gc1fcba5b
 ==
 **Enhancements**
