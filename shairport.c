@@ -1781,6 +1781,55 @@ int parse_options(int argc, char **argv) {
       free(config.nqptp_shared_memory_interface_name);
     config.nqptp_shared_memory_interface_name = strdup(cli_nqptp_shared_memory_interface_name);
   }
+  // When this looks like one of several instances on a host -- a specific address
+  // or a port has been configured -- derive a per-instance identity from the
+  // instance's name, unless it was set explicitly. Keying on the name rather than
+  // the address or port keeps the identity stable if the address or port later
+  // changes. A single default instance configures neither, so it is unchanged.
+  {
+    int looks_multi_instance = ((config.address != NULL) && (config.address[0] != '\0')) ||
+                               (config.port != 0);
+    long long aid_probe;
+    int device_id_is_explicit =
+        (config.cfg != NULL) &&
+        (config_lookup_int64(config.cfg, "general.airplay_device_id", &aid_probe) ||
+         config_lookup_int64(config.cfg, "general.airplay_device_id_offset", &aid_probe));
+    if (looks_multi_instance && (raw_service_name != NULL) && (raw_service_name[0] != '\0')) {
+      const char *p;
+      // nqptp shared-memory name: "/nqptp-<name>" unless one was set explicitly.
+      // The name is reduced to the shm-name character set and kept within the
+      // 63-character limit.
+      if (config.nqptp_shared_memory_interface_name == NULL) {
+        char nm[64];
+        int k = snprintf(nm, sizeof(nm), "/nqptp-");
+        for (p = raw_service_name; (*p != '\0') && (k < (int)sizeof(nm) - 1); p++) {
+          char c = *p;
+          if (!(((c >= 'A') && (c <= 'Z')) || ((c >= 'a') && (c <= 'z')) ||
+                ((c >= '0') && (c <= '9')) || (c == '-') || (c == '.') || (c == '_')))
+            c = '-';
+          nm[k++] = c;
+        }
+        nm[k] = '\0';
+        config.nqptp_shared_memory_interface_name = strdup(nm);
+        debug(1, "nqptp shared memory interface name derived from name: \"%s\".",
+              config.nqptp_shared_memory_interface_name);
+      }
+      // device id: a locally-administered, unicast MAC-shaped value hashed from the
+      // name, unless airplay_device_id / airplay_device_id_offset was set.
+      if (device_id_is_explicit == 0) {
+        uint64_t h = 1469598103934665603ULL; // FNV-1a 64-bit offset basis
+        for (p = raw_service_name; *p != '\0'; p++) {
+          h ^= (uint64_t)(unsigned char)*p;
+          h *= 1099511628211ULL; // FNV-1a prime
+        }
+        uint64_t id48 = h & 0xFFFFFFFFFFFFULL;
+        uint8_t top = (uint8_t)((id48 >> 40) & 0xFF);
+        top = (uint8_t)((top & 0xFE) | 0x02); // clear multicast bit, set locally-administered
+        temporary_airplay_id = (id48 & 0x000000FFFFFFFFFFULL) | ((uint64_t)top << 40);
+        debug(1, "airplay device id derived from the instance name.");
+      }
+    }
+  }
   if (config.nqptp_shared_memory_interface_name == NULL)
     config.nqptp_shared_memory_interface_name = strdup(NQPTP_INTERFACE_NAME);
   debug(1, "nqptp shared memory interface name: \"%s\".",
