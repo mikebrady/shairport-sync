@@ -1743,6 +1743,12 @@ int parse_options(int argc, char **argv) {
     if (config_lookup_int64(config.cfg, "general.airplay_device_id_offset", &aid))
       temporary_airplay_id += aid;
   }
+  // Fold a non-default RTSP port into the device id, so several AirPlay 2 instances
+  // that share one address but bind distinct ports get distinct identities. The
+  // default port (7000) folds in nothing, so single-port setups -- including
+  // per-address multi-instance -- are unchanged and do not re-register.
+  if ((config.port != 0) && (config.port != 7000))
+    temporary_airplay_id += (config.port - 7000);
 
   char shared_memory_interface_name[256] = "";
   snprintf(shared_memory_interface_name, sizeof(shared_memory_interface_name), "/%s-%" PRIx64 "",
@@ -1779,10 +1785,13 @@ int parse_options(int argc, char **argv) {
   }
 
   // If no name was set explicitly (config or command line) but a specific --address
-  // is in use, derive a per-instance name from the address, so several AirPlay 2
-  // instances on distinct addresses each get their own nqptp clock with no extra
-  // configuration. nqptp learns the name from the control message it is sent, so
-  // nothing has to match on the nqptp side. e.g. 192.168.1.118 -> "/nqptp-192-168-1-118".
+  // is in use, derive a per-instance name from the address -- and from the port when
+  // it is not the default -- so several AirPlay 2 instances each get their own nqptp
+  // clock with no extra configuration, whether they are on distinct addresses or
+  // share one address on distinct ports. nqptp learns the name from the control
+  // message it is sent, so nothing has to match on the nqptp side. e.g.
+  // 192.168.1.118 -> "/nqptp-192-168-1-118"; 192.168.1.118 on port 7001 ->
+  // "/nqptp-192-168-1-118-7001".
   if ((config.nqptp_shared_memory_interface_name == NULL) && (config.address != NULL) &&
       (config.address[0] != '\0') && (strchr(config.address, '/') == NULL)) {
     char addr[48];
@@ -1792,7 +1801,11 @@ int parse_options(int argc, char **argv) {
           ((config.address[i] == '.') || (config.address[i] == ':')) ? '-' : config.address[i];
     addr[i] = '\0';
     char derived[64]; // a POSIX shm name is at most 63 characters plus the NUL
-    int n = snprintf(derived, sizeof(derived), "/nqptp-%s", addr);
+    int n;
+    if ((config.port != 0) && (config.port != 7000))
+      n = snprintf(derived, sizeof(derived), "/nqptp-%s-%d", addr, config.port);
+    else
+      n = snprintf(derived, sizeof(derived), "/nqptp-%s", addr);
     if ((n > 0) && (n < (int)sizeof(derived))) { // only if it fits the shm-name limit
       config.nqptp_shared_memory_interface_name = strdup(derived);
       debug(1, "nqptp shared memory interface name derived from address: \"%s\".",
