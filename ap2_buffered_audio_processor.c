@@ -179,7 +179,7 @@ void *rtp_buffered_audio_processor(void *arg) {
   unsigned char *payload_pointer = NULL;
   unsigned long long payload_length = 0;
   uint32_t payload_ssrc =
-      SSRC_NONE; // this is the SSRC of the payload, needed to decide if it should be muted
+      SSRC_NONE; // this is the SSRC of the payload
   uint32_t previous_ssrc = SSRC_NONE;
 
   uint32_t seq_no =
@@ -280,14 +280,10 @@ void *rtp_buffered_audio_processor(void *arg) {
           previous_timestamp = timestamp;
           timestamp = nctohl(&packet[4]);
 
-          if (payload_ssrc != SSRC_NONE)
+          if (payload_ssrc != SSRC_NONE) // ignore intervening SSRC blocks
             previous_ssrc = payload_ssrc;
           payload_ssrc = nctohl(&packet[8]);
           
-          if (ssrc_is_recognised(payload_ssrc) == 0) {
-              debug(1, "Unrecognised SSRC: \"%s\" in packet %" PRIu64 ".", get_ssrc_name(payload_ssrc), blocks_read);
-          }
-
           if ((payload_ssrc != previous_ssrc) && (payload_ssrc != SSRC_NONE)) {
             if (ssrc_is_recognised(payload_ssrc) == 0) {
               debug(2, "Unrecognised SSRC: \"%s\" in packet %" PRIu64 ".", get_ssrc_name(payload_ssrc), blocks_read);
@@ -297,6 +293,50 @@ void *rtp_buffered_audio_processor(void *arg) {
                     get_ssrc_name(payload_ssrc));
             }
           }
+          
+          // experimentally decode unrecognised SSRC blocks.
+          if (ssrc_is_recognised(payload_ssrc) == 0) {
+            payload_length = 0;
+            unsigned long long new_payload_length = 0;
+            payload_pointer = m;
+            int response = -1;  // guess that there is a problem
+            if (conn->session_key != NULL) {
+              unsigned char nonce[12];
+              memset(nonce, 0, sizeof(nonce));
+              memcpy(
+                  nonce + 4, packet + nread - 8,
+                  8); // front-pad the 8-byte nonce received to get the 12-byte nonce expected
+
+              // https://libsodium.gitbook.io/doc/secret-key_cryptography/aead/chacha20-poly1305/ietf_chacha20-poly1305_construction
+              // Note: the eight-byte nonce must be front-padded out to 12 bytes.
+
+              // Leave leading_free_space_length bytes at the start for possible headers like
+              // an ADTS header (7 bytes)
+              memset(m, 0, leading_free_space_length);
+              response = crypto_aead_chacha20poly1305_ietf_decrypt(
+                  payload_pointer,     // where the decrypted payload will start
+                  &new_payload_length, // mlen_p
+                  NULL,                // nsec,
+                  packet +
+                      12, // the ciphertext starts 12 bytes in and is followed by the MAC tag,
+                  nread - (8 + 12), // clen -- the last 8 bytes are the nonce
+                  packet + 4,       // authenticated additional data
+                  8,                // authenticated additional data length
+                  nonce,
+                  conn->session_key); // *k
+              if (response == 0) {
+                debug(2, "%s block %" PRIu64 " deciphered to %llu bytes.", get_ssrc_name(payload_ssrc), blocks_read, new_payload_length);
+                debug_print_buffer(1, payload_pointer, new_payload_length);
+              } else {
+                debug(2, "Error decrypting %s block %" PRIu64 " -- packet length %zd.", get_ssrc_name(payload_ssrc), blocks_read,
+                      nread);
+              }
+            } else {
+              debug(2,
+                    "No session key, so %s block %" PRIu64 " can not be deciphered -- skipped.", get_ssrc_name(payload_ssrc), blocks_read);
+            }
+          }
+
 
           if (ssrc_is_recognised(payload_ssrc) != 0) {
             new_audio_block_needed = 0; // a valid block has been read.
