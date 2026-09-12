@@ -69,14 +69,9 @@ typedef struct metadata_npi_bundle { // now playing information
   // We'll use it so that we will only recognise and increment progress if we have a progress string
   // and the playing_state is 1.
 #ifdef CONFIG_AIRPLAY_2
-
-  uint64_t nowPlayingInfoPriorElapsedTime;
-  uint64_record_t nowPlayingInfoTimestamp; // valid when playing, invalid otherwise
-  uint64_t nowPlayingInfoSubsequentElapsedTime;
-
-  // uint64_t elapsed_time_ns;        // nanoseconds of play of the current track
-  // uint64_record_t play_start_time; // valid if playing, invalid otherwise
-
+  uint64_record_t elapsedTimeOnReceiptOfNowPlayingInfo; // valid if nowPlayingInfo has been received. 
+  uint64_t framesPlayedOnReceiptOfNowPlayingInfo; // a snapshot of frames played at the time the npi was received.
+  double playbackRate; // taken from npi
   plist_t npi_plist; // this can contain information a lot more than we use...
 #endif
 } metadata_npi_bundle;

@@ -556,6 +556,9 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       metadata_store.progress_first_timestamp = 0;
       metadata_store.progress_current_timestamp = 0;
       metadata_store.progress_last_timestamp = 0;
+#ifdef CONFIG_AIRPLAY_2
+      metadata_store.npi.elapsedTimeOnReceiptOfNowPlayingInfo.valid = 0;
+#endif
       break;
     // ignore the following
     case 'pcst':
@@ -691,6 +694,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       metadata_store.player_thread_active = 1;
       break;
     case 'pend':
+/*
 #ifdef CONFIG_AIRPLAY_2
       // calculate added play time when play ends (typically AirPlay 2 Buffered Stream)
       if (metadata_store.npi.nowPlayingInfoTimestamp.valid) {
@@ -704,12 +708,14 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       // to signal that Shairport Sync is not playing
       metadata_store.npi.nowPlayingInfoTimestamp.valid = 0;
 #endif
+*/
       changed = ((metadata_store.player_state != PS_STOPPED) ||
                  (metadata_store.player_thread_active == 1));
       metadata_store.player_state = PS_STOPPED;
       metadata_store.player_thread_active = 0;
       break;
     case 'paus':
+/*
 #ifdef CONFIG_AIRPLAY_2
       // calculate added play time when play pauses (typically AirPlay 2 Buffered Stream)
       if (metadata_store.npi.nowPlayingInfoTimestamp.valid) {
@@ -723,6 +729,7 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
       // to signal that Shairport Sync is not playing
       metadata_store.npi.nowPlayingInfoTimestamp.valid = 0;
 #endif
+*/
       changed = (metadata_store.player_state != PS_PAUSED);
       metadata_store.player_state = PS_PAUSED;
       break;

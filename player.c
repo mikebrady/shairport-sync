@@ -2556,6 +2556,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
 
                             debug(3, "Send %" PRId64 " frames of silence.", fs);
                             config.output->play(silence, fs, play_samples_are_untimed, 0, 0);
+                            conn->total_frames_sent_to_play += fs;
                             debug(3, "Sent %" PRId64 " frames of silence.", fs);
                             pthread_cleanup_pop(1); // deallocate silence
                             output_device_has_been_primed = 1;
@@ -2611,6 +2612,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
                           silence, fs, conn->enable_dither, conn->previous_random_number,
                           config.current_output_configuration);
                       config.output->play(silence, fs, play_samples_are_untimed, 0, 0);
+                      conn->total_frames_sent_to_play += fs;
                       pthread_cleanup_pop(1); // deallocate silence
                     }
                     frame_gap -= fs;
@@ -2680,6 +2682,7 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
               }
             }
           }
+          
           // If it's the first packet, or we don't have a working delay() function in the backend,
           // then wait until it's time to play it
           if ((((conn->first_packet_timestamp == curframe->timestamp) || (resp != 0)) &&
@@ -3793,6 +3796,7 @@ void *player_thread_func(void *arg) {
               config.output->play(silence, conn->frames_per_packet, play_samples_are_untimed, 0, 0);
               free(silence);
               frames_played += conn->frames_per_packet;
+              conn->total_frames_sent_to_play += conn->frames_per_packet;
             }
           } else {
             // process the frame
@@ -4235,7 +4239,7 @@ void *player_thread_func(void *arg) {
             // If any of these are false, we don't do any synchronisation stuff
 
             int resp = -1; // use this as a flag -- if negative, we can't rely on a real known delay
-            current_delay = -1; // use this as a failure flag
+            current_delay = 0;
 
             // if making the measurements takes too long (e.g. due to scheduling) , don't use
             // it.
@@ -4290,7 +4294,12 @@ void *player_thread_func(void *arg) {
                 }
               }
               // debug(1, "resp is %d, delay is %ld.", resp, l_delay);
+            } else {
+              current_delay = 0;
             }
+            
+            conn->frames_played = conn->total_frames_sent_to_play - current_delay;
+            
 #ifdef CONFIG_METADATA_HUB
             // Get or calculate the timestamp of the frame at the top of the queue
             // If there is no delay, then it's inframe->timestamp.
@@ -4461,6 +4470,7 @@ void *player_thread_func(void *arg) {
                       config.output->play(silence, gap, play_samples_are_untimed, 0, 0);
                       free(silence);
                       frames_played += gap;
+                      conn->total_frames_sent_to_play += gap;
                       // debug(1,"sent %d frames of silence.", gap);
                       sync_error_ns = 0; // don't invoke any sync checking
                       sync_error = 0;
@@ -4860,6 +4870,7 @@ void *player_thread_func(void *arg) {
                       config.output->play(conn->outbuf, play_samples, play_samples_are_timed,
                                           inframe->timestamp, should_be_time);
                       frames_played += play_samples;
+                      conn->total_frames_sent_to_play += play_samples;
                     } else {
                       if (frames_to_skip > (unsigned int)play_samples) {
                         debug(3, "skipping a packet of %u frames.", play_samples);
@@ -4883,6 +4894,8 @@ void *player_thread_func(void *arg) {
                         config.output->play(play_starting_point, play_samples - frames_to_skip,
                                             play_samples_are_timed, inframe->timestamp,
                                             should_be_time);
+                        conn->total_frames_sent_to_play += (play_samples - frames_to_skip);
+
 
                         debug(4, "skipping the first %u frames in a packet of %u frames.",
                               frames_to_skip, play_samples);
@@ -4954,6 +4967,7 @@ void *player_thread_func(void *arg) {
                 config.output->play(conn->outbuf, play_samples, play_samples_are_timed,
                                     inframe->timestamp, should_be_time);
                 frames_played += play_samples;
+                conn->total_frames_sent_to_play += play_samples;
 #ifdef CONFIG_METADATA
                 // debug(1,"config.metadata_progress_interval is %f.",
                 // config.metadata_progress_interval);

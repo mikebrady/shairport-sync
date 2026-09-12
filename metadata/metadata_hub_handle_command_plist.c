@@ -66,6 +66,7 @@ void plist_merge(plist_t base, plist_t changes) {
 }
 
 void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t command_dict) {
+  uint64_t reception_time = get_absolute_time_in_ns();
   if (command_dict != NULL) {
     plist_t command_type = plist_dict_get_item(command_dict, "type");
     if (command_type != NULL) {
@@ -249,20 +250,23 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
                     plist_t playback_rate_item = plist_dict_get_item(
                         metadata_store.npi.npi_plist, "kMRMediaRemoteNowPlayingInfoPlaybackRate");
                     if (playback_rate_item != NULL) {
-
                       plist_get_real_val(playback_rate_item, &playback_rate);
+                      metadata_store.npi.playbackRate = playback_rate;
+                    } else {
+                      metadata_store.npi.playbackRate = 0.0; // no playbackRate item seems to mean no playback from Spotify
                     }
-                    // if the playback rate is 0, we will ignore the other data -- it seems to be
-                    // unreliable
+                    
+                    // look for the timestamp for this item
+                    plist_t timestamp_item = plist_dict_get_item(
+                        metadata_store.npi.npi_plist, "kMRMediaRemoteNowPlayingInfoTimestamp");
 
-                    if (playback_rate > 0) {
-
-                      // look for the timestamp for this item
-                      plist_t timestamp_item = plist_dict_get_item(
-                          metadata_store.npi.npi_plist, "kMRMediaRemoteNowPlayingInfoTimestamp");
-
-                      // must have a timestamp
-                      if (timestamp_item != NULL) {
+                    // must have a timestamp
+                    if (timestamp_item != NULL) {
+                      metadata_store.npi.framesPlayedOnReceiptOfNowPlayingInfo = conn->frames_played; // we'll be counting frames played from now on
+                      int64_t elapsedTime = 0;
+                      // if we have a real time reference
+                      if (conn->localTimeToAppleAbsoluteTimeOffset.valid != 0) {
+                      
                         uint64_t info_timestamp = 0;
                         uint32_t usec = 0;
 #ifdef HAVE_LIBPLIST_GE_2_7_0
@@ -276,56 +280,34 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
                         info_timestamp = info_timestamp * 1000000;
                         info_timestamp = info_timestamp + usec;
                         info_timestamp = info_timestamp * 1000; // nanoseconds
-                        
-                        // if we don't have a real time reference
-                        if (conn->localTimeToAppleAbsoluteTimeOffset.valid != 0) {
-                          // debug(1, "set nowPlayingInfoTimestamp value with apple absolute time (typically AP2 Buffered)");
-                          info_timestamp = info_timestamp - conn->localTimeToAppleAbsoluteTimeOffset.value; // convert to local time ns
+
+                        info_timestamp = info_timestamp - conn->localTimeToAppleAbsoluteTimeOffset.value; // convert to local time ns
+                        // Here, we know that the nowPlayingInfo refers to some time in the past
+                        // We assume that play occurred continuously from then until now,
+                        // so we need to include the time between then and the now in the elapsed time
+                        elapsedTime  = reception_time - info_timestamp; // could be negative
+                      }
+                      // look for the elapsed time on the current track at this time
+                      plist_t elapsed_time_item =
+                          plist_dict_get_item(metadata_store.npi.npi_plist,
+                                              "kMRMediaRemoteNowPlayingInfoElapsedTime");
+                      // must have elapsed time
+                      if (elapsed_time_item != NULL) {
+                        double elapsed_time_real = 0.0;
+                        plist_get_real_val(
+                            elapsed_time_item,
+                            &elapsed_time_real); // we should have a figure for elapsed time
+                        if (elapsed_time_real < 0) {
+                          debug(4, "negative prior elapsed time -- ignored.");
                         } else {
-                          // if we don't have a real time reference
-                          // debug(1, "set nowPlayingInfoTimestamp value without apple absolute time (typically AP2 Realtime)");
-                          info_timestamp = get_absolute_time_in_ns(); // assume the time given is now                       
-                        }
-                        metadata_store.npi.nowPlayingInfoTimestamp.value = info_timestamp;
-                        metadata_store.npi.nowPlayingInfoTimestamp.valid =
-                            1; // indicates that the system is playing
-                        metadata_store.npi.nowPlayingInfoPriorElapsedTime = 0;
-                        metadata_store.npi.nowPlayingInfoSubsequentElapsedTime = 0;
-
-                        // look for the elapsed time on the current track at this time
-                        plist_t elapsed_time_item =
-                            plist_dict_get_item(metadata_store.npi.npi_plist,
-                                                "kMRMediaRemoteNowPlayingInfoElapsedTime");
-                        // must have elapsed time
-                        if (elapsed_time_item != NULL) {
-                          double elapsed_time = 0.0;
-                          plist_get_real_val(
-                              elapsed_time_item,
-                              &elapsed_time); // we should have a figure for elapsed time
-                          if (elapsed_time < 0) {
-                            debug(1, "negative prior elapsed time -- set to zero.");
-                            metadata_store.npi.nowPlayingInfoPriorElapsedTime = 0;
-                          } else {
-                            metadata_store.npi.nowPlayingInfoPriorElapsedTime =
-                                (uint64_t)(elapsed_time * 1E9);
-                          }
-
-                          /*
-                          // now we have the start time in apple absolute time nanoseconds
-                          // we need to convert them to local absolute time
-                          uint64_t local_start_time_ns = start_play_time.value -
-                          metadata_store.localTimeToAppleTimeOffset.value;
-
-                          int64_t difference_to_now_ns = local_start_time_ns -
-                          get_absolute_time_in_ns(); if (difference_to_now_ns < 0) { debug(1, "start
-                          of play was %g seconds ago. Offset is %g. Playback rate is %g.",
-                          -(difference_to_now_ns * 1E-9), elapsed_time, playback_rate); } else {
-                            debug(1, "start of play is %g seconds from now. Offset is %g. Playback
-                          rate is %g.", difference_to_now_ns * 1E-9, elapsed_time, playback_rate);
-                          }
-                          */
+                          elapsedTime += (int64_t)(elapsed_time_real * 1E9);
+                          
                         }
                       }
+                      if (elapsedTime < 0)
+                        elapsedTime = 0; // MPRIS spec says it must be from 0 to the length of the track, i.e. positive
+                      metadata_store.npi.elapsedTimeOnReceiptOfNowPlayingInfo.value = (uint64_t)elapsedTime;
+                      metadata_store.npi.elapsedTimeOnReceiptOfNowPlayingInfo.valid = 1;                       
                     }
                   }
 
@@ -440,6 +422,7 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
             debug(1, "POST /command updateMRSupportedCommands has no params dict.");
           }
         } else if (strcmp(command_type_string, "updateMRPlaybackState") == 0) {
+          debug(1, "updateMRPlaybackState");
           plist_t item = plist_dict_get_item(command_dict, "params");
           if (item != NULL) {
             // the item should be a dict
@@ -469,6 +452,8 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
           } else {
             debug(1, "POST /command updateMRPlaybackState has no params dict.");
           }
+        } else {
+          debug(1, "Unrecognised plist info!");
         }
         free(command_type_string);
       }

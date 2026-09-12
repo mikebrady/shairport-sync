@@ -92,7 +92,7 @@ RUN rm -rf build
 # RUN rm -rf build
 WORKDIR /shairport-sync-classic-minimum/build
 RUN autoreconf -i ../
-RUN ../configure --sysconfdir=/etc --with-alsa --with-avahi --with-ssl=openssl --with-systemd-install
+RUN ../configure --sysconfdir=/etc --with-alsa --with-avahi --with-ssl=openssl --with-systemd-startup
 RUN make -j$(nproc)
 RUN DESTDIR=install make install
 WORKDIR /
@@ -120,7 +120,7 @@ RUN ../configure --sysconfdir=/etc --with-alsa --with-pulseaudio --with-soxr --w
         --with-dummy --with-pipe --with-dbus-interface \
         --with-stdout --with-mpris-interface --with-mqtt-client \
         --with-convolution --with-pipewire \
-         --with-systemd-install
+         --with-systemd-startup
 RUN make -j$(nproc)
 RUN DESTDIR=install make install
 WORKDIR /
@@ -150,7 +150,7 @@ RUN ../configure --sysconfdir=/etc --with-alsa --with-pulseaudio --with-soxr --w
         --with-dummy --with-pipe --with-dbus-interface \
         --with-stdout --with-mpris-interface --with-mqtt-client \
         --with-convolution --with-pipewire \
-         --with-systemd-install
+         --with-systemd-startup
 RUN make -j$(nproc)
 RUN DESTDIR=install make install
 WORKDIR /
@@ -171,7 +171,7 @@ RUN rm -rf build
 # RUN rm -rf build
 WORKDIR /shairport-sync-classic-minimum-metadata/build
 RUN autoreconf -i ../
-RUN ../configure --sysconfdir=/etc --with-alsa --with-avahi --with-ssl=openssl --with-metadata --with-systemd-install
+RUN ../configure --sysconfdir=/etc --with-alsa --with-avahi --with-ssl=openssl --with-metadata --with-systemd-startup
 RUN make -j$(nproc)
 RUN DESTDIR=install make install
 WORKDIR /
@@ -194,7 +194,7 @@ RUN rm -rf build
 # RUN rm -rf build
 WORKDIR /shairport-sync-classic-dbus/build
 RUN autoreconf -i ../
-RUN ../configure --sysconfdir=/etc --with-alsa --with-avahi --with-ssl=openssl --with-dbus --with-systemd-install
+RUN ../configure --sysconfdir=/etc --with-alsa --with-avahi --with-ssl=openssl --with-dbus --with-systemd-startup
 RUN make -j$(nproc)
 RUN DESTDIR=install make install
 WORKDIR /
@@ -217,7 +217,7 @@ RUN rm -rf build
 # RUN rm -rf build
 WORKDIR /shairport-sync-classic-mpris/build
 RUN autoreconf -i ../
-RUN ../configure --sysconfdir=/etc --with-alsa --with-avahi --with-ssl=openssl --with-mpris --with-systemd-install
+RUN ../configure --sysconfdir=/etc --with-alsa --with-avahi --with-ssl=openssl --with-mpris --with-systemd-startup
 RUN make -j$(nproc)
 RUN DESTDIR=install make install
 WORKDIR /
@@ -244,7 +244,7 @@ COPY --from=ffmpeglite /ffmpeg_build/include/  /usr/local/include
 # RUN rm -rf build
 WORKDIR /shairport-sync-classic-ffmpeg-minimum/build
 RUN autoreconf -i ../
-RUN ../configure --sysconfdir=/etc --with-ffmpeg --with-alsa --with-avahi --with-ssl=openssl --with-systemd-install
+RUN ../configure --sysconfdir=/etc --with-ffmpeg --with-alsa --with-avahi --with-ssl=openssl --with-systemd-startup
 RUN make -j$(nproc)
 RUN DESTDIR=install make install
 WORKDIR /
@@ -269,7 +269,7 @@ COPY --from=ffmpeglite /ffmpeg_build/include/  /usr/local/include
 # RUN rm -rf build
 WORKDIR /shairport-sync-minimum/build
 RUN autoreconf -i ../
-RUN ../configure --sysconfdir=/etc --with-alsa --with-avahi --with-ssl=openssl --with-airplay-2 --with-systemd-install
+RUN ../configure --sysconfdir=/etc --with-alsa --with-avahi --with-ssl=openssl --with-airplay-2 --with-systemd-startup
 RUN make -j$(nproc)
 RUN DESTDIR=install make install
 WORKDIR /
@@ -301,7 +301,7 @@ RUN ../configure --sysconfdir=/etc --with-alsa --with-pulseaudio --with-soxr --w
         --with-dummy --with-pipe --with-dbus-interface \
         --with-stdout --with-mpris-interface --with-mqtt-client \
         --with-convolution --with-pipewire \
-         --with-systemd-install
+         --with-systemd-startup
 RUN make -j$(nproc)
 RUN DESTDIR=install make install
 WORKDIR /

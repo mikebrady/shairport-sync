@@ -220,16 +220,20 @@ static gint64 property_preflight_mpris_estimate_position_microseconds(void) {
     
 #ifdef CONFIG_AIRPLAY_2    
     else {
-      // Using the plist information.
-      // If Shairport Sync is playing, start with the play time since the NowPlayingInfoTimestamp.
-      if (metadata_store.npi.nowPlayingInfoTimestamp.valid) {
-        position = get_absolute_time_in_ns() - metadata_store.npi.nowPlayingInfoTimestamp.value;
-      } else {
-        // Otherwise, add the stored subsequent elapsed time
-        position = metadata_store.npi.nowPlayingInfoSubsequentElapsedTime;
+      // Using the plist information
+      if (metadata_store.npi.elapsedTimeOnReceiptOfNowPlayingInfo.valid != 0) {
+        position = metadata_store.npi.elapsedTimeOnReceiptOfNowPlayingInfo.value;       
+        if (metadata_store.npi.playbackRate > 0.0) {
+          uint64_t playTimeSinceReceiptOfNowPlayingInfo = 0;
+          uint64_t framesPlayedSinceReceiptOfNowPlayingInfo =
+            principal_conn->frames_played - metadata_store.npi.framesPlayedOnReceiptOfNowPlayingInfo;        
+          unsigned int output_rate = (unsigned int)RATE_FROM_ENCODED_FORMAT(config.current_output_configuration);
+          if (output_rate != 0)
+            playTimeSinceReceiptOfNowPlayingInfo = 
+              framesPlayedSinceReceiptOfNowPlayingInfo * 1000000000 / output_rate;
+          position += playTimeSinceReceiptOfNowPlayingInfo;
+        }
       }
-      // add in the elapsed time recorded in the nowPlayingInfo bundle
-      position += metadata_store.npi.nowPlayingInfoPriorElapsedTime;
       position /= 1000; // to microseconds
     }
 #endif

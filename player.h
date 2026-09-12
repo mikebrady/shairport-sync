@@ -261,6 +261,8 @@ typedef struct {
 typedef struct {
   int connection_number;           // for debug ID purposes, nothing else...
   int is_playing;                  // set true by player_play, set false by player_stop
+  uint64_t total_frames_sent_to_play;
+  uint64_t frames_played; // allowing for any delay
   int input_format_is_valid;       // set when the input format is known and set in this structure
   unsigned int sync_samples_index; // for estimating the gap between the highest and lowest timing
                                    // error over the past n samples
@@ -475,7 +477,6 @@ typedef struct {
   uint64_t compression;
   unsigned char *session_key; // needs to be free'd at the end
   char *ap2_client_name;      // needs to be free'd at teardown phase 2
-  uint64_t frames_packet;
   uint64_t type;                  // 96 (Realtime Audio), 103 (Buffered Audio), 130 (Remote Control)
   uint64_t networkTimeTimelineID; // the clock ID used by the player
   uint8_t groupContainsGroupLeader; // information coming from the SETUP
