@@ -476,7 +476,7 @@ const char *get_ssrc_name(ssrc_t ssrc) {
     response = "AAC/48000/F24/7.1";
     break;
   case SSRC_NONE:
-    response = "None (0)";
+    response = "SSRC_NONE";
     break;
   default: {
     snprintf(ssrc_name, sizeof(ssrc_name), "<unknown ssrc> (0x%" PRIx32 ")", ssrc);
