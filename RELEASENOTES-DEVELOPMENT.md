@@ -1,3 +1,11 @@
+Version 5.6-dev-62-ge49240f5
+==
+**Enhancements**
+* Further improvements in the accuracy and responsiveness of MPRIS Progress in AirPlay 2 mode, responding better to YouTube and Spotify progress information and stopping properly at the end of Apple Music playback.
+
+**Bug Fix**
+* Fix a minor but in the Docker test rig.
+
 Version 5.6-dev-58-g3670f361
 ==
 **Stuff you probably shouldn't ignore**
