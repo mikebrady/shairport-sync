@@ -1,3 +1,8 @@
+Version 5.6-dev-65-g1273ece8
+==
+**Enhancement**
+* Added a `volume_control_type` setting to the `general` section of the configuration file. This is a number which defaults to `3`, but when set to `0` the volume control setting on the player (e.g. Apple Music) is disabled or hidden. The significance of the setting is otherwise unknown.
+
 Version 5.6-dev-62-ge49240f5
 ==
 **Enhancements**
