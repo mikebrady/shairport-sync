@@ -168,7 +168,7 @@ AirPlay 2 provides much more metadata than classic AirPlay. This is now provided
 * The D-Bus and `MPRIS` test clients `shairport-sync-dbus-test-client` and `shairport-sync-mpris-test-client` have been updated to pretty-print the new metadata and command information.
 * The [sample metadata reader](https://github.com/mikebrady/shairport-sync-metadata-reader) has similarly been updated to handle the new metadata and fix a few bugs.
 
-**Divergences between AirPlay 2 and Llassic AirPlay**
+**Divergences between AirPlay 2 and Classic AirPlay**
 
 Although many properties and features remain the same, not everything is quite the same between classic AirPlay and AirPlay 2 commands and metadata. 
 
