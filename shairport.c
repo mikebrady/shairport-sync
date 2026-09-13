@@ -978,6 +978,14 @@ int parse_options(int argc, char **argv) {
           warn("The default airplay volume setting must be between -30.0 and 0.0.");
         }
       }
+      
+#ifdef CONFIG_AIRPLAY_2
+      /* Get the optional volume_control_type setting. */
+      if (config_lookup_int(config.cfg, "general.volume_control_type", &value)) {
+        // debug(1, "Max volume setting of %f dB", dvalue);
+        config.volumeControlType = value;
+      }
+#endif
 
       if (config_lookup_non_empty_string(config.cfg, "general.run_this_when_volume_is_set", &str)) {
         config.cmd_set_volume = (char *)str;
