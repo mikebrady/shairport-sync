@@ -1,3 +1,14 @@
+Version 5.6-dev-75-g94045fe4
+==
+**Multiple AirPlay 2 Instance Support Enhancements**
+* Allow an AirPlay instance to derive its AirPlay 2 Device ID and associated NQPTP interface name from its service name. This is only activated if an address or port number is explicitly specified.
+* Add an `ENABLE_NQPTP` environment variable to the Docker image's launcher (`docker/run.sh`) so a container can be told _not_ to start its own `NQPTP` deamon. This is to enable multiple Docker images running on the same system to use just one `NQPTP` service.
+* Add two new [ADVANCED TOPICS](ADVANCED%20TOPICS/README.md):
+   * [RunningMultipleInstances.md](ADVANCED%20TOPICS/RunningMultipleInstances.md) -- running multiple AirPlay 2 instances on a single host, VM or set of containers
+   * [SplittingASurroundCard.md](ADVANCED%20TOPICS/SplittingASurroundCard.md) -- splitting a multichannel ALSA card into several independent stereo DACs.
+
+Sincere thanks, again, to [Haavar Valeur](https://github.com/haavar) for all these enhancements.
+
 Version 5.6-dev-65-g1273ece8
 ==
 **Enhancement**
