@@ -54,53 +54,80 @@ automatically-derived names give each instance its own clock with no configurati
 ## Running in containers
 
 The container case is the same model — a name and a port (or address) per room —
-with three deployment details:
+but the shared daemons (NQPTP and the mDNS responder) run **once**, and each room
+is told not to start its own:
 
-* **Networking.** The instances and NQPTP must reach each other, and NQPTP needs
-  ports 319/320, so run them with host networking (or place them in one shared
-  network namespace).
+* **Networking.** The instances and the shared daemons must reach each other, and
+  NQPTP needs ports 319/320, so run everything with host networking (or place it in
+  one shared network namespace).
 * **Shared memory / IPC (`ipc: host`).** NQPTP hands timing to Shairport Sync
   through a POSIX shared-memory object (an entry under `/dev/shm`). By default each
-  Docker container gets its own private `/dev/shm`, so an instance in one container
-  cannot see the object NQPTP created in another. `ipc: host` (or a shared `ipc:` in
-  Compose) puts the containers on the same `/dev/shm`, making the timing interface
-  visible. This is needed whenever NQPTP runs in a separate container from the
-  instances, regardless of the audio backend — it is **not** specific to sharing a
-  sound card. (Splitting a single sound card across containers also needs a shared
+  Docker container gets its own private `/dev/shm`, so an instance can't see the
+  object NQPTP created in another. `ipc: host` puts the containers on the same
+  `/dev/shm`. (Splitting a single sound card across containers also needs a shared
   IPC namespace, for the separate reason that ALSA's `dmix` coordinates through
   System V IPC — see the surround-card guide.)
-* **Only one NQPTP.** The official image's launcher starts NQPTP *inside every
-  container it runs*. That is fine for a single instance, but with several rooms
-  they would all try to start NQPTP and fight over ports 319/320. So run **one**
-  dedicated NQPTP (the `nqptp` service below) and set **`ENABLE_NQPTP=0`** on each
-  room so it starts everything it needs *except* its own NQPTP. (Avahi needs no
-  equivalent — each room runs its own; see the mDNS note below.)
+* **Only one NQPTP.** The image's launcher starts NQPTP *inside every container*.
+  With several rooms they would all fight over ports 319/320, so run **one**
+  dedicated NQPTP and set **`ENABLE_NQPTP=0`** on each room. (This needs a
+  multi-client NQPTP — one that keeps a separate clock per shared-memory name.)
+* **Only one mDNS responder (Avahi).** The launcher likewise starts Avahi in every
+  container — and **multiple Avahi daemons in one network namespace collide**: mDNS
+  allows only one responder per host, so with host networking only one room ends up
+  discoverable and the rest silently do not. Run **one** Avahi (with its D-Bus) as a
+  shared responder and set **`ENABLE_AVAHI=0`** on each room; the rooms register
+  their AirPlay services through it over a shared D-Bus socket. One responder then
+  advertises every room under one hostname — the normal multi-service-host pattern.
 
-A Compose sketch — one NQPTP sidecar plus two rooms on the shared host IP:
+Compose sketch — shared NQPTP and Avahi sidecars plus two rooms:
 
 ```yaml
+volumes:
+  dbus:     # shared D-Bus system socket: mdns sidecar <-> rooms
+  avahi:    # shared Avahi socket + pid
+
 services:
   nqptp:
-    # the shairport-sync image also ships nqptp; run it, and nothing else, here
-    image: mikebrady/shairport-sync:latest
+    image: mikebrady/shairport-sync:latest   # the image ships nqptp
     entrypoint: ["/usr/local/bin/nqptp"]
-    network_mode: host                 # NQPTP owns UDP 319/320 for the whole host
+    network_mode: host                        # NQPTP owns UDP 319/320 for the host
+
+  mdns:
+    image: mikebrady/shairport-sync:latest    # the image ships avahi + dbus
+    network_mode: host
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        dbus-uuidgen --ensure
+        dbus-daemon --system --fork
+        sleep 1
+        exec avahi-daemon --no-chroot
+    volumes:
+      - dbus:/run/dbus
+      - avahi:/run/avahi-daemon
 
   kitchen:
     image: mikebrady/shairport-sync:latest
     network_mode: host
-    ipc: host                          # share /dev/shm with nqptp
-    environment: [ENABLE_NQPTP=0]      # use the shared nqptp, don't start another
+    ipc: host                                 # share /dev/shm with nqptp
+    environment: ["ENABLE_NQPTP=0", "ENABLE_AVAHI=0"]
+    volumes:                                  # reach the shared avahi + dbus
+      - dbus:/run/dbus
+      - avahi:/run/avahi-daemon
     command: ["-a", "Kitchen", "--port=7000", "--", "-d", "room_kitchen"]
-    depends_on: [nqptp]
+    depends_on: [nqptp, mdns]
 
   livingroom:
     image: mikebrady/shairport-sync:latest
     network_mode: host
     ipc: host
-    environment: [ENABLE_NQPTP=0]
+    environment: ["ENABLE_NQPTP=0", "ENABLE_AVAHI=0"]
+    volumes:
+      - dbus:/run/dbus
+      - avahi:/run/avahi-daemon
     command: ["-a", "Living Room", "--port=7001", "--", "-d", "room_livingroom"]
-    depends_on: [nqptp]
+    depends_on: [nqptp, mdns]
 ```
 
 (Add the audio-device access your output backend needs — for ALSA, `/dev/snd` and
@@ -110,8 +137,11 @@ including the shared-IPC requirement for `dmix`, is covered in
 
 ## A note on mDNS advertisement
 
-Each instance runs its own mDNS responder (Avahi, in the default image). That is
-fine: mDNS is a multicast protocol, so several responders coexist on the network,
-each advertising its own instance. When the responder can be scoped — for example
-by binding Avahi to one interface — each instance advertises on just its own
-address, which keeps the AirPlay menu tidy.
+On a single host there is **one** mDNS responder, shared by every instance (the
+Avahi sidecar above). Running one Avahi per instance in a shared network namespace
+does **not** work — mDNS allows only one responder per host and they collide, so
+only one instance stays discoverable. The shared responder advertises every
+instance's service under one hostname; instances differ by their service name. If it
+would otherwise advertise on interfaces you don't want (internal/container bridges,
+for example), scope it to your LAN interface (`allow-interfaces=` in
+`avahi-daemon.conf`) to keep discovery clean.
