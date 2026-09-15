@@ -15,7 +15,7 @@ if [ -z ${ENABLE_AVAHI+x} ] || [ $ENABLE_AVAHI -eq 1 ]; then
   avahi-daemon --daemonize --no-chroot
 fi
 
-# Don't launch NQPTP if it classic only
+# Don't launch NQPTP if it classic only, or if ENABLE_NQPTP=0
 
 SERVICE_TYPE=""
 
@@ -27,8 +27,10 @@ for arg in "$@"; do
   esac
 done
 
-if [ -z "$SERVICE_TYPE" ]; then
-  # not looking for Classic aka AirPlay 1 so start NQPTP for AirPlay 2
+# Start NQPTP for AirPlay 2, unless ENABLE_NQPTP=0. Set ENABLE_NQPTP=0 when a
+# separate, shared NQPTP already serves this host -- for example when running
+# several AirPlay 2 instances that share one NQPTP. The default is to start it.
+if [ -z "$SERVICE_TYPE" ] && { [ -z ${ENABLE_NQPTP+x} ] || [ $ENABLE_NQPTP -eq 1 ]; }; then
   echo "Starting NQPTP ($(date))"
   (/usr/local/bin/nqptp > /dev/null 2>&1) &
 fi
