@@ -54,12 +54,13 @@ Shairport Sync offers AirPlay 2 support for audio sources on:
 - Dolby Atmos is not supported.
 - AirPlay 2 for Windows iTunes is not supported.
 - AirPlay 2 from macOS prior to 10.15 (Catalina) is not supported.
-- Multiple instances of the AirPlay 2 version of Shairport Sync can not be hosted on the same system. It seems that AirPlay 2 clients are confused by having multiple AirPlay 2 players at the same IP addresses.
 
 
 ## General
 Shairport Sync uses a companion application called [NQPTP](https://github.com/mikebrady/nqptp) ("Not Quite PTP")
 for timing and synchronisation in AirPlay 2. NQPTP must have exclusive access to ports `319` and `320`.
+
+Several AirPlay 2 instances can run on one host — one independent zone per room. See [Running Multiple AirPlay 2 Instances](ADVANCED%20TOPICS/RunningMultipleInstances.md).
 
 ## What You Need
 For AirPlay 2, a system with the power of a Raspberry Pi B, or better, is recommended.
