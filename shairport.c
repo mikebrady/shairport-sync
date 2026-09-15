@@ -1811,11 +1811,11 @@ int parse_options(int argc, char **argv) {
         char nm[64];
         int k = snprintf(nm, sizeof(nm), "/nqptp-");
         for (p = raw_service_name; (*p != '\0') && (k < (int)sizeof(nm) - 1); p++) {
-          char c = *p;
-          if (!(((c >= 'A') && (c <= 'Z')) || ((c >= 'a') && (c <= 'z')) ||
-                ((c >= '0') && (c <= '9')) || (c == '-') || (c == '.') || (c == '_')))
-            c = '-';
-          nm[k++] = c;
+          char ch = *p;
+          if (!(((ch >= 'A') && (ch <= 'Z')) || ((ch >= 'a') && (ch <= 'z')) ||
+                ((ch >= '0') && (ch <= '9')) || (ch == '-') || (ch == '.') || (ch == '_')))
+            ch = '-';
+          nm[k++] = ch;
         }
         nm[k] = '\0';
         config.nqptp_shared_memory_interface_name = strdup(nm);
