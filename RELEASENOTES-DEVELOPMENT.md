@@ -1,3 +1,13 @@
+Version 5.6-dev-80-ge2d43c42
+==
+**Enhancements**
+
+Two very specialised settings have been added to the `general` section of the configuration file.
+
+* The `airplay_2_44100_only_mode` setting, if set to `"on"`, forces all AirPlay 2 input to be 44.1k stereo only. All 48k input, including lossless and surround sound, is disabled.
+* The `lossless_mode` setting, if set to `"off"`, disables AirPlay 2 lossless playback (where available).This could be used perhaps to prevent audible glitches during dynamic lossy-to-lossless transitions.
+
+
 Version 5.6-dev-75-g94045fe4
 ==
 **Multiple AirPlay 2 Instance Support Enhancements**
