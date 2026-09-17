@@ -1149,15 +1149,22 @@ plist_t generateInfoPlist(rtsp_conn_info *conn) {
         bufferStreamFormats |= 0x40000;        // ALAC/44100/S16/2
       }
 
-      {
-        bufferStreamFormats |= 0x00000200000L; // ALAC/48K/F24/2
-        bufferStreamFormats |= 0x00000800000L; // AAC-LC/48K/F24/2
-      }
-      {
-        if (config.eight_channel_layout != 0)
-          bufferStreamFormats |= 0x10000000000L; // AAC-LC/48K/F24/7.1
-        if (config.six_channel_layout != 0)
-          bufferStreamFormats |= 0x08000000000L; // AAC-LC/48K/F24/5.1
+      // sometimes you want to suppress _all_ 48k working
+      if (config.airplay_2_44100_only_mode == 0) {
+        {
+          // sometimes you want to disable lossless to stop lossy-to-lossless glitches
+          if (config.lossless_mode != 0) {
+            bufferStreamFormats |= 0x00000200000L; // ALAC/48K/F24/2
+          }
+          bufferStreamFormats |= 0x00000800000L; // AAC-LC/48K/F24/2
+        }
+        
+        {
+          if (config.eight_channel_layout != 0)
+            bufferStreamFormats |= 0x10000000000L; // AAC-LC/48K/F24/7.1
+          if (config.six_channel_layout != 0)
+            bufferStreamFormats |= 0x08000000000L; // AAC-LC/48K/F24/5.1
+        }
       }
       plist_dict_set_item(supported_formats_plist, "bufferStream",
                           plist_new_uint(bufferStreamFormats));
@@ -2727,10 +2734,10 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
       } else {
         warn("No session key (shk) property in setup! This is fatal!");
         // This doesn't work right now. Not sure how to proceed.
-        // debug(1, "shared secret length is %zu.", conn->pair_setup_result->shared_secret_len);
-        unsigned char *zeroSessionKey = calloc(conn->pair_setup_result->shared_secret_len, 1);
-        memcpy(zeroSessionKey, conn->pair_setup_result->shared_secret, 32);
-        conn->session_key = zeroSessionKey;
+        //debug(1, "shared secret length is %zu.", conn->pair_setup_result->shared_secret_len);
+        //unsigned char *zeroSessionKey = calloc(conn->pair_setup_result->shared_secret_len, 1);
+        // memcpy(zeroSessionKey, conn->pair_setup_result->shared_secret, 32);
+        //conn->session_key = zeroSessionKey;
       }
 
       // get the compression type
@@ -4140,7 +4147,7 @@ static void *rtsp_conversation_thread_func(void *pconn) {
 
   while (conn->stop == 0) {
     pthread_testcancel();
-    int debug_level = 4; // for printing the request and response
+    int debug_level = 3; // for printing the request and response
     pthread_mutex_lock(&conns_lock);
     int i;
     for (i = 0; i < nconns; i++) {
@@ -4207,7 +4214,7 @@ static void *rtsp_conversation_thread_func(void *pconn) {
           }
         }
         if (method_selected == 0) {
-          debug(1,
+          debug(2,
                 "Connection %d: (%s) unrecognised and unhandled rtsp request \"%s\". HTTP Response "
                 "Code "
                 "%d returned.",

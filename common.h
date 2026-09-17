@@ -409,6 +409,8 @@ typedef struct {
   char *nqptp_shared_memory_interface_name; // client name for nqptp service
   int enable_HK_Access_Control;             // true if the device is part of an Apple Home
   unsigned int volumeControlType; // may be associated with different volume control arrangements
+  int airplay_2_44100_only_mode; // some sources can't transcode 44.1 k to 48k and won't play
+  int lossless_mode;        // sometimes there is an audible glitch doing dynamic switching AAC to ALAC.
 #endif
 
   APST_t service_type; // APST_auto, APST_classic, APST_forced_classic, APST_airplay2

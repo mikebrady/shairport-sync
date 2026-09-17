@@ -980,6 +980,28 @@ int parse_options(int argc, char **argv) {
       }
       
 #ifdef CONFIG_AIRPLAY_2
+      /* Get the 44.1k-only mode. */
+      if (config_lookup_string(config.cfg, "general.airplay_2_44100_only_mode", &str)) {
+        if (strcasecmp(str, "on") == 0)
+          config.airplay_2_44100_only_mode = 1;
+        else if (strcasecmp(str, "off") == 0)
+          config.airplay_2_44100_only_mode = 0;
+        else
+          die("Invalid \"airplay_2_44100_only_mode\" option choice \"%s\". It should be \"on\" or \"off\"",
+              str);
+      }
+
+      /* Get the 48k lossless mode. */
+      if (config_lookup_string(config.cfg, "general.lossless_mode", &str)) {
+        if (strcasecmp(str, "off") == 0)
+          config.lossless_mode = 0;
+        else if (strcasecmp(str, "on") == 0)
+          config.lossless_mode = 1;
+        else
+          die("Invalid \"lossless\" option choice \"%s\". It should be \"on\" or \"off\"",
+              str);
+      }
+
       /* Get the optional volume_control_type setting. */
       if (config_lookup_int(config.cfg, "general.volume_control_type", &value)) {
         // debug(1, "Max volume setting of %f dB", dvalue);
@@ -2669,6 +2691,7 @@ int main(int argc, char **argv) {
 
 #ifdef CONFIG_AIRPLAY_2
   config.get_plist_metadata = 1; // default to using AirPlay-2-type plist information
+  config.lossless_mode = 1;
 #if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 10, 0)
   avcodec_init();
 #endif
