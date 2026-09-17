@@ -136,51 +136,58 @@ Also keep `ipc_key_add_uid false` in each `dshare` definition (as above) and use
 
 Finally, `/dev/snd` must refer to the *same* physical card in each container. With host device access (`--device /dev/snd`) it does.
 
-A runnable example combines the ALSA bits above (`/dev/snd`, the `audio` group, the shared `asound.conf`) with the AirPlay 2 essentials from the [companion guide](RunningMultipleInstances.md) -- host networking, a distinct name and port per room, and one shared NQPTP (`ENABLE_NQPTP=0` on the rooms):
+A runnable example combines the ALSA bits above (`/dev/snd`, the `audio` group, the shared `asound.conf`) with the AirPlay 2 essentials from the [companion guide](RunningMultipleInstances.md) -- host networking, a distinct name and port per room, and the two shared sidecars every multi-instance host needs: one NQPTP and one Avahi (rooms set `ENABLE_NQPTP=0` and `ENABLE_AVAHI=0` and use the sidecars, since several NQPTP/Avahi in one netns collide):
 
 ```yaml
+volumes:
+  dbus:     # shared D-Bus socket: mdns sidecar <-> rooms
+  avahi:    # shared Avahi socket + pid
+
 services:
   nqptp:                               # one shared nqptp for the whole host
     image: mikebrady/shairport-sync:latest
     entrypoint: ["/usr/local/bin/nqptp"]
     network_mode: host
 
+  mdns:                                # one shared avahi + dbus (see companion guide)
+    image: mikebrady/shairport-sync:latest
+    network_mode: host
+    entrypoint: ["/bin/sh", "-c", "dbus-uuidgen --ensure; dbus-daemon --system --fork; sleep 1; exec avahi-daemon --no-chroot"]
+    volumes:
+      - dbus:/run/dbus
+      - avahi:/run/avahi-daemon
+
   room_front:
     image: mikebrady/shairport-sync:latest
-    network_mode: host                 # AirPlay discovery, and reaching nqptp
+    network_mode: host                 # AirPlay discovery, and reaching the sidecars
     ipc: host                          # shared /dev/shm for nqptp AND shared IPC for dshare
-    environment: [ENABLE_NQPTP=0]      # use the shared nqptp above
+    environment: ["ENABLE_NQPTP=0", "ENABLE_AVAHI=0"]
     devices:
       - "/dev/snd:/dev/snd"
     group_add:
       - audio
     volumes:
       - "./asound.conf:/etc/asound.conf:ro"
+      - dbus:/run/dbus
+      - avahi:/run/avahi-daemon
     command: ["-a", "Front Room", "--port=7000", "--", "-d", "room_front"]
-    depends_on: [nqptp]
+    depends_on: [nqptp, mdns]
 
   room_rear:
     image: mikebrady/shairport-sync:latest
     network_mode: host
     ipc: host
-    environment: [ENABLE_NQPTP=0]
+    environment: ["ENABLE_NQPTP=0", "ENABLE_AVAHI=0"]
     devices:
       - "/dev/snd:/dev/snd"
     group_add:
       - audio
     volumes:
       - "./asound.conf:/etc/asound.conf:ro"
+      - dbus:/run/dbus
+      - avahi:/run/avahi-daemon
     command: ["-a", "Rear Room", "--port=7001", "--", "-d", "room_rear"]
-    depends_on: [nqptp]
-```
-
-The equivalent for one room with plain `docker run` (with the shared `nqptp` already running):
-
-```
-docker run --network host --ipc host -e ENABLE_NQPTP=0 \
-    --device /dev/snd --group-add audio \
-    -v "$PWD/asound.conf:/etc/asound.conf:ro" \
-    mikebrady/shairport-sync:latest -a "Front Room" --port=7000 -- -d room_front
+    depends_on: [nqptp, mdns]
 ```
 
 `ipc: host` does double duty here: it shares the host's `/dev/shm` so the rooms read the one nqptp's clock, and it shares the System V IPC namespace so the per-room `dshare` devices resolve to one shared card. The same `asound.conf` (its shared card slave and per-room `dshare` PCMs) goes into every container.
