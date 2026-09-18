@@ -1,3 +1,11 @@
+Version 5.6-dev-83-ga7df0098
+==
+**Bug Fix**
+* Fix a bug whereby Shairport Sync would crash if metadata support was built in but metadata was not enabled in the `metadata` section of the configuration file.
+
+**Other Changes**
+* Support for Jack Audio has been removed.
+
 Version 5.6-dev-80-ge2d43c42
 ==
 **Enhancements**
