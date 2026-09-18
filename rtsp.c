@@ -94,7 +94,9 @@
 #ifdef CONFIG_AIRPLAY_2
 #include "ap2_buffered_audio_processor.h"
 #include "ap2_event_receiver.h"
+#ifdef CONFIG_METADATA_HUB
 #include "metadata/metadata_hub_handle_command_plist.h"
+#endif
 #include "pair_ap/pair.h"
 #include "plists/get_info_response.h"
 #include "ptp-utilities.h"
@@ -2045,30 +2047,32 @@ void handle_feedback(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message 
 void handle_command(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
   // first, check that this is an airplay 2 session
   if (conn->airplay_type == ap_2) {
-    if (rtsp_message_contains_plist(req)) {
-      // we are not going to load the plist here because we don't wamt
-      // to incur the memory and processing cost. So we'll just send it to the
-      // metadata handling code and it can be dealt with there.
 #ifdef CONFIG_METADATA
-      send_metadata('ssnc', 'copl', req->content, req->contentlength, req,
-                    1); // COmmand PList (and release 'req' afterwards)
+    if (config.metadata_enabled != 0) {
+      if (rtsp_message_contains_plist(req)) {
+        // we are not going to load the plist here because we don't wamt
+        // to incur the memory and processing cost. So we'll just send it to the
+        // metadata handling code and it can be dealt with there.
+        send_metadata('ssnc', 'copl', req->content, req->contentlength, req,
+                      1); // COmmand PList (and release 'req' afterwards)
 #ifdef CONFIG_METADATA_HUB
-      // if we are using the metadata hub, we need to extract some of the fields here,
-      // for example the artwork, and forward them to the hub
-      plist_t command_dict = NULL;
-      plist_from_memory(req->content, req->contentlength, &command_dict);
-      if (command_dict != NULL) {
-        metadata_hub_handle_command_plist(conn, command_dict);
-        plist_free(command_dict);
+        // if we are using the metadata hub, we need to extract some of the fields here,
+        // for example the artwork, and forward them to the hub
+        plist_t command_dict = NULL;
+        plist_from_memory(req->content, req->contentlength, &command_dict);
+        if (command_dict != NULL) {
+          metadata_hub_handle_command_plist(conn, command_dict);
+          plist_free(command_dict);
+        } else {
+          debug(1, "Connection %d: POST /command  -- cannot extract the plist",
+                conn->connection_number);
+        }
+#endif
       } else {
-        debug(1, "Connection %d: POST /command  -- cannot extract the plist",
-              conn->connection_number);
+        debug(1, "Connection %d: POST /command contains no plist", conn->connection_number);
       }
-#endif
-#endif
-    } else {
-      debug(1, "Connection %d: POST /command contains no plist", conn->connection_number);
     }
+#endif
   } else {
     debug(1, "handle_command called for a non-AirPlay 2 connection");
   }
