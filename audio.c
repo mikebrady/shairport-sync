@@ -31,9 +31,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef CONFIG_JACK
-extern audio_output audio_jack;
-#endif
 #ifdef CONFIG_SNDIO
 extern audio_output audio_sndio;
 #endif
@@ -74,9 +71,6 @@ static audio_output *outputs[] = {
 #endif
 #ifdef CONFIG_PULSEAUDIO
     &audio_pa,
-#endif
-#ifdef CONFIG_JACK
-    &audio_jack,
 #endif
 #ifdef CONFIG_AO
     &audio_ao,

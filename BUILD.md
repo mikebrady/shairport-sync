@@ -12,7 +12,7 @@ While the overall operation of Shairport Sync has not changed much, it is really
 4. Many build flags  have changed: for example `--with-systemd` is now `--with-systemd-startup`.
 5. Many configuration settings names and facilities have changed. For example `convolution` is now `convolution_enabled`. Another example is that convolution is now multi-threaded, so a new `convolution_thread_pool_size` setting is available.
 7. Installation has changed: when Shairport Sync and NQPTP are installed, their startup scripts have changed to provide them with more suitable privileges. You must remove any existing startup scripts.
-8. Jack Audio is deprecated and will be removed in a future update. Consider using PipeWire instead.
+8. The Jack Audio was deprecated and has been removed. Consider using PipeWire instead.
 
 A useful guide to Version 5 Configuration File Changes is available [here](CONFIGURATIONFILECHANGES5.md). 
 

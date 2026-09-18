@@ -99,10 +99,6 @@ if USE_ALSA
 shairport_sync_SOURCES += audio_alsa.c
 endif
 
-if USE_JACK
-shairport_sync_SOURCES += audio_jack.c
-endif
-
 if USE_SNDIO
 shairport_sync_SOURCES += audio_sndio.c
 endif

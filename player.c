@@ -3617,10 +3617,6 @@ void *player_thread_func(void *arg) {
     debug(1, "ffmpeg flush at start!");
 #endif
 
-  // leave this relic -- jack and soundio still use it
-  if (config.output->start != NULL)
-    config.output->start(44100, SPS_FORMAT_S16_LE);
-
   conn->first_packet_timestamp = 0;
   conn->missing_packets = conn->late_packets = conn->too_late_packets = conn->resend_requests = 0;
   int sync_error_out_of_bounds =

@@ -2524,20 +2524,18 @@ void _display_config(const char *filename, const int linenumber, __attribute__((
       char *i2 = str_replace(i1, "alsa : \n{\n};\n", "");
       char *i3 = str_replace(i2, "sndio : \n{\n};\n", "");
       char *i4 = str_replace(i3, "pulseaudio : \n{\n};\n", "");
-      char *i5 = str_replace(i4, "jack : \n{\n};\n", "");
-      char *i6 = str_replace(i5, "pipe : \n{\n};\n", "");
-      char *i7 = str_replace(i6, "dsp : \n{\n};\n", "");
-      char *i8 = str_replace(i7, "metadata : \n{\n};\n", "");
-      char *i9 = str_replace(i8, "mqtt : \n{\n};\n", "");
-      char *i10 = str_replace(i9, "diagnostics : \n{\n};\n", "");
-      char *i11 = str_replace(i10, "pipewire : \n{\n};\n", "");
-      char *i12 = str_replace(i11, "stdout : \n{\n};\n", "");
-      char *i13 = str_replace(i12, "pipe : \n{\n};\n", "");
-      char *i14 = str_replace(i13, "ao : \n{\n};\n", "");
+      char *i5 = str_replace(i4, "pipe : \n{\n};\n", "");
+      char *i6 = str_replace(i5, "dsp : \n{\n};\n", "");
+      char *i7 = str_replace(i6, "metadata : \n{\n};\n", "");
+      char *i8 = str_replace(i7, "mqtt : \n{\n};\n", "");
+      char *i9 = str_replace(i8, "diagnostics : \n{\n};\n", "");
+      char *i10 = str_replace(i9, "pipewire : \n{\n};\n", "");
+      char *i11 = str_replace(i10, "stdout : \n{\n};\n", "");
+      char *i12 = str_replace(i11, "pipe : \n{\n};\n", "");
+      char *i13 = str_replace(i12, "ao : \n{\n};\n", "");
       // debug(1,"i10 is \"%s\".",i10);
 
       // free intermediate strings
-      free(i13);
       free(i12);
       free(i11);
       free(i10);
@@ -2553,11 +2551,11 @@ void _display_config(const char *filename, const int linenumber, __attribute__((
       free(i0);
 
       // print it out
-      if (strlen(i14) == 0)
+      if (strlen(i13) == 0)
         _inform(filename, linenumber, "The Configuration file contains no active settings.");
       else {
         _inform(filename, linenumber, "Configuration File Settings:");
-        char *p = i14;
+        char *p = i13;
         while (*p != '\0') {
           i = 0;
           while ((*p != '\0') && (*p != '\n')) {
@@ -2574,7 +2572,7 @@ void _display_config(const char *filename, const int linenumber, __attribute__((
         }
       }
 
-      free(i14); // free the cleaned-up configuration string
+      free(i13); // free the cleaned-up configuration string
 
       /*
             while (fgets(result, 1024, cr) != NULL) {
