@@ -26,12 +26,11 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <inttypes.h>
-#include <errno.h>
 
 #include "common.h"
 #include "string_utilities.h"
@@ -277,6 +276,96 @@ static char *append_to_string(char *dst, size_t *length, size_t *capacity, const
   memcpy(dst + *length, src, n);
   *length += n;
   dst[*length] = '\0';
+  return dst;
+}
+
+// Returns a newly malloc'd string with comments removed:
+//   - "//" and "#" line comments (run to end of line)
+//   - "/* ... *\/" block comments
+// Comment markers inside double-quoted strings are left untouched.
+// Caller must free the returned string.
+// Returns NULL on allocation failure.
+
+char *strip_comments(const char *src) {
+  size_t len = strlen(src);
+  char *dst = malloc(len + 1);
+  if (!dst) {
+    return NULL;
+  }
+
+  size_t i = 0, j = 0;
+  int in_string = 0; /* inside "..." */
+
+  while (i < len) {
+    char c = src[i];
+
+    /* --- inside a double-quoted string --- */
+    if (in_string) {
+      if (c == '\\' && i + 1 < len) {
+        /* Covers \\, \", \f, \n, \r, \a, \b, \v, \t, and the
+         * leading \x of a \xFF escape -- in every case, just
+         * copying the backslash and the following character
+         * verbatim is enough to avoid misreading an escaped
+         * quote as the end of the string. */
+        dst[j++] = c;
+        dst[j++] = src[i + 1];
+        i += 2;
+        continue;
+      }
+      if (c == '"') {
+        in_string = 0;
+      }
+      dst[j++] = c;
+      i++;
+      continue;
+    }
+
+    /* --- not inside a string --- */
+    if (c == '"') {
+      in_string = 1;
+      dst[j++] = c;
+      i++;
+      continue;
+    }
+
+    /* "//" line comment */
+    if (c == '/' && i + 1 < len && src[i + 1] == '/') {
+      while (i < len && src[i] != '\n') {
+        i++;
+      }
+      continue;
+    }
+
+    /* "#" line comment */
+    if (c == '#') {
+      while (i < len && src[i] != '\n') {
+        i++;
+      }
+      continue;
+    }
+
+    // "/* ... */" block comment
+    if (c == '/' && i + 1 < len && src[i + 1] == '*') {
+      i += 2;
+      while (i + 1 < len && !(src[i] == '*' && src[i + 1] == '/')) {
+        if (src[i] == '\n') {
+          dst[j++] = '\n'; /* keep line numbers meaningful */
+        }
+        i++;
+      }
+      if (i + 1 < len) {
+        i += 2; // skip closing "*/"
+      } else {
+        i = len; /* unterminated block comment: skip to EOF */
+      }
+      continue;
+    }
+
+    dst[j++] = c;
+    i++;
+  }
+
+  dst[j] = '\0';
   return dst;
 }
 

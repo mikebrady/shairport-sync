@@ -674,8 +674,13 @@ int parse_options(int argc, char **argv) {
     if (config_text == NULL)
       die("Error reading configuration file \"%s\": \"%s\".", config_file_real_path,
           strerror(errno));
-    char *expanded_config_text = expand_environment_variables(config_text, config_file_real_path);
+    char *comment_free_config_text = strip_comments(config_text);
     free(config_text);
+    if (comment_free_config_text == NULL)
+      die("Error removing comments from the configuration file \"%s\": \"%s\".", config_file_real_path,
+          strerror(errno));   
+    char *expanded_config_text = expand_environment_variables(comment_free_config_text, config_file_real_path);
+    free(comment_free_config_text);
     /* Parse the expanded text. If there is an error, report it and exit. */
     if (config_read_string(&config_file_stuff, expanded_config_text)) {
       free(expanded_config_text);
