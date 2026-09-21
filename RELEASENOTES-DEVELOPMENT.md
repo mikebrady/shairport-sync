@@ -1,7 +1,12 @@
+Version 5.6-dev-85-ge10120da
+==
+**Bug Fix**
+* Stopped trying to expand environmental variables that may be mentioned (and may not exist) in comments in the configuration file. The fix is to remove all comments before expanding environmental variables.
+
 Version 5.6-dev-83-ga7df0098
 ==
 **Bug Fix**
-* Fix a bug whereby Shairport Sync would crash if metadata support was built in but metadata was not enabled in the `metadata` section of the configuration file.
+* Fixed a bug whereby Shairport Sync would crash if metadata support was built in but metadata was not enabled in the `metadata` section of the configuration file.
 
 **Other Changes**
 * Support for Jack Audio has been removed.
