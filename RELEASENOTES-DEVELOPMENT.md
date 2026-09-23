@@ -23,7 +23,7 @@ Version 5.6-dev-95-gd3bef78e
 Version 5.6-dev-85-ge10120da
 ==
 **Bug Fix**
-* Stopped trying to expand environmental variables that may be mentioned (and may not exist) in comments in the configuration file. The fix is to remove all comments before expanding environmental variables.
+* Stopped trying to expand environmental variables that may be mentioned (and may not exist) in comments in the configuration file. The fix was to remove all comments before expanding environmental variables.
 
 Version 5.6-dev-83-ga7df0098
 ==
