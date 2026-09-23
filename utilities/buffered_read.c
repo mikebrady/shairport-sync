@@ -43,7 +43,7 @@ ssize_t buffered_read(buffered_tcp_desc *descriptor, void *buf, size_t count,
   descriptor->closed = 0;
 
   if (descriptor->buffer_occupancy == 0) {
-    debug(2, "buffered_read: buffer empty -- waiting for %zu bytes.", count);
+    debug(4, "buffered_read: buffer empty -- waiting for %zu bytes.", count);
   }
 
   while ((descriptor->buffer_occupancy == 0) && (descriptor->error_code == 0) &&
@@ -146,10 +146,9 @@ void *buffered_tcp_reader(void *arg) {
 
     // do the read
     if (descriptor->buffer_occupancy == 0)
-      debug(2, "recv of up to %zd bytes with an buffer empty.", bytes_to_request);
+      debug(4, "recv of up to %zd bytes with an buffer empty.", bytes_to_request);
     nread = recv(fd, descriptor->eoq, bytes_to_request, 0);
-    // debug(1, "Received %d bytes for a buffer size of %d bytes.",nread,
-    // descriptor->buffer_occupancy + nread);
+    // debug(1, "Received %zu bytes for a buffer size of %zd bytes.",nread, descriptor->buffer_occupancy + nread);
     if (pthread_mutex_lock(&descriptor->mutex) != 0)
       debug(1, "problem with not empty mutex");
     pthread_cleanup_push(mutex_unlock, (void *)&descriptor->mutex);

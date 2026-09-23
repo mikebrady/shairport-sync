@@ -90,7 +90,6 @@ static void deinit(void);
 static int prepare(void);
 static int32_t get_configuration(unsigned int channels, unsigned int rate, unsigned int sps_format);
 static int configure(int32_t requested_encoded_format, char **channel_map);
-static void start(int i_sample_rate, int i_sample_format);
 static int play(void *buf, int samples, __attribute__((unused)) int sample_type,
                 __attribute__((unused)) uint32_t timestamp,
                 __attribute__((unused)) uint64_t playtime);
@@ -116,7 +115,6 @@ audio_output audio_alsa = {.name = "alsa",
                            .prepare = &prepare,
                            .get_configuration = &get_configuration,
                            .configure = &configure,
-                           .start = &start,
                            .stop = &stop,
                            .is_running = NULL,
                            .flush = &flush,
@@ -444,7 +442,7 @@ static int get_permissible_configuration_settings() {
     if (ret != 0) {
       char errorstring[1024];
       strerror_r(-ret, (char *)errorstring, sizeof(errorstring));
-      debug(1, "get_permissible_configuration_settings: error %d (\"%s\").", ret, errorstring);
+      debug(1, "get_permissible_configuration_settings on device \"%s\": error %d (\"%s\").", alsa_out_dev, ret, errorstring);
     }
     int64_t hot = get_absolute_time_in_ns() - hto;
     if (hot > 200000000)
@@ -1641,7 +1639,14 @@ static void deinit(void) {
     free(hw_alsa_out_dev);
 }
 
-static int prepare() { return get_permissible_configuration_settings(); }
+static int prepare() {
+  if (alsa_device_initialised == 0) {
+    debug(2, "alsa: prepare() calling alsa_device_init.");
+    alsa_device_init();
+    alsa_device_initialised = 1;
+  }
+  return get_permissible_configuration_settings();
+}
 
 static int set_mute_state() {
   int response = 1; // some problem expected, e.g. no mixer or not allowed to use it or disconnected
@@ -1681,16 +1686,6 @@ static int set_mute_state() {
 }
 
 static output_parameters_t *parameters() { return &output_parameters; }
-
-static void start(__attribute__((unused)) int i_sample_rate,
-                  __attribute__((unused)) int i_sample_format) {
-
-  if (alsa_device_initialised == 0) {
-    debug(2, "alsa: start() calling alsa_device_init.");
-    alsa_device_init();
-    alsa_device_initialised = 1;
-  }
-}
 
 static int standard_delay_and_status(snd_pcm_state_t *state, snd_pcm_sframes_t *delay,
                                      yndk_type *using_update_timestamps) {

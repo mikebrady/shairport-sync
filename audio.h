@@ -65,7 +65,7 @@ typedef struct {
   // If there isn't a channel map a NULL will be returned.
   int (*configure)(int32_t encoded_output_format, char **channel_map);
 
-  void (*start)(int sample_rate, int sample_format);
+  // void (*start)();
 
   // block of samples
   int (*play)(void *buf, int samples, int sample_type, uint32_t timestamp, uint64_t playtime);

@@ -260,21 +260,6 @@ if test "x$with_alsa" = "xyes" ; then
 fi
 AM_CONDITIONAL([USE_ALSA], [test "x$with_alsa" = "xyes"])
 
-# Look for jack flag
-AC_ARG_WITH(jack, [AS_HELP_STRING([--with-jack],[include a Jack Audio Connection Kit (jack) backend])])
-if test "x$with_jack" = "xyes" ; then
-  AC_DEFINE([CONFIG_JACK], 1, [Include a Jack Audio Connection Kit (jack) audio backend])
-  if  test "x${with_pkg_config}" = xyes ; then
-    PKG_CHECK_MODULES(
-      [jack], [jack],
-      [LIBS="${jack_LIBS} ${LIBS}"],
-      [AC_MSG_ERROR(Jack Audio Connection Kit support requires the jack library -- libjack-dev suggested!)])
-  else
-    AC_CHECK_LIB([jack], [jack_client_open], , AC_MSG_ERROR(Jack Audio Connection Kit support requires the jack library -- libjack-dev suggested!))
-  fi
-fi
-AM_CONDITIONAL([USE_JACK], [test "x$with_jack" = "xyes"])
-
 # Look for SNDIO flag
 AC_ARG_WITH(sndio, [AS_HELP_STRING([--with-sndio],[choose SNDIO API support])])
 if test "x$with_sndio" = "xyes" ; then
@@ -296,15 +281,6 @@ if test "x$with_ao" = "xyes" ; then
   fi
 fi
 AM_CONDITIONAL([USE_AO], [test "x$with_ao" = "xyes"])
-
-# Look for Soundio flag
-AC_ARG_WITH(soundio, [AS_HELP_STRING([--with-soundio],[choose soundio API support.])])
-if test "x$with_soundio" = "xyes" ; then
-  AC_DEFINE([CONFIG_SOUNDIO], 1, [Include the SoundIO (libsoundio) backend.])
-  AC_CHECK_LIB([soundio], [soundio_create], , AC_MSG_ERROR(soundio support requires the libsoundio library -- libsoundio-dev suggested (note: the soundio backend is deprecated and will be removed in a future update)))
-  AC_MSG_WARN([The soundio (libsoundio) backend is deprecated and will be removed in a future update.])
-fi
-AM_CONDITIONAL([USE_SOUNDIO], [test "x$with_soundio" = "xyes"])
 
 # Look for pulseaudio flag
 AC_ARG_WITH(pulseaudio, [AS_HELP_STRING([--with-pulseaudio],[build the PulseAudio backend into Shairport Sync])])

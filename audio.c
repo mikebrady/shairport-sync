@@ -31,17 +31,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef CONFIG_JACK
-extern audio_output audio_jack;
-#endif
 #ifdef CONFIG_SNDIO
 extern audio_output audio_sndio;
 #endif
 #ifdef CONFIG_AO
 extern audio_output audio_ao;
-#endif
-#ifdef CONFIG_SOUNDIO
-extern audio_output audio_soundio;
 #endif
 #ifdef CONFIG_PIPEWIRE
 extern audio_output audio_pw;
@@ -75,14 +69,8 @@ static audio_output *outputs[] = {
 #ifdef CONFIG_PULSEAUDIO
     &audio_pa,
 #endif
-#ifdef CONFIG_JACK
-    &audio_jack,
-#endif
 #ifdef CONFIG_AO
     &audio_ao,
-#endif
-#ifdef CONFIG_SOUNDIO
-    &audio_soundio,
 #endif
 #ifdef CONFIG_PIPE
     &audio_pipe,

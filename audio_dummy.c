@@ -39,9 +39,6 @@ static int init(__attribute__((unused)) int argc, __attribute__((unused)) char *
 
 static void deinit(void) {}
 
-static void start(int sample_rate, __attribute__((unused)) int sample_format) {
-  debug(1, "dummy audio output started at %d frames per second.", sample_rate);
-}
 // clang-format off
 // Here is a brief explanation of the parameters:
 // sample_type is 'play_samples_are_untimed' or 'play_samples_are_timed' defined in audio.h.
@@ -72,7 +69,6 @@ audio_output audio_dummy = {.name = "dummy",
                             .init = &init,
                             .deinit = &deinit,
                             .configure = NULL,
-                            .start = &start,
                             .stop = &stop,
                             .is_running = NULL,
                             .flush = NULL,

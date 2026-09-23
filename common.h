@@ -377,14 +377,6 @@ typedef struct {
   int disable_resend_requests; // set this to stop resend request being made for missing packets
   double diagnostic_drop_packet_fraction; // pseudo randomly drop this fraction of packets, for
                                           // debugging. Currently audio packets only...
-#ifdef CONFIG_JACK
-  char *jack_client_name;
-  char *jack_autoconnect_pattern;
-#ifdef CONFIG_SOXR
-  int jack_soxr_resample_quality;
-#endif
-#endif
-
   void *gradients; // a linked list of the clock gradients discovered for all DACP IDs
                    // can't use IP numbers as they might be given to different devices
                    // can't get hold of MAC addresses.

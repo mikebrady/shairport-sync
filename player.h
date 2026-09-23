@@ -438,10 +438,8 @@ typedef struct {
 
   int ap2_event_receiver_exited;
 
-  int last_anchor_info_is_valid;
   uint32_t last_anchor_rtptime;
   uint64_t last_anchor_local_time;
-  uint64_t last_anchor_time_of_update;
   uint64_t last_anchor_validity_start_time;
 
   int ap2_immediate_flush_requested;

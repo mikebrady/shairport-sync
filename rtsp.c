@@ -1300,7 +1300,7 @@ void handle_get_info(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp
 }
 
 void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
-  debug(2, "Connection %d: FLUSHBUFFERED %s : Content-Length %d", conn->connection_number,
+  debug(3, "Connection %d: FLUSHBUFFERED %s : Content-Length %d", conn->connection_number,
         req->path, req->contentlength);
   debug_log_rtsp_message(3, "FLUSHBUFFERED request", req);
 

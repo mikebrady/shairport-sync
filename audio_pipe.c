@@ -48,9 +48,8 @@ static unsigned int bytes_per_frame = 0;
 char *pipename = NULL;
 char *default_pipe_name = "/tmp/shairport-sync-audio";
 
-static void start(__attribute__((unused)) int sample_rate,
-                  __attribute__((unused)) int sample_format) {
-
+static int prepare() {
+  int result = 0;
   // this will leave fd as -1 if a reader hasn't been attached to the pipe
   // we check that it's not a "real" error though. From the "man 2 open" page:
   // "ENXIO  O_NONBLOCK | O_WRONLY is set, the named file is a FIFO, and no process has the FIFO
@@ -67,7 +66,9 @@ static void start(__attribute__((unused)) int sample_rate,
           (char *)errorstring, pipename);
     warn("can not open audio pipe -- error %d (\"%s\") opening pipe: \"%s\".", errno,
          (char *)errorstring, pipename);
+    result = -1;
   }
+  return result;
 }
 
 static int play(void *buf, int samples, __attribute__((unused)) int sample_type,
@@ -178,9 +179,9 @@ audio_output audio_pipe = {.name = "pipe",
                            .help = &help,
                            .init = &init,
                            .deinit = &deinit,
+                           .prepare = &prepare,
                            .get_configuration = &get_configuration,
                            .configure = &configure,
-                           .start = &start,
                            .stop = &stop,
                            .is_running = NULL,
                            .flush = NULL,

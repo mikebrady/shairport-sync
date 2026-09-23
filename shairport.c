@@ -2023,8 +2023,8 @@ int parse_options(int argc, char **argv) {
 
 #endif
 
-#ifdef CONFIG_METADATA
-  if ((config.metadata_enabled == 1) && (config.metadata_pipename == NULL)) {
+#ifdef CONFIG_METADATA_PIPE
+  if (config.metadata_pipename == NULL) {
     char temp_metadata_pipe_name[4096];
     strcpy(temp_metadata_pipe_name, "/tmp/");
     strcat(temp_metadata_pipe_name, config.appName);
