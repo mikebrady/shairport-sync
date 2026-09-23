@@ -187,7 +187,7 @@ You'll know that Shairport Sync has had remote control facilities for classic Ai
 
 Most of these remote control facilities are now available on AirPlay 2 players using the same Shairport Sync commands and properties as work for classic AirPlay.
 
-**Update:** It emerges that [paintarm287](https://github.com/paintarm287) has been working on this independently, and we look forward to incorporating what they have deciphered!
+**Update:** It emerges that [paintarm287](https://github.com/paintarm287) has been [working on this](https://github.com/mikebrady/shairport-sync/pull/2256) independently, and we look forward to incorporating what they have deciphered!
 
 
 ## Enhanced Metadata for Airplay 2
