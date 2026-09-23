@@ -253,12 +253,11 @@ void *rtp_buffered_audio_processor(void *arg) {
       if ((conn->ap2_audio_buffer_minimum_size < 0) ||
           (bytes_remaining_in_buffer < (size_t)conn->ap2_audio_buffer_minimum_size))
         conn->ap2_audio_buffer_minimum_size = bytes_remaining_in_buffer;
-
       if (data_len >= 2) {
         data_len = data_len - 2;
         if ((nread > 0) && (data_len < buffer_packet_size)) {
           // get the block itself
-          // debug(1,"buffered audio packet of size %u detected.", data_len - 2);
+          // debug(1,"buffered audio packet of size %u detected.", data_len + 2);
           nread = read_sized_block(buffered_audio, packet, data_len, &bytes_remaining_in_buffer);
           // debug(1,"block read");
   

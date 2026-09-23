@@ -277,6 +277,14 @@ int send_metadata_to_queue(pc_queue *queue, const uint32_t type, const uint32_t 
 
 int send_metadata(const uint32_t type, const uint32_t code, const char *data, const uint32_t length,
                   rtsp_message *carrier, int block) {
+                  
+  (void)type;
+  (void)code;
+  (void) data;
+  (void) length;
+  (void) carrier;
+  (void) block; // might be conditionally unreferenced...
+  
   int rc = 0;
   if (config.metadata_enabled) {
 

@@ -674,8 +674,13 @@ int parse_options(int argc, char **argv) {
     if (config_text == NULL)
       die("Error reading configuration file \"%s\": \"%s\".", config_file_real_path,
           strerror(errno));
-    char *expanded_config_text = expand_environment_variables(config_text, config_file_real_path);
+    char *comment_free_config_text = strip_comments(config_text);
     free(config_text);
+    if (comment_free_config_text == NULL)
+      die("Error removing comments from the configuration file \"%s\": \"%s\".", config_file_real_path,
+          strerror(errno));   
+    char *expanded_config_text = expand_environment_variables(comment_free_config_text, config_file_real_path);
+    free(comment_free_config_text);
     /* Parse the expanded text. If there is an error, report it and exit. */
     if (config_read_string(&config_file_stuff, expanded_config_text)) {
       free(expanded_config_text);
@@ -1969,7 +1974,6 @@ int parse_options(int argc, char **argv) {
     if (config.get_plist_metadata != 0) {
       config.airplay_features |=
           (uint64_t)1 << 50; // richer metadata in a binary plist, including more state information
-      // config.airplay_features |= (uint64_t)1 << 16; // ask for progress too
 
     } else {
       // older metadata flags artwork, progress and text respectively
@@ -2524,20 +2528,18 @@ void _display_config(const char *filename, const int linenumber, __attribute__((
       char *i2 = str_replace(i1, "alsa : \n{\n};\n", "");
       char *i3 = str_replace(i2, "sndio : \n{\n};\n", "");
       char *i4 = str_replace(i3, "pulseaudio : \n{\n};\n", "");
-      char *i5 = str_replace(i4, "jack : \n{\n};\n", "");
-      char *i6 = str_replace(i5, "pipe : \n{\n};\n", "");
-      char *i7 = str_replace(i6, "dsp : \n{\n};\n", "");
-      char *i8 = str_replace(i7, "metadata : \n{\n};\n", "");
-      char *i9 = str_replace(i8, "mqtt : \n{\n};\n", "");
-      char *i10 = str_replace(i9, "diagnostics : \n{\n};\n", "");
-      char *i11 = str_replace(i10, "pipewire : \n{\n};\n", "");
-      char *i12 = str_replace(i11, "stdout : \n{\n};\n", "");
-      char *i13 = str_replace(i12, "pipe : \n{\n};\n", "");
-      char *i14 = str_replace(i13, "ao : \n{\n};\n", "");
+      char *i5 = str_replace(i4, "pipe : \n{\n};\n", "");
+      char *i6 = str_replace(i5, "dsp : \n{\n};\n", "");
+      char *i7 = str_replace(i6, "metadata : \n{\n};\n", "");
+      char *i8 = str_replace(i7, "mqtt : \n{\n};\n", "");
+      char *i9 = str_replace(i8, "diagnostics : \n{\n};\n", "");
+      char *i10 = str_replace(i9, "pipewire : \n{\n};\n", "");
+      char *i11 = str_replace(i10, "stdout : \n{\n};\n", "");
+      char *i12 = str_replace(i11, "pipe : \n{\n};\n", "");
+      char *i13 = str_replace(i12, "ao : \n{\n};\n", "");
       // debug(1,"i10 is \"%s\".",i10);
 
       // free intermediate strings
-      free(i13);
       free(i12);
       free(i11);
       free(i10);
@@ -2553,11 +2555,11 @@ void _display_config(const char *filename, const int linenumber, __attribute__((
       free(i0);
 
       // print it out
-      if (strlen(i14) == 0)
+      if (strlen(i13) == 0)
         _inform(filename, linenumber, "The Configuration file contains no active settings.");
       else {
         _inform(filename, linenumber, "Configuration File Settings:");
-        char *p = i14;
+        char *p = i13;
         while (*p != '\0') {
           i = 0;
           while ((*p != '\0') && (*p != '\n')) {
@@ -2574,7 +2576,7 @@ void _display_config(const char *filename, const int linenumber, __attribute__((
         }
       }
 
-      free(i14); // free the cleaned-up configuration string
+      free(i13); // free the cleaned-up configuration string
 
       /*
             while (fgets(result, 1024, cr) != NULL) {
@@ -3504,50 +3506,58 @@ int main(int argc, char **argv) {
   }
 #ifdef CONFIG_METADATA
   debug(option_print_level, "metadata enabled is %d.", config.metadata_enabled);
-  debug(option_print_level, "metadata pipename is \"%s\".", config.metadata_pipename);
-  debug(option_print_level, "metadata socket address is \"%s\" port %d.", config.metadata_sockaddr,
-        config.metadata_sockport);
-  debug(option_print_level, "metadata socket packet size is \"%zd\".",
-        config.metadata_sockmsglength);
-  debug(option_print_level, "get-coverart is %d.", config.get_coverart);
+  if (config.metadata_enabled != 0) {
+    debug(option_print_level, "metadata pipename is \"%s\".", config.metadata_pipename);
+    debug(option_print_level, "metadata socket address is \"%s\" port %d.", config.metadata_sockaddr,
+          config.metadata_sockport);
+    debug(option_print_level, "metadata socket packet size is \"%zd\".",
+          config.metadata_sockmsglength);
+    debug(option_print_level, "get-coverart is %d.", config.get_coverart);
+  }
 #endif
 #ifdef CONFIG_MQTT
   debug(option_print_level, "mqtt is %sabled.", config.mqtt_enabled ? "en" : "dis");
-  debug(option_print_level, "mqtt hostname is %s, port is %d.", config.mqtt_hostname,
-        config.mqtt_port);
-  debug(option_print_level, "mqtt topic is %s.", config.mqtt_topic);
-  debug(option_print_level, "mqtt will%s publish raw metadata.",
-        config.mqtt_publish_raw ? "" : " not");
-  debug(option_print_level, "mqtt will%s publish parsed metadata.",
-        config.mqtt_publish_parsed ? "" : " not");
-  debug(option_print_level, "mqtt will%s publish cover Art.",
-        config.mqtt_publish_cover ? "" : " not");
-  debug(option_print_level, "mqtt will%s set retain flag.",
-        config.mqtt_publish_retain ? "" : " not");
-  debug(option_print_level, "mqtt remote control is %sabled.",
-        config.mqtt_enable_remote ? "en" : "dis");
-  debug(option_print_level, "mqtt autodiscovery is %sabled.",
-        config.mqtt_enable_autodiscovery ? "en" : "dis");
+  if (config.mqtt_enabled != 0) {  
+    debug(option_print_level, "mqtt hostname is %s, port is %d.", config.mqtt_hostname,
+          config.mqtt_port);
+    debug(option_print_level, "mqtt topic is %s.", config.mqtt_topic);
+    debug(option_print_level, "mqtt will%s publish raw metadata.",
+          config.mqtt_publish_raw ? "" : " not");
+    debug(option_print_level, "mqtt will%s publish parsed metadata.",
+          config.mqtt_publish_parsed ? "" : " not");
+    debug(option_print_level, "mqtt will%s publish cover Art.",
+          config.mqtt_publish_cover ? "" : " not");
+    debug(option_print_level, "mqtt will%s set retain flag.",
+          config.mqtt_publish_retain ? "" : " not");
+    debug(option_print_level, "mqtt remote control is %sabled.",
+          config.mqtt_enable_remote ? "en" : "dis");
+    debug(option_print_level, "mqtt autodiscovery is %sabled.",
+          config.mqtt_enable_autodiscovery ? "en" : "dis");
+  }
 #endif
 
 #ifdef CONFIG_CONVOLUTION
   debug(option_print_level, "convolution_enabled is %s.",
         config.convolution_enabled != 0 ? "true" : "false");
-  debug(option_print_level, "convolution maximum length is %f seconds.",
-        config.convolution_max_length_in_seconds);
-  debug(option_print_level, "convolution gain is %f", config.convolution_gain);
-  int convolution_ir_files_status = sanity_check_ir_files(
-      option_print_level, config.convolution_ir_files, config.convolution_ir_file_count);
-  if (convolution_ir_files_status != 0) { // if non zero, it's the index of the errant file + 1
-    debug(option_print_level, "convolution impulse response file \"%s\" %s",
-          config.convolution_ir_files[convolution_ir_files_status - 1].filename, sf_strerror(NULL));
-    warn("Error accessing the convolution impulse response file \"%s\". %s",
-         config.convolution_ir_files[convolution_ir_files_status - 1].filename, sf_strerror(NULL));
+  if (config.convolution_enabled != 0) {    
+    debug(option_print_level, "convolution maximum length is %f seconds.",
+          config.convolution_max_length_in_seconds);
+    debug(option_print_level, "convolution gain is %f", config.convolution_gain);
+    int convolution_ir_files_status = sanity_check_ir_files(
+        option_print_level, config.convolution_ir_files, config.convolution_ir_file_count);
+    if (convolution_ir_files_status != 0) { // if non zero, it's the index of the errant file + 1
+      debug(option_print_level, "convolution impulse response file \"%s\" %s",
+            config.convolution_ir_files[convolution_ir_files_status - 1].filename, sf_strerror(NULL));
+      warn("Error accessing the convolution impulse response file \"%s\". %s",
+           config.convolution_ir_files[convolution_ir_files_status - 1].filename, sf_strerror(NULL));
+    }
   }
 #endif
   debug(option_print_level, "loudness_enabled is %s.",
         config.loudness_enabled != 0 ? "true" : "false");
-  debug(option_print_level, "loudness reference level is %f", config.loudness_reference_volume_db);
+  if (config.loudness_enabled != 0) {    
+    debug(option_print_level, "loudness reference level is %f", config.loudness_reference_volume_db);
+  }
 
 #ifdef CONFIG_SOXR
 

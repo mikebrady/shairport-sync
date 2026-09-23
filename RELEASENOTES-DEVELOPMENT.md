@@ -1,3 +1,21 @@
+Version 5.6-dev-95-gd3bef78e
+==
+**Bug Fix**
+* Avoid reading more than the `max_packet_size` into the buffer during Buffered Audio reception. Associated with this, slightly rearrange the buffered reading code to avoid a compilation warning and a mishandling of a very small buffer read request. Thanks to [Dirk Mueller](https://github.com/dirkmueller) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2295). 
+
+Version 5.6-dev-85-ge10120da
+==
+**Bug Fix**
+* Stopped trying to expand environmental variables that may be mentioned (and may not exist) in comments in the configuration file. The fix is to remove all comments before expanding environmental variables.
+
+Version 5.6-dev-83-ga7df0098
+==
+**Bug Fix**
+* Fixed a bug whereby Shairport Sync would crash if metadata support was built in but metadata was not enabled in the `metadata` section of the configuration file.
+
+**Other Changes**
+* Support for Jack Audio has been removed.
+
 Version 5.6-dev-80-ge2d43c42
 ==
 **Enhancements**
@@ -37,7 +55,7 @@ Version 5.6-dev-58-g3670f361
 **Stuff you probably shouldn't ignore**
 * In AirPlay 2 mode, the old (classic AirPlay) way of fetching metadata is no longer used -- more comprehensive metadata is provided in plists and is used instead.
   The plist metadata provides the normal MPRIS and D-Bus data, but if you are taking metadata directly from the metadata pipe or from the multicast, it will have changed.
-  You can revert to the old way, for a while, using the `get_plist_metadata` option in the `diagnostics` section of the configuration file. Set it to \"no\" to revert to the old way.
+  You can revert to the old way, for a while, using the `get_plist_metadata` option in the `diagnostics` section of the configuration file. Set it to `"no"` to revert to the old way.
 * The `get_plist_metadata` option in the `diagnostics` section of the configuration file now defaults to `"yes"`.
 
 **Enhancements**
@@ -80,7 +98,7 @@ NQPTP:
 * An [update](https://github.com/mikebrady/nqptp/pull/50) to [NQPTP](https://github.com/mikebrady) restores per-client handling so that several AirPlay 2 instances on one host can share a group. Thanks to [Jay Love](https://github.com/jslove) for this update. 
 
 Shairport Sync:
-* An optional new `nqptp_shared_memory_interface_name` setting has been added to the `general` section of the configuration file to allow the Sharted Memory ("SHM") interface name to be set. Different instances of Shairport Sync can thus specify different SHM interfaces to NQPTP. Thanks to [Jay Love](https://github.com/jslove) for this enhancement. Shairport Sync has been [updated](https://github.com/mikebrady/shairport-sync/pull/2278) to wait for up to 0.5 seconds for its own interface to NQPTP has come online. Thanks to [Haavar Valeur](https://github.com/haavar).
+* An optional new `nqptp_shared_memory_interface_name` setting has been added to the `general` section of the configuration file to allow the Shared Memory (`"SHM"`) interface name to be set. Different instances of Shairport Sync can thus specify different SHM interfaces to NQPTP. Thanks to [Jay Love](https://github.com/jslove) for this enhancement. Shairport Sync has been [updated](https://github.com/mikebrady/shairport-sync/pull/2278) to wait for up to 0.5 seconds for its own interface to NQPTP has come online. Thanks to [Haavar Valeur](https://github.com/haavar).
 * An optional new `address` setting in the `general` section of the configuration file directs Shairport Sync to process AirPlay traffic only at that specific address. Different instances of Shairport Sync can thus be set up to work on different addresses. Thanks to [Haavar Valeur](https://github.com/haavar) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2275). If the `address` setting is used, a [further update](https://github.com/mikebrady/shairport-sync/pull/2276) thanks to [Jay Love](https://github.com/jslove) publishes a machine-unique mDNS hostname formed from the machine name combined with the address and port number.
 * Session identity information is now passed to environment variables available to the `run_this_before_play_begins` `run_this_after_play_ends` hooks. Hooked apps have access to the following environment variables:
 
@@ -169,7 +187,7 @@ You'll know that Shairport Sync has had remote control facilities for classic Ai
 
 Most of these remote control facilities are now available on AirPlay 2 players using the same Shairport Sync commands and properties as work for classic AirPlay.
 
-**Update:** It emerges that [paintarm287](https://github.com/paintarm287) has been working on this independently, and we look forward to incorporating what they have deciphered!
+**Update:** It emerges that [paintarm287](https://github.com/paintarm287) has been [working on this](https://github.com/mikebrady/shairport-sync/pull/2256) independently, and we look forward to incorporating what they have deciphered!
 
 
 ## Enhanced Metadata for Airplay 2

@@ -15,6 +15,9 @@ int parse_u64(const char *str, uint64_t *out);
 // The caller must free the returned buffer.
 char *read_file_to_string(const char *pathname);
 
+// Returns a newly malloc'd string with libconfig-type comments removed:
+char *strip_comments(const char *src);
+
 // Expand ${NAME} environment-variable references in the given text, taking the
 // values from the process environment. "${NAME}" (NAME matching
 // [A-Za-z_][A-Za-z0-9_]*) is replaced by the value of NAME; "$${" yields a
