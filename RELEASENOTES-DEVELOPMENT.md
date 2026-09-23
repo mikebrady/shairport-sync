@@ -1,3 +1,8 @@
+Version 5.6-dev-95-gd3bef78e
+==
+**Bug Fix**
+* Avoid reading more than the `max_packet_size` into the buffer during Buffered Audio reception.Associated with this, slightly rearrange the buffered reading code to avoid a compilation warning and a mishandling of a very small buffer read request. Thanks to [Disk Mueller](https://github.com/dirkmueller) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2295). 
+
 Version 5.6-dev-85-ge10120da
 ==
 **Bug Fix**
