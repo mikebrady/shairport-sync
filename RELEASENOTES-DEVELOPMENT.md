@@ -1,3 +1,20 @@
+Version 5.6-dev-102-g69307b6f
+==
+**Stuff You Can't Ignore**
+* The Shared Memory Interface to NQPTP has been updated to Version 11, i.e. `smi11`. Please update to the latest `development` branch of NQPTP to use with this `development` branch of Shairport Sync.
+  
+**Enhancements**
+* These updates make clock handoff more unobtrusive, quicker and more reliable. Clock handoff can occur when you add another player, such as a HomePod or Apple TV, to the output devices. The clocks in such devices may take over clock "mastership" when they are added and can relinquish mastership when they are removed from the set of output devices.
+
+  Extra information is now passed through the SMI interface from NQPTP to Shairport Sync, and so the format of the SMI interface has changed, necessitating the increase in SMI version number from 10 to 11.
+
+  PTP utilities and associated functions have been simplified considerably and updated to handle the new information coming from NQPTP.
+
+**Other Changes**
+* The Jack Audio backend has been removed, having been previously deprecated.
+* The SoundIO backend has been removed, having been previously deprecated.
+* The outmoded `start()` function has been removed from each backend and replaced with the `prepare()` function where needed.
+
 Version 5.6-dev-95-gd3bef78e
 ==
 **Bug Fix**
