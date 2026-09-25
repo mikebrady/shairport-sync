@@ -22,7 +22,7 @@ jobs:
     - name: Configure
       run: |
         autoreconf -fi
-        ./configure --with-os=darwin --with-ao --with-stdout --with-dns_sd --with-ssl=openssl
+        ./configure --with-os=darwin --with-coreaudio --with-ao --with-stdout --with-dns_sd --with-ssl=openssl
     
     - name: Make
       run: |
