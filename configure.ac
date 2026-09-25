@@ -444,7 +444,8 @@ if test "x$with_airplay_2" = "xyes" ; then
       [AC_MSG_ERROR([Airplay 2 support requires libgcrypt -- libgcrypt-dev suggested])]
     )
   ])
-  AC_CHECK_LIB([uuid],[uuid_generate], [], [AC_MSG_ERROR([AirPlay 2 support requires the uuid library -- uuid-dev suggested])])
+  # uuid_generate is part of libSystem on macOS, so accept it without -luuid
+  AC_SEARCH_LIBS([uuid_generate],[uuid], [], [AC_MSG_ERROR([AirPlay 2 support requires the uuid library -- uuid-dev suggested])])
   systemd_after_args="${systemd_after_args}${systemd_after_args:+ }nqptp.service"
   systemd_wants_args="${systemd_wants_args}${systemd_wants_args:+ }nqptp.service"
 fi

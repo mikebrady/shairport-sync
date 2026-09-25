@@ -28,6 +28,28 @@
 #include <string.h>
 #include <uuid/uuid.h>
 
+#ifndef UUID_STR_LEN
+#define UUID_STR_LEN 37 // as in util-linux's uuid.h: 36 characters plus the NUL
+#endif
+
+#ifdef __APPLE__
+#include <CommonCrypto/CommonDigest.h>
+
+// macOS's libuuid has no uuid_generate_sha1(), so derive the name-based
+// (version 5) UUID as in RFC 4122 section 4.3, matching util-linux.
+static void uuid_generate_sha1(uuid_t out, const uuid_t ns, const char *name, size_t len) {
+  unsigned char digest[CC_SHA1_DIGEST_LENGTH];
+  CC_SHA1_CTX ctx;
+  CC_SHA1_Init(&ctx);
+  CC_SHA1_Update(&ctx, ns, sizeof(uuid_t));
+  CC_SHA1_Update(&ctx, name, (CC_LONG)len);
+  CC_SHA1_Final(digest, &ctx);
+  memcpy(out, digest, sizeof(uuid_t));
+  out[6] = (out[6] & 0x0F) | 0x50; // version 5
+  out[8] = (out[8] & 0x3F) | 0x80; // RFC 4122 variant
+}
+#endif
+
 #include "definitions.h"
 #include "generate_device_uuid.h"
 
