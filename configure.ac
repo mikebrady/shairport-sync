@@ -242,7 +242,8 @@ AM_CONDITIONAL([USE_AVAHI], [test "x$with_avahi" = "xyes"])
 # Look for tinysvcmdns flag
 AC_ARG_WITH(tinysvcmdns, [AS_HELP_STRING([--with-tinysvcmdns],[choose tinysvcmdns-based mDNS support])])
 if test "x$with_tinysvcmdns" = "xyes" ; then
-  AC_DEFINE([CONFIG_TINYSVCMDNS], 1, [Include TinySVCmDNS-based mDNS support])
+  AC_DEFINE([CONFIG_TINYSVCMDNS], 1, [Include TinySVCmDNS-based mDNS support (deprecated)])
+  AC_MSG_WARN([TinySVCmDNS is deprecated for security reasons. Consider using Avahi instead, using the configuration flag --with-avahi.])
 fi
 AM_CONDITIONAL([USE_TINYSVCMDNS], [test "x$with_tinysvcmdns" = "xyes"])
 
@@ -452,7 +453,7 @@ AM_CONDITIONAL([USE_AIRPLAY_2], [test "x$with_airplay_2" = "xyes"])
 
 # Look for ffmpeg flag
 
-AC_ARG_WITH(ffmpeg, [AS_HELP_STRING([--with-ffmpeg],[Build with FFMPEG support (recommended)])])
+AC_ARG_WITH(ffmpeg, [AS_HELP_STRING([--with-ffmpeg],[Build with FFMPEG support (recommended)])], [], [with_ffmpeg=yes])
 if test "x$with_ffmpeg" = "xyes" -o "x$with_airplay_2" = "xyes" ; then
   using_ffmpeg=true
   AC_DEFINE([CONFIG_FFMPEG], 1, [Include support for FFmpeg decoders, resampler and utilities.])
@@ -492,10 +493,13 @@ else
   using_ffmpeg=false
 fi
 
-if test $using_ffmpeg = false ; then
+# Look for Hammerton Decoder flag
+AC_ARG_WITH(hammerton, [AS_HELP_STRING([--with-hammerton],[include support for the ALAC Decoder by David Hammerton (deprecated)])])
+if test "x$with_hammerton" = "xyes" ; then
   AC_DEFINE([CONFIG_HAMMERTON], 1, [Include support for using the ALAC Decoder by David Hammerton (deprecated)])
+  AC_MSG_WARN([The Hammerton Decoder is deprecated for security reasons. Consider using FFmpeg instead, using the configuration flag --with-ffmpeg.])
 fi
-AM_CONDITIONAL([USE_HAMMERTON], [test $using_ffmpeg = false])
+AM_CONDITIONAL([USE_HAMMERTON], [test "x$with_hammerton" = "xyes"])
 
 # Look for Apple ALAC flag
 AC_ARG_WITH(apple-alac,[AS_HELP_STRING([--with-apple-alac],[include support for the Apple ALAC decoder (deprecated)])])
@@ -503,9 +507,7 @@ if test "x${with_apple_alac}"  = "xyes" ; then
   if test "x${with_airplay_2}"  = "xyes" ; then
     AC_MSG_ERROR([the Apple ALAC Decoder (deprecated) can not be used in AirPlay 2.])
   fi
-  if test $using_ffmpeg = true ; then
-    AC_MSG_WARN([the FFMPEG decoder, included in the build, supercedes the Apple ALAC Decoder, which is deprecated. Consider omitting the Apple ALAC Decoder.])
-  fi 
+  AC_MSG_WARN([The Apple ALAC Decoder is deprecated for security reasons. Consider using FFmpeg instead, using the configuration flag --with-ffmpeg.])
   AC_DEFINE([CONFIG_APPLE_ALAC], 1, [Include support for using the Apple ALAC Decoder (deprecated)])
   if  test "x${with_pkg_config}" = xyes ; then
     PKG_CHECK_MODULES([alac], [alac], [LIBS="${alac_LIBS} ${LIBS}"], AC_MSG_ERROR(Apple ALAC Decoder support requires the ALAC library. See https://github.com/mikebrady/alac.))
@@ -532,7 +534,14 @@ if  test "x${with_systemd_startup}" = xyes ; then
         [AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])])
 fi
 
-
+if test "x$with_airplay_2" != "xyes" ; then
+  if test "$using_ffmpeg" = false && test "x$with_hammerton" != "xyes" && test "x$with_apple_alac" != "xyes" ; then
+    AC_MSG_ERROR([
+    For classic AirPlay builds, at least one decoder must be specified.
+    Options are: (1) --with-ffmpeg (recommended) (2) --with-hammerton and (3) --with-apple-alac.
+    The Hammerton and Apple decoders are deprecated for security reasons.])
+  fi
+fi
 
 # Checks for header files.
 AC_CHECK_HEADERS([getopt_long.h])
