@@ -18,6 +18,7 @@ jobs:
         brew install popt
         brew install libconfig
         brew install libao
+        brew install ffmpeg
 
     - name: Configure
       run: |
