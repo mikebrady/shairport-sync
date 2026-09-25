@@ -29,7 +29,9 @@ RUN ./configure \
   --disable-network \
   --disable-iamf \
   --disable-pixelutils \
-  --enable-decoder=alac
+  --enable-decoder=alac \
+  --enable-small \
+  --extra-cflags="-Os"
 RUN make
 RUN make install
 ##### FFMPEGLITE END #####
@@ -75,7 +77,7 @@ COPY --from=ffmpeglite /ffmpeg_build/include/  /usr/local/include
 WORKDIR /shairport-sync/build
 RUN autoreconf -i ../
 RUN ../configure --sysconfdir=/etc --with-alsa --with-pulseaudio --with-soxr --with-avahi --with-ssl=openssl \
-        --with-ffmpeg --with-metadata --with-metadata-pipe --with-dummy --with-pipe --with-dbus-interface \
+        --with-metadata --with-metadata-pipe --with-dummy --with-pipe --with-dbus-interface \
         --with-stdout --with-mpris-interface --with-mqtt-client \
         --with-convolution --with-pipewire
 RUN make

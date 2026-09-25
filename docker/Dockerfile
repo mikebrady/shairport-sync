@@ -17,7 +17,6 @@ RUN ./configure \
   --ld="g++" \
   --disable-static \
   --enable-shared \
-  --enable-gpl \
   --disable-programs \
   --disable-everything \
   --disable-doc \
@@ -29,7 +28,9 @@ RUN ./configure \
   --disable-iamf \
   --disable-pixelutils \
   --enable-decoder=alac \
-  --enable-decoder=aac
+  --enable-decoder=aac \
+  --enable-small \
+  --extra-cflags="-Os"
 RUN make
 RUN make install
 ##### FFMPEGLITE END #####
