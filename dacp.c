@@ -551,6 +551,9 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
 #ifdef COMPILE_FOR_OSX
         result = pthread_cond_timedwait_relative_np(&dacp_server_information_cv,
                                                     &dacp_server_information_lock, &time_to_wait);
+        // pthread_cond_timedwait_relative_np() is not a cancellation point on macOS, so
+        // check here -- otherwise a pending pthread_cancel() is never acted on
+        pthread_testcancel();
 #endif
       }
       if (dacp_server.scan_enable == 1) {
