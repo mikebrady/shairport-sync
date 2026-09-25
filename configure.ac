@@ -268,6 +268,17 @@ if test "x$with_sndio" = "xyes" ; then
 fi
 AM_CONDITIONAL([USE_SNDIO], [test "x$with_sndio" = "xyes"])
 
+# Look for CoreAudio flag
+AC_ARG_WITH(coreaudio, [AS_HELP_STRING([--with-coreaudio],[choose the CoreAudio audio backend (macOS only)])])
+if test "x$with_coreaudio" = "xyes" ; then
+  if test "x${with_os}" != xdarwin ; then
+    AC_MSG_ERROR([the CoreAudio backend is only available when building for macOS (--with-os=darwin)])
+  fi
+  AC_DEFINE([CONFIG_COREAUDIO], 1, [Include the CoreAudio audio backend.])
+  LIBS="-framework AudioToolbox -framework CoreAudio -framework CoreFoundation ${LIBS}"
+fi
+AM_CONDITIONAL([USE_COREAUDIO], [test "x$with_coreaudio" = "xyes"])
+
 # Look for AO flag
 AC_ARG_WITH(ao, [AS_HELP_STRING([--with-ao],[choose AO (Audio Output?) API support. N.B. no synchronisation -- so underflow or overflow is inevitable!])])
 if test "x$with_ao" = "xyes" ; then

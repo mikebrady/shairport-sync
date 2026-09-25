@@ -1919,6 +1919,9 @@ char *get_version_string() {
 #ifdef CONFIG_SNDIO
     strcat(version_string, "-sndio");
 #endif
+#ifdef CONFIG_COREAUDIO
+    strcat(version_string, "-coreaudio");
+#endif
 #ifdef CONFIG_AO
     strcat(version_string, "-ao");
 #endif
