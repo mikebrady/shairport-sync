@@ -1074,10 +1074,14 @@ void prepare_decoding_chain(rtsp_conn_info *conn, ssrc_t ssrc) {
       // with thanks
 
       // Set up the decoder depending on the ssrc code.
+      int uncompressed_pcm = (conn->stream.type == ast_uncompressed);
       switch (ssrc) {
       case ALAC_44100_S16_2:
       case ALAC_48000_S24_2:
-        conn->codec = avcodec_find_decoder(AV_CODEC_ID_ALAC);
+        // a classic stream announced as L16 (e.g. from pyatv/Home Assistant) carries
+        // big-endian 16-bit PCM in the same 352-frame packets rather than ALAC
+        conn->codec =
+            avcodec_find_decoder(uncompressed_pcm ? AV_CODEC_ID_PCM_S16BE : AV_CODEC_ID_ALAC);
         break;
       case AAC_44100_F24_2:
       case AAC_48000_F24_2:
@@ -1102,7 +1106,12 @@ void prepare_decoding_chain(rtsp_conn_info *conn, ssrc_t ssrc) {
 
         // prepare to open the codec context with that codec
         // but first, if it's the ALAC decoder, prepare a magic cookie
-        if ((ssrc == ALAC_48000_S24_2) || (ssrc == ALAC_44100_S16_2)) {
+        if (uncompressed_pcm) {
+          // the PCM decoder needs the layout and rate up front, and takes no extradata
+          conn->codec_context->extradata = NULL;
+          av_channel_layout_default(&conn->codec_context->ch_layout, 2);
+          conn->codec_context->sample_rate = 44100;
+        } else if ((ssrc == ALAC_48000_S24_2) || (ssrc == ALAC_44100_S16_2)) {
           alac_ffmpeg_magic_cookie *extradata =
               malloc(sizeof(alac_ffmpeg_magic_cookie)); // might not use it
           if (extradata == NULL)
@@ -2764,6 +2773,9 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
       time_to_wait.tv_sec = sec;
       time_to_wait.tv_nsec = nsec;
       pthread_cond_timedwait_relative_np(&conn->flowcontrol, &conn->ab_mutex, &time_to_wait);
+      // pthread_cond_timedwait_relative_np() is not a cancellation point on macOS, so
+      // check here -- otherwise a pending pthread_cancel() is never acted on
+      pthread_testcancel();
 #endif
     }
   } while (wait);

@@ -1,3 +1,18 @@
+Version 5.6-dev-115-gbe35640a
+==
+**Enhancement**
+* Add a new macOS-native CoreAudio backend. This new backend uses a native macOS framework to provide truly synchronous audio playback on macOS. Note that Macs based on Apple Silicon have built-in AirPlay playback facilities, so Shairport Sync would not be needed on them. Thanks again to [Filipe](https://github.com/filipef101) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2297).
+  
+Version 5.6-dev-111-gc474bb24
+==
+**Bug Fixes**
+* For Shairport Sync on macOS, fix a number of situations where a `SIGTERM` can hang up. The solution was to add pthread cancellation points at appropriate macOS-specific points in the code. Thanks to [Filipe](https://github.com/filipef101) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2298).
+
+Version 5.6-dev-108-g33684257
+==
+**Enhancement**
+* Allow playback of uncompressed linear 16-bit PCM streams, e.g. from [pyatv](https://pyatv.dev)/[Home Assistant](https://www.home-assistant.io). Thanks to [Filipe](https://github.com/filipef101) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2299).
+
 Version 5.6-dev-102-g69307b6f
 ==
 **Stuff You Can't Ignore**

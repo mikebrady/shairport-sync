@@ -115,6 +115,10 @@ if USE_DUMMY
 shairport_sync_SOURCES += audio_dummy.c
 endif
 
+if USE_COREAUDIO
+shairport_sync_SOURCES += audio_coreaudio.c
+endif
+
 if USE_AO
 shairport_sync_SOURCES += audio_ao.c
 endif
