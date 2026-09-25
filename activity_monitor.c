@@ -205,6 +205,9 @@ void *activity_monitor_thread_code(void *arg) {
 #ifdef COMPILE_FOR_OSX
         rc = pthread_cond_timedwait_relative_np(&activity_monitor_cv, &activity_monitor_mutex,
                                                 &time_for_wait);
+        // pthread_cond_timedwait_relative_np() is not a cancellation point on macOS, so
+        // check here -- otherwise a pending pthread_cancel() is never acted on
+        pthread_testcancel();
 #endif
       }
       if (player_state == ps_active)

@@ -2773,6 +2773,9 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
       time_to_wait.tv_sec = sec;
       time_to_wait.tv_nsec = nsec;
       pthread_cond_timedwait_relative_np(&conn->flowcontrol, &conn->ab_mutex, &time_to_wait);
+      // pthread_cond_timedwait_relative_np() is not a cancellation point on macOS, so
+      // check here -- otherwise a pending pthread_cancel() is never acted on
+      pthread_testcancel();
 #endif
     }
   } while (wait);
