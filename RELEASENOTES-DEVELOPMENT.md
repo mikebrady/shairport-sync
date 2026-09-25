@@ -1,3 +1,8 @@
+Version 5.6-dev-108-g33684257
+==
+**Enhancement**
+* Allow playback of uncompressed linear 16-bit PCM streams, e.g. from [pyatv](https://pyatv.dev)/[Home Assistant](https://www.home-assistant.io). Thanks to [Filipe](https://github.com/filipef101) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2299).
+
 Version 5.6-dev-102-g69307b6f
 ==
 **Stuff You Can't Ignore**
