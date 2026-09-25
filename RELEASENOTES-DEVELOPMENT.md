@@ -1,3 +1,8 @@
+Version 5.6-dev-111-gc474bb24
+==
+**Bug Fixes**
+* For Shairport Sync on macOS, fix a number of situations where a `SIGTERM` can hang up. The solution was to add pthread cancellation points at appropriate macOS-specific points in the code. Thanks to [Filipe](https://github.com/filipef101) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2298).
+
 Version 5.6-dev-108-g33684257
 ==
 **Enhancement**
