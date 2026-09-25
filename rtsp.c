@@ -2045,6 +2045,7 @@ void handle_feedback(rtsp_conn_info *conn, __attribute__((unused)) rtsp_message 
 }
 
 void handle_command(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
+  (void) req;
   // first, check that this is an airplay 2 session
   if (conn->airplay_type == ap_2) {
 #ifdef CONFIG_METADATA
