@@ -1109,7 +1109,12 @@ void prepare_decoding_chain(rtsp_conn_info *conn, ssrc_t ssrc) {
         if (uncompressed_pcm) {
           // the PCM decoder needs the layout and rate up front, and takes no extradata
           conn->codec_context->extradata = NULL;
+#if LIBAVUTIL_VERSION_MAJOR >= 57
           av_channel_layout_default(&conn->codec_context->ch_layout, 2);
+#else
+          conn->codec_context->channels = 2;
+          conn->codec_context->channel_layout = AV_CH_LAYOUT_STEREO;
+#endif
           conn->codec_context->sample_rate = 44100;
         } else if ((ssrc == ALAC_48000_S24_2) || (ssrc == ALAC_44100_S16_2)) {
           alac_ffmpeg_magic_cookie *extradata =
