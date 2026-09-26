@@ -1,3 +1,8 @@
+Version 5.6-dev-129-g4cf95954
+==
+**Bug Fix**
+* Fixed a compilation bug occurring on systems with FFmpeg libraries older than 5.1.
+  
 Verison 5.6-dev-126-g649fe104
 ==
 **MacOS Build Update**
