@@ -1,3 +1,8 @@
+Version 5.6-dev-131-g9eca1374
+==
+**Bug Fix**
+* Add FFmpeg libraries for minimal classic build to the Docker-based test rig.
+
 Version 5.6-dev-129-g4cf95954
 ==
 **Bug Fix**
