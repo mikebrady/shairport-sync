@@ -74,7 +74,8 @@ RUN apt-get install -y --no-install-recommends \
 ##### SPS-CLASSIC-MINIMUM-DEV #####
 FROM dev AS shairport-sync-classic-minimum-dev
 RUN apt-get install -y --no-install-recommends \
-    libpopt-dev libconfig-dev libasound2-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev systemd-dev
+    libpopt-dev libconfig-dev libasound2-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev systemd-dev \
+    libavutil-dev libavcodec-dev libavformat-dev
 ##### SPS-CLASSIC-MINIMUM-DEV END #####
 
 ##### SPS-CLASSIC-MINIMUM #####
