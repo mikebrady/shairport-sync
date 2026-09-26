@@ -13,7 +13,7 @@ Version 5.6-dev-121-gbd2064e1
 Version 5.6-dev-115-gbe35640a
 ==
 **Enhancement**
-* A new macOS-native CoreAudio backend has been added. This new backend uses CoreAudio, a the native macOS framework, to provide truly synchronous audio playback on macOS. Note that Macs based on Apple Silicon have built-in AirPlay playback facilities, so Shairport Sync would not be needed on them. Thanks again to [Filipe](https://github.com/filipef101) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2297).
+* A new macOS-native CoreAudio backend has been added. This new backend uses CoreAudio, a macOS audio processing framework, to provide truly synchronous audio playback on macOS. Note that Macs based on Apple Silicon have built-in AirPlay playback facilities, so Shairport Sync would not be needed on them. Thanks again to [Filipe](https://github.com/filipef101) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2297).
   
 Version 5.6-dev-111-gc474bb24
 ==
