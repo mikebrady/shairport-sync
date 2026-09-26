@@ -1,8 +1,8 @@
 Version 5.6-dev-121-gbd2064e1
 ==
 **Stuff You Probably Should Not Ignore**
-* The default ALAC decoder is now from FFmpeg, and the previous default decoder -- the Hammerton decoder -- is omitted by from the build by default.
-* If you have been building Shairport Sync according to the BUILD guide, nothing has really changed -- the FFmpeg decoder is used in AirPlay 2 builds as before, and -- since it now is the default -- you can omit the `--with-FFmpeg` configuration flag on Classic builds.
+* The default ALAC decoder is now from FFmpeg, and the previous built-in decoder for Classic AirPlay -- the Hammerton decoder -- is omitted from the build by default. This is because the Hammerton decoder is no longer maintained and has known security issues.
+* If you have been building Shairport Sync according to the [BUILD](BUILD.md) guide, nothing has really changed -- the FFmpeg decoder is used in AirPlay 2 builds as before, and -- since FFmpeg now is the default -- you can omit the `--with-FFmpeg` configuration flag on Classic builds.
 * If you would like to retain use of the Hammerton decoder on Classic builds, add the configuration flag `--with-hammerton`. You'll get a security warning but you can still use it. By default, if the FFmpeg decoder is also present, the FFmpeg decoder will still be used in preference. You can omit the FFmpeg decoder by adding the configuration flag `--without-ffmpeg`.
 
 Version 5.6-dev-115-gbe35640a
