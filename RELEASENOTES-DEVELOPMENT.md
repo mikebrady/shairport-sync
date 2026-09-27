@@ -1,3 +1,8 @@
+Version 5.6-dev-139-g59f0d903
+==
+**Minor Changes**
+* Fix a few compiler warnings on macOS
+  
 Version 5.6-dev-137-gf660bac6
 ==
 **Enhancement**
