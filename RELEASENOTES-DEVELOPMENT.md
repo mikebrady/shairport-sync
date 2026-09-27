@@ -1,3 +1,10 @@
+Version 5.6-dev-137-gf660bac6
+==
+**Enhancement**
+* Support AirPlay 2 playback on macOS! Thanks to [Filipe](https://github.com/filipef101) for this [PR](https://github.com/mikebrady/shairport-sync/pull/2300). You'll need to get the latest update of the `development` branch of NQPTP to make use of this.
+
+  This should be of interest to users of older Macs -- Macs based on Apple Silicon have AirPlay 2 playback built in. 
+
 Version 5.6-dev-131-g9eca1374
 ==
 **Bug Fix**
