@@ -3322,15 +3322,15 @@ int main(int argc, char **argv) {
               found = 1;
             } else {
 #if LIBAVUTIL_VERSION_MAJOR >= 57
-              const int buffer_size = 32;
-              char buffer[buffer_size];
+#define BUFFER_SIZE 32
+              char buffer[BUFFER_SIZE];
               enum AVChannel channel_index;
               for (channel_index = AV_CHAN_NONE;
                    ((channel_index < AV_CHAN_BOTTOM_FRONT_RIGHT) && (found == 0));
                    channel_index++) {
-                found = av_channel_name(buffer, buffer_size, channel_index);
+                found = av_channel_name(buffer, BUFFER_SIZE, channel_index);
                 if (found > 0) {
-                  found = ((av_channel_name(buffer, buffer_size, channel_index) > 0) &&
+                  found = ((av_channel_name(buffer, BUFFER_SIZE, channel_index) > 0) &&
                            (strcmp(channel_id, buffer) == 0));
                 } else {
                   found = 0;

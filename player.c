@@ -3532,8 +3532,8 @@ void *player_thread_func(void *arg) {
   }
 #endif
 
-  const unsigned int sync_history_length = 40;
-  int64_t sync_samples[sync_history_length];
+#define SYNC_HISTORY_LENGTH 40
+  int64_t sync_samples[SYNC_HISTORY_LENGTH];
   int64_t sync_samples_highest_error = 0;
   int64_t sync_samples_lowest_error = 0;
   int64_t sync_samples_second_highest_error;
@@ -4490,13 +4490,13 @@ void *player_thread_func(void *arg) {
                 // don't do any sync error calculations if you're skipping frames
                 if (frames_to_skip == 0) {
                   // first, make room in the array if it's full
-                  if (conn->sync_samples_count == sync_history_length) {
+                  if (conn->sync_samples_count == SYNC_HISTORY_LENGTH) {
                     conn->sync_samples_count--;
                   }
                   last_sample_index = conn->sync_samples_index;
                   sync_samples[conn->sync_samples_index] = sync_error_ns;
                   conn->sync_samples_count++;
-                  conn->sync_samples_index = (conn->sync_samples_index + 1) % sync_history_length;
+                  conn->sync_samples_index = (conn->sync_samples_index + 1) % SYNC_HISTORY_LENGTH;
 
                   // now find the lowest and highest errors
                   sync_samples_highest_error = sync_samples[0];
@@ -4609,7 +4609,7 @@ void *player_thread_func(void *arg) {
                   // don't count it if the error max and min values bracket (i.e. are on either
                   // size of) zero
                   !((sync_samples_highest_error >= 0) && ((sync_samples_lowest_error <= 0))) &&
-                  (conn->sync_samples_count == sync_history_length)) {
+                  (conn->sync_samples_count == SYNC_HISTORY_LENGTH)) {
                 sync_error_out_of_bounds++;
               } else {
                 sync_error_out_of_bounds = 0;
@@ -4637,7 +4637,7 @@ void *player_thread_func(void *arg) {
                     debug(4, "sample: %u, value: %.3f ms", s, sync_samples[s] * 0.000001);
                   }
                   debug(4, "sync_history_length: %u, samples_count: %u, sample_index: %u",
-                        sync_history_length, conn->sync_samples_count, last_sample_index);
+                        SYNC_HISTORY_LENGTH, conn->sync_samples_count, last_sample_index);
                 }
                 sync_error_out_of_bounds = 0;
                 // conn->sync_samples_index = 0;

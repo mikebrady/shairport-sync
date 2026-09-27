@@ -2302,6 +2302,8 @@ char *bnprintf(char *buffer, ssize_t max_bytes, const char *format, ...) {
 
 int do_pthread_setname(pthread_t *restrict thread, const char *format, ...) {
 #ifdef COMPILE_FOR_OSX
+  (void) thread;
+  (void) format;
   return 0;
 #else
   // pthread_setname_np/2 not defined in macOS
