@@ -75,7 +75,7 @@ static OSStatus render_callback(__attribute__((unused)) void *ref,
   size_t bytes_wanted = io_data->mBuffers[0].mDataByteSize;
   size_t bytes_copied = 0;
 
-  pthread_mutex_trylock(&buffer_mutex);
+  pthread_mutex_lock(&buffer_mutex);
   if (audio_lmb != NULL) {
     size_t bytes_to_copy = bytes_wanted < audio_occupancy ? bytes_wanted : audio_occupancy;
     size_t first_portion = audio_umb - audio_toq;
