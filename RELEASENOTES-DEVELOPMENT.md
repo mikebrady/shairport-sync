@@ -1,4 +1,4 @@
-Version 5.6-dev-142-gb2f1f309
+Version 5.6-dev-144-g0df7587d
 ==
 **Bug Fixes**
 * For macOS, stopped using `pthread_mutex_trylock()` in the CoreAudio backend renderer. If it failed because the mutex was locked, it introduced a buffer of silence, which threw off synchronisation. Since the lock can only be taken for extremely short times by other parts of the backend, `pthread_mutex_lock()` is used instead.
