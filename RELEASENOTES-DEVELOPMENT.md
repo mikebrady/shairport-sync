@@ -1,19 +1,25 @@
+Version 5.6-dev-142-gb2f1f309
+==
+**Bug Fixes**
+* For macOS, stopped using `pthread_mutex_trylock()` in the CoreAudio backend renderer. If it failed because the mutex was locked, it introduced a buffer of silence, which threw off synchronisation. Since the lock can only be taken for extremely short times by other parts of the backend, `pthread_mutex_lock()` is used instead.
+* In the PipeWire backend, zeroed a buffer before it is used to hold audio, so that if it is only partially filled, the remaining part of it will consist of silent audio frames.
+  
 Version 5.6-dev-139-g59f0d903
 ==
 **Minor Changes**
-* Fix a few compiler warnings on macOS
+* Fixed a few compiler warnings on macOS
   
 Version 5.6-dev-137-gf660bac6
 ==
 **Enhancement**
-* Support AirPlay 2 playback on macOS! Thanks to [Filipe](https://github.com/filipef101) for this [PR](https://github.com/mikebrady/shairport-sync/pull/2300). You'll need to get the latest update of the `development` branch of NQPTP to make use of this.
+* AirPlay 2 playback is now supported on macOS! Thanks to [Filipe](https://github.com/filipef101) for this [PR](https://github.com/mikebrady/shairport-sync/pull/2300). You'll need to get the latest update of the `development` branch of NQPTP to make use of this.
 
   This should be of interest to users of older Macs -- Macs based on Apple Silicon have AirPlay 2 playback built in. 
 
 Version 5.6-dev-131-g9eca1374
 ==
 **Bug Fix**
-* Add FFmpeg libraries for minimal classic build to the Docker-based test rig.
+* Added FFmpeg libraries for minimal classic build to the Docker-based test rig.
 
 Version 5.6-dev-129-g4cf95954
 ==
