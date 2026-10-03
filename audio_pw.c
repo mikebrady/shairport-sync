@@ -949,6 +949,8 @@ static void on_process(void *userdata) {
       int max_possible_frames = SPA_MIN(b->requested, buf->datas[0].maxsize / stride);
 
       size_t bytes_we_can_transfer = max_possible_frames * stride;
+      // this should really be dithered silence
+      memset(dest, 0, bytes_we_can_transfer); // quieten everything
 
       if (audio_occupancy > 0) {
         // if (enable_fill == 1)) {
@@ -979,8 +981,9 @@ static void on_process(void *userdata) {
 
       } else {
         debug(3, "send silence");
+        // already done this
         // this should really be dithered silence
-        memset(dest, 0, bytes_we_can_transfer);
+        // memset(dest, 0, bytes_we_can_transfer);
         n_frames = max_possible_frames;
       }
 
