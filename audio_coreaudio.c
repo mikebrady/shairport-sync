@@ -74,30 +74,29 @@ static OSStatus render_callback(__attribute__((unused)) void *ref,
   uint8_t *out = io_data->mBuffers[0].mData;
   size_t bytes_wanted = io_data->mBuffers[0].mDataByteSize;
   size_t bytes_copied = 0;
-  // never block the real-time audio thread -- play silence if the buffer is busy
-  if (pthread_mutex_trylock(&buffer_mutex) == 0) {
-    if (audio_lmb != NULL) {
-      size_t bytes_to_copy = bytes_wanted < audio_occupancy ? bytes_wanted : audio_occupancy;
-      size_t first_portion = audio_umb - audio_toq;
-      if (bytes_to_copy <= first_portion) {
-        memcpy(out, audio_toq, bytes_to_copy);
-        audio_toq += bytes_to_copy;
-      } else {
-        memcpy(out, audio_toq, first_portion);
-        memcpy(out + first_portion, audio_lmb, bytes_to_copy - first_portion);
-        audio_toq = audio_lmb + bytes_to_copy - first_portion;
-      }
-      if (audio_toq == audio_umb)
-        audio_toq = audio_lmb;
-      audio_occupancy -= bytes_to_copy;
-      bytes_copied = bytes_to_copy;
+
+  pthread_mutex_trylock(&buffer_mutex);
+  if (audio_lmb != NULL) {
+    size_t bytes_to_copy = bytes_wanted < audio_occupancy ? bytes_wanted : audio_occupancy;
+    size_t first_portion = audio_umb - audio_toq;
+    if (bytes_to_copy <= first_portion) {
+      memcpy(out, audio_toq, bytes_to_copy);
+      audio_toq += bytes_to_copy;
+    } else {
+      memcpy(out, audio_toq, first_portion);
+      memcpy(out + first_portion, audio_lmb, bytes_to_copy - first_portion);
+      audio_toq = audio_lmb + bytes_to_copy - first_portion;
     }
-    if (time_stamp->mFlags & kAudioTimeStampHostTimeValid) {
-      last_render_host_time = time_stamp->mHostTime;
-      last_render_frames = frames;
-    }
-    pthread_mutex_unlock(&buffer_mutex);
+    if (audio_toq == audio_umb)
+      audio_toq = audio_lmb;
+    audio_occupancy -= bytes_to_copy;
+    bytes_copied = bytes_to_copy;
   }
+  if (time_stamp->mFlags & kAudioTimeStampHostTimeValid) {
+    last_render_host_time = time_stamp->mHostTime;
+    last_render_frames = frames;
+  }
+  pthread_mutex_unlock(&buffer_mutex);
   if (bytes_copied < bytes_wanted)
     memset(out + bytes_copied, 0, bytes_wanted - bytes_copied);
   return noErr;
@@ -112,12 +111,47 @@ static AudioDeviceID current_output_device(void) {
   return device;
 }
 
+// Log which output device the unit is using.
+static void log_output_device(const int debugLevel, AudioDeviceID device) {
+  if (debugLevel <= debug_level()) {
+    char name[256] = "unknown";
+    CFStringRef cf_name = NULL;
+    UInt32 size = sizeof(cf_name);
+    AudioObjectPropertyAddress address = {kAudioObjectPropertyName,
+                                          kAudioObjectPropertyScopeGlobal,
+                                          kAudioObjectPropertyElementMain};
+    if ((AudioObjectGetPropertyData(device, &address, 0, NULL, &size, &cf_name) == noErr) &&
+        (cf_name != NULL)) {
+      if (!CFStringGetCString(cf_name, name, sizeof(name), kCFStringEncodingUTF8))
+        strcpy(name, "unknown");
+      CFRelease(cf_name);
+    }
+  
+    // the transport type is a four-character code, e.g. built-in, USB, HDMI, Bluetooth
+    char transport_string[5] = "?";
+    UInt32 transport = 0;
+    size = sizeof(transport);
+    address.mSelector = kAudioDevicePropertyTransportType;
+    if (AudioObjectGetPropertyData(device, &address, 0, NULL, &size, &transport) == noErr) {
+      for (int i = 0; i < 4; i++) {
+        char c = (char)((transport >> (24 - 8 * i)) & 0xFF);
+        transport_string[i] = (c >= 32 && c < 127) ? c : '?';
+      }
+      transport_string[4] = '\0';
+    }  
+    debug(debugLevel, "coreaudio: output device is \"%s\", transport type \"%s\".", name, transport_string);
+  }
+}
+
 // The latency, in seconds, between a frame being presented to the device (the time
 // stamp of a render) and it becoming audible.
 static double device_presentation_latency(void) {
   AudioDeviceID device = current_output_device();
   if (device == kAudioObjectUnknown)
     return 0.0;
+  
+  //tell us what output device is being used
+  log_output_device(1, device);
 
   Float64 device_rate = 0.0;
   UInt32 size = sizeof(device_rate);
