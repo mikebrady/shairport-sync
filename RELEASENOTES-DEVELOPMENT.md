@@ -1,7 +1,7 @@
 Version 5.6-dev-149-gb4ce553b
 ==
 **Bug Fix**
-* For macOS, stop setting the priorities of threads in the Linux fashion -- on macOS, it demotes their priority to a very low level. Right now, thread priorities are not set on macOS.
+* For macOS, stopped setting the priorities of threads in the Linux fashion -- on macOS, it demotes their priority to a very low level. Right now, thread priorities are not set on macOS.
 
 Version 5.6-dev-144-g0df7587d
 ==
