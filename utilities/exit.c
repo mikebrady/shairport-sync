@@ -47,13 +47,13 @@ volatile sig_atomic_t exit_status = EXIT_SUCCESS;
 pthread_t exit_manager_thread;
 
 void *exit_manager(__attribute__((unused)) void *arg) {
-  uint64_t last = get_absolute_time_in_ns();
   while (exit_request_flag == 0) {
+    uint64_t last = get_absolute_time_in_ns();
     usleep(10000);
     if (exit_request_flag == 0) {
       uint64_t now = get_absolute_time_in_ns();
-      if (now - last) > (uint64_t)60000000) {
-        debug(1, "heartbeat: slept %.1f ms instead of 10.", (now - last) * 1E-6);
+      if ((now - last) > (uint64_t)100000000) {
+        debug(2, "heartbeat: slept %.1f ms instead of 10.0.", (now - last) * 1E-6);
       }
     }
   }
