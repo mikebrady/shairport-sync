@@ -2339,6 +2339,18 @@ int named_pthread_create_with_priority(pthread_t *thread, int priority,
                                        void *(*start_routine)(void *), void *arg,
                                        const char *format, ...) {
 
+#ifdef COMPILE_FOR_OSX
+
+  // On macOS, don't ask for any special priority. A POSIX SCHED_FIFO priority is placed on
+  // a different scale from Linux's, and small values such as 2 or 3 end up below ordinary
+  // threads (which sit at about 31), so requesting one makes the thread run worse, not
+  // better. Just create a normal thread.
+  (void)priority;
+  (void)format;
+  return pthread_create(thread, NULL, start_routine, arg);
+
+#else
+
   // if this gets a permissions error, it'll try to create a thread without any special
   // priority or scheduling
 
@@ -2392,12 +2404,12 @@ int named_pthread_create_with_priority(pthread_t *thread, int priority,
       failed_to_set_rt = 1;
     }
   }
-#ifndef COMPILE_FOR_OSX
   if (ret == 0) {
     pthread_setname_np(*thread, actual_name);
   } else {
     die("named_pthread_create_with_priority failed with error %d", ret);
   }
-#endif
   return ret;
+
+#endif
 }
