@@ -3485,10 +3485,6 @@ void player_thread_cleanup_handler(void *arg) {
 
 void *player_thread_func(void *arg) {
   rtsp_conn_info *conn = (rtsp_conn_info *)arg;
-  // if (config.output->prepare)
-  // config.output->prepare(); // give the backend its first chance to prepare itself, knowing it
-  // has access to the output device (i.e. knowing that it should not be in use by another program
-  // at this time).
 #ifdef CONFIG_METADATA
   uint64_t time_of_last_metadata_progress_update =
       0; // the assignment is to stop a compiler warning...
