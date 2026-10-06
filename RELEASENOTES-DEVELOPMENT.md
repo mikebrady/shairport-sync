@@ -1,3 +1,8 @@
+Version 5.6-dev-152-g741a05b5
+==
+**Bug Fix**
+* Fixed a memory allocation bug in the handling of TLVs.
+
 Version 5.6-dev-149-gb4ce553b
 ==
 **Bug Fix**
