@@ -1,7 +1,11 @@
 Version 5.6-dev-154-g6044b2ac
 ==
 **Bug Fix**
-* For macOS, block and wait rather than discard frames if the output queue in the CoreAudio backend is full. Check for a changed output device when getting the delay(). If the output device is AirPlay, ignore its static presentation latency.
+* For macOS, block and wait rather than discard frames if the output queue in the CoreAudio backend is full.
+
+**Enhancements**
+* In macOS, check for a changed output device when getting the delay(). Adjust latency calculations to the new device's characteristics if necessary.
+* In macOS, if the Mac's system sound output device is actually AirPlay (!), don't include its static presentation latency in synchronisation calculations. If it was included, audio would almost certainly be too late to be played, and so the player would go silent.
 
 Version 5.6-dev-152-g741a05b5
 ==
