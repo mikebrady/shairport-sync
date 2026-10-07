@@ -42,13 +42,16 @@
 #include <string.h>
 
 static AudioUnit output_unit = NULL;
+
+static AudioDeviceID current_output_device = kAudioObjectUnknown;
+static double current_output_device_latency_in_frames = 0.0;
+
 static int unit_initialized = 0;
 static int unit_running = 0;
 
 static int32_t current_encoded_output_format = 0;
 static unsigned int bytes_per_frame = 0;
 static unsigned int frame_rate = 0;
-static long presentation_latency_frames = 0; // device, stream and unit latency, in output frames
 
 static pthread_mutex_t buffer_mutex = PTHREAD_MUTEX_INITIALIZER;
 static uint8_t *audio_lmb = NULL, *audio_umb, *audio_toq, *audio_eoq;
@@ -102,7 +105,8 @@ static OSStatus render_callback(__attribute__((unused)) void *ref,
   return noErr;
 }
 
-static AudioDeviceID current_output_device(void) {
+
+static AudioDeviceID get_current_output_device(void) {
   AudioDeviceID device = kAudioObjectUnknown;
   UInt32 size = sizeof(device);
   if (output_unit != NULL)
@@ -145,53 +149,44 @@ static void log_output_device(const int debugLevel, AudioDeviceID device) {
 
 // The latency, in seconds, between a frame being presented to the device (the time
 // stamp of a render) and it becoming audible.
-static double device_presentation_latency(void) {
-  AudioDeviceID device = current_output_device();
-  if (device == kAudioObjectUnknown)
-    return 0.0;
-  
-  //tell us what output device is being used
-  log_output_device(1, device);
-
-  Float64 device_rate = 0.0;
-  UInt32 size = sizeof(device_rate);
-  AudioObjectPropertyAddress address = {kAudioDevicePropertyNominalSampleRate,
-                                        kAudioObjectPropertyScopeGlobal,
-                                        kAudioObjectPropertyElementMain};
-  if ((AudioObjectGetPropertyData(device, &address, 0, NULL, &size, &device_rate) != noErr) ||
-      (device_rate <= 0.0))
-    return 0.0;
-
-  UInt32 device_latency = 0;
-  size = sizeof(device_latency);
-  address.mSelector = kAudioDevicePropertyLatency;
-  address.mScope = kAudioObjectPropertyScopeOutput;
-  AudioObjectGetPropertyData(device, &address, 0, NULL, &size, &device_latency);
-
-  UInt32 stream_latency = 0;
-  AudioStreamID streams[16];
-  size = sizeof(streams);
-  address.mSelector = kAudioDevicePropertyStreams;
-  if ((AudioObjectGetPropertyData(device, &address, 0, NULL, &size, streams) == noErr) &&
-      (size >= sizeof(AudioStreamID))) {
-    UInt32 latency_size = sizeof(stream_latency);
-    AudioObjectPropertyAddress stream_address = {kAudioStreamPropertyLatency,
-                                                 kAudioObjectPropertyScopeGlobal,
-                                                 kAudioObjectPropertyElementMain};
-    AudioObjectGetPropertyData(streams[0], &stream_address, 0, NULL, &latency_size,
-                               &stream_latency);
+static double get_device_latency(AudioDeviceID device) {
+  double latency = -1.0;
+  if (device != kAudioObjectUnknown) {
+    Float64 device_rate = 0.0;
+    UInt32 size = sizeof(device_rate);
+    AudioObjectPropertyAddress address = {kAudioDevicePropertyNominalSampleRate,
+                                          kAudioObjectPropertyScopeGlobal,
+                                          kAudioObjectPropertyElementMain};
+    if ((AudioObjectGetPropertyData(device, &address, 0, NULL, &size, &device_rate) == noErr) ||
+        (device_rate >= 0.0)) {    
+      UInt32 device_latency = 0;
+      size = sizeof(device_latency);
+      address.mSelector = kAudioDevicePropertyLatency;
+      address.mScope = kAudioObjectPropertyScopeOutput;
+      AudioObjectGetPropertyData(device, &address, 0, NULL, &size, &device_latency);
+    
+      UInt32 stream_latency = 0;
+      AudioStreamID streams[16];
+      size = sizeof(streams);
+      address.mSelector = kAudioDevicePropertyStreams;
+      if ((AudioObjectGetPropertyData(device, &address, 0, NULL, &size, streams) == noErr) &&
+          (size >= sizeof(AudioStreamID))) {
+        UInt32 latency_size = sizeof(stream_latency);
+        AudioObjectPropertyAddress stream_address = {kAudioStreamPropertyLatency,
+                                                     kAudioObjectPropertyScopeGlobal,
+                                                     kAudioObjectPropertyElementMain};
+        AudioObjectGetPropertyData(streams[0], &stream_address, 0, NULL, &latency_size,
+                                   &stream_latency);
+      }
+    
+      Float64 unit_latency = 0.0; // e.g. from sample rate conversion inside the unit
+      size = sizeof(unit_latency);
+      AudioUnitGetProperty(output_unit, kAudioUnitProperty_Latency, kAudioUnitScope_Global, 0,
+                           &unit_latency, &size);
+    
+      latency = (device_latency + stream_latency) / device_rate + unit_latency;
+    }
   }
-
-  Float64 unit_latency = 0.0; // e.g. from sample rate conversion inside the unit
-  size = sizeof(unit_latency);
-  AudioUnitGetProperty(output_unit, kAudioUnitProperty_Latency, kAudioUnitScope_Global, 0,
-                       &unit_latency, &size);
-
-  double latency = (device_latency + stream_latency) / device_rate + unit_latency;
-  debug(2,
-        "coreaudio: device rate %.0f, device latency %u frames, stream latency %u frames, "
-        "unit latency %.6f s, total %.6f s.",
-        device_rate, device_latency, stream_latency, unit_latency, latency);
   return latency;
 }
 
@@ -305,11 +300,7 @@ static int configure(int32_t requested_encoded_format, char **resulting_channel_
     die("coreaudio: can't allocate %zu bytes for the audio buffer.", audio_size);
   reset_ring_buffer();
   pthread_mutex_unlock(&buffer_mutex);
-
-  presentation_latency_frames = (long)(device_presentation_latency() * rate + 0.5);
   current_encoded_output_format = requested_encoded_format;
-  debug(1, "coreaudio: output configured to %s, presentation latency %ld frames.",
-        short_format_description(requested_encoded_format), presentation_latency_frames);
   return 0;
 }
 
@@ -318,28 +309,33 @@ static int play(void *buf, int samples, __attribute__((unused)) int sample_type,
                 __attribute__((unused)) uint64_t playtime) {
   if ((audio_lmb == NULL) || (bytes_per_frame == 0))
     return -ENODEV;
-  size_t bytes_to_transfer = (size_t)samples * bytes_per_frame;
-  pthread_mutex_lock(&buffer_mutex);
-  size_t bytes_available = audio_size - audio_occupancy;
-  if (bytes_available < bytes_to_transfer) {
-    debug(1, "coreaudio: buffer overflow -- dropping %zu bytes.",
-          bytes_to_transfer - bytes_available);
-    bytes_to_transfer = bytes_available;
+  size_t total_bytes_to_transfer = (size_t)samples * bytes_per_frame;
+  while (total_bytes_to_transfer > 0) {
+    pthread_mutex_lock(&buffer_mutex);
+    size_t bytes_available = audio_size - audio_occupancy;
+    size_t bytes_to_transfer = total_bytes_to_transfer;
+    if (bytes_available < total_bytes_to_transfer) {
+      bytes_to_transfer = bytes_available;
+    }
+    size_t space_to_end_of_buffer = audio_umb - audio_eoq;
+    if (space_to_end_of_buffer >= bytes_to_transfer) {
+      memcpy(audio_eoq, buf, bytes_to_transfer);
+      audio_eoq += bytes_to_transfer;
+    } else {
+      memcpy(audio_eoq, buf, space_to_end_of_buffer);
+      memcpy(audio_lmb, (uint8_t *)buf + space_to_end_of_buffer,
+             bytes_to_transfer - space_to_end_of_buffer);
+      audio_eoq = audio_lmb + bytes_to_transfer - space_to_end_of_buffer;
+    }
+    if (audio_eoq == audio_umb)
+      audio_eoq = audio_lmb;
+    audio_occupancy += bytes_to_transfer;
+    pthread_mutex_unlock(&buffer_mutex);
+    total_bytes_to_transfer -= bytes_to_transfer;
+    if (total_bytes_to_transfer > 0) {
+      usleep(5000);
+    }
   }
-  size_t space_to_end_of_buffer = audio_umb - audio_eoq;
-  if (space_to_end_of_buffer >= bytes_to_transfer) {
-    memcpy(audio_eoq, buf, bytes_to_transfer);
-    audio_eoq += bytes_to_transfer;
-  } else {
-    memcpy(audio_eoq, buf, space_to_end_of_buffer);
-    memcpy(audio_lmb, (uint8_t *)buf + space_to_end_of_buffer,
-           bytes_to_transfer - space_to_end_of_buffer);
-    audio_eoq = audio_lmb + bytes_to_transfer - space_to_end_of_buffer;
-  }
-  if (audio_eoq == audio_umb)
-    audio_eoq = audio_lmb;
-  audio_occupancy += bytes_to_transfer;
-  pthread_mutex_unlock(&buffer_mutex);
 
   if ((!unit_running) && (unit_initialized)) {
     OSStatus status = AudioOutputUnitStart(output_unit);
@@ -366,7 +362,29 @@ static int delay(long *the_delay) {
       frames += (long)(remaining_ns * (int64_t)frame_rate / 1000000000LL);
   }
   pthread_mutex_unlock(&buffer_mutex);
-  *the_delay = frames + presentation_latency_frames;
+  current_output_device_latency_in_frames = 0.0;
+  AudioDeviceID output_device = get_current_output_device();
+  if (output_device != current_output_device) {
+    current_output_device = output_device;
+    if (current_output_device != kAudioObjectUnknown) {
+      log_output_device(1, current_output_device);
+      UInt32 transport = 0;
+      UInt32 size = sizeof(transport);
+      AudioObjectPropertyAddress address = {};
+      address.mSelector = kAudioDevicePropertyTransportType;
+      if (AudioObjectGetPropertyData(current_output_device, &address, 0, NULL, &size, &transport) != noErr) {
+        debug(1, "coreaudio: couldn't get the output device's transport type.");      
+      }
+      // if the transport is 'airp' -- meaning AirPlay -- don't add the device's latency, as it will almost certainly
+      // prevent any audio from being on time, and so will make everything silent
+      if (transport != 'airp') {
+        current_output_device_latency_in_frames = get_device_latency(current_output_device) * frame_rate;
+      } else {
+        debug(1, "coreaudio: transport is AirPlay, so (special case) no presentation latency is added.");
+      }
+    }
+  }
+  *the_delay = frames + current_output_device_latency_in_frames;
   return 0;
 }
 
