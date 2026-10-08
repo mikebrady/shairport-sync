@@ -96,6 +96,7 @@
 #endif
 
 #ifdef CONFIG_AIRPLAY_2
+#include "ap2_buffered_audio_processor.h"
 #include "ptp-utilities.h"
 #endif
 
@@ -3408,6 +3409,11 @@ void player_thread_cleanup_handler(void *arg) {
             conn->connection_number);
       pthread_cancel(conn->rtp_buffered_audio_thread);
       pthread_join(conn->rtp_buffered_audio_thread, NULL);
+#ifdef CONFIG_METADATA
+      pthread_mutex_lock_and_cleanup_push(&conn->flush_mutex);
+      reset_buffered_aac_bitrate(conn);
+      pthread_cleanup_pop(1);
+#endif
       debug(3,
             "Connection %d: Deleted Buffered Audio Stream thread by player_thread_cleanup_handler",
             conn->connection_number);
