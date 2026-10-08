@@ -26,6 +26,10 @@
 
 #include "ap2_buffered_audio_processor.h"
 #include "common.h"
+#ifdef CONFIG_METADATA
+#include "aac_bitrate.h"
+#include "metadata/core.h"
+#endif
 #include "player.h"
 #include "rtp.h"
 #include "utilities/buffered_read.h"
@@ -36,6 +40,54 @@
 
 #ifdef CONFIG_CONVOLUTION
 #include "FFTConvolver/convolver.h"
+#endif
+
+#ifdef CONFIG_METADATA
+/* Telemetry reports must not wait for metadata queue space. */
+static void publish_aac_bitrate(const aac_bitrate_meter *meter) {
+  char text[96];
+  int length = snprintf(text, sizeof(text), "%" PRIu64 "/%" PRIu64 "/%u",
+                        meter->bytes, meter->samples, meter->rate);
+  if (length > 0 && (size_t)length < sizeof(text))
+    send_ssnc_metadata('abrt', text, length, 0);
+}
+
+void reset_buffered_aac_bitrate(rtsp_conn_info *conn) {
+  /* The caller holds flush_mutex to order resets against packet accounting. */
+  conn->ap2_aac_bitrate_generation++;
+  if (aac_bitrate_reset(&conn->ap2_aac_bitrate))
+    publish_aac_bitrate(&conn->ap2_aac_bitrate);
+}
+
+static uint64_t aac_bitrate_packet_generation(rtsp_conn_info *conn) {
+  uint64_t generation = 0;
+  pthread_mutex_lock_and_cleanup_push(&conn->flush_mutex);
+  generation = conn->ap2_aac_bitrate_generation;
+  pthread_cleanup_pop(1);
+  return generation;
+}
+
+static void account_aac_bitrate(rtsp_conn_info *conn, uint32_t ssrc, uint64_t bytes,
+                               uint32_t samples, uint32_t sequence, uint32_t timestamp,
+                               int32_t timestamp_gap, uint64_t generation) {
+  if (!ssrc_is_aac(ssrc) || !bytes || !samples)
+    return;
+
+  /* Output resampling can change conn->input_rate for an older queued packet. */
+  uint32_t rate = get_ssrc_rate(ssrc);
+  pthread_mutex_lock_and_cleanup_push(&conn->flush_mutex);
+  aac_bitrate_meter *meter = &conn->ap2_aac_bitrate;
+  if ((generation == conn->ap2_aac_bitrate_generation) && conn->ap2_play_enabled &&
+      !aac_bitrate_is_duplicate(meter, sequence, timestamp)) {
+    /* A duplicate looks like a backward timestamp jump. Keep its marker until
+     * after this check so it cannot erase and restart the reporting window. */
+    if (timestamp_gap != 0 && aac_bitrate_reset(meter))
+      publish_aac_bitrate(meter);
+    if (aac_bitrate_add(meter, bytes, samples, rate, sequence, timestamp))
+      publish_aac_bitrate(meter);
+  }
+  pthread_cleanup_pop(1);
+}
 #endif
 
 void addADTStoPacket(uint8_t *packet, int packetLen, int rate, int channel_configuration) {
@@ -225,6 +277,11 @@ void *rtp_buffered_audio_processor(void *arg) {
 
     if ((play_enabled != 0) && (conn->ap2_play_enabled == 0)) {
       debug(2, "Play stopped.");
+#ifdef CONFIG_METADATA
+      pthread_mutex_lock_and_cleanup_push(&conn->flush_mutex);
+      reset_buffered_aac_bitrate(conn);
+      pthread_cleanup_pop(1);
+#endif
       packets_played_in_this_sequence = 0; // not all blocks read are played...
 #ifdef CONFIG_CONVOLUTION
       convolver_clear_state();
@@ -284,6 +341,11 @@ void *rtp_buffered_audio_processor(void *arg) {
             payload_ssrc = nctohl(&packet[8]);
             
             if ((payload_ssrc != previous_ssrc) && (payload_ssrc != SSRC_NONE)) {
+#ifdef CONFIG_METADATA
+              pthread_mutex_lock_and_cleanup_push(&conn->flush_mutex);
+              reset_buffered_aac_bitrate(conn);
+              pthread_cleanup_pop(1);
+#endif
               if (ssrc_is_recognised(payload_ssrc) == 0) {
                 debug(2, "Unrecognised SSRC: \"%s\" in packet %" PRIu64 ".", get_ssrc_name(payload_ssrc), blocks_read);
               } else {
@@ -388,6 +450,9 @@ void *rtp_buffered_audio_processor(void *arg) {
         if (conn->ap2_immediate_flush_requested != 0) {
           int flush_finished = 0;
           if (ap2_immediate_flush_requested == 0) {
+#ifdef CONFIG_METADATA
+            reset_buffered_aac_bitrate(conn);
+#endif
             debug(3, "immediate flush started at sequence number %u until sequence number of %u.",
                   seq_no, conn->ap2_immediate_flush_until_sequence_number);
           }
@@ -480,6 +545,9 @@ void *rtp_buffered_audio_processor(void *arg) {
                   conn->ap2_deferred_flush_requests[f].flushFromSeq,
                   conn->ap2_deferred_flush_requests[f].flushUntilTS,
                   conn->ap2_deferred_flush_requests[f].flushUntilSeq, timestamp);
+#ifdef CONFIG_METADATA
+            reset_buffered_aac_bitrate(conn);
+#endif
             conn->ap2_deferred_flush_requests[f].active = 1;
             new_audio_block_needed = 1;
           }
@@ -711,9 +779,19 @@ void *rtp_buffered_audio_processor(void *arg) {
                       }
                     }
                     if (skip_this_block == 0) {
+#ifdef CONFIG_METADATA
+                      uint64_t bitrate_generation = ssrc_is_aac(payload_ssrc)
+                                                        ? aac_bitrate_packet_generation(conn)
+                                                        : 0;
+#endif
                       uint32_t packet_size = player_put_packet(
                           payload_ssrc, sequence_number_for_player, timestamp, payload_pointer,
                           payload_length, mute, timestamp_difference, conn);
+#ifdef CONFIG_METADATA
+                      account_aac_bitrate(conn, payload_ssrc, new_payload_length, packet_size,
+                                          seq_no, timestamp, timestamp_difference,
+                                          bitrate_generation);
+#endif
                       debug(4, "block %u, timestamp %u, length %u sent to the player.", seq_no,
                             timestamp, packet_size);
                       sequence_number_for_player++;                 // simply increment

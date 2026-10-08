@@ -19,6 +19,9 @@
 #define MAX_DEFERRED_FLUSH_REQUESTS 10
 #include "pair_ap/pair.h"
 #include <plist/plist.h>
+#ifdef CONFIG_METADATA
+#include "aac_bitrate.h"
+#endif
 #endif
 
 #ifdef CONFIG_FFMPEG
@@ -454,6 +457,12 @@ typedef struct {
   int ap2_rate;         // protect with flush mutex, 0 means don't play, 1 means play
   int ap2_play_enabled; // protect with flush mutex
 
+#ifdef CONFIG_METADATA
+  /* Protected by flush_mutex, including the meter's packet marker. */
+  aac_bitrate_meter ap2_aac_bitrate;
+  uint64_t ap2_aac_bitrate_generation;
+#endif
+
   ap2_pairing ap2_pairing_context;
   struct pair_result *pair_setup_result; // need to keep the shared secret
 
@@ -624,6 +633,7 @@ int64_t monotonic_timestamp(uint32_t timestamp,
 double suggested_volume(rtsp_conn_info *conn); // volume suggested for the connection
 
 const char *get_ssrc_name(ssrc_t ssrc);
+uint32_t get_ssrc_rate(ssrc_t ssrc);
 size_t get_ssrc_block_length(ssrc_t ssrc);
 
 const char *get_category_string(airplay_stream_c cat);

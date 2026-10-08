@@ -18,6 +18,11 @@ lib_mpris_interface_a_CFLAGS = -pthread
 
 bin_PROGRAMS = shairport-sync
 
+check_PROGRAMS = tests/test_aac_bitrate
+TESTS = $(check_PROGRAMS)
+tests_test_aac_bitrate_SOURCES = tests/test_aac_bitrate.c aac_bitrate.h
+tests_test_aac_bitrate_CPPFLAGS = $(AM_CPPFLAGS) -I$(top_srcdir)
+
 # BUILT_SOURCES get built before anything else (?)
 
 BUILT_SOURCES =
@@ -28,7 +33,7 @@ noinst_LIBRARIES =
 # See below for the flags for the test client program
 
 shairport_sync_SOURCES = shairport.c bonjour_strings.c mdns.c common.c rtp.c \
-  player.c audio.c loudness.c activity_monitor.c \
+  player.c audio.c loudness.c activity_monitor.c aac_bitrate.h \
   rtsp.c \
   utilities/debug.c \
   utilities/network_utilities.c \

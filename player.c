@@ -3520,6 +3520,12 @@ void *player_thread_func(void *arg) {
 #ifdef CONFIG_AIRPLAY_2
   conn->ap2_rate = 0;
   conn->ap2_play_enabled = 0;
+#ifdef CONFIG_METADATA
+  pthread_mutex_lock_and_cleanup_push(&conn->flush_mutex);
+  aac_bitrate_reset(&conn->ap2_aac_bitrate);
+  conn->ap2_aac_bitrate_generation++;
+  pthread_cleanup_pop(1);
+#endif
 
   unsigned int f = 0;
   for (f = 0; f < MAX_DEFERRED_FLUSH_REQUESTS; f++) {
@@ -3603,6 +3609,9 @@ void *player_thread_func(void *arg) {
   int play_samples = 0;
   uint64_t current_delay;
   int play_number = 0;
+#ifdef CONFIG_METADATA
+  uint64_t last_receiver_stats = 0;
+#endif
   conn->play_number_after_flush = 0;
   conn->time_of_last_audio_packet = 0;
   // conn->shutdown_requested = 0;
@@ -3754,6 +3763,24 @@ void *player_thread_func(void *arg) {
         conn, request_resync); // this has a guaranteed [and needed!] cancellation point
     request_resync = 0;
     if (inframe) {
+#ifdef CONFIG_METADATA
+      /* Report existing player counters, independently of codec and log verbosity. */
+      uint64_t stats_now = get_absolute_time_in_ns();
+      if (!last_receiver_stats || stats_now - last_receiver_stats >= 1000000000) {
+        uint64_t missing = 0, too_late = 0, retries = 0;
+        pthread_mutex_lock_and_cleanup_push(&conn->ab_mutex);
+        missing = conn->missing_packets;
+        too_late = conn->too_late_packets;
+        retries = conn->resend_requests;
+        pthread_cleanup_pop(1);
+        char stats[80];
+        int length = snprintf(stats, sizeof(stats), "%" PRIu64 "/%" PRIu64 "/%" PRIu64,
+                              missing, too_late, retries);
+        if (length > 0 && (size_t)length < sizeof(stats))
+          send_ssnc_metadata('arst', stats, length, 0);
+        last_receiver_stats = stats_now;
+      }
+#endif
       if (inframe->data != NULL) {
         /*
         {

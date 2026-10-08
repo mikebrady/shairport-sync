@@ -1363,6 +1363,9 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
             ", flushUntilSeq: %" PRIu64 ".",
             conn->connection_number, flushUntilTS, flushUntilSeq & 0x7fffff);
       conn->ap2_play_enabled = 0; // stop trying to play audio
+#ifdef CONFIG_METADATA
+      reset_buffered_aac_bitrate(conn);
+#endif
       // ptp_send_control_message_string(
       //     "P"); // "P"ause signify clock no longer valid and will be restarted by a subsequent
       //     play
@@ -1490,6 +1493,10 @@ void handle_setrateanchori(rtsp_conn_info *conn, rtsp_message *req, rtsp_message
         ptp_send_control_message_string("P"); // signify play is "P"ausing
         debug(2, "Connection %d: SETRATEANCHORI Pause playing.", conn->connection_number);
         conn->ap2_play_enabled = 0;
+#ifdef CONFIG_METADATA
+        /* The TCP reader can remain asleep throughout a pause and resume. */
+        reset_buffered_aac_bitrate(conn);
+#endif
         activity_monitor_signify_activity(0);
 
 #ifdef CONFIG_METADATA
