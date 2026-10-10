@@ -61,6 +61,8 @@ environment:
   PULSE_COOKIE: /run/user/1000/pulse/cookie
 ```
 
+The `${VAR:-default}` fallbacks in `run.sh` apply only when the variable is unset or empty, so any value you pass via `-e` or `environment:` takes precedence automatically. The image does not use s6-overlay (the entrypoint is a plain shell script invoked directly by Docker), so environment variables reach `run.sh` through the normal Docker mechanism without any additional configuration. `S6_KEEP_ENV: 1` is included in the example `docker-compose.yaml` as a precaution should an s6-based init ever be introduced; it has no effect in the current image.
+
 ## Configuration File
 
 To get access to the full range of configuration options, pass the configuration file to `/etc/shairport-sync.conf` in the container using the `-v` option or docker compose.
