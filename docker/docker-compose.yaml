@@ -7,7 +7,8 @@ services:
     restart: unless-stopped
     cap_add:
       - SYS_NICE
-    # environment:
+    environment:
+      S6_KEEP_ENV: 1  # Preserve the container environment if an s6-based init is introduced in future
     #  PULSE_SERVER: unix:/tmp/pulseaudio.socket # Path for PulseAudio socket
     #  PULSE_COOKIE: /tmp/pulseaudio.cookie # Path for PulseAudio cookie
     #  XDG_RUNTIME_DIR: /tmp # Path for pipewire
