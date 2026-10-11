@@ -3,7 +3,7 @@ Version 5.6-dev-157-g611d5bc8
 **Bug Fix**
 * Fix a bug [identified](https://github.com/mikebrady/shairport-sync/issues/2308) by [mjardemalm](https://github.com/mjardemalm), whereby an AirPlay 2 play session on a Shairport Sync (SPS) device would stop for no apparent reason.
 
-  The problem was traced to other AirPlay 2 players making occasional periodic connections to the SPS device. These connections started as audio connections, but never actually became audio sessions -- they appear to be for checking that the device was still there -- but in response, SPS was terminating any existing session.
+  The problem was traced to other AirPlay 2 players making occasional periodic connections to the SPS device. These connections started as audio connections, but never actually became audio sessions -- they appear to be for checking that the device is still there -- but in response, SPS was terminating any existing session.
 
   The fix was to defer dropping an existing session until it was certain that an incoming connection was definitely a new audio session. Specifically, the fix was for a new connection to defer getting play lock (and pre-empting any existing play session) until the second phase of `SETUP` on an AirPlay 2 connection when a `stream` parameter is provided. Some of the code was tidied up and some old commented-out obsolete code and comments were removed.
 
