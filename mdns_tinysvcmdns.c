@@ -94,6 +94,7 @@ static int mdns_tinysvcmdns_register(char *ap1name, __attribute__((unused)) char
 
   if (ifa == NULL) {
     warn("tinysvcmdns: no non-loopback ipv4 or ipv6 interface found");
+    freeifaddrs(ifalist);
     return -1;
   }
 
@@ -120,7 +121,8 @@ static int mdns_tinysvcmdns_register(char *ap1name, __attribute__((unused)) char
     }
   }
 
-  freeifaddrs(ifa);
+  // the records have their own copies of the addresses
+  freeifaddrs(ifalist);
 
   char *txtwithoutmetadata[] = {MDNS_RECORD_WITHOUT_METADATA, NULL};
 #ifdef CONFIG_METADATA
