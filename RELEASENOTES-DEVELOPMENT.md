@@ -1,3 +1,21 @@
+Version 5.6-dev-173-g29e65677
+==
+**Bug Fix**
+* In `tinysvcmdns`: fix an invalid free and a leak of the interface list. Thanks to [Yegor Yefremov](https://github.com/yegorich) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2311).
+
+  **Please note:** using `tinysvcmdns` remains deprecated for security reasons.
+**Enhancements**
+* Add support for Mbed TLS 4 (support for 3.6 LTS ends in March 2027).
+
+  The new code is selected with `MBEDTLS_VERSION_MAJOR >= 4`; the code for Mbed TLS 2 and 3 is unchanged. Thanks to [Yegor Yefremov](https://github.com/yegorich) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2309).
+* Initialise Mbed TLS MD5 contexts.
+
+  Background: with `--with-ssl=mbedtls`, MD5 code calls `mbedtls_md5_starts()` on an uninitialised context and never frees it. The Mbed TLS API requires `mbedtls_md5_init()` first and `mbedtls_md5_free()` afterwards.
+It happens to work with current Mbed TLS implementations, which set the whole context in `mbedtls_md5_starts()` and allocate nothing, but that isn't guaranteed, for example with an alternative (hardware) MD5 implementation (`MBEDTLS_MD5_ALT`). Thanks to [Yegor Yefremov](https://github.com/yegorich) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2310).
+* In the Docker images: preserve the user-supplied `PULSE_SERVER` and `PULSE_COOKIE`.
+
+  Background: the Docker run scripts (`docker/run.sh`, `docker/devrun.sh` and `docker/classic/run.sh`) always overwrote `PULSE_SERVER` and `PULSE_COOKIE`, so values passed with `$ docker run -e` or a Compose `environment:` block were ignored. Each assignment now uses `${VAR:-default}`, so the default is applied only when the variable is unset or empty. The default values are unchanged (`unix:/tmp/pulseaudio.socket` and `/tmp/pulseaudio.cookie`). Thanks to [Joel Town Road](https://github.com/hippi345) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2307) and discussion.
+
 Version 5.6-dev-157-g611d5bc8
 ==
 **Bug Fix**
