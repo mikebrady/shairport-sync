@@ -184,8 +184,9 @@ elif test "x${with_ssl}" = xmbedtls ; then
 	AC_DEFINE([CONFIG_MBEDTLS], 1, [Use the mbed TLS libraries for encryption and encoding and decoding])
 	AC_CHECK_LIB([mbedtls],[mbedtls_ssl_init],,
 		[AC_MSG_ERROR([mbed tls support requires the mbedtls library -- libmbedtls-dev suggested],1)])
-	AC_CHECK_LIB([mbedcrypto], [mbedtls_entropy_func],,
-	            [AC_MSG_ERROR([mbed tls support requires the mbedcrypto library -- libmbedcrypto0 suggested],1)])
+	# Mbed TLS 4 provides the crypto in libtfpsacrypto (TF-PSA-Crypto)
+	AC_SEARCH_LIBS([mbedtls_md_setup], [tfpsacrypto mbedcrypto],,
+	            [AC_MSG_ERROR([mbed tls support requires the mbedcrypto library (tfpsacrypto with Mbed TLS 4) -- libmbedcrypto0 suggested],1)])
 	AC_CHECK_LIB([mbedx509], [mbedtls_pk_init],,
 	            [AC_MSG_ERROR([mbed tls support requires the mbedx509 library -- libmbedx509-0 suggested],1)])
 elif test "x${with_ssl}" = xpolarssl ; then

@@ -59,8 +59,12 @@
 #endif
 
 #ifdef CONFIG_MBEDTLS
-#include <mbedtls/md5.h>
 #include <mbedtls/version.h>
+#if MBEDTLS_VERSION_MAJOR >= 4
+#include <psa/crypto.h>
+#else
+#include <mbedtls/md5.h>
+#endif
 #endif
 
 #ifdef CONFIG_POLARSSL
@@ -2669,6 +2673,11 @@ int main(int argc, char **argv) {
   // debug_init(int level, int show_elapsed_time, int show_relative_time, int show_file_and_line)
   debug_init(0, 0, 1, 1, exit_request);
   memset(&config, 0, sizeof(config)); // also clears all strings, BTW
+#if defined(CONFIG_MBEDTLS) && MBEDTLS_VERSION_MAJOR >= 4
+  // Mbed TLS 4 does all hashing, encryption and RSA through PSA
+  if (psa_crypto_init() != PSA_SUCCESS)
+    die("can not initialise PSA Crypto!");
+#endif
   /* Check if we are called with -V or --version parameter */
   if (argc >= 2 && ((strcmp(argv[1], "-V") == 0) || (strcmp(argv[1], "--version") == 0))) {
     print_version();
@@ -3640,7 +3649,14 @@ int main(int argc, char **argv) {
 #endif
 
 #ifdef CONFIG_MBEDTLS
-#if MBEDTLS_VERSION_MINOR >= 7
+#if MBEDTLS_VERSION_MAJOR >= 4
+    psa_hash_operation_t tctx = PSA_HASH_OPERATION_INIT;
+    size_t ap_md5_len;
+    psa_hash_setup(&tctx, PSA_ALG_MD5);
+    psa_hash_update(&tctx, (const uint8_t *)config.service_name, strlen(config.service_name));
+    psa_hash_update(&tctx, (const uint8_t *)config.hw_addr, sizeof(config.hw_addr));
+    psa_hash_finish(&tctx, ap_md5, sizeof(ap_md5), &ap_md5_len);
+#elif MBEDTLS_VERSION_MINOR >= 7
     mbedtls_md5_context tctx;
     mbedtls_md5_starts_ret(&tctx);
     mbedtls_md5_update_ret(&tctx, (unsigned char *)config.service_name,

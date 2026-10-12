@@ -62,8 +62,12 @@
 #endif
 
 #ifdef CONFIG_MBEDTLS
-#include <mbedtls/md5.h>
 #include <mbedtls/version.h>
+#if MBEDTLS_VERSION_MAJOR >= 4
+#include <psa/crypto.h>
+#else
+#include <mbedtls/md5.h>
+#endif
 #endif
 
 #ifdef CONFIG_POLARSSL
@@ -3784,7 +3788,22 @@ static int rtsp_classic_airplay_auth(char **nonce, rtsp_message *req, rtsp_messa
 #endif
 
 #ifdef CONFIG_MBEDTLS
-#if MBEDTLS_VERSION_MINOR >= 7
+#if MBEDTLS_VERSION_MAJOR >= 4
+  psa_hash_operation_t tctx = PSA_HASH_OPERATION_INIT;
+  size_t digest_len;
+  psa_hash_setup(&tctx, PSA_ALG_MD5);
+  psa_hash_update(&tctx, (const uint8_t *)username, strlen(username));
+  psa_hash_update(&tctx, (const uint8_t *)":", 1);
+  psa_hash_update(&tctx, (const uint8_t *)realm, strlen(realm));
+  psa_hash_update(&tctx, (const uint8_t *)":", 1);
+  psa_hash_update(&tctx, (const uint8_t *)config.password, strlen(config.password));
+  psa_hash_finish(&tctx, digest_urp, sizeof(digest_urp), &digest_len);
+  psa_hash_setup(&tctx, PSA_ALG_MD5);
+  psa_hash_update(&tctx, (const uint8_t *)req->method, strlen(req->method));
+  psa_hash_update(&tctx, (const uint8_t *)":", 1);
+  psa_hash_update(&tctx, (const uint8_t *)uri, strlen(uri));
+  psa_hash_finish(&tctx, digest_mu, sizeof(digest_mu), &digest_len);
+#elif MBEDTLS_VERSION_MINOR >= 7
   mbedtls_md5_context tctx;
   mbedtls_md5_starts_ret(&tctx);
   mbedtls_md5_update_ret(&tctx, (const unsigned char *)username, strlen(username));
@@ -3856,7 +3875,17 @@ static int rtsp_classic_airplay_auth(char **nonce, rtsp_message *req, rtsp_messa
 #endif
 
 #ifdef CONFIG_MBEDTLS
-#if MBEDTLS_VERSION_MINOR >= 7
+#if MBEDTLS_VERSION_MAJOR >= 4
+  psa_hash_setup(&tctx, PSA_ALG_MD5);
+  psa_hash_update(&tctx, buf, 32);
+  psa_hash_update(&tctx, (const uint8_t *)":", 1);
+  psa_hash_update(&tctx, (const uint8_t *)*nonce, strlen(*nonce));
+  psa_hash_update(&tctx, (const uint8_t *)":", 1);
+  for (i = 0; i < 16; i++)
+    snprintf((char *)buf + 2 * i, 3, "%02x", digest_mu[i]);
+  psa_hash_update(&tctx, buf, 32);
+  psa_hash_finish(&tctx, digest_total, sizeof(digest_total), &digest_len);
+#elif MBEDTLS_VERSION_MINOR >= 7
   mbedtls_md5_starts_ret(&tctx);
   mbedtls_md5_update_ret(&tctx, buf, 32);
   mbedtls_md5_update_ret(&tctx, (unsigned char *)":", 1);

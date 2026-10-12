@@ -46,7 +46,12 @@
 
 
 #ifdef CONFIG_MBEDTLS
+#include <mbedtls/version.h>
+#if MBEDTLS_VERSION_MAJOR >= 4
+#include <psa/crypto.h>
+#else
 #include <mbedtls/aes.h>
+#endif
 #endif
 
 #ifdef CONFIG_POLARSSL
@@ -1583,8 +1588,22 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
         int aeslen = len & ~0xf;
         memcpy(iv, conn->stream.aesiv, sizeof(iv));
 #ifdef CONFIG_MBEDTLS
+#if MBEDTLS_VERSION_MAJOR >= 4
+        psa_cipher_operation_t op = PSA_CIPHER_OPERATION_INIT;
+        size_t olen, flen;
+        if (psa_cipher_decrypt_setup(&op, conn->dctx, PSA_ALG_CBC_NO_PADDING) != PSA_SUCCESS ||
+            psa_cipher_set_iv(&op, iv, sizeof(iv)) != PSA_SUCCESS ||
+            psa_cipher_update(&op, data, aeslen, intermediate_buffer, aeslen, &olen) !=
+                PSA_SUCCESS ||
+            psa_cipher_finish(&op, intermediate_buffer + olen, aeslen - olen, &flen) !=
+                PSA_SUCCESS) {
+          debug(1, "Connection %d: AES decryption failed.", conn->connection_number);
+          psa_cipher_abort(&op);
+        }
+#else
         mbedtls_aes_crypt_cbc(&conn->dctx, MBEDTLS_AES_DECRYPT, aeslen, iv, data,
                               intermediate_buffer);
+#endif
 #endif
 #ifdef CONFIG_POLARSSL
         aes_crypt_cbc(&conn->dctx, AES_DECRYPT, aeslen, iv, data, intermediate_buffer);
@@ -3479,6 +3498,11 @@ void player_thread_cleanup_handler(void *arg) {
 
   conn->rtp_running = 0;
 
+#if defined(CONFIG_MBEDTLS) && MBEDTLS_VERSION_MAJOR >= 4
+  psa_destroy_key(conn->dctx);
+  conn->dctx = PSA_KEY_ID_NULL;
+#endif
+
   pthread_setcancelstate(oldState, NULL);
   debug(2, "Connection %d: player terminated.", conn->connection_number);
 }
@@ -3563,8 +3587,18 @@ void *player_thread_func(void *arg) {
 
   if (conn->stream.encrypted) {
 #ifdef CONFIG_MBEDTLS
+#if MBEDTLS_VERSION_MAJOR >= 4
+    psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
+    psa_set_key_type(&attr, PSA_KEY_TYPE_AES);
+    psa_set_key_bits(&attr, 128);
+    psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_DECRYPT);
+    psa_set_key_algorithm(&attr, PSA_ALG_CBC_NO_PADDING);
+    if (psa_import_key(&attr, conn->stream.aeskey, 16, &conn->dctx) != PSA_SUCCESS)
+      debug(1, "Connection %d: can not import the AES key.", conn->connection_number);
+#else
     memset(&conn->dctx, 0, sizeof(mbedtls_aes_context));
     mbedtls_aes_setkey_dec(&conn->dctx, conn->stream.aeskey, 128);
+#endif
 #endif
 
 #ifdef CONFIG_POLARSSL
