@@ -47,6 +47,20 @@ To use the PipeWire backend, set the backend to `pipewire` via either command li
 Similarly, to use the PulseAudio backend, set the backend to `pulseaudio` via either command line option `-o pulseaudio ` or the `output_backend` field in the `general` section of the configuration file.
 For use with PulseAudio, you might need to adjust authentication on your PulseAudio server ([PA documentation](https://www.freedesktop.org/wiki/Software/PulseAudio/Documentation/User/Modules/#module-native-protocol-unixtcp)).
 
+The container defaults `PULSE_SERVER` to `unix:/tmp/pulseaudio.socket` and `PULSE_COOKIE` to `/tmp/pulseaudio.cookie`. You can override either value without rebuilding the image by passing them at runtime:
+
+```
+# docker run
+$ docker run ... -e PULSE_SERVER=unix:/run/user/1000/pulse/native -e PULSE_COOKIE=/run/user/1000/pulse/cookie ...
+```
+
+```yaml
+# docker compose
+environment:
+  PULSE_SERVER: unix:/run/user/1000/pulse/native
+  PULSE_COOKIE: /run/user/1000/pulse/cookie
+```
+
 ## Configuration File
 
 To get access to the full range of configuration options, pass the configuration file to `/etc/shairport-sync.conf` in the container using the `-v` option or docker compose.
