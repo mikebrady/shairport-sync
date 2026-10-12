@@ -244,14 +244,18 @@ char *metadata_write_image_file(const char *buf, int len) {
                      &img_md5_len);
 #elif MBEDTLS_VERSION_MINOR >= 7
     mbedtls_md5_context tctx;
+    mbedtls_md5_init(&tctx);
     mbedtls_md5_starts_ret(&tctx);
     mbedtls_md5_update_ret(&tctx, (const unsigned char *)buf, len);
     mbedtls_md5_finish_ret(&tctx, img_md5);
+    mbedtls_md5_free(&tctx);
 #else
     mbedtls_md5_context tctx;
+    mbedtls_md5_init(&tctx);
     mbedtls_md5_starts(&tctx);
     mbedtls_md5_update(&tctx, (const unsigned char *)buf, len);
     mbedtls_md5_finish(&tctx, img_md5);
+    mbedtls_md5_free(&tctx);
 #endif
 #endif
 
