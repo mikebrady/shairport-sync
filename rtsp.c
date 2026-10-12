@@ -3786,6 +3786,7 @@ static int rtsp_classic_airplay_auth(char **nonce, rtsp_message *req, rtsp_messa
 #ifdef CONFIG_MBEDTLS
 #if MBEDTLS_VERSION_MINOR >= 7
   mbedtls_md5_context tctx;
+  mbedtls_md5_init(&tctx);
   mbedtls_md5_starts_ret(&tctx);
   mbedtls_md5_update_ret(&tctx, (const unsigned char *)username, strlen(username));
   mbedtls_md5_update_ret(&tctx, (unsigned char *)":", 1);
@@ -3800,6 +3801,7 @@ static int rtsp_classic_airplay_auth(char **nonce, rtsp_message *req, rtsp_messa
   mbedtls_md5_finish_ret(&tctx, digest_mu);
 #else
   mbedtls_md5_context tctx;
+  mbedtls_md5_init(&tctx);
   mbedtls_md5_starts(&tctx);
   mbedtls_md5_update(&tctx, (const unsigned char *)username, strlen(username));
   mbedtls_md5_update(&tctx, (unsigned char *)":", 1);
@@ -3866,6 +3868,7 @@ static int rtsp_classic_airplay_auth(char **nonce, rtsp_message *req, rtsp_messa
     snprintf((char *)buf + 2 * i, 3, "%02x", digest_mu[i]);
   mbedtls_md5_update_ret(&tctx, buf, 32);
   mbedtls_md5_finish_ret(&tctx, digest_total);
+  mbedtls_md5_free(&tctx);
 #else
   mbedtls_md5_starts(&tctx);
   mbedtls_md5_update(&tctx, buf, 32);
@@ -3876,6 +3879,7 @@ static int rtsp_classic_airplay_auth(char **nonce, rtsp_message *req, rtsp_messa
     snprintf((char *)buf + 2 * i, 3, "%02x", digest_mu[i]);
   mbedtls_md5_update(&tctx, buf, 32);
   mbedtls_md5_finish(&tctx, digest_total);
+  mbedtls_md5_free(&tctx);
 #endif
 #endif
 

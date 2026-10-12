@@ -3642,17 +3642,21 @@ int main(int argc, char **argv) {
 #ifdef CONFIG_MBEDTLS
 #if MBEDTLS_VERSION_MINOR >= 7
     mbedtls_md5_context tctx;
+    mbedtls_md5_init(&tctx);
     mbedtls_md5_starts_ret(&tctx);
     mbedtls_md5_update_ret(&tctx, (unsigned char *)config.service_name,
                            strlen(config.service_name));
     mbedtls_md5_update_ret(&tctx, (unsigned char *)config.hw_addr, sizeof(config.hw_addr));
     mbedtls_md5_finish_ret(&tctx, ap_md5);
+    mbedtls_md5_free(&tctx);
 #else
     mbedtls_md5_context tctx;
+    mbedtls_md5_init(&tctx);
     mbedtls_md5_starts(&tctx);
     mbedtls_md5_update(&tctx, (unsigned char *)config.service_name, strlen(config.service_name));
     mbedtls_md5_update(&tctx, (unsigned char *)config.hw_addr, sizeof(config.hw_addr));
     mbedtls_md5_finish(&tctx, ap_md5);
+    mbedtls_md5_free(&tctx);
 #endif
 #endif
 
