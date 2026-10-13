@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 
+#define PAIR_TLV_ERROR_NONE 0
 #define PAIR_TLV_ERROR_MEMORY -1
 #define PAIR_TLV_ERROR_INSUFFICIENT_SIZE -2
 

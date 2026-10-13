@@ -2,7 +2,7 @@
  * Utility routines. This file is part of Shairport.
  * Copyright (c) James Laird 2013
  * The volume to attenuation function vol2attn copyright (c) Mike Brady 2014
- * Further changes and additions (c) Mike Brady 2014--2025
+ * Further changes and additions (c) Mike Brady 2014--2026
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -74,11 +74,6 @@
 #include <netinet/in.h>
 #endif
 
-#ifdef CONFIG_CONVOLUTION
-#include <ctype.h>
-#include <sndfile.h>
-#endif
-
 #ifdef CONFIG_OPENSSL
 #include <openssl/aes.h> // needed for older AES stuff
 #include <openssl/bio.h> // needed for BIO_new_mem_buf
@@ -102,12 +97,16 @@
 #endif
 
 #ifdef CONFIG_MBEDTLS
-#include "mbedtls/ctr_drbg.h"
-#include "mbedtls/entropy.h"
 #include <mbedtls/base64.h>
 #include <mbedtls/md.h>
 #include <mbedtls/version.h>
 #include <mbedtls/x509.h>
+#if MBEDTLS_VERSION_MAJOR >= 4
+#include <psa/crypto.h>
+#else
+#include "mbedtls/ctr_drbg.h"
+#include "mbedtls/entropy.h"
+#endif
 
 #if MBEDTLS_VERSION_MAJOR == 3
 #define MBEDTLS_PRIVATE_V3_ONLY(_q) MBEDTLS_PRIVATE(_q)
@@ -231,7 +230,6 @@ const char *short_format_description(int32_t encoded_format) {
 
 // true if Shairport Sync is supposed to be sending output to the output device, false otherwise
 // static volatile int requested_connection_state_to_output = 1;
-
 
 /*
 // this stuff is to direct logging to syslog via libdaemon or directly
@@ -504,7 +502,8 @@ uint16_t bind_UDP_port(int ip_family, const char *self_ip_address, uint32_t scop
 
 // int get_requested_connection_state_to_output() { return requested_connection_state_to_output; }
 
-// void set_requested_connection_state_to_output(int v) { requested_connection_state_to_output = v; }
+// void set_requested_connection_state_to_output(int v) { requested_connection_state_to_output = v;
+// }
 
 void getErrorText(char *destinationString, size_t destinationStringLength) {
 #pragma GCC diagnostic push
@@ -892,6 +891,63 @@ uint8_t *rsa_apply(uint8_t *input, int inlen, int *outlen, int mode) {
 #endif
 
 #ifdef CONFIG_MBEDTLS
+#if MBEDTLS_VERSION_MAJOR >= 4
+// Mbed TLS 4 only provides RSA through PSA, which needs psa_crypto_init() to have been called
+uint8_t *rsa_apply(uint8_t *input, int inlen, int *outlen, int mode) {
+  mbedtls_pk_context pkctx;
+  psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
+  mbedtls_svc_key_id_t key = MBEDTLS_SVC_KEY_ID_INIT;
+  psa_algorithm_t alg = PSA_ALG_NONE;
+  psa_key_usage_t usage = 0;
+  psa_status_t status = PSA_ERROR_GENERIC_ERROR;
+  uint8_t *outbuf = NULL;
+  size_t olen = 0;
+  int rc;
+
+  switch (mode) {
+  case RSA_MODE_AUTH:
+    // a PKCS#1 v1.5 signature of the raw input, without a DigestInfo
+    alg = PSA_ALG_RSA_PKCS1V15_SIGN_RAW;
+    usage = PSA_KEY_USAGE_SIGN_HASH;
+    break;
+  case RSA_MODE_KEY:
+    alg = PSA_ALG_RSA_OAEP(PSA_ALG_SHA_1);
+    usage = PSA_KEY_USAGE_DECRYPT;
+    break;
+  default:
+    die("bad rsa mode");
+  }
+
+  mbedtls_pk_init(&pkctx);
+  rc = mbedtls_pk_parse_key(&pkctx, (unsigned char *)super_secret_key, sizeof(super_secret_key),
+                            NULL, 0);
+  if (rc == 0)
+    rc = mbedtls_pk_get_psa_attributes(&pkctx, usage, &attr);
+  if (rc == 0) {
+    psa_set_key_algorithm(&attr, alg);
+    rc = mbedtls_pk_import_into_psa(&pkctx, &attr, &key);
+  }
+  if (rc != 0)
+    debug(1, "Error %d reading the private key.", rc);
+
+  size_t outsize = PSA_BITS_TO_BYTES(mbedtls_pk_get_bitlen(&pkctx));
+  outbuf = malloc(outsize);
+  if (rc == 0 && outbuf != NULL) {
+    if (mode == RSA_MODE_AUTH)
+      status = psa_sign_hash(key, alg, input, inlen, outbuf, outsize, &olen);
+    else
+      status = psa_asymmetric_decrypt(key, alg, input, inlen, NULL, 0, outbuf, outsize, &olen);
+    if (status != PSA_SUCCESS)
+      debug(1, "PSA RSA %s error %d.", mode == RSA_MODE_AUTH ? "sign" : "decrypt", (int)status);
+  }
+  *outlen = olen;
+
+  psa_destroy_key(key);
+  psa_reset_key_attributes(&attr);
+  mbedtls_pk_free(&pkctx);
+  return outbuf;
+}
+#else
 uint8_t *rsa_apply(uint8_t *input, int inlen, int *outlen, int mode) {
   mbedtls_pk_context pkctx;
   mbedtls_rsa_context *trsa;
@@ -963,6 +1019,7 @@ uint8_t *rsa_apply(uint8_t *input, int inlen, int *outlen, int mode) {
   mbedtls_pk_free(&pkctx);
   return outbuf;
 }
+#endif
 #endif
 
 #ifdef CONFIG_POLARSSL
@@ -1886,6 +1943,9 @@ char *get_version_string() {
     snprintf(smiv, 1024, "-smi%u", NQPTP_SHM_STRUCTURES_VERSION);
     strcat(version_string, smiv);
 #endif
+#ifdef CONFIG_HAMMERTON
+    strcat(version_string, "-Hammerton");
+#endif
 #ifdef CONFIG_APPLE_ALAC
     strcat(version_string, "-alac");
 #endif
@@ -1924,8 +1984,8 @@ char *get_version_string() {
 #ifdef CONFIG_SNDIO
     strcat(version_string, "-sndio");
 #endif
-#ifdef CONFIG_JACK
-    strcat(version_string, "-jack");
+#ifdef CONFIG_COREAUDIO
+    strcat(version_string, "-coreaudio");
 #endif
 #ifdef CONFIG_AO
     strcat(version_string, "-ao");
@@ -1935,9 +1995,6 @@ char *get_version_string() {
 #endif
 #ifdef CONFIG_PIPEWIRE
     strcat(version_string, "-PipeWire");
-#endif
-#ifdef CONFIG_SOUNDIO
-    strcat(version_string, "-soundio");
 #endif
 #ifdef CONFIG_DUMMY
     strcat(version_string, "-dummy");
@@ -2167,13 +2224,15 @@ int string_update_with_size(char **str, int *flag, char *s, size_t len) {
         *str = p;
         *flag = 1;
       } else {
-        *flag = 0;
+        if (flag)
+          *flag = 0;
       }
     } else {
       // old string is non-NULL, new string is NULL or length 0
       free(*str);
       *str = NULL;
-      *flag = 1;
+      if (flag)
+        *flag = 1;
     }
   } else { // old string is NULL
     if ((s) && (len)) {
@@ -2182,13 +2241,18 @@ int string_update_with_size(char **str, int *flag, char *s, size_t len) {
       memcpy(p, s, len);
       p[len] = '\0';
       *str = p;
-      *flag = 1;
+      if (flag)
+        *flag = 1;
     } else {
       // old string is NULL and new string is NULL or length 0
-      *flag = 0; // so no change
+      if (flag)
+        *flag = 0; // so no change
     }
   }
-  return *flag;
+  int response = 0;
+  if (flag)
+    response = *flag;
+  return response;
 }
 
 // from https://stackoverflow.com/questions/13663617/memdup-function-in-c, with thanks
@@ -2300,6 +2364,8 @@ char *bnprintf(char *buffer, ssize_t max_bytes, const char *format, ...) {
 
 int do_pthread_setname(pthread_t *restrict thread, const char *format, ...) {
 #ifdef COMPILE_FOR_OSX
+  (void) thread;
+  (void) format;
   return 0;
 #else
   // pthread_setname_np/2 not defined in macOS
@@ -2334,6 +2400,18 @@ int named_pthread_create(pthread_t *thread, const pthread_attr_t *attr,
 int named_pthread_create_with_priority(pthread_t *thread, int priority,
                                        void *(*start_routine)(void *), void *arg,
                                        const char *format, ...) {
+
+#ifdef COMPILE_FOR_OSX
+
+  // On macOS, don't ask for any special priority. A POSIX SCHED_FIFO priority is placed on
+  // a different scale from Linux's, and small values such as 2 or 3 end up below ordinary
+  // threads (which sit at about 31), so requesting one makes the thread run worse, not
+  // better. Just create a normal thread.
+  (void)priority;
+  (void)format;
+  return pthread_create(thread, NULL, start_routine, arg);
+
+#else
 
   // if this gets a permissions error, it'll try to create a thread without any special
   // priority or scheduling
@@ -2388,226 +2466,12 @@ int named_pthread_create_with_priority(pthread_t *thread, int priority,
       failed_to_set_rt = 1;
     }
   }
-#ifndef COMPILE_FOR_OSX
   if (ret == 0) {
     pthread_setname_np(*thread, actual_name);
   } else {
     die("named_pthread_create_with_priority failed with error %d", ret);
   }
-#endif
   return ret;
-}
 
-#ifdef CONFIG_CONVOLUTION
-/* Parse comma-separated filenames with optional quotes
- * Returns array of ir_file_info_t structs (caller must free both array and filenames)
- * count is set to number of filenames found
- * Returns NULL on error
- */
-ir_file_info_t *parse_ir_filenames(const char *input, unsigned int *file_count) {
-  if (!input || !file_count)
-    return NULL;
-
-  *file_count = 0;
-  unsigned int capacity = 10;
-  ir_file_info_t *files = malloc(capacity * sizeof(ir_file_info_t));
-  if (!files)
-    return NULL;
-
-  const char *p = input;
-
-  while (*p) {
-    /* Skip whitespace before filename */
-    while (isspace((unsigned char)*p))
-      p++;
-    if (!*p)
-      break;
-
-    /* Check if we need to resize array */
-    if (*file_count >= capacity) {
-      capacity *= 2;
-      ir_file_info_t *temp = realloc(files, capacity * sizeof(ir_file_info_t));
-      if (!temp) {
-        for (unsigned int i = 0; i < *file_count; i++)
-          free(files[i].filename);
-        free(files);
-        return NULL;
-      }
-      files = temp;
-    }
-
-    /* Parse one filename */
-    char quote_char = 0;
-    char *buffer = NULL;
-    size_t buf_len = 0;
-    size_t buf_cap = 64;
-
-    if (*p == '"' || *p == '\'') {
-      /* Quoted filename */
-      quote_char = *p;
-      p++;
-
-      buffer = malloc(buf_cap);
-      if (!buffer) {
-        for (unsigned int i = 0; i < *file_count; i++)
-          free(files[i].filename);
-        free(files);
-        return NULL;
-      }
-
-      /* Parse quoted string with escape handling */
-      while (*p && *p != quote_char) {
-        if (*p == '\\' && *(p + 1)) {
-          /* Escape sequence */
-          p++;
-          if (buf_len >= buf_cap - 1) {
-            buf_cap *= 2;
-            char *temp = realloc(buffer, buf_cap);
-            if (!temp) {
-              free(buffer);
-              for (unsigned int i = 0; i < *file_count; i++)
-                free(files[i].filename);
-              free(files);
-              return NULL;
-            }
-            buffer = temp;
-          }
-          buffer[buf_len++] = *p++;
-        } else {
-          if (buf_len >= buf_cap - 1) {
-            buf_cap *= 2;
-            char *temp = realloc(buffer, buf_cap);
-            if (!temp) {
-              free(buffer);
-              for (unsigned int i = 0; i < *file_count; i++)
-                free(files[i].filename);
-              free(files);
-              return NULL;
-            }
-            buffer = temp;
-          }
-          buffer[buf_len++] = *p++;
-        }
-      }
-      buffer[buf_len] = '\0';
-      if (*p == quote_char)
-        p++; /* Skip closing quote */
-
-      files[*file_count].samplerate = 0;
-      // files[*file_count].evaluation = ev_unchecked;
-      files[*file_count].filename = buffer;
-      (*file_count)++;
-    } else {
-      /* Unquoted filename - read until comma or end, handle escapes */
-      buffer = malloc(buf_cap);
-      if (!buffer) {
-        for (unsigned int i = 0; i < *file_count; i++)
-          free(files[i].filename);
-        free(files);
-        return NULL;
-      }
-
-      while (*p && *p != ',') {
-        if (*p == '\\' && *(p + 1)) {
-          /* Escape sequence */
-          p++;
-          if (buf_len >= buf_cap - 1) {
-            buf_cap *= 2;
-            char *temp = realloc(buffer, buf_cap);
-            if (!temp) {
-              free(buffer);
-              for (unsigned int i = 0; i < *file_count; i++)
-                free(files[i].filename);
-              free(files);
-              return NULL;
-            }
-            buffer = temp;
-          }
-          buffer[buf_len++] = *p++;
-        } else {
-          if (buf_len >= buf_cap - 1) {
-            buf_cap *= 2;
-            char *temp = realloc(buffer, buf_cap);
-            if (!temp) {
-              free(buffer);
-              for (unsigned int i = 0; i < *file_count; i++)
-                free(files[i].filename);
-              free(files);
-              return NULL;
-            }
-            buffer = temp;
-          }
-          buffer[buf_len++] = *p++;
-        }
-      }
-
-      /* Trim trailing whitespace */
-      while (buf_len > 0 && isspace((unsigned char)buffer[buf_len - 1])) {
-        buf_len--;
-      }
-      buffer[buf_len] = '\0';
-
-      files[*file_count].samplerate = 0;
-      files[*file_count].channels = 0;
-      // files[*file_count].evaluation = ev_unchecked;
-      files[*file_count].filename = buffer;
-      (*file_count)++;
-    }
-
-    /* Skip comma and whitespace */
-    while (isspace((unsigned char)*p))
-      p++;
-    if (*p == ',') {
-      p++;
-      while (isspace((unsigned char)*p))
-        p++;
-    }
-  }
-
-  return files;
-}
-
-/* Do a quick sanity check on the files -- see if they can be opened as sound files */
-void sanity_check_ir_files(const int option_print_level, ir_file_info_t *files,
-                           unsigned int count) {
-  if (files != NULL) {
-    debug(option_print_level, "convolution impulse response files: %d found.", count);
-    for (unsigned int i = 0; i < count; i++) {
-
-      SF_INFO sfinfo = {};
-      // sfinfo.format = 0;
-
-      SNDFILE *file = sf_open(files[i].filename, SFM_READ, &sfinfo);
-      if (file) {
-        // files[i].evaluation = ev_okay;
-        files[i].samplerate = sfinfo.samplerate;
-        files[i].channels = sfinfo.channels;
-        debug(option_print_level,
-              "convolution impulse response file \"%s\": %" PRId64
-              " frames (%.1f seconds), %d channel%s at %d frames per second.",
-              files[i].filename, sfinfo.frames, (float)sfinfo.frames / sfinfo.samplerate,
-              sfinfo.channels, sfinfo.channels == 1 ? "" : "s", sfinfo.samplerate);
-        sf_close(file);
-      } else {
-        // files[i].evaluation = ev_invalid;
-        debug(option_print_level, "convolution impulse response file \"%s\" %s", files[i].filename,
-              sf_strerror(NULL));
-        warn("Error accessing the convolution impulse response file \"%s\". %s", files[i].filename,
-             sf_strerror(NULL));
-      }
-    }
-  } else {
-    debug(option_print_level, "no convolution impulse response files found.");
-  }
-}
-
-/* Free the array returned by parse_filenames */
-void free_ir_filenames(ir_file_info_t *files, unsigned int file_count) {
-  if (!files)
-    return;
-  for (unsigned int i = 0; i < file_count; i++) {
-    free(files[i].filename);
-  }
-  free(files);
-}
 #endif
+}

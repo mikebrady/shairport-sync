@@ -30,7 +30,7 @@ done
 # for PipeWire
 export XDG_RUNTIME_DIR=/tmp
 # for PulseAudio
-export PULSE_SERVER=unix:/tmp/pulseaudio.socket
-export PULSE_COOKIE=/tmp/pulseaudio.cookie
+export PULSE_SERVER=${PULSE_SERVER:-unix:/tmp/pulseaudio.socket}
+export PULSE_COOKIE=${PULSE_COOKIE:-/tmp/pulseaudio.cookie}
 echo "Finished startup tasks ($(date)), starting bash."
 exec /bin/bash

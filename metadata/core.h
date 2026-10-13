@@ -1,9 +1,8 @@
 #pragma once
 
-#include "../rtsp.h"
 #include "common.h"
-#include "config.h"
 #include "pc_queue.h"
+#include "rtsp.h"
 #include <pthread.h>
 
 typedef struct {

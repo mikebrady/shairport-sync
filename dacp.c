@@ -28,7 +28,6 @@
 
 #include "dacp.h"
 #include "common.h"
-#include "config.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -552,6 +551,9 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
 #ifdef COMPILE_FOR_OSX
         result = pthread_cond_timedwait_relative_np(&dacp_server_information_cv,
                                                     &dacp_server_information_lock, &time_to_wait);
+        // pthread_cond_timedwait_relative_np() is not a cancellation point on macOS, so
+        // check here -- otherwise a pending pthread_cancel() is never acted on
+        pthread_testcancel();
 #endif
       }
       if (dacp_server.scan_enable == 1) {
@@ -565,6 +567,8 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
 
     result = dacp_get_volume(&the_volume); // just want the http code
     pthread_cleanup_pop(1);
+
+    // debug(1, "DACP Scan Result is %d.", result);
 
     if (result == 490) { // 490 means no port was specified
       if (strlen(dacp_server.dacp_id) != 0) {
@@ -674,6 +678,7 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
             if (dacp_tlv_crawl(&sp, &item_size) == 'cmst') { // status
               // here, we know that we are receiving playerstatusupdates, so set a flag
               metadata_hub_modify_prolog();
+              int metadata_changed = 0;
               // debug(1, "playstatusupdate release track metadata");
               // metadata_hub_reset_track_metadata();
               // metadata_store.playerstatusupdates_are_received = 1;
@@ -685,12 +690,8 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
                 uint32_t type = dacp_tlv_crawl(&sp, &item_size);
                 le -= item_size + 8;
                 char *t;
-                // char u;
-                // char *st;
                 int32_t r;
                 uint32_t ui;
-                // uint64_t v;
-                // int i;
 
                 switch (type) {
                 case 'cmsr': // revision number
@@ -705,18 +706,21 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
                   case 2:
                     if (metadata_store.play_status != PS_STOPPED) {
                       metadata_store.play_status = PS_STOPPED;
+                      metadata_changed |= 1;
                       debug(2, "Play status is \"stopped\".");
                     }
                     break;
                   case 3:
                     if (metadata_store.play_status != PS_PAUSED) {
                       metadata_store.play_status = PS_PAUSED;
+                      metadata_changed |= 1;
                       debug(2, "Play status is \"paused\".");
                     }
                     break;
                   case 4:
                     if (metadata_store.play_status != PS_PLAYING) {
                       metadata_store.play_status = PS_PLAYING;
+                      metadata_changed |= 1;
                       debug(2, "Play status changed to \"playing\".");
                     }
                     break;
@@ -732,12 +736,14 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
                   case 0:
                     if (metadata_store.shuffle_status != SS_OFF) {
                       metadata_store.shuffle_status = SS_OFF;
+                      metadata_changed |= 1;
                       debug(2, "Shuffle status is \"off\".");
                     }
                     break;
                   case 1:
                     if (metadata_store.shuffle_status != SS_ON) {
                       metadata_store.shuffle_status = SS_ON;
+                      metadata_changed |= 1;
                       debug(2, "Shuffle status is \"on\".");
                     }
                     break;
@@ -753,18 +759,21 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
                   case 0:
                     if (metadata_store.repeat_status != RS_OFF) {
                       metadata_store.repeat_status = RS_OFF;
+                      metadata_changed |= 1;
                       debug(2, "Repeat status is \"none\".");
                     }
                     break;
                   case 1:
                     if (metadata_store.repeat_status != RS_ONE) {
                       metadata_store.repeat_status = RS_ONE;
+                      metadata_changed |= 1;
                       debug(2, "Repeat status is \"one\".");
                     }
                     break;
                   case 2:
                     if (metadata_store.repeat_status != RS_ALL) {
                       metadata_store.repeat_status = RS_ALL;
+                      metadata_changed |= 1;
                       debug(2, "Repeat status is \"all\".");
                     }
                     break;
@@ -775,67 +784,75 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
                   break;
                 case 'cann': // track name
                   debug(2, "DACP Track Name seen");
-                  if (string_update_with_size(&metadata_store.track_name,
-                                              &metadata_store.track_name_changed, sp - item_size,
-                                              item_size)) {
-                    debug(2, "DACP Track Name set to: \"%s\"", metadata_store.track_name);
+
+                  if (update_string_record_with_data(&metadata_store.npi.track_name, sp - item_size,
+                                                     item_size)) {
+                    debug(2, "DACP Track Name set to: \"%s\"", metadata_store.npi.track_name);
+                    metadata_changed |= 1;
                   }
                   break;
                 case 'cana': // artist name
                   debug(2, "DACP Artist Name seen");
-                  if (string_update_with_size(&metadata_store.artist_name,
-                                              &metadata_store.artist_name_changed, sp - item_size,
-                                              item_size)) {
-                    debug(2, "DACP Artist Name set to: \"%s\"", metadata_store.artist_name);
+                  if (update_string_record_with_data(&metadata_store.npi.artist_name,
+                                                     sp - item_size, item_size)) {
+                    debug(2, "DACP Artist Name set to: \"%s\"", metadata_store.npi.artist_name);
+                    metadata_changed |= 1;
                   }
                   break;
                 case 'canl': // album name
                   debug(2, "DACP Album Name seen");
-                  if (string_update_with_size(&metadata_store.album_name,
-                                              &metadata_store.album_name_changed, sp - item_size,
-                                              item_size)) {
-                    debug(2, "DACP Album Name set to: \"%s\"", metadata_store.album_name);
+                  if (update_string_record_with_data(&metadata_store.npi.album_name, sp - item_size,
+                                                     item_size)) {
+                    debug(2, "DACP Album Name set to: \"%s\"", metadata_store.npi.album_name);
+                    metadata_changed |= 1;
                   }
                   break;
                 case 'cang': // genre
                   debug(2, "DACP Genre seen");
-                  if (string_update_with_size(&metadata_store.genre, &metadata_store.genre_changed,
-                                              sp - item_size, item_size)) {
-                    debug(2, "DACP Genre set to: \"%s\"", metadata_store.genre);
+                  if (update_string_record_with_data(&metadata_store.npi.genre, sp - item_size,
+                                                     item_size)) {
+                    debug(2, "DACP Genre set to: \"%s\"", metadata_store.npi.genre);
+                    metadata_changed |= 1;
                   }
                   break;
                 case 'canp': // nowplaying 4 ids: dbid, plid, playlistItem, itemid (from mellowware
                              // see reference above)
                   debug(2, "DACP Composite ID seen");
-                  if ((metadata_store.item_composite_id_is_valid == 0) ||
-                      (memcmp(metadata_store.item_composite_id, sp - item_size,
-                              sizeof(metadata_store.item_composite_id)) != 0)) {
-                    memcpy(metadata_store.item_composite_id, sp - item_size,
-                           sizeof(metadata_store.item_composite_id));
+                  if ((metadata_store.npi.item_composite_id_is_valid == 0) ||
+                      (memcmp(metadata_store.npi.item_composite_id, sp - item_size,
+                              sizeof(metadata_store.npi.item_composite_id)) != 0)) {
+                    memcpy(metadata_store.npi.item_composite_id, sp - item_size,
+                           sizeof(metadata_store.npi.item_composite_id));
                     char st[33];
                     char *pt = st;
                     int it;
                     for (it = 0; it < 16; it++) {
-                      snprintf(pt, 3, "%02X", metadata_store.item_composite_id[it]);
+                      snprintf(pt, 3, "%02X", metadata_store.npi.item_composite_id[it]);
                       pt += 2;
                     }
                     *pt = 0;
                     debug(2, "Item composite ID changed to 0x%s.", st);
-                    metadata_store.item_composite_id_changed = 1;
-                    metadata_store.item_composite_id_is_valid = 1;
+                    metadata_store.npi.item_composite_id_is_valid = 1;
+                    metadata_changed |= 1;
                   }
                   break;
                 case 'astm':
                   t = sp - item_size;
                   ui = ntohl(*(uint32_t *)(t));
-                  debug(2, "DACP Song Time seen: \"%u\" of length %u.", ui, item_size);
-                  if (ui != metadata_store.songtime_in_milliseconds) {
-                    metadata_store.songtime_in_milliseconds = ui;
-                    metadata_store.songtime_in_milliseconds_changed = 1;
-                    metadata_store.songtime_in_milliseconds_is_valid = 1;
-                    debug(2, "DACP Song Time set to: \"%u\"",
-                          metadata_store.songtime_in_milliseconds);
+                  debug(2, "DACP Song Time seen: \"%u\" milliseconds, of length %u.", ui,
+                        item_size);
+                  metadata_changed |=
+                      update_uint64_record(&metadata_store.npi.songtime_in_microseconds,
+                                           ui * 1000); // microseconds
+                  /*
+                  if (ui64 != metadata_store.npi.songtime_in_microseconds) {
+                    metadata_store.npi.songtime_in_microseconds = ui64;
+                    metadata_store.npi.songtime_in_microseconds_changed = 1;
+                    metadata_store.npi.songtime_in_microseconds_is_valid = 1;
+                    debug(2, "DACP Song Time set to: %" PRIu64 " microseconds.",
+                          metadata_store.npi.songtime_in_microseconds);
                   }
+                  */
                   break;
 
                 /*
@@ -888,8 +905,7 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
               }
 
               // finished possibly writing to the metadata hub
-              metadata_hub_modify_epilog(
-                  1); // should really see if this can be made responsive to changes
+              metadata_hub_modify_epilog(metadata_changed);
             } else {
               debug(1, "Status Update not found.\n");
             }
@@ -1268,7 +1284,7 @@ int dacp_get_volume(int32_t *the_actual_volume) {
   return http_response;
 }
 
-int dacp_set_volume(int32_t vo) {
+int dacp_set_integer_percent_volume(int32_t vo) {
   int http_response = 492; // argument out of range
   if ((vo >= 0) && (vo <= 100)) {
     // get the information we need -- the absolute volume, the speaker list, our ID

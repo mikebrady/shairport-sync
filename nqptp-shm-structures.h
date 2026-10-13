@@ -1,6 +1,6 @@
 /*
  * This file is part of the nqptp distribution (https://github.com/mikebrady/nqptp).
- * Copyright (c) 2021--2025 Mike Brady.
+ * Copyright (c) 2021--2026 Mike Brady.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@
 
 #define NQPTP_INTERFACE_NAME "/nqptp"
 
-#define NQPTP_SHM_STRUCTURES_VERSION 10
+#define NQPTP_SHM_STRUCTURES_VERSION 11
 #define NQPTP_CONTROL_PORT 9000
 
 // The control port expects a UDP packet with the first character being a command letter
@@ -56,14 +56,16 @@
 #include <pthread.h>
 
 typedef struct {
-  uint64_t master_clock_id;             // the current master clock
-  uint64_t local_time;                  // the time when the offset was calculated
-  uint64_t local_to_master_time_offset; // add this to the local time to get master clock time
-  uint64_t master_clock_start_time;     // this is when the master clock became master
+  uint64_t master_clock_id;                 // the current master clock
+  uint64_t local_time;                      // the time when the offset was calculated
+  uint64_t local_to_master_time_offset;     // add this to the local time to get master clock time
+  uint64_t clock_change_offset;             // when the clock changes while the clock is in use
+                                            // this is the difference between the old and new offsets
+  uint64_t master_clock_start_time;         // this is when the master clock became master
 } shm_structure_set;
 
 // The actual interface comprises a shared memory region of type struct shm_structure.
-// This comprises two records of type shm_structure_set.
+// This comprises two records of type shm_structure_set. 
 // The secondary record is written strictly after all writes to the main record are
 // complete. This is ensured using the __sync_synchronize() construct.
 // The reader should ensure that both copies match for a read to be valid.

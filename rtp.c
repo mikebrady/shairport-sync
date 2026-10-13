@@ -74,19 +74,6 @@ typedef struct Nvll nvll;
 uint64_t local_to_remote_time_jitter;
 uint64_t local_to_remote_time_jitter_count;
 
-/*
-      char obf[4096];
-      char *obfp = obf;
-      size_t obfc;
-      for (obfc=0; obfc < strlen(buffer); obfc++) {
-        snprintf(obfp, 3, "%02X", buffer[obfc]);
-        obfp+=2;
-      };
-      *obfp=0;
-      debug(1,"Writing: \"%s\"",obf);
-
-*/
-
 void check64conversion(const char *prompt, const uint8_t *source, uint64_t value) {
   char converted_value[128];
   sprintf(converted_value, "%" PRIx64 "", value);
@@ -589,7 +576,7 @@ void *rtp_control_receiver(void *arg) {
 
 void rtp_timing_sender_cleanup_handler(void *arg) {
   rtsp_conn_info *conn = (rtsp_conn_info *)arg;
-  debug(3, "Connection %d: Timing Sender Cleanup.", conn->connection_number);
+  debug(4, "Connection %d: Timing Sender Cleanup.", conn->connection_number);
 }
 
 void *rtp_timing_sender(void *arg) {
@@ -645,7 +632,8 @@ void *rtp_timing_sender(void *arg) {
                  (struct sockaddr *)&conn->rtp_client_timing_socket, msgsize) == -1) {
         char em[1024];
         strerror_r(errno, em, sizeof(em));
-        debug(1, "Error %d using send-to to the timing socket: \"%s\".", errno, em);
+        debug(1, "Connection %d: error %d using send-to to timing socket %d: \"%s\".",
+              conn->connection_number, errno, conn->timing_socket, em);
       }
     } else {
       debug(3, "Timing Sender Thread -- dropping outgoing packet to simulate bad network.");
@@ -665,7 +653,7 @@ void *rtp_timing_sender(void *arg) {
 
 void rtp_timing_receiver_cleanup_handler(void *arg) {
   rtsp_conn_info *conn = (rtsp_conn_info *)arg;
-  debug(3, "Timing Receiver Cleanup.");
+  debug(4, "Timing Receiver Cleanup.");
   // walk down the list of DACP / gradient pairs, if any
   nvll *gradients = config.gradients;
   if (conn->dacp_id)
@@ -690,13 +678,13 @@ void rtp_timing_receiver_cleanup_handler(void *arg) {
     }
   }
 
-  debug(3, "Cancel Timing Requester.");
+  debug(4, "Cancel Timing Requester.");
   pthread_cancel(conn->timer_requester);
   int oldState;
   pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldState);
-  debug(3, "Join Timing Requester.");
+  debug(4, "Join Timing Requester.");
   pthread_join(conn->timer_requester, NULL);
-  debug(3, "Timing Receiver Cleanup Successful.");
+  debug(4, "Timing Receiver Cleanup Successful.");
   pthread_setcancelstate(oldState, NULL);
 }
 
@@ -1306,7 +1294,7 @@ void set_ptp_anchor_info(rtsp_conn_info *conn, uint64_t clock_id, uint32_t rtpti
       ((clock_id != conn->anchor_clock) || (conn->anchor_rtptime != rtptime) ||
        (conn->anchor_time != networktime))) {
     uint64_t master_clock_id = 0;
-    ptp_get_clock_info(&master_clock_id, NULL, NULL, NULL);
+    ptp_get_clock_info(&master_clock_id, NULL, NULL, NULL, NULL);
     debug(1,
           "Connection %d: Note: anchor parameters have changed. Old clock: %" PRIx64
           ", rtptime: %u, networktime: %" PRIu64 ". New clock: %" PRIx64
@@ -1325,7 +1313,6 @@ void set_ptp_anchor_info(rtsp_conn_info *conn, uint64_t clock_id, uint32_t rtpti
               "Connection %d: Note: anchor parameters have changed before clock %" PRIx64
               " has stabilised.",
               conn->connection_number, clock_id);
-      conn->last_anchor_info_is_valid = 0;
     }
   }
 
@@ -1346,7 +1333,6 @@ uint64_t previous_clock_id = 0;
 
 void reset_ptp_anchor_info(rtsp_conn_info *conn) {
   debug(2, "Connection %d: Clear anchor information.", conn->connection_number);
-  conn->last_anchor_info_is_valid = 0;
   conn->anchor_remote_info_is_valid = 0;
   long_time_notifcation_done = 0;
   previous_offset = 0;
@@ -1356,11 +1342,13 @@ void reset_ptp_anchor_info(rtsp_conn_info *conn) {
 int get_ptp_anchor_local_time_info(rtsp_conn_info *conn, uint32_t *anchorRTP,
                                    uint64_t *anchorLocalTime) {
   int response = clock_no_anchor_info; // no anchor information
+  pthread_mutex_lock(&conn->reference_time_mutex);
+  pthread_cleanup_push(mutex_unlock, &conn->reference_time_mutex);
   if (conn->anchor_remote_info_is_valid != 0) {
     response = clock_not_valid;
-    uint64_t actual_clock_id;
-    uint64_t actual_time_of_sample, actual_offset, start_of_mastership;
-    response = ptp_get_clock_info(&actual_clock_id, &actual_time_of_sample, &actual_offset,
+    uint64_t actual_clock_id, actual_time_of_sample, actual_offset, start_of_mastership;
+    int64_t clock_change_offset;
+    response = ptp_get_clock_info(&actual_clock_id, &actual_time_of_sample, &actual_offset, &clock_change_offset,
                                   &start_of_mastership);
     if (response == clock_ok) {
       uint64_t time_now = get_absolute_time_in_ns();
@@ -1378,63 +1366,19 @@ int get_ptp_anchor_local_time_info(rtsp_conn_info *conn, uint32_t *anchorRTP,
                 0.000000001 * time_since_sample);
           long_time_notifcation_done = 0;
         }
-
-        int64_t jitter = actual_offset - previous_offset;
-
-        if ((previous_offset != 0) && (previous_clock_id == actual_clock_id) &&
-            ((jitter > 3000000) || (jitter < -3000000)))
-          debug(1,
-                "Clock jitter: %.3f mS. Time since sample: %.3f mS. Time since start of "
-                "mastership: %.3f "
-                "seconds.",
-                jitter * 0.000001, time_since_sample * 0.000001,
-                time_since_start_of_mastership * 0.000000001);
-
-        previous_offset = actual_offset;
-        previous_clock_id = actual_clock_id;
-
-        if (actual_clock_id == conn->anchor_clock) {
-          conn->last_anchor_rtptime = conn->anchor_rtptime;
-          conn->last_anchor_local_time = conn->anchor_time - actual_offset;
-          conn->last_anchor_time_of_update = time_now;
-          if (conn->last_anchor_info_is_valid == 0)
-            conn->last_anchor_validity_start_time = start_of_mastership;
-          conn->last_anchor_info_is_valid = 1;
-        } else {
-          debug(3, "Current master clock %" PRIx64 " and anchor_clock %" PRIx64 " are different",
-                actual_clock_id, conn->anchor_clock);
-          // the anchor clock and the actual clock are different
-
-          if (conn->last_anchor_info_is_valid != 0) {
-
-            int64_t time_since_last_update =
-                get_absolute_time_in_ns() - conn->last_anchor_time_of_update;
-            if (time_since_last_update > 5000000000) {
-              int64_t duration_of_mastership = time_now - start_of_mastership;
-              debug(2,
-                    "Connection %d: Master clock has changed to %" PRIx64
-                    ". History: %.3f milliseconds.",
-                    conn->connection_number, actual_clock_id, 0.000001 * duration_of_mastership);
-
-              // Now, the thing is that while the anchor clock and master clock for a
-              // buffered session start off the same,
-              // the master clock can change without the anchor clock changing.
-              // SPS gives the new master clock time to settle down and then
-              // calculates the appropriate offset to it by
-              // calculating back from the local anchor information and the new clock's
-              // advertised offset.
-
-              conn->anchor_time = conn->last_anchor_local_time + actual_offset;
-              conn->anchor_clock = actual_clock_id;
-            }
-
-          } else {
-            response = clock_not_valid; // no current clock information and no previous clock info
-          }
+        
+        if (actual_clock_id != conn->anchor_clock) {
+          debug(1, "clock change from: %" PRIx64 " to: %" PRIx64 ".",
+                conn->anchor_clock, actual_clock_id);
+          conn->anchor_time = conn->anchor_time - clock_change_offset;
+          conn->anchor_clock = actual_clock_id;        
         }
+        
+        conn->last_anchor_rtptime = conn->anchor_rtptime;
+        conn->last_anchor_local_time = conn->anchor_time - actual_offset;
+        conn->last_anchor_validity_start_time = start_of_mastership;
 
       } else {
-        // debug(1, "mastership time: %f s.", time_since_start_of_mastership * 0.000000001);
         response = clock_not_valid; // hasn't been master for long enough...
       }
     }
@@ -1487,7 +1431,7 @@ int get_ptp_anchor_local_time_info(rtsp_conn_info *conn, uint32_t *anchorRTP,
       conn->clock_status = response;
     }
 
-    if (conn->last_anchor_info_is_valid != 0) {
+    if ((clock_status_t)response == clock_ok) {
       if (anchorRTP != NULL) {
         // Use the current rate in case the stream format has changed.
         int32_t added_latency = (int32_t)(config.audio_backend_latency_offset * conn->input_rate);
@@ -1497,6 +1441,7 @@ int get_ptp_anchor_local_time_info(rtsp_conn_info *conn, uint32_t *anchorRTP,
         *anchorLocalTime = conn->last_anchor_local_time;
     }
   }
+  pthread_cleanup_pop(1); //unlock that mutex
   return response;
 }
 
@@ -1511,7 +1456,8 @@ int frame_to_ptp_local_time(uint32_t timestamp, uint64_t *time, rtsp_conn_info *
   int result = -1;
   uint32_t anchor_rtptime = 0;
   uint64_t anchor_local_time = 0;
-  if ((conn->input_rate != 0) && (get_ptp_anchor_local_time_info(conn, &anchor_rtptime, &anchor_local_time) == clock_ok)) {
+  if ((conn->input_rate != 0) &&
+      (get_ptp_anchor_local_time_info(conn, &anchor_rtptime, &anchor_local_time) == clock_ok)) {
     int32_t frame_difference = timestamp - anchor_rtptime;
     int64_t time_difference = frame_difference;
     time_difference = time_difference * 1000000000;
@@ -1529,7 +1475,8 @@ int local_ptp_time_to_frame(uint64_t time, uint32_t *frame, rtsp_conn_info *conn
   int result = -1;
   uint32_t anchor_rtptime = 0;
   uint64_t anchor_local_time = 0;
-  if ((conn->input_rate != 0) && (get_ptp_anchor_local_time_info(conn, &anchor_rtptime, &anchor_local_time) == clock_ok)) {
+  if ((conn->input_rate != 0) &&
+      (get_ptp_anchor_local_time_info(conn, &anchor_rtptime, &anchor_local_time) == clock_ok)) {
     int64_t time_difference = time - anchor_local_time;
     int64_t frame_difference = time_difference;
     frame_difference = frame_difference * conn->input_rate; // but this is by 10^9
@@ -1596,7 +1543,7 @@ int32_t decipher_player_put_packet(uint8_t *ciphered_audio_alt, ssize_t nread,
           nonce,
           conn->session_key); // *k
       if (response != 0) {
-        debug(1, "Error decrypting an audio packet.");
+        debug(3, "Error decrypting an audio packet.");
       }
       // now pass it in to the regular processing chain
 
@@ -1609,7 +1556,9 @@ int32_t decipher_player_put_packet(uint8_t *ciphered_audio_alt, ssize_t nread,
       player_put_packet(ALAC_44100_S16_2, sequence_number, timestamp, m, plen, 0, 0,
                         conn); // 0 = no mute, 0 = non discontinuous
     } else {
-      debug(2, "No session key, so the audio packet can not be deciphered -- skipped.");
+      debug(4, "No session key, so the audio packet of %zd bytes can not be deciphered -- skipped.",
+            nread);
+      debug_print_buffer(4, ciphered_audio_alt, nread);
     }
     return sequence_number;
   } else {
@@ -1619,7 +1568,8 @@ int32_t decipher_player_put_packet(uint8_t *ciphered_audio_alt, ssize_t nread,
 }
 
 void *rtp_ap2_control_receiver(void *arg) {
-  const int32_t ap2_realttime_stream_latency_fudge_factor = 11025; // seems to bring everything into sync
+  const int32_t ap2_realttime_stream_latency_fudge_factor =
+      11025; // seems to bring everything into sync
   //  #include <syscall.h>
   //  debug(1, "rtp_ap2_control_receiver PID %d", syscall(SYS_gettid));
   pthread_cleanup_push(rtp_ap2_control_handler_cleanup_handler, arg);
@@ -1695,28 +1645,37 @@ void *rtp_ap2_control_receiver(void *arg) {
               // this updates the anchor information contained in the packet
               int32_t stream_specified_latency = frame_2 - frame_1; // this is the latency expected
               if (stream_specified_latency != 77175)
-                debug(1, "Stream-specified latency is %d frames. Normally it is 77175.", stream_specified_latency);
-              int32_t net_source_latency = stream_specified_latency + ap2_realttime_stream_latency_fudge_factor;
+                debug(1, "Stream-specified latency is %d frames. Normally it is 77175.",
+                      stream_specified_latency);
+              int32_t net_source_latency =
+                  stream_specified_latency + ap2_realttime_stream_latency_fudge_factor;
 
               // Now to accommodate a backend buffer of the desired length.
               // Note that it's in input-rate frames, not output-rate frames!
-              
-              net_source_latency = net_source_latency - (int32_t)(config.audio_backend_buffer_desired_length *
-                                                    conn->input_rate);
-                                                                               
+
+              net_source_latency =
+                  net_source_latency -
+                  (int32_t)(config.audio_backend_buffer_desired_length * conn->input_rate);
+
               // Now we want to check the user-specified latency offset.
 
-              // We want to warn the user if they have asked for a negative latency that is too great --
-              // one that would require packets to arrive before they actually do,
-              // (which is about two seconds before they are to be played).
-              
-              int32_t net_latency = net_source_latency + (int32_t)(config.audio_backend_latency_offset * conn->input_rate);
-              
+              // We want to warn the user if they have asked for a negative latency that is too
+              // great -- one that would require packets to arrive before they actually do, (which
+              // is about two seconds before they are to be played).
+
+              int32_t net_latency =
+                  net_source_latency +
+                  (int32_t)(config.audio_backend_latency_offset * conn->input_rate);
+
               if (net_latency <= 0) {
                 if (conn->latency_warning_issued == 0) {
-                  warn("The stream latency (%g seconds) is too short to accommodate an audio backend latency offset of "
-                       "%g seconds and a backend buffer of %g seconds. The audio_backend_latency_offset has been set to zero.",
-                       ((stream_specified_latency + ap2_realttime_stream_latency_fudge_factor) * 1.0) / conn->input_rate,
+                  warn("The stream latency (%g seconds) is too short to accommodate an audio "
+                       "backend latency offset of "
+                       "%g seconds and a backend buffer of %g seconds. The "
+                       "audio_backend_latency_offset has been set to zero.",
+                       ((stream_specified_latency + ap2_realttime_stream_latency_fudge_factor) *
+                        1.0) /
+                           conn->input_rate,
                        config.audio_backend_latency_offset,
                        config.audio_backend_buffer_desired_length);
                   config.audio_backend_latency_offset = 0.0;
@@ -1724,8 +1683,11 @@ void *rtp_ap2_control_receiver(void *arg) {
                   conn->latency_warning_issued = 1;
                 }
               }
-              conn->latency = net_latency; // this is the time window within which packets can be accepted without being too late
-              set_ptp_anchor_info(conn, clock_id, frame_1 - ap2_realttime_stream_latency_fudge_factor, remote_packet_time_ns);
+              conn->latency = net_latency; // this is the time window within which packets can be
+                                           // accepted without being too late
+              set_ptp_anchor_info(conn, clock_id,
+                                  frame_1 - ap2_realttime_stream_latency_fudge_factor,
+                                  remote_packet_time_ns);
               if (conn->anchor_clock != clock_id) {
                 debug(2, "Connection %d: Change Anchor Clock: %" PRIx64 ".",
                       conn->connection_number, clock_id);

@@ -1,7 +1,7 @@
-alac.c:
+alac.c, alac.h:
     Copyright (c) 2005, David Hammerton
     All rights reserved.
-    see alac.c for full license text
+    see alac.c and alac.h for full license text
 
 tinysvcmdns.c, tinysvcmdns.h:
     Copyright (C) 2011 Darell Tan
@@ -13,11 +13,46 @@ tinyhttp
     All rights reserved
     see the tinyhttp/LICENSE for full license text
 
+FFTConvolver/AudioFFT.*, FFTConvolver/FFTConvolver.*, FFTConvolver/Utilities.*:
+    Copyright (c) 2017 HiFi-LoFi
+    MIT license; see the headers of those files for full license text
+    Modified for Shairport Sync: FFTConvolver::clearState() has been added, and
+    AudioFFT.cpp has an added call to fftwf_set_timelimit().
+
+pair_ap/evrtsp:
+    Copyright (C) 2010 Julien BLACHE <jb@jblache.org>
+    Based on evhttp from libevent 1.4.x:
+    Copyright (c) 2000-2006 Niels Provos <provos@citi.umich.edu>
+    All rights reserved.
+    3-clause BSD license; see the headers of the files in pair_ap/evrtsp for
+    full license text.
+
+pair_ap (other files):
+    MIT license; see the headers of the files in pair_ap for full license text
+    Based on pair_ap by Espen Jürgensen, whose LICENSE file reads
+    "Copyright (c) 2022 Espen Jürgensen".
+    Adapted from ap2-sender by ViktoriiaKh, with SRP code adapted
+    from csrp by Tom Cocagne and TLV helpers adapted from esp-homekit by Maxim Kulkin.
+
+mdns_dns_sd.c, mdns_external.c, mdns_tinysvcmdns.c:
+    Copyright (c) 2013 Paul Lietar
+    part of Shairport; see each file for full license text
+
+audio_alsa.c:
+    Copyright (c) 2013 Muffinman, Skaman
+    part of Shairport; see audio_alsa.c for full license text
+
+audio_sndio.c:
+    Copyright (c) 2013 Dimitri Sokolyuk <demon@dim13.org>
+    Copyright (c) 2017 Tobias Kortkamp <t@tobik.me>
+    ISC-style license; see audio_sndio.c for full license text
+
 Shairport:
     Copyright (c) 2011-2013 James Laird <jhl@mafipulation.org>
 
 Shairport Sync:
-    Copyright (c) 2014–2017 Mike Brady <mikebrady@eircom.net>
+    Copyright (c) 2014–2026 Mike Brady <4265913+mikebrady@users.noreply.github.com>
+    Copyright (c) 2026 the Shairport Sync contributors (audio_coreaudio.c)
 
 Permission is hereby granted, free of charge, to any person
 obtaining a copy of this software and associated documentation

@@ -24,7 +24,6 @@ To build Shairport Sync for AirPlay 2, include the `--with-airplay-2` option in 
 | `--with-sndio` |
 | `--with-pipewire` |
 | `--with-pulseaudio` |
-| `--with-jack` |
 | `--with-ao` |
 | `--with-stdout` |
 | `--with-pipe` |
@@ -37,7 +36,6 @@ Here are the audio backend configuration options:
 - `--with-sndio` Output to the FreeBSD-native [sndio](https://sndio.org) system.
 - `--with-pipewire` Output to the [PipeWire](https://pipewire.org) sound server.
 - `--with-pulseaudio` Include the [PulseAudio](https://www.freedesktop.org/wiki/Software/PulseAudio) sound server.
-- `--with-jack` Output to the [Jack Audio](https://jackaudio.org) system. This is now deprecated.
 - `--with-ao` Output to the [libao](https://xiph.org/ao/) system. No synchronisation.
 - `--with-stdout` Include an optional backend module to enable raw audio to be output through standard output (`STDOUT`).
 - `--with-pipe` Include an optional backend module to enable raw audio to be output through a unix pipe.

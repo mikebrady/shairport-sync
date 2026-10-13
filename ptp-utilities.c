@@ -119,8 +119,10 @@ int ptp_get_clock_version() {
   return response;
 }
 
-int ptp_get_clock_info(uint64_t *actual_clock_id, uint64_t *time_of_sample, uint64_t *raw_offset,
-                       uint64_t *mastership_start_time) {
+int ptp_get_clock_info(uint64_t *actual_clock_id, uint64_t *time_of_sample,
+                      uint64_t *raw_offset,
+                      int64_t *clock_change_offset,
+                      uint64_t *mastership_start_time) {
   int response = clock_ok;
   if (actual_clock_id != NULL)
     *actual_clock_id = 0;
@@ -142,6 +144,8 @@ int ptp_get_clock_info(uint64_t *actual_clock_id, uint64_t *time_of_sample, uint
           *time_of_sample = nqptp_data.main.local_time;
         if (raw_offset != NULL)
           *raw_offset = nqptp_data.main.local_to_master_time_offset;
+        if (clock_change_offset != NULL)
+          *clock_change_offset = nqptp_data.main.clock_change_offset;
         if (mastership_start_time != NULL)
           *mastership_start_time = nqptp_data.main.master_clock_start_time;
       } else {

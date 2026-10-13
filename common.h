@@ -10,7 +10,6 @@ extern "C" {
 #include <sys/types.h> // for mode_t
 #include <unistd.h>    // for useconds_t
 
-#include "config.h"
 #include "definitions.h"
 #include "mdns.h"
 
@@ -31,16 +30,8 @@ typedef enum {
 #define SAFAMILY sa_family
 #endif
 
-#if defined(CONFIG_CONVOLUTION)
-// impulse response filter file status
-typedef enum { ev_unchecked, ev_okay, ev_invalid } ir_file_evaluation;
-
-// impulse response filter file record
-typedef struct {
-  unsigned int samplerate; // initialized to 0, will be filter frame rate
-  unsigned int channels;
-  char *filename; // the parsed filename
-} ir_file_info_t;
+#ifdef CONFIG_CONVOLUTION
+#include "utilities/ir_file_support.h"
 #endif
 
 #if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
@@ -193,7 +184,7 @@ typedef struct {
   double resend_control_check_interval_time; // wait this long between making requests
   double resend_control_last_check_time; // if the packet is missing this close to the time of use,
                                          // give up
-                                         
+
   int get_plist_metadata; // set to non-zero to get richer plist metadata
   pthread_mutex_t lock;
   config_t *cfg;
@@ -313,6 +304,7 @@ typedef struct {
                    // by default “_raop._tcp.” for AirPlay 2.
   char *interface; // a string containg the interface name, or NULL if nothing specified
   int interface_index;                        // only valid if the interface string is non-NULL
+  char *address; // local IP address to bind the RTSP listening socket to, or NULL for all addresses
   double audio_backend_buffer_desired_length; // this will be the length in seconds of the
                                               // audio backend buffer -- the DAC buffer for ALSA
   double audio_backend_buffer_interpolation_threshold_in_seconds; // below this, soxr interpolation
@@ -385,14 +377,6 @@ typedef struct {
   int disable_resend_requests; // set this to stop resend request being made for missing packets
   double diagnostic_drop_packet_fraction; // pseudo randomly drop this fraction of packets, for
                                           // debugging. Currently audio packets only...
-#ifdef CONFIG_JACK
-  char *jack_client_name;
-  char *jack_autoconnect_pattern;
-#ifdef CONFIG_SOXR
-  int jack_soxr_resample_quality;
-#endif
-#endif
-
   void *gradients; // a linked list of the clock gradients discovered for all DACP IDs
                    // can't use IP numbers as they might be given to different devices
                    // can't get hold of MAC addresses.
@@ -402,10 +386,11 @@ typedef struct {
   char *model;
   char *srcvers;
   char *osvers;
+  unsigned int vv; // may be associated with different volume control arrangements
+  uint32_t airplay_statusflags;
 
 #ifdef CONFIG_AIRPLAY_2
   uint64_t airplay_features;
-  uint32_t airplay_statusflags;
   char *airplay_fex;       // a base64-encoded version of the airplay_features in little-endian form
   char *airplay_device_id; // for the Bonjour advertisement and the GETINFO PList
   char *airplay_pi;        // UUID in the Bonjour advertisement and the GETINFO Plist
@@ -415,6 +400,9 @@ typedef struct {
   char *pk_string;
   char *nqptp_shared_memory_interface_name; // client name for nqptp service
   int enable_HK_Access_Control;             // true if the device is part of an Apple Home
+  unsigned int volumeControlType; // may be associated with different volume control arrangements
+  int airplay_2_44100_only_mode; // some sources can't transcode 44.1 k to 48k and won't play
+  int lossless_mode;        // sometimes there is an audible glitch doing dynamic switching AAC to ALAC.
 #endif
 
   APST_t service_type; // APST_auto, APST_classic, APST_forced_classic, APST_airplay2
@@ -552,11 +540,9 @@ void command_set_volume(double volume);
 
 int mkpath(const char *path, mode_t mode);
 
-#define pthread_mutex_lock_and_cleanup_push(mu)                                                 \
-  if (pthread_mutex_lock(mu) == 0)                                   \
+#define pthread_mutex_lock_and_cleanup_push(mu)                                                    \
+  if (pthread_mutex_lock(mu) == 0)                                                                 \
   pthread_cleanup_push(mutex_unlock, (void *)mu)
-
-
 
 int do_pthread_setname(pthread_t *restrict thread, const char *format, ...);
 
@@ -577,7 +563,6 @@ char *get_version_string(); // mallocs a string space -- remember to free it aft
 
 int64_t generate_zero_frames(char *outp, size_t number_of_frames, int with_dither,
                              int64_t random_number_in, uint32_t encoded_output_format);
-
 
 int string_update_with_size(char **str, int *flag, char *s, size_t len);
 
@@ -613,24 +598,6 @@ void *memdup(const void *mem, size_t size);
 int get_device_id(uint8_t *id, int int_length);
 
 char *bnprintf(char *buffer, ssize_t max_bytes, const char *format, ...);
-
-#ifdef CONFIG_CONVOLUTION
-
-/* Parse comma-separated filenames with optional quotes from the input string
- * Returns array of ir_file_info_t structs (caller must free both array and filenames)
- * count is set to number of filenames found
- * Returns NULL on error
- */
-ir_file_info_t *parse_ir_filenames(const char *input, unsigned int *file_count);
-// Access: files[i].filename, files[i].rate, files[i].evaluation
-
-/* Do a quick sanity check on the files -- see if they can be opened as sound files */
-void sanity_check_ir_files(const int option_print_level, ir_file_info_t *files, unsigned int count);
-
-/* Free the array returned by parse_filenames */
-void free_ir_filenames(ir_file_info_t *files, unsigned int file_count);
-
-#endif
 
 #ifdef CONFIG_USE_GIT_VERSION_STRING
 extern char git_version_string[];

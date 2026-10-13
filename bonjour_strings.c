@@ -1,6 +1,6 @@
 /*
  * Bonjour strings manager. This file is part of Shairport Sync.
- * Copyright (c) Mike Brady 2014--2025
+ * Copyright (c) Mike Brady 2014--2026
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -26,6 +26,7 @@
 
 #include "bonjour_strings.h"
 #include "common.h"
+#include <inttypes.h>
 
 char *txt_records[128];
 char *secondary_txt_records[128];
@@ -55,6 +56,7 @@ char modelString[128];
 char srcversString[128];
 char osversString[128];
 char ap1OsversString[128];
+char vvString[32];
 #endif
 
 #ifdef CONFIG_AIRPLAY_2
@@ -95,7 +97,11 @@ void build_bonjour_strings(__attribute((unused)) rtsp_conn_info *conn) {
     txt_records[entry_number++] =
         bnprintf(fwString, sizeof(fwString), "fv=%s", config.firmware_version);
     txt_records[entry_number++] = bnprintf(ap1StatusFlagsString, sizeof(ap1StatusFlagsString),
-                                           "sf=0x%" PRIX32, config.airplay_statusflags);
+                                           "sf=0x%" PRIX32 "", config.airplay_statusflags);
+    // secondary_txt_records[entry_number++] = bnprintf(statusflagsString,
+    // sizeof(statusflagsString),
+    //                                                  "flags=0x%" PRIX32 "",
+    //                                                  config.airplay_statusflags);
 #ifdef CONFIG_METADATA
     if (config.get_coverart == 0)
       txt_records[entry_number++] = "md=0,2";
@@ -109,14 +115,14 @@ void build_bonjour_strings(__attribute((unused)) rtsp_conn_info *conn) {
     txt_records[entry_number++] = "vn=65537";
     txt_records[entry_number++] =
         bnprintf(ap1SrcversString, sizeof(ap1SrcversString), "vs=%s", config.srcvers);
-    txt_records[entry_number++] =
-        bnprintf(ap1OsversString, sizeof(ap1OsversString), "ov=%s", config.osvers);
+    // txt_records[entry_number++] =
+    //     bnprintf(ap1OsversString, sizeof(ap1OsversString), "ov=%s", config.osvers);
     txt_records[entry_number++] = NULL;
   } else {
 #endif
     // here, just replicate what happens in mdns.h when using those #defines
-    txt_records[entry_number++] =
-        bnprintf(ap1StatusFlagsString, sizeof(ap1StatusFlagsString), "sf=0x4");
+    txt_records[entry_number++] = bnprintf(ap1StatusFlagsString, sizeof(ap1StatusFlagsString),
+                                           "sf=0x%" PRIX32 "", config.airplay_statusflags);
     txt_records[entry_number++] =
         bnprintf(fwString, sizeof(fwString), "fv=%s", config.firmware_version);
     txt_records[entry_number++] =
@@ -148,51 +154,53 @@ void build_bonjour_strings(__attribute((unused)) rtsp_conn_info *conn) {
   }
 #endif
 
-#ifdef CONFIG_AIRPLAY_2
   // make up a secondary set of text records
   entry_number = 0;
+#ifdef CONFIG_AIRPLAY_2
+  if (config.service_type == APST_airplay2) {
+    secondary_txt_records[entry_number++] = "acl=0";
+    // secondary_txt_records[entry_number++] = "btaddr=00:00:00:00:00:00";
+    secondary_txt_records[entry_number++] =
+        bnprintf(deviceIdString, sizeof(deviceIdString), "deviceid=%s", config.airplay_device_id);
+    secondary_txt_records[entry_number++] =
+        bnprintf(fexString, sizeof(fexString), "fex=%s", config.airplay_fex);
+    secondary_txt_records[entry_number++] =
+        bnprintf(featuresString, sizeof(featuresString), "features=0x%" PRIX64 ",0x%" PRIX64 "",
+                 features_lo, features_hi); // features_hi and features_lo already calculated.
+    secondary_txt_records[entry_number++] =
+        bnprintf(statusflagsString, sizeof(statusflagsString), "flags=0x%" PRIX32 "",
+                 config.airplay_statusflags);
+    if ((conn != NULL) && (conn->airplay_gid != 0)) {
+      snprintf(gidString, sizeof(gidString), "gid=%s", conn->airplay_gid);
+    } else {
+      snprintf(gidString, sizeof(gidString), "gid=%s", config.airplay_pi);
+    }
+    secondary_txt_records[entry_number++] = gidString;
 
-  secondary_txt_records[entry_number++] = "acl=0";
-  // secondary_txt_records[entry_number++] = "btaddr=00:00:00:00:00:00";
-  secondary_txt_records[entry_number++] =
-      bnprintf(deviceIdString, sizeof(deviceIdString), "deviceid=%s", config.airplay_device_id);
-  secondary_txt_records[entry_number++] =
-      bnprintf(fexString, sizeof(fexString), "fex=%s", config.airplay_fex);
-  secondary_txt_records[entry_number++] =
-      bnprintf(featuresString, sizeof(featuresString), "features=0x%" PRIX64 ",0x%" PRIX64 "",
-               features_lo, features_hi); // features_hi and features_lo already calculated.
-  secondary_txt_records[entry_number++] = bnprintf(statusflagsString, sizeof(statusflagsString),
-                                                   "flags=0x%" PRIX32, config.airplay_statusflags);
-  if ((conn != NULL) && (conn->airplay_gid != 0)) {
-    snprintf(gidString, sizeof(gidString), "gid=%s", conn->airplay_gid);
-  } else {
-    snprintf(gidString, sizeof(gidString), "gid=%s", config.airplay_pi);
+    if ((conn != NULL) && (conn->groupContainsGroupLeader != 0)) {
+      secondary_txt_records[entry_number++] = "igl=0";
+      secondary_txt_records[entry_number++] = "gcgl=1";
+    } else {
+      secondary_txt_records[entry_number++] = "igl=0";
+      secondary_txt_records[entry_number++] = "gcgl=0";
+    }
+    // if ((conn != NULL) && (conn->airplay_gid != 0)) // if it's in a group
+    //   secondary_txt_records[entry_number++] = "isGroupLeader=0";
+    secondary_txt_records[entry_number++] =
+        bnprintf(modelString, sizeof(modelString), "model=%s", config.model);
+    secondary_txt_records[entry_number++] = "protovers=1.1";
+    secondary_txt_records[entry_number++] =
+        bnprintf(piString, sizeof(piString), "pi=%s", config.airplay_pi);
+    secondary_txt_records[entry_number++] =
+        bnprintf(psiString, sizeof(psiString), "psi=%s", config.airplay_psi);
+    secondary_txt_records[entry_number++] = pkString; // already calculated
+    secondary_txt_records[entry_number++] =
+        bnprintf(srcversString, sizeof(srcversString), "srcvers=%s", config.srcvers);
+    // secondary_txt_records[entry_number++] =
+    //     bnprintf(osversString, sizeof(osversString), "osvers=%s", config.osvers);
+    // secondary_txt_records[entry_number++] = "vv=2";
+    secondary_txt_records[entry_number++] = fwString; // already calculated
   }
-  secondary_txt_records[entry_number++] = gidString;
-
-  if ((conn != NULL) && (conn->groupContainsGroupLeader != 0)) {
-    secondary_txt_records[entry_number++] = "igl=0";
-    secondary_txt_records[entry_number++] = "gcgl=1";
-  } else {
-    secondary_txt_records[entry_number++] = "igl=0";
-    secondary_txt_records[entry_number++] = "gcgl=0";
-  }
-  // if ((conn != NULL) && (conn->airplay_gid != 0)) // if it's in a group
-  //   secondary_txt_records[entry_number++] = "isGroupLeader=0";
-  secondary_txt_records[entry_number++] =
-      bnprintf(modelString, sizeof(modelString), "model=%s", config.model);
-  secondary_txt_records[entry_number++] = "protovers=1.1";
-  secondary_txt_records[entry_number++] =
-      bnprintf(piString, sizeof(piString), "pi=%s", config.airplay_pi);
-  secondary_txt_records[entry_number++] =
-      bnprintf(psiString, sizeof(psiString), "psi=%s", config.airplay_psi);
-  secondary_txt_records[entry_number++] = pkString; // already calculated
-  secondary_txt_records[entry_number++] =
-      bnprintf(srcversString, sizeof(srcversString), "srcvers=%s", config.srcvers);
-  secondary_txt_records[entry_number++] =
-      bnprintf(osversString, sizeof(osversString), "osvers=%s", config.osvers);
-  secondary_txt_records[entry_number++] = "vv=2";
-  secondary_txt_records[entry_number++] = fwString; // already calculated
-  secondary_txt_records[entry_number++] = NULL;
 #endif
+  secondary_txt_records[entry_number++] = NULL;
 }

@@ -1,7 +1,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.50])
-AC_INIT([shairport-sync], [5.5.1], [4265913+mikebrady@users.noreply.github.com])
+AC_INIT([shairport-sync], [5.6], [4265913+mikebrady@users.noreply.github.com])
 : ${CFLAGS="-O3"}
 : ${CXXFLAGS="-O3"}
 AM_INIT_AUTOMAKE([subdir-objects])
@@ -184,8 +184,9 @@ elif test "x${with_ssl}" = xmbedtls ; then
 	AC_DEFINE([CONFIG_MBEDTLS], 1, [Use the mbed TLS libraries for encryption and encoding and decoding])
 	AC_CHECK_LIB([mbedtls],[mbedtls_ssl_init],,
 		[AC_MSG_ERROR([mbed tls support requires the mbedtls library -- libmbedtls-dev suggested],1)])
-	AC_CHECK_LIB([mbedcrypto], [mbedtls_entropy_func],,
-	            [AC_MSG_ERROR([mbed tls support requires the mbedcrypto library -- libmbedcrypto0 suggested],1)])
+	# Mbed TLS 4 provides the crypto in libtfpsacrypto (TF-PSA-Crypto)
+	AC_SEARCH_LIBS([mbedtls_md_setup], [tfpsacrypto mbedcrypto],,
+	            [AC_MSG_ERROR([mbed tls support requires the mbedcrypto library (tfpsacrypto with Mbed TLS 4) -- libmbedcrypto0 suggested],1)])
 	AC_CHECK_LIB([mbedx509], [mbedtls_pk_init],,
 	            [AC_MSG_ERROR([mbed tls support requires the mbedx509 library -- libmbedx509-0 suggested],1)])
 elif test "x${with_ssl}" = xpolarssl ; then
@@ -242,7 +243,8 @@ AM_CONDITIONAL([USE_AVAHI], [test "x$with_avahi" = "xyes"])
 # Look for tinysvcmdns flag
 AC_ARG_WITH(tinysvcmdns, [AS_HELP_STRING([--with-tinysvcmdns],[choose tinysvcmdns-based mDNS support])])
 if test "x$with_tinysvcmdns" = "xyes" ; then
-  AC_DEFINE([CONFIG_TINYSVCMDNS], 1, [Include TinySVCmDNS-based mDNS support])
+  AC_DEFINE([CONFIG_TINYSVCMDNS], 1, [Include TinySVCmDNS-based mDNS support (deprecated)])
+  AC_MSG_WARN([TinySVCmDNS is deprecated for security reasons. Consider using Avahi instead, using the configuration flag --with-avahi.])
 fi
 AM_CONDITIONAL([USE_TINYSVCMDNS], [test "x$with_tinysvcmdns" = "xyes"])
 
@@ -260,21 +262,6 @@ if test "x$with_alsa" = "xyes" ; then
 fi
 AM_CONDITIONAL([USE_ALSA], [test "x$with_alsa" = "xyes"])
 
-# Look for jack flag
-AC_ARG_WITH(jack, [AS_HELP_STRING([--with-jack],[include a Jack Audio Connection Kit (jack) backend])])
-if test "x$with_jack" = "xyes" ; then
-  AC_DEFINE([CONFIG_JACK], 1, [Include a Jack Audio Connection Kit (jack) audio backend])
-  if  test "x${with_pkg_config}" = xyes ; then
-    PKG_CHECK_MODULES(
-      [jack], [jack],
-      [LIBS="${jack_LIBS} ${LIBS}"],
-      [AC_MSG_ERROR(Jack Audio Connection Kit support requires the jack library -- libjack-dev suggested!)])
-  else
-    AC_CHECK_LIB([jack], [jack_client_open], , AC_MSG_ERROR(Jack Audio Connection Kit support requires the jack library -- libjack-dev suggested!))
-  fi
-fi
-AM_CONDITIONAL([USE_JACK], [test "x$with_jack" = "xyes"])
-
 # Look for SNDIO flag
 AC_ARG_WITH(sndio, [AS_HELP_STRING([--with-sndio],[choose SNDIO API support])])
 if test "x$with_sndio" = "xyes" ; then
@@ -282,6 +269,17 @@ if test "x$with_sndio" = "xyes" ; then
   AC_CHECK_LIB([sndio], [sio_open], , AC_MSG_ERROR(SNDIO support requires the sndio library -- sndio suggested for FreeBSD and libsndio-dev for Debian))
 fi
 AM_CONDITIONAL([USE_SNDIO], [test "x$with_sndio" = "xyes"])
+
+# Look for CoreAudio flag
+AC_ARG_WITH(coreaudio, [AS_HELP_STRING([--with-coreaudio],[choose the CoreAudio audio backend (macOS only)])])
+if test "x$with_coreaudio" = "xyes" ; then
+  if test "x${with_os}" != xdarwin ; then
+    AC_MSG_ERROR([the CoreAudio backend is only available when building for macOS (--with-os=darwin)])
+  fi
+  AC_DEFINE([CONFIG_COREAUDIO], 1, [Include the CoreAudio audio backend.])
+  LIBS="-framework AudioToolbox -framework CoreAudio -framework CoreFoundation ${LIBS}"
+fi
+AM_CONDITIONAL([USE_COREAUDIO], [test "x$with_coreaudio" = "xyes"])
 
 # Look for AO flag
 AC_ARG_WITH(ao, [AS_HELP_STRING([--with-ao],[choose AO (Audio Output?) API support. N.B. no synchronisation -- so underflow or overflow is inevitable!])])
@@ -296,15 +294,6 @@ if test "x$with_ao" = "xyes" ; then
   fi
 fi
 AM_CONDITIONAL([USE_AO], [test "x$with_ao" = "xyes"])
-
-# Look for Soundio flag
-AC_ARG_WITH(soundio, [AS_HELP_STRING([--with-soundio],[choose soundio API support.])])
-if test "x$with_soundio" = "xyes" ; then
-  AC_DEFINE([CONFIG_SOUNDIO], 1, [Include the SoundIO (libsoundio) backend.])
-  AC_CHECK_LIB([soundio], [soundio_create], , AC_MSG_ERROR(soundio support requires the libsoundio library -- libsoundio-dev suggested (note: the soundio backend is deprecated and will be removed in a future update)))
-  AC_MSG_WARN([The soundio (libsoundio) backend is deprecated and will be removed in a future update.])
-fi
-AM_CONDITIONAL([USE_SOUNDIO], [test "x$with_soundio" = "xyes"])
 
 # Look for pulseaudio flag
 AC_ARG_WITH(pulseaudio, [AS_HELP_STRING([--with-pulseaudio],[build the PulseAudio backend into Shairport Sync])])
@@ -390,6 +379,8 @@ if test "x$with_mpris_test_client" = "xyes" || test "x$with_dbus_test_client" = 
   PKG_CHECK_MODULES([glib], [gio-unix-2.0 >= 2.30.0],[CFLAGS="${glib_CFLAGS} ${CFLAGS}" LIBS="${glib_LIBS} ${LIBS}"],[AC_MSG_ERROR(the glib 2.0 library is required -- libglib2.0-dev suggested!)])
 fi
 
+AM_CONDITIONAL([ADD_DBUS_SUPPORT], [test "x$with_mpris_interface" = "xyes" || test "x$with_dbus_interface" = "xyes"])
+
 # Look for mqtt flag
 AC_ARG_WITH(mqtt-client, [AS_HELP_STRING([--with-mqtt-client],[include a client for MQTT -- the Message Queuing Telemetry Transport protocol])])
 if test "x$with_mqtt_client" = "xyes" ; then
@@ -403,14 +394,15 @@ if test "x$with_mqtt_client" = "xyes" && test "x$with_avahi" != "xyes" ; then
 fi
 
 if test "x$with_mpris_interface" = "xyes" || test "x$with_dbus_interface" = "xyes" || test "x$with_mqtt_client" = "xyes" ; then
-  REQUESTED_EXTENDED_METADATA_SUPPORT=1
+  REQUESTED_EXTENDED_METADATA_AND_REMOTE_CONTROL_SUPPORT=1
   AC_DEFINE([CONFIG_METADATA_HUB], 1, [Needed by the compiler.])
-  AC_DEFINE([CONFIG_DACP_CLIENT], 1, [Needed by the compiler.])
+  AC_DEFINE([CONFIG_DACP_CLIENT], 1, [DACP client needed for extended metadata support.])
 fi
-AM_CONDITIONAL([USE_METADATA_HUB], [test "x$REQUESTED_EXTENDED_METADATA_SUPPORT" = "x1"])
-AM_CONDITIONAL([USE_DACP_CLIENT], [test "x$REQUESTED_EXTENDED_METADATA_SUPPORT" = "x1"])
+AM_CONDITIONAL([USE_METADATA_HUB], [test "x$REQUESTED_EXTENDED_METADATA_AND_REMOTE_CONTROL_SUPPORT" = "x1"])
+AM_CONDITIONAL([USE_DACP_CLIENT], [test "x$REQUESTED_EXTENDED_METADATA_AND_REMOTE_CONTROL_SUPPORT" = "x1"])
+AM_CONDITIONAL([USE_REMOTE_CONTROL], [test "x$REQUESTED_EXTENDED_METADATA_AND_REMOTE_CONTROL_SUPPORT" = "x1"])
 
-if test "x$REQUESTED_EXTENDED_METADATA_SUPPORT" = "x1" || test "x$with_metadata" = "xyes" || test "x$with_metadata_pipe" = "xyes" || test "x$with_metadata_multicast" = "xyes" ; then
+if test "x$REQUESTED_EXTENDED_METADATA_AND_REMOTE_CONTROL_SUPPORT" = "x1" || test "x$with_metadata" = "xyes" || test "x$with_metadata_pipe" = "xyes" || test "x$with_metadata_multicast" = "xyes" ; then
   REQUESTED_METADATA_SUPPORT=1
 fi
 
@@ -444,15 +436,13 @@ if test "x$with_airplay_2" = "xyes" ; then
   AS_IF([test x"$XXD_CHECK" != x"yes"], [AC_MSG_ERROR([xxd can not be found. Please install xxd for building for AirPlay 2.])])
   LIBPLIST_PACKAGE=libplist
   PKG_CHECK_EXISTS(libplist-2.0, LIBPLIST_PACKAGE=libplist-2.0)
+  PKG_CHECK_MODULES([libplist_2_7_0], [${LIBPLIST_PACKAGE} >= 2.7.0], [AC_DEFINE([HAVE_LIBPLIST_GE_2_7_0], 1, [libplist >= 2.7.0])],[:])
+  PKG_CHECK_MODULES([libplist_2_3_0], [${LIBPLIST_PACKAGE} >= 2.3.0], [AC_DEFINE([HAVE_LIBPLIST_GE_2_3_0], 1, [libplist >= 2.3.0])],[:])
   PKG_CHECK_MODULES(
-    [libplist], [${LIBPLIST_PACKAGE} >= 2.3.0],
-    [CFLAGS="${libplist_CFLAGS} ${CFLAGS}" LIBS="${libplist_LIBS} ${LIBS}" AC_DEFINE([HAVE_LIBPLIST_GE_2_3_0], 1, [libplist >= 2.3.0])],
-    [PKG_CHECK_MODULES(
       [libplist], [${LIBPLIST_PACKAGE} >= 2.0.0],
       [CFLAGS="${libplist_CFLAGS} ${CFLAGS}" LIBS="${libplist_LIBS} ${LIBS}"],
       [AC_MSG_ERROR(AirPlay 2 support requires libplist 2.0.0 or later -- search for pkg libplist-dev on Debian or libplist-2.2.0 or later on FreeBSD!)]
-    )]
-  )
+    )
   PKG_CHECK_MODULES(
     [libsodium], [libsodium],
     [CFLAGS="${libsodium_CFLAGS} ${CFLAGS}" LIBS="${libsodium_LIBS} ${LIBS}"],
@@ -467,7 +457,8 @@ if test "x$with_airplay_2" = "xyes" ; then
       [AC_MSG_ERROR([Airplay 2 support requires libgcrypt -- libgcrypt-dev suggested])]
     )
   ])
-  AC_CHECK_LIB([uuid],[uuid_generate], [], [AC_MSG_ERROR([AirPlay 2 support requires the uuid library -- uuid-dev suggested])])
+  # uuid_generate is part of libSystem on macOS, so accept it without -luuid
+  AC_SEARCH_LIBS([uuid_generate],[uuid], [], [AC_MSG_ERROR([AirPlay 2 support requires the uuid library -- uuid-dev suggested])])
   systemd_after_args="${systemd_after_args}${systemd_after_args:+ }nqptp.service"
   systemd_wants_args="${systemd_wants_args}${systemd_wants_args:+ }nqptp.service"
 fi
@@ -475,7 +466,7 @@ AM_CONDITIONAL([USE_AIRPLAY_2], [test "x$with_airplay_2" = "xyes"])
 
 # Look for ffmpeg flag
 
-AC_ARG_WITH(ffmpeg, [AS_HELP_STRING([--with-ffmpeg],[Build with FFMPEG support (recommended)])])
+AC_ARG_WITH(ffmpeg, [AS_HELP_STRING([--with-ffmpeg],[Build with FFMPEG support (recommended)])], [], [with_ffmpeg=yes])
 if test "x$with_ffmpeg" = "xyes" -o "x$with_airplay_2" = "xyes" ; then
   using_ffmpeg=true
   AC_DEFINE([CONFIG_FFMPEG], 1, [Include support for FFmpeg decoders, resampler and utilities.])
@@ -515,10 +506,13 @@ else
   using_ffmpeg=false
 fi
 
-if test $using_ffmpeg = false ; then
+# Look for Hammerton Decoder flag
+AC_ARG_WITH(hammerton, [AS_HELP_STRING([--with-hammerton],[include support for the ALAC Decoder by David Hammerton (deprecated)])])
+if test "x$with_hammerton" = "xyes" ; then
   AC_DEFINE([CONFIG_HAMMERTON], 1, [Include support for using the ALAC Decoder by David Hammerton (deprecated)])
+  AC_MSG_WARN([The Hammerton Decoder is deprecated for security reasons. Consider using FFmpeg instead, using the configuration flag --with-ffmpeg.])
 fi
-AM_CONDITIONAL([USE_HAMMERTON], [test $using_ffmpeg = false])
+AM_CONDITIONAL([USE_HAMMERTON], [test "x$with_hammerton" = "xyes"])
 
 # Look for Apple ALAC flag
 AC_ARG_WITH(apple-alac,[AS_HELP_STRING([--with-apple-alac],[include support for the Apple ALAC decoder (deprecated)])])
@@ -526,9 +520,7 @@ if test "x${with_apple_alac}"  = "xyes" ; then
   if test "x${with_airplay_2}"  = "xyes" ; then
     AC_MSG_ERROR([the Apple ALAC Decoder (deprecated) can not be used in AirPlay 2.])
   fi
-  if test $using_ffmpeg = true ; then
-    AC_MSG_WARN([the FFMPEG decoder, included in the build, supercedes the Apple ALAC Decoder, which is deprecated. Consider omitting the Apple ALAC Decoder.])
-  fi 
+  AC_MSG_WARN([The Apple ALAC Decoder is deprecated for security reasons. Consider using FFmpeg instead, using the configuration flag --with-ffmpeg.])
   AC_DEFINE([CONFIG_APPLE_ALAC], 1, [Include support for using the Apple ALAC Decoder (deprecated)])
   if  test "x${with_pkg_config}" = xyes ; then
     PKG_CHECK_MODULES([alac], [alac], [LIBS="${alac_LIBS} ${LIBS}"], AC_MSG_ERROR(Apple ALAC Decoder support requires the ALAC library. See https://github.com/mikebrady/alac.))
@@ -553,6 +545,15 @@ if  test "x${with_systemd_startup}" = xyes ; then
      [with_systemdsystemunitdir="$def_systemdsystemunitdir"])])
   AS_IF([test "x$with_systemdsystemunitdir" != "xno"],
         [AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])])
+fi
+
+if test "x$with_airplay_2" != "xyes" ; then
+  if test "$using_ffmpeg" = false && test "x$with_hammerton" != "xyes" && test "x$with_apple_alac" != "xyes" ; then
+    AC_MSG_ERROR([
+    For classic AirPlay builds, at least one decoder must be specified.
+    Options are: (1) --with-ffmpeg (recommended) (2) --with-hammerton and (3) --with-apple-alac.
+    The Hammerton and Apple decoders are deprecated for security reasons.])
+  fi
 fi
 
 # Checks for header files.

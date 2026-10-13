@@ -4,11 +4,15 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
-#include "config.h"
 #include "definitions.h"
 
 #ifdef CONFIG_MBEDTLS
+#include <mbedtls/version.h>
+#if MBEDTLS_VERSION_MAJOR >= 4
+#include <psa/crypto.h>
+#else
 #include <mbedtls/aes.h>
+#endif
 #endif
 
 #ifdef CONFIG_POLARSSL
@@ -215,6 +219,11 @@ typedef enum {
   classic_airplay_stream
 } airplay_stream_c; // "c" for category
 
+typedef struct {
+  uint64_t value; // the value
+  int valid;      // set to true if valid
+} uint64_record_t;
+
 #ifdef CONFIG_AIRPLAY_2
 typedef enum { ts_ntp, ts_ptp } timing_t;
 typedef enum { ap_1, ap_2 } airplay_t;
@@ -257,6 +266,8 @@ typedef struct {
 typedef struct {
   int connection_number;           // for debug ID purposes, nothing else...
   int is_playing;                  // set true by player_play, set false by player_stop
+  uint64_t total_frames_sent_to_play;
+  uint64_t frames_played; // allowing for any delay
   int input_format_is_valid;       // set when the input format is known and set in this structure
   unsigned int sync_samples_index; // for estimating the gap between the highest and lowest timing
                                    // error over the past n samples
@@ -350,7 +361,11 @@ typedef struct {
   int do_loudness; // if loudness is requested and there is no external mixer
 
 #ifdef CONFIG_MBEDTLS
+#if MBEDTLS_VERSION_MAJOR >= 4
+  psa_key_id_t dctx; // the AES key, imported into PSA
+#else
   mbedtls_aes_context dctx;
+#endif
 #endif
 
 #ifdef CONFIG_POLARSSL
@@ -414,6 +429,7 @@ typedef struct {
                                // (will be unspecified if not build for AirPlay 2)
 
 #ifdef CONFIG_AIRPLAY_2
+  uint64_record_t localTimeToAppleAbsoluteTimeOffset; // add this to get_absolute_time_in_ns to get Apple Absolute Time
   plist_t sessionPlist;
   char *airplay_gid; // UUID in the Bonjour advertisement -- if NULL, the group UUID is the same as
                      // the pi UUID
@@ -431,10 +447,8 @@ typedef struct {
 
   int ap2_event_receiver_exited;
 
-  int last_anchor_info_is_valid;
   uint32_t last_anchor_rtptime;
   uint64_t last_anchor_local_time;
-  uint64_t last_anchor_time_of_update;
   uint64_t last_anchor_validity_start_time;
 
   int ap2_immediate_flush_requested;
@@ -470,7 +484,6 @@ typedef struct {
   uint64_t compression;
   unsigned char *session_key; // needs to be free'd at the end
   char *ap2_client_name;      // needs to be free'd at teardown phase 2
-  uint64_t frames_packet;
   uint64_t type;                  // 96 (Realtime Audio), 103 (Buffered Audio), 130 (Remote Control)
   uint64_t networkTimeTimelineID; // the clock ID used by the player
   uint8_t groupContainsGroupLeader; // information coming from the SETUP

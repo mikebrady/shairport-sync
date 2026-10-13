@@ -28,4 +28,10 @@ void _debug_print_msg_headers(rtsp_conn_info *conn, const char *filename, const 
 #ifdef CONFIG_AIRPLAY_2
 int rtsp_message_contains_plist(rtsp_message *message);
 plist_t plist_from_rtsp_content(rtsp_message *message);
+void decodeAndLogPlist(int level, plist_t plist_to_log);
+#include <plist/plist.h>
+#ifdef HAVE_LIBPLIST_GE_2_3_0
+#define plist_from_memory(plist_data, length, plist)                                               \
+  plist_from_memory((plist_data), (length), (plist), NULL)
+#endif
 #endif

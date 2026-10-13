@@ -33,10 +33,6 @@
 
 #ifdef CONFIG_AIRPLAY_2
 #include <plist/plist.h>
-#ifdef HAVE_LIBPLIST_GE_2_3_0
-#define plist_from_memory(plist_data, length, plist)                                               \
-  plist_from_memory((plist_data), (length), (plist), NULL)
-#endif
 #endif
 
 // every time we want to retain or release a reference count, lock it with this
@@ -292,3 +288,15 @@ void _debug_log_rtsp_message(rtsp_conn_info *conn, const char *filename, const i
     }
   }
 }
+
+#ifdef CONFIG_AIRPLAY_2
+void decodeAndLogPlist(int level, plist_t plist_to_log) {
+  if (plist_to_log != NULL) {
+    char *plist_as_string = plist_as_xml_text(plist_to_log);
+    if (plist_as_string != NULL) {
+      debug(level, "--\n%s\n--\n", plist_as_string);
+      free(plist_as_string);
+    }
+  }
+}
+#endif

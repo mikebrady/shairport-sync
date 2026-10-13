@@ -32,6 +32,9 @@ void *rtsp_listen_loop(__attribute((unused)) void *arg);
 
 void stop_play(); // stop and drop a playing connection
 
+extern rtsp_conn_info *principal_conn;
+extern pthread_rwlock_t principal_conn_lock;
+
 #ifdef CONFIG_AIRPLAY_2
 ssize_t read_encrypted(int fd, pair_cipher_bundle *ctx, void *buf, size_t count);
 ssize_t write_encrypted(int fd, pair_cipher_bundle *ctx, const void *buf, size_t count);

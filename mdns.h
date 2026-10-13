@@ -1,7 +1,6 @@
 #ifndef _MDNS_H
 #define _MDNS_H
 
-#include "config.h"
 #include "player.h"
 #include <stdint.h>
 

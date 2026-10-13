@@ -2,6 +2,10 @@
 #include "core.h"
 #include "pc_queue.h"
 
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+
 #include <stdlib.h>
 #include <string.h>
 

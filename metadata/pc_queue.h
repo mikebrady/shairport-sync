@@ -2,7 +2,6 @@
 #pragma once
 
 #include "common.h"
-#include "config.h"
 #include <pthread.h>
 
 typedef struct {

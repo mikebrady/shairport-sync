@@ -26,7 +26,6 @@
 
 #include "ConvolverThreadPool.h"
 #include "FFTConvolver.h"
-#include "config.h"
 
 extern "C" void _debug(const char *filename, const int linenumber, int level, const char *format,
                        ...);
@@ -141,8 +140,8 @@ void ConvolverThreadPool::clearState(size_t convolverId) {
     waitForAll();
   } else {
     debug(1,
-          "assert(convolverId < _convolvers.size()) failed, with convolverId: %u and "
-          "_convolvers.size(): %u.",
+          "assert(convolverId < _convolvers.size()) failed, with convolverId: %zu and "
+          "_convolvers.size(): %zu.",
           convolverId, _convolvers.size());
   }
 }

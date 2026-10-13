@@ -2,7 +2,7 @@
 .SH NAME
 shairport-sync \- AirPlay and AirPlay 2 Audio Player
 .SH SYNOPSIS
-\fBshairport-sync [-djvw]\fB [-a \fB\fIservice-name\fB | --name=\fB\fIservice-name\fB]\fB [-B \fB\fIcommand\fB | --onstart=\fB\fIcommand\fB]\fB [-c \fB\fIconfigurationfile\fB | --configfile=\fB\fIconfigurationfile\fB]\fB [-d | --daemon]\fB [--dbus-default-message-bus=\fB\fIbus\fB]\fB [-E \fB\fIcommand\fB | --onstop=\fB\fIcommand\fB]\fB [-g | --get-cover-art]\fB [-j | --justDaemoniseNoPIDFile]\fB [--logOutputLevel]\fB [-L \fB\fIlatency\fB | --latency=\fB\fIlatency\fB]\fB [-m \fB\fIbackend\fB | --mdns=\fB\fIbackend\fB]\fB [-M | --metadata-enable]\fB [-o \fB\fIbackend\fB | --output=\fB\fIbackend\fB]\fB [-p \fB\fIport\fB | --port=\fB\fIport\fB]\fB [--password=\fB\fIsecret\fB]\fB [-r \fB\fIthreshold\fB | --resync=\fB\fIthreshold\fB]\fB [--service-type=\fB\fItype\fB]\fB [--statistics]\fB [-S \fB\fImode\fB | --stuffing=\fB\fImode\fB]\fB [-t \fB\fItimeout\fB | --timeout=\fB\fItimeout\fB]\fB [--tolerance=\fB\fIframes\fB]\fB [-v | --verbose]\fB [-w | --wait-cmd]\fB [-- \fB\fIaudio_backend_options\fB]\fB
+\fBshairport-sync [-djvw]\fB [-a \fB\fIservice-name\fB | --name=\fB\fIservice-name\fB]\fB [-B \fB\fIcommand\fB | --onstart=\fB\fIcommand\fB]\fB [-c \fB\fIconfigurationfile\fB | --configfile=\fB\fIconfigurationfile\fB]\fB [-d | --daemon]\fB [--dbus-default-message-bus=\fB\fIbus\fB]\fB [-E \fB\fIcommand\fB | --onstop=\fB\fIcommand\fB]\fB [-g | --get-cover-art]\fB [-j | --justDaemoniseNoPIDFile]\fB [--logOutputLevel]\fB [-L \fB\fIlatency\fB | --latency=\fB\fIlatency\fB]\fB [-m \fB\fIbackend\fB | --mdns=\fB\fIbackend\fB]\fB [-M | --metadata-enable]\fB [--nqptp-shared-memory-interface-name=\fB\fIname\fB]\fB [-o \fB\fIbackend\fB | --output=\fB\fIbackend\fB]\fB [-p \fB\fIport\fB | --port=\fB\fIport\fB]\fB [--password=\fB\fIsecret\fB]\fB [-r \fB\fIthreshold\fB | --resync=\fB\fIthreshold\fB]\fB [--service-type=\fB\fItype\fB]\fB [--statistics]\fB [-S \fB\fImode\fB | --stuffing=\fB\fImode\fB]\fB [-t \fB\fItimeout\fB | --timeout=\fB\fItimeout\fB]\fB [--tolerance=\fB\fIframes\fB]\fB [-v | --verbose]\fB [-w | --wait-cmd]\fB [-- \fB\fIaudio_backend_options\fB]\fB
 
 shairport-sync -X | --displayConfig\fB
 
@@ -109,6 +109,11 @@ Specify the path name for the metadata pipe. Note that \fBshairport-sync\f1 will
 .TP
 \fB-m \f1\fImdnsbackend\f1\fB | --mdns=\f1\fImdnsbackend\f1
 Force the use of the specified mDNS backend to advertise the player on the network. The default is to try all mDNS backends in order until one works. 
+.TP
+\fB--nqptp-shared-memory-interface-name=\f1\fIname\f1
+Use the nqptp shared memory interface called \fIname\f1, overriding the \fBgeneral.nqptp_shared_memory_interface_name\f1 setting in the configuration file. The default is \fB/nqptp\f1. 
+
+This is an advanced setting and is needed only when running more than one AirPlay 2 instance on the same machine. nqptp keeps a separate clock for each shared memory interface name, so instances that share a name share a clock; give each instance its own name to keep them independent. It is available on the command line so that instances that differ only in the settings that must differ can share one configuration file. Only available in AirPlay 2 builds. 
 .TP
 \fB-o \f1\fIoutputbackend\f1\fB | --output=\f1\fIoutputbackend\f1
 Force the use of the specified output backend to play the audio. The default is to try the first one. 

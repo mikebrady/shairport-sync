@@ -24,7 +24,6 @@ SOFTWARE.
 
 #include "debug.h"
 #include <ctype.h> // for isprint()
-#include <unistd.h> // for usleep()
 #include <inttypes.h>
 #include <pthread.h>
 #include <stdarg.h>
@@ -33,6 +32,7 @@ SOFTWARE.
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
+#include <unistd.h> // for usleep()
 
 static int debuglev = 0;
 int debugger_show_elapsed_time = 0;
@@ -59,7 +59,8 @@ uint64_t debug_get_absolute_time_in_ns() {
   return time_now_ns;
 }
 
-void debug_init(int level, int show_elapsed_time, int show_relative_time, int show_file_and_line, void (*exit_requester)(const int exit_status)) {
+void debug_init(int level, int show_elapsed_time, int show_relative_time, int show_file_and_line,
+                void (*exit_requester)(const int exit_status)) {
   ns_time_at_startup = debug_get_absolute_time_in_ns();
   ns_time_at_last_debug_message = ns_time_at_startup;
   debuglev = level;

@@ -1,6 +1,6 @@
 /*
  * This file is part of Shairport Sync.
- * Copyright (c) Mike Brady 2018--2025
+ * Copyright (c) Mike Brady 2018--2026
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -27,7 +27,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "config.h"
 
 #include "common.h"
 #include "player.h"
@@ -35,19 +34,17 @@
 
 #include "rtp.h"
 
-#ifdef CONFIG_DACP_CLIENT
-#include "dacp.h"
-#endif
-
 #include "metadata/hub.h"
 #include "mpris-service.h"
+#include "property-preflight/property-preflight-mpris.h"
+#include "remote/remote.h"
 #include "utilities/exit.h"
 
 static guint ownerID = 0;
 static GBusType mpris_bus_type = G_BUS_TYPE_SYSTEM; // default is the dbus system message bus
 
-MediaPlayer2 *mprisPlayerSkeleton;
-MediaPlayer2Player *mprisPlayerPlayerSkeleton;
+MediaPlayer2 *mprisPlayerSkeleton = NULL;
+MediaPlayer2Player *mprisPlayerPlayerSkeleton = NULL;
 
 double airplay_volume_to_mpris_volume(double sp) {
   if (sp < -30.0)
@@ -58,23 +55,16 @@ double airplay_volume_to_mpris_volume(double sp) {
   return sp;
 }
 
-double mpris_volume_to_airplay_volume(double sp) {
-  sp = (sp - 1.0) * 30.0;
-  if (sp < -30.0)
-    sp = -30.0;
-  if (sp > 0.0)
-    sp = 0.0;
-  return sp;
-}
-
-void mpris_metadata_watcher(struct metadata_bundle *argc, __attribute__((unused)) void *userdata) {
+void mpris_metadata_watcher(struct metadata_bundle *argc) {
   // debug(1, "MPRIS metadata watcher called");
   char response[100];
   media_player2_player_set_volume(mprisPlayerPlayerSkeleton,
                                   airplay_volume_to_mpris_volume(argc->airplay_volume));
+
+  // sticking strictly to the MPRIS enumeration only -- not including "Not Available"
   switch (argc->repeat_status) {
   case RS_NOT_AVAILABLE:
-    strcpy(response, "Not Available");
+    strcpy(response, "None");
     break;
   case RS_OFF:
     strcpy(response, "None");
@@ -89,9 +79,10 @@ void mpris_metadata_watcher(struct metadata_bundle *argc, __attribute__((unused)
 
   media_player2_player_set_loop_status(mprisPlayerPlayerSkeleton, response);
 
+  // sticking strictly to the MPRIS enumeration only -- not including "Not Available"
   switch (argc->player_state) {
   case PS_NOT_AVAILABLE:
-    strcpy(response, "Not Available");
+    strcpy(response, "Stopped");
     break;
   case PS_STOPPED:
     strcpy(response, "Stopped");
@@ -106,21 +97,7 @@ void mpris_metadata_watcher(struct metadata_bundle *argc, __attribute__((unused)
 
   media_player2_player_set_playback_status(mprisPlayerPlayerSkeleton, response);
 
-  /*
-    switch (argc->shuffle_state) {
-    case SS_NOT_AVAILABLE:
-      strcpy(response, "Not Available");
-      break;
-    case SS_OFF:
-      strcpy(response, "Off");
-      break;
-    case SS_ON:
-      strcpy(response, "On");
-      break;
-    }
-
-     media_player2_player_set_shuffle_status(mprisPlayerPlayerSkeleton, response);
-  */
+  // sticking strictly to the MPRIS enumeration only -- not including "Not Available"
 
   switch (argc->shuffle_status) {
   case SS_NOT_AVAILABLE:
@@ -136,94 +113,63 @@ void mpris_metadata_watcher(struct metadata_bundle *argc, __attribute__((unused)
     debug(1, "This should never happen.");
   }
 
-  /*
-    // Add the TrackID if we have one
-    // Build the Track ID from the 16-byte item_composite_id in hex prefixed by
-    // /org/gnome/ShairportSync
-    char st[33];
-    char *pt = st;
-    int it;
-    int non_zero = 0;
-    for (it = 0; it < 16; it++) {
-      if (argc->track_metadata->item_composite_id[it])
-        non_zero = 1;
-      snprintf(pt, 3, "%02X", argc->track_metadata->item_composite_id[it]);
-      pt += 2;
-    }
-    *pt = 0;
-
-    if (non_zero) {
-      // debug(1, "Set ID using composite ID: \"0x%s\".", st);
-      char trackidstring[1024];
-      snprintf(trackidstring, sizeof(trackidstring), "/org/gnome/ShairportSync/%s", st);
-      GVariant *trackid = g_variant_new("o", trackidstring);
-      g_variant_builder_add(dict_builder, "{sv}", "mpris:trackid", trackid);
-    } else if ((argc->track_metadata) && (argc->track_metadata->item_id)) {
-      char trackidstring[128];
-      // debug(1, "Set ID using mper ID: \"%u\".",argc->item_id);
-      snprintf(trackidstring, sizeof(trackidstring), "/org/gnome/ShairportSync/mper_%u",
-               argc->track_metadata->item_id);
-      GVariant *trackid = g_variant_new("o", trackidstring);
-      g_variant_builder_add(dict_builder, "{sv}", "mpris:trackid", trackid);
-    }
-
-  */
-
   // Build the metadata array
   debug(4, "Build metadata");
   GVariantBuilder *dict_builder = g_variant_builder_new(G_VARIANT_TYPE("a{sv}"));
 
   // Add in the artwork URI if it exists.
-  if (argc->cover_art_pathname) {
-    GVariant *artUrl = g_variant_new("s", argc->cover_art_pathname);
+  if (argc->npi.cover_art_pathname) {
+    GVariant *artUrl = g_variant_new("s", argc->npi.cover_art_pathname);
     g_variant_builder_add(dict_builder, "{sv}", "mpris:artUrl", artUrl);
   }
 
   // Add in the Track ID based on the 'mper' metadata if it is non-zero
-  if (argc->item_id_is_valid != 0) {
+  if (argc->npi.item_id.valid) {
     char trackidstring[128];
-    snprintf(trackidstring, sizeof(trackidstring), "/org/gnome/ShairportSync/%" PRIX64 "",
-             argc->item_id);
+    snprintf(trackidstring, sizeof(trackidstring), "/org/gnome/ShairportSync/%" PRIu64 "",
+             argc->npi.item_id.value);
     GVariant *trackid = g_variant_new("o", trackidstring);
     g_variant_builder_add(dict_builder, "{sv}", "mpris:trackid", trackid);
   }
 
   // Add the track name if it exists
-  if (argc->track_name) {
-    GVariant *track_name = g_variant_new("s", argc->track_name);
+  if (argc->npi.track_name) {
+    GVariant *track_name = g_variant_new("s", argc->npi.track_name);
     g_variant_builder_add(dict_builder, "{sv}", "xesam:title", track_name);
   }
 
+  // Add the track number if it is valid
+  if (argc->npi.track_number.valid) {
+    GVariant *tracknumber = g_variant_new("x", argc->npi.track_number.value);
+    g_variant_builder_add(dict_builder, "{sv}", "xesam:trackNumber", tracknumber);
+  }
+
   // Add the album name if it exists
-  if (argc->album_name) {
-    GVariant *album_name = g_variant_new("s", argc->album_name);
+  if (argc->npi.album_name) {
+    GVariant *album_name = g_variant_new("s", argc->npi.album_name);
     g_variant_builder_add(dict_builder, "{sv}", "xesam:album", album_name);
   }
 
   // Add the artist name if it exists
-  if (argc->artist_name) {
+  if (argc->npi.artist_name) {
     GVariantBuilder *artist_as = g_variant_builder_new(G_VARIANT_TYPE("as"));
-    g_variant_builder_add(artist_as, "s", argc->artist_name);
+    g_variant_builder_add(artist_as, "s", argc->npi.artist_name);
     GVariant *artists = g_variant_builder_end(artist_as);
     g_variant_builder_unref(artist_as);
     g_variant_builder_add(dict_builder, "{sv}", "xesam:artist", artists);
   }
 
   // Add the genre if it exists
-  if (argc->genre) {
+  if (argc->npi.genre) {
     GVariantBuilder *genre_as = g_variant_builder_new(G_VARIANT_TYPE("as"));
-    g_variant_builder_add(genre_as, "s", argc->genre);
+    g_variant_builder_add(genre_as, "s", argc->npi.genre);
     GVariant *genre = g_variant_builder_end(genre_as);
     g_variant_builder_unref(genre_as);
     g_variant_builder_add(dict_builder, "{sv}", "xesam:genre", genre);
   }
 
-  if (argc->songtime_in_milliseconds_is_valid) {
-    uint64_t track_length_in_microseconds = argc->songtime_in_milliseconds;
-    track_length_in_microseconds *= 1000; // to microseconds in 64-bit precision
-                                          // Make up the track name and album name
-    // debug(1, "Set tracklength to %lu.", track_length_in_microseconds);
-    GVariant *tracklength = g_variant_new("x", track_length_in_microseconds);
+  if (argc->npi.songtime_in_microseconds.valid) {
+    GVariant *tracklength = g_variant_new("x", argc->npi.songtime_in_microseconds);
     g_variant_builder_add(dict_builder, "{sv}", "mpris:length", tracklength);
   }
 
@@ -234,7 +180,7 @@ void mpris_metadata_watcher(struct metadata_bundle *argc, __attribute__((unused)
 
 static gboolean on_handle_quit(MediaPlayer2 *skeleton, GDBusMethodInvocation *invocation,
                                __attribute__((unused)) gpointer user_data) {
-  debug(1, ">> quit request...");
+  debug(4, "MPRIS quit.");
   media_player2_complete_quit(skeleton, invocation);
   exit_request(EXIT_SUCCESS);
   return TRUE;
@@ -242,36 +188,32 @@ static gboolean on_handle_quit(MediaPlayer2 *skeleton, GDBusMethodInvocation *in
 
 static gboolean on_handle_next(MediaPlayer2Player *skeleton, GDBusMethodInvocation *invocation,
                                __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("nextitem");
-#endif
+  debug(4, "MPRIS next item.");
+  remote_simple_command(rcsc_next_item);
   media_player2_player_complete_next(skeleton, invocation);
   return TRUE;
 }
 
 static gboolean on_handle_previous(MediaPlayer2Player *skeleton, GDBusMethodInvocation *invocation,
                                    __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("previtem");
-#endif
+  debug(4, "MPRIS previous item.");
+  remote_simple_command(rcsc_previous_item);
   media_player2_player_complete_previous(skeleton, invocation);
   return TRUE;
 }
 
 static gboolean on_handle_stop(MediaPlayer2Player *skeleton, GDBusMethodInvocation *invocation,
                                __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("stop");
-#endif
+  debug(4, "MPRIS stop.");
+  remote_simple_command(rcsc_stop);
   media_player2_player_complete_stop(skeleton, invocation);
   return TRUE;
 }
 
 static gboolean on_handle_pause(MediaPlayer2Player *skeleton, GDBusMethodInvocation *invocation,
                                 __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("pause");
-#endif
+  debug(4, "MPRIS pause.");
+  remote_simple_command(rcsc_pause);
   media_player2_player_complete_pause(skeleton, invocation);
   return TRUE;
 }
@@ -279,18 +221,16 @@ static gboolean on_handle_pause(MediaPlayer2Player *skeleton, GDBusMethodInvocat
 static gboolean on_handle_play_pause(MediaPlayer2Player *skeleton,
                                      GDBusMethodInvocation *invocation,
                                      __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("playpause");
-#endif
+  debug(4, "MPRIS playpause.");
+  remote_simple_command(rcsc_play_pause);
   media_player2_player_complete_play_pause(skeleton, invocation);
   return TRUE;
 }
 
 static gboolean on_handle_play(MediaPlayer2Player *skeleton, GDBusMethodInvocation *invocation,
                                __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  send_simple_dacp_command("play");
-#endif
+  debug(4, "MPRIS play.");
+  remote_simple_command(rcsc_play);
   media_player2_player_complete_play(skeleton, invocation);
   return TRUE;
 }
@@ -298,13 +238,8 @@ static gboolean on_handle_play(MediaPlayer2Player *skeleton, GDBusMethodInvocati
 static gboolean on_handle_set_volume(MediaPlayer2Player *skeleton,
                                      GDBusMethodInvocation *invocation, const gdouble volume,
                                      __attribute__((unused)) gpointer user_data) {
-#ifdef CONFIG_DACP_CLIENT
-  double ap_volume = mpris_volume_to_airplay_volume(volume);
-  debug(2, "Set mpris volume to %.6f, i.e. airplay volume to %.6f.", volume, ap_volume);
-  char command[256] = "";
-  snprintf(command, sizeof(command), "setproperty?dmcp.device-volume=%.6f", ap_volume);
-  send_simple_dacp_command(command);
-#endif
+  debug(1, "MPRIS set volume to %g.", volume);
+  remote_set_airplay_volume(mpris_volume_to_airplay_volume(volume));
   media_player2_player_complete_play(skeleton, invocation);
   return TRUE;
 }
@@ -316,13 +251,9 @@ static void on_mpris_name_acquired(GDBusConnection *connection, const gchar *nam
 
   debug(2, "MPRIS well-known interface name \"%s\" acquired on the %s bus.", name,
         (mpris_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
-  mprisPlayerSkeleton = media_player2_skeleton_new();
-  mprisPlayerPlayerSkeleton = media_player2_player_skeleton_new();
 
-  g_dbus_interface_skeleton_export(G_DBUS_INTERFACE_SKELETON(mprisPlayerSkeleton), connection,
-                                   "/org/mpris/MediaPlayer2", NULL);
-  g_dbus_interface_skeleton_export(G_DBUS_INTERFACE_SKELETON(mprisPlayerPlayerSkeleton), connection,
-                                   "/org/mpris/MediaPlayer2", NULL);
+  mprisPlayerSkeleton = property_preflight_mpris_media_player2_skeleton_new();
+  mprisPlayerPlayerSkeleton = property_preflight_mpris_media_player2_player_skeleton_new();
 
   media_player2_set_desktop_entry(mprisPlayerSkeleton, "shairport-sync");
   media_player2_set_identity(mprisPlayerSkeleton, "Shairport Sync");
@@ -332,8 +263,17 @@ static void on_mpris_name_acquired(GDBusConnection *connection, const gchar *nam
   media_player2_set_supported_uri_schemes(mprisPlayerSkeleton, empty_string_array);
   media_player2_set_supported_mime_types(mprisPlayerSkeleton, empty_string_array);
 
+  media_player2_player_set_metadata(mprisPlayerPlayerSkeleton,
+                                    g_variant_new_array(G_VARIANT_TYPE("{sv}"), NULL, 0));
+  media_player2_player_set_volume(mprisPlayerPlayerSkeleton,
+                                  airplay_volume_to_mpris_volume(config.airplay_volume));
   media_player2_player_set_playback_status(mprisPlayerPlayerSkeleton, "Stopped");
   media_player2_player_set_loop_status(mprisPlayerPlayerSkeleton, "None");
+  // Position is computed live by property_preflight_mpris_media_player2_player_compute_property()
+  // on every Get/GetAll (see property-preflight-mpris.c) - this call just seeds the underlying
+  // cached value with something harmless; it is never actually read by a D-Bus client.
+  media_player2_player_set_position(mprisPlayerPlayerSkeleton, 0.0);
+  media_player2_player_set_shuffle(mprisPlayerPlayerSkeleton, FALSE);
   media_player2_player_set_minimum_rate(mprisPlayerPlayerSkeleton, 1.0);
   media_player2_player_set_maximum_rate(mprisPlayerPlayerSkeleton, 1.0);
   media_player2_player_set_can_go_next(mprisPlayerPlayerSkeleton, TRUE);
@@ -356,7 +296,14 @@ static void on_mpris_name_acquired(GDBusConnection *connection, const gchar *nam
   g_signal_connect(mprisPlayerPlayerSkeleton, "handle-set-volume", G_CALLBACK(on_handle_set_volume),
                    NULL);
 
-  add_metadata_watcher(mpris_metadata_watcher, NULL);
+  add_metadata_watcher(mpris_metadata_watcher);
+
+  // connect to the bus
+
+  g_dbus_interface_skeleton_export(G_DBUS_INTERFACE_SKELETON(mprisPlayerSkeleton), connection,
+                                   "/org/mpris/MediaPlayer2", NULL);
+  g_dbus_interface_skeleton_export(G_DBUS_INTERFACE_SKELETON(mprisPlayerPlayerSkeleton), connection,
+                                   "/org/mpris/MediaPlayer2", NULL);
 
   debug(1, "MPRIS service started at \"%s\" on the %s bus.", name,
         (mpris_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");

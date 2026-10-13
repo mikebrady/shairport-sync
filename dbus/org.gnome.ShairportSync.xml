@@ -3,7 +3,6 @@
   <interface name="org.gnome.ShairportSync">
     <method name="Quit"/>
     <property name='Active' type='b' access='read'/>
-    <property name="DisableStandby" type="b" access="readwrite" />
     <property name="DisableStandbyMode" type="s" access="readwrite" />
     <property name="LoudnessEnabled" type="b" access="readwrite" />
     <property name="LoudnessThreshold" type="d" access="readwrite" />
@@ -18,6 +17,9 @@
       <arg name="command" type="s" direction="in" />
       <arg name="reply" type="i" direction="out" />
       <arg name="response" type="s" direction="out" />
+    </method>
+    <method name="Mule">
+      <arg name="command" type="i" direction="in" />
     </method>
     <property name="VolumeControlProfile" type="s" access="readwrite" />
     <property name="Interpolation" type="s" access="readwrite" />
@@ -41,40 +43,46 @@
     <property name="DeltaTime" type="b" access="readwrite" />
     <property name="FileAndLine" type="b" access="readwrite" />
   </interface>  
+  <interface name="org.gnome.ShairportSync.Client">
+    <property name='NowPlayingInformation' type='a{sv}' access='read'>
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="invalidates"/>
+    </property>
+    <property name='CommandInformation' type='av' access='read'>
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="invalidates"/>
+    </property>
+  </interface>
   <interface name="org.gnome.ShairportSync.RemoteControl">
-		<method name='FastForward'/>
-		<method name='Rewind'/>
-		<method name='ToggleMute'/>
-		<method name='Next'/>
-		<method name='Previous'/>
-		<method name='Pause'/>
-		<method name='PlayPause'/>
-		<method name='Play'/>
-		<method name='Stop'/>
-		<method name='Resume'/>
-		<method name='ShuffleSongs'/>
-		<method name='VolumeUp'/>
-		<method name='VolumeDown'/>
-		<property name='PlayerState' type='s' access='read'/>
-		<property name='ProgressString' type='s' access='read'/>
-		<property name='Client' type='s' access='read'/>
-		<property name='ClientName' type='s' access='read'/>
-		<property name='StreamType' type='s' access='read'/>
-		<property name='AirplayVolume' type='d' access='read'/>
+    <method name='FastForward'/>
+    <method name='Rewind'/>
+    <method name='ToggleMute'/>
+    <method name='Next'/>
+    <method name='Previous'/>
+    <method name='Pause'/>
+    <method name='PlayPause'/>
+    <method name='Play'/>
+    <method name='Stop'/>
+    <method name='Resume'/>
+    <method name='ShuffleSongs'/>
+    <method name='VolumeUp'/>
+    <method name='VolumeDown'/>
+    <property name='PlayerState' type='s' access='read'/>
+    <property name='ProgressString' type='s' access='read'/>
+    <property name='Client' type='s' access='read'/>
+    <property name='ClientName' type='s' access='read'/>
+    <property name='StreamType' type='s' access='read'/>
+    <property name='AirplayVolume' type='d' access='readwrite'/>
     <method name="SetAirplayVolume">
       <arg name="volume" type="d" direction="in" />
     </method>
-		<property name='Metadata' type='a{sv}' access='read'>
-			<annotation name="org.qtproject.QtDBus.QtTypeName" value="QVariantMap"/>
-		</property>
-		<property name='Available' type='b' access='read'/>
+    <property name='Metadata' type='a{sv}' access='read'/>
+    <property name='Available' type='b' access='read'/>
   </interface>
   <interface name="org.gnome.ShairportSync.AdvancedRemoteControl">
-		<property name='Available' type='b' access='read'/>
-		<property name='PlaybackStatus' type='s' access='read'/>
-		<property name='Shuffle' type='b' access='readwrite'/>
-		<property name='LoopStatus' type='s' access='readwrite'/>
-    <property name="Volume" type="i" access="read" />
+    <property name='Available' type='b' access='read'/>
+    <property name='PlaybackStatus' type='s' access='read'/>
+    <property name='Shuffle' type='s' access='readwrite'/>
+    <property name='LoopStatus' type='s' access='readwrite'/>
+    <property name="Volume" type="i" access="readwrite" />
     <method name="SetVolume">
       <arg name="volume" type="i" direction="in" />
     </method>

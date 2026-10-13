@@ -2680,9 +2680,9 @@ server_verify_response1(size_t *len, struct pair_verify_context *handle)
 
   memcpy(encrypted_data + data_len, tag, sizeof(tag));
 
+  pair_tlv_add_value(response, TLVType_EncryptedData, encrypted_data, encrypted_data_len);
   pair_tlv_add_value(response, TLVType_State, &pair_keys_map[msg_state].state, sizeof(pair_keys_map[msg_state].state));
   pair_tlv_add_value(response, TLVType_PublicKey, vctx->server_eph_public_key, sizeof(vctx->server_eph_public_key));
-  pair_tlv_add_value(response, TLVType_EncryptedData, encrypted_data, encrypted_data_len);
 
   data_len = REQUEST_BUFSIZE; // Re-using *data, so pass original length to pair_tlv_format
   ret = pair_tlv_format(response, data, &data_len);
