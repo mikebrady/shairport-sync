@@ -1,5 +1,5 @@
 # Shairport Sync
-Shairport Sync is an [AirPlay](https://www.pocket-lint.com/speakers/news/apple/144646-apple-airplay-2-vs-airplay-what-s-the-difference) audio player for Linux, FreeBSD and OpenBSD. It plays audio streamed from Apple devices and from AirPlay sources such as [OwnTone](https://github.com/owntone/owntone-server) (formerly `forked-daapd`).
+Shairport Sync is an [AirPlay](https://www.pocket-lint.com/speakers/news/apple/144646-apple-airplay-2-vs-airplay-what-s-the-difference) audio player for Linux, FreeBSD, macOS and OpenBSD. It plays audio streamed from Apple devices and from AirPlay sources such as [OwnTone](https://github.com/owntone/owntone-server) (formerly `forked-daapd`).
 
 Shairport Sync can be built as an AirPlay 2 player (with [some limitations](AIRPLAY2.md#features-and-limitations)) or as "classic" Shairport Sync – a player for the older, but still supported, AirPlay (aka "AirPlay 1") protocol.
 
@@ -8,6 +8,8 @@ When built for AirPlay 2, Shairport Sync can play stereo and multichannel (5.1 a
 Metadata such as artist information and cover art can be requested and provided to other applications. Shairport Sync can interface with other applications through MQTT, an MPRIS-like interface and D-Bus.
 
 Shairport Sync does not support AirPlay video or photo streaming.
+
+(Note that Macs based on Apple Silicon have built-in AirPlay facilities and so don't need Shairport Sync.) 
 
 # Quick Start
 * If you are updating from a previous version of Shairport Sync, please visit the [release notes](RELEASENOTES.md) for possible breaking changes.
