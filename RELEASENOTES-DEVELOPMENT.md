@@ -1,3 +1,7 @@
+Version 5.6
+==
+* This is essentially 5.6-dev-173-g29e65677.
+  
 Version 5.6-dev-173-g29e65677
 ==
 **Bug Fix**
