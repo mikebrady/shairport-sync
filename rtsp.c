@@ -1364,7 +1364,7 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
             conn->connection_number, flushUntilTS, flushUntilSeq & 0x7fffff);
       conn->ap2_play_enabled = 0; // stop trying to play audio
 #ifdef CONFIG_METADATA
-      reset_buffered_aac_bitrate(conn);
+      reset_input_bitrate(conn);
 #endif
       // ptp_send_control_message_string(
       //     "P"); // "P"ause signify clock no longer valid and will be restarted by a subsequent
@@ -1495,7 +1495,7 @@ void handle_setrateanchori(rtsp_conn_info *conn, rtsp_message *req, rtsp_message
         conn->ap2_play_enabled = 0;
 #ifdef CONFIG_METADATA
         /* The TCP reader can remain asleep throughout a pause and resume. */
-        reset_buffered_aac_bitrate(conn);
+        reset_input_bitrate(conn);
 #endif
         activity_monitor_signify_activity(0);
 
