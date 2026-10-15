@@ -484,7 +484,11 @@ struct rr_entry *rr_create_aaaa(uint8_t *name, struct in6_addr *addr) {
   DECL_MALLOC_ZERO_STRUCT(rr, rr_entry);
   if (rr) {
     FILL_RR_ENTRY(rr, name, RR_AAAA);
-    rr->data.AAAA.addr = addr;
+    // keep a copy: rr_entry_destroy() frees it, as for a parsed record
+    rr->data.AAAA.addr = malloc(sizeof(struct in6_addr));
+    if (rr->data.AAAA.addr == NULL)
+      die("could not allocate an AAAA address in tinysvcmdns.c.");
+    *rr->data.AAAA.addr = *addr;
     rr->ttl = DEFAULT_TTL_FOR_RECORD_WITH_HOSTNAME; // 120 seconds -- see RFC 6762 Section 10
   } else {
     die("could not allocate an RR 2 data structure in tinysvcmdns.c.");

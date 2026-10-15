@@ -1,3 +1,48 @@
+Version 5.7-dev-7-g8775f104
+==
+**Bug Fix**
+* Fix an overflow condition that would occur after approximate 12.5 hours (`2^31 - 1` frames, to be exact). The overflow condition turned off synchronisation corrections. Thanks to [Martin Man](https://github.com/mman) for their patient (!) [detective work](https://github.com/mikebrady/shairport-sync/issues/2312#issuecomment-6165226305) and [PR](https://github.com/mikebrady/shairport-sync/pull/2315).
+
+  (There is [another issue](https://github.com/mikebrady/shairport-sync/issues/2312#issue-5828005388) that actually stops play after the same amount of continuous play of Buffered Audio, which we are working on.)
+
+Version 5.7-dev-4-g7b954b19
+==
+**Bug Fix**
+* Fix an oversight whereby, in AirPlay 2 operation, track metadata and artwork was not being sent out via MQTT. Thanks to [Léo](https://github.com/leodurandfr) and [malewpro](https://github.com/malewpro) for reporting.
+
+Version 5.6
+==
+* This is essentially 5.6-dev-173-g29e65677.
+  
+Version 5.6-dev-173-g29e65677
+==
+**Bug Fix**
+* In `tinysvcmdns`: fix an invalid free and a leak of the interface list. Thanks to [Yegor Yefremov](https://github.com/yegorich) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2311).
+
+  **Please note:** using `tinysvcmdns` remains deprecated for security reasons.
+**Enhancements**
+* Add support for Mbed TLS 4 (support for 3.6 LTS ends in March 2027).
+
+  The new code is selected with `MBEDTLS_VERSION_MAJOR >= 4`; the code for Mbed TLS 2 and 3 is unchanged. Thanks to [Yegor Yefremov](https://github.com/yegorich) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2309).
+* Initialise Mbed TLS MD5 contexts.
+
+  Background: with `--with-ssl=mbedtls`, MD5 code calls `mbedtls_md5_starts()` on an uninitialised context and never frees it. The Mbed TLS API requires `mbedtls_md5_init()` first and `mbedtls_md5_free()` afterwards.
+It happens to work with current Mbed TLS implementations, which set the whole context in `mbedtls_md5_starts()` and allocate nothing, but that isn't guaranteed, for example with an alternative (hardware) MD5 implementation (`MBEDTLS_MD5_ALT`). Thanks to [Yegor Yefremov](https://github.com/yegorich) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2310).
+* In the Docker images: preserve the user-supplied `PULSE_SERVER` and `PULSE_COOKIE`.
+
+  Background: the Docker run scripts (`docker/run.sh`, `docker/devrun.sh` and `docker/classic/run.sh`) always overwrote `PULSE_SERVER` and `PULSE_COOKIE`, so values passed with `$ docker run -e` or a Compose `environment:` block were ignored. Each assignment now uses `${VAR:-default}`, so the default is applied only when the variable is unset or empty. The default values are unchanged (`unix:/tmp/pulseaudio.socket` and `/tmp/pulseaudio.cookie`). Thanks to [Joel Town Road](https://github.com/hippi345) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2307) and discussion.
+
+Version 5.6-dev-157-g611d5bc8
+==
+**Bug Fix**
+* Fix a bug [identified](https://github.com/mikebrady/shairport-sync/issues/2308) by [mjardemalm](https://github.com/mjardemalm), whereby an AirPlay 2 play session on a Shairport Sync (SPS) device would stop for no apparent reason.
+
+  The problem was traced to other AirPlay 2 players making occasional periodic connections to the SPS device. These connections started as audio connections, but never actually became audio sessions -- they appear to be for checking that the device is still there -- but in response, SPS was terminating any existing session.
+
+  The fix was to defer dropping an existing session until it was certain that an incoming connection was definitely a new audio session. Specifically, the fix was for a new connection to defer getting play lock (and pre-empting any existing play session) until the second phase of `SETUP` on an AirPlay 2 connection when a `stream` parameter is provided. Some of the code was tidied up and some old commented-out obsolete code and comments were removed.
+
+  Many thanks to [mjardemalm](https://github.com/mjardemalm) for their careful analysis of the problem and for their proposed solution.
+
 Version 5.6-dev-154-g6044b2ac
 ==
 **Bug Fix**

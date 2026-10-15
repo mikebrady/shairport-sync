@@ -49,8 +49,12 @@
 #include "utilities/general_utilities.h"
 
 #ifdef CONFIG_MBEDTLS
-#include <mbedtls/md5.h>
 #include <mbedtls/version.h>
+#if MBEDTLS_VERSION_MAJOR >= 4
+#include <psa/crypto.h>
+#else
+#include <mbedtls/md5.h>
+#endif
 #endif
 
 #ifdef CONFIG_POLARSSL
@@ -234,16 +238,24 @@ char *metadata_write_image_file(const char *buf, int len) {
 #endif
 
 #ifdef CONFIG_MBEDTLS
-#if MBEDTLS_VERSION_MINOR >= 7
+#if MBEDTLS_VERSION_MAJOR >= 4
+    size_t img_md5_len;
+    psa_hash_compute(PSA_ALG_MD5, (const uint8_t *)buf, len, img_md5, sizeof(img_md5),
+                     &img_md5_len);
+#elif MBEDTLS_VERSION_MINOR >= 7
     mbedtls_md5_context tctx;
+    mbedtls_md5_init(&tctx);
     mbedtls_md5_starts_ret(&tctx);
     mbedtls_md5_update_ret(&tctx, (const unsigned char *)buf, len);
     mbedtls_md5_finish_ret(&tctx, img_md5);
+    mbedtls_md5_free(&tctx);
 #else
     mbedtls_md5_context tctx;
+    mbedtls_md5_init(&tctx);
     mbedtls_md5_starts(&tctx);
     mbedtls_md5_update(&tctx, (const unsigned char *)buf, len);
     mbedtls_md5_finish(&tctx, img_md5);
+    mbedtls_md5_free(&tctx);
 #endif
 #endif
 

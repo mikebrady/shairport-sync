@@ -40,6 +40,8 @@ metadata/remote-control interfaces.
 
 Out of scope: vulnerabilities in third-party dependencies (please report those to
 their own projects), and issues that require privileges the operator already has.
+Specifically out of scope: vulnerabilities in the Hammerton decoder, the Apple ALAC decoder and the TinySVCmDNS library.
+These optional components are deprecated, and are already the subject of Security Advisories on Shairport Sync and elsewhere.
 
 ## Credit
 

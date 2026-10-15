@@ -97,12 +97,16 @@
 #endif
 
 #ifdef CONFIG_MBEDTLS
-#include "mbedtls/ctr_drbg.h"
-#include "mbedtls/entropy.h"
 #include <mbedtls/base64.h>
 #include <mbedtls/md.h>
 #include <mbedtls/version.h>
 #include <mbedtls/x509.h>
+#if MBEDTLS_VERSION_MAJOR >= 4
+#include <psa/crypto.h>
+#else
+#include "mbedtls/ctr_drbg.h"
+#include "mbedtls/entropy.h"
+#endif
 
 #if MBEDTLS_VERSION_MAJOR == 3
 #define MBEDTLS_PRIVATE_V3_ONLY(_q) MBEDTLS_PRIVATE(_q)
@@ -887,6 +891,63 @@ uint8_t *rsa_apply(uint8_t *input, int inlen, int *outlen, int mode) {
 #endif
 
 #ifdef CONFIG_MBEDTLS
+#if MBEDTLS_VERSION_MAJOR >= 4
+// Mbed TLS 4 only provides RSA through PSA, which needs psa_crypto_init() to have been called
+uint8_t *rsa_apply(uint8_t *input, int inlen, int *outlen, int mode) {
+  mbedtls_pk_context pkctx;
+  psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
+  mbedtls_svc_key_id_t key = MBEDTLS_SVC_KEY_ID_INIT;
+  psa_algorithm_t alg = PSA_ALG_NONE;
+  psa_key_usage_t usage = 0;
+  psa_status_t status = PSA_ERROR_GENERIC_ERROR;
+  uint8_t *outbuf = NULL;
+  size_t olen = 0;
+  int rc;
+
+  switch (mode) {
+  case RSA_MODE_AUTH:
+    // a PKCS#1 v1.5 signature of the raw input, without a DigestInfo
+    alg = PSA_ALG_RSA_PKCS1V15_SIGN_RAW;
+    usage = PSA_KEY_USAGE_SIGN_HASH;
+    break;
+  case RSA_MODE_KEY:
+    alg = PSA_ALG_RSA_OAEP(PSA_ALG_SHA_1);
+    usage = PSA_KEY_USAGE_DECRYPT;
+    break;
+  default:
+    die("bad rsa mode");
+  }
+
+  mbedtls_pk_init(&pkctx);
+  rc = mbedtls_pk_parse_key(&pkctx, (unsigned char *)super_secret_key, sizeof(super_secret_key),
+                            NULL, 0);
+  if (rc == 0)
+    rc = mbedtls_pk_get_psa_attributes(&pkctx, usage, &attr);
+  if (rc == 0) {
+    psa_set_key_algorithm(&attr, alg);
+    rc = mbedtls_pk_import_into_psa(&pkctx, &attr, &key);
+  }
+  if (rc != 0)
+    debug(1, "Error %d reading the private key.", rc);
+
+  size_t outsize = PSA_BITS_TO_BYTES(mbedtls_pk_get_bitlen(&pkctx));
+  outbuf = malloc(outsize);
+  if (rc == 0 && outbuf != NULL) {
+    if (mode == RSA_MODE_AUTH)
+      status = psa_sign_hash(key, alg, input, inlen, outbuf, outsize, &olen);
+    else
+      status = psa_asymmetric_decrypt(key, alg, input, inlen, NULL, 0, outbuf, outsize, &olen);
+    if (status != PSA_SUCCESS)
+      debug(1, "PSA RSA %s error %d.", mode == RSA_MODE_AUTH ? "sign" : "decrypt", (int)status);
+  }
+  *outlen = olen;
+
+  psa_destroy_key(key);
+  psa_reset_key_attributes(&attr);
+  mbedtls_pk_free(&pkctx);
+  return outbuf;
+}
+#else
 uint8_t *rsa_apply(uint8_t *input, int inlen, int *outlen, int mode) {
   mbedtls_pk_context pkctx;
   mbedtls_rsa_context *trsa;
@@ -958,6 +1019,7 @@ uint8_t *rsa_apply(uint8_t *input, int inlen, int *outlen, int mode) {
   mbedtls_pk_free(&pkctx);
   return outbuf;
 }
+#endif
 #endif
 
 #ifdef CONFIG_POLARSSL

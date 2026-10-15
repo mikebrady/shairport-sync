@@ -25,12 +25,16 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <plist/plist.h>
 #include "metadata_hub_handle_command_plist.h"
 #include "common.h"
 #include "core.h"
 #include "hub.h"
 #include "utilities/rtsp_message_utilities.h"
-#include <plist/plist.h>
+#ifdef CONFIG_MQTT
+#include "mqtt.h"
+#endif
+
 
 // merge items in the second plist into the first
 
@@ -130,10 +134,16 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
                       uint64_t length = 0;
                       plist_get_data_val(pict_item, &buff, &length);
                       size_t length_size = length;
-                      metadata_changed |= metadata_hub_process_picture(buff, length_size);
+                      if (metadata_hub_process_picture(buff, length_size) != 0) {
+                        metadata_changed |= 1;
+#ifdef CONFIG_MQTT
+                        // only send the picture to MQTT if it has changed...
+                        send_metadata_to_mqtt_queue('ssnc', 'PICT', buff, length, NULL, 0);
+#endif                                              
+                      }
                       plist_dict_set_item(metadata_store.npi.npi_plist,
-                                          "kShairportSyncNowPlayingInfoArtworkFilePath",
-                                          plist_new_string(metadata_store.npi.cover_art_pathname));
+                                        "kShairportSyncNowPlayingInfoArtworkFilePath",
+                                        plist_new_string(metadata_store.npi.cover_art_pathname));
                       plist_dict_remove_item(
                           metadata_store.npi.npi_plist,
                           "kMRMediaRemoteNowPlayingInfoArtworkData"); // remove it
@@ -148,6 +158,10 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
                       // debug(1, "Send album name: \"%s\".", album_name);
                       metadata_changed |=
                           update_string_record(&metadata_store.npi.album_name, album_name);
+#ifdef CONFIG_MQTT
+                      send_metadata_to_mqtt_queue('core', 'asal', album_name,
+                                                      strlen(album_name), NULL, 0);
+#endif
                       free(album_name);
                     }
 
@@ -160,6 +174,10 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
                       // debug(1, "Send track title: \"%s\".", track_title);
                       metadata_changed |=
                           update_string_record(&metadata_store.npi.track_name, track_title);
+#ifdef CONFIG_MQTT
+                      send_metadata_to_mqtt_queue('core', 'minm', track_title,
+                                                      strlen(track_title), NULL, 0);
+#endif
                       free(track_title);
                     }
 
@@ -184,6 +202,11 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
                       // debug(1, "Send track id: %" PRIu64 "", track_id);
                       metadata_changed |=
                           update_uint64_record(&metadata_store.npi.item_id, track_id);
+#ifdef CONFIG_MQTT
+                      send_metadata_to_mqtt_queue('core', 'mper', (const char *)&track_id,
+                                                      sizeof(track_id), NULL, 0);
+#endif
+                      
                     }
 
                     // look for song data kind
@@ -195,6 +218,11 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
                       // debug(1, "Send track kind: %u", always_live);
                       metadata_changed |=
                           update_uint64_record(&metadata_store.npi.song_data_kind, always_live);
+#ifdef CONFIG_MQTT
+                      send_metadata_to_mqtt_queue('core', 'asdk', (const char *)&always_live,
+                                                      sizeof(always_live), NULL, 0);
+#endif
+                          
                     }
 
                     // look for genre
@@ -206,6 +234,10 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
                       // debug(1, "Send genre: \"%s\".", genre_name);
                       metadata_changed |=
                           update_string_record(&metadata_store.npi.genre, genre_name);
+#ifdef CONFIG_MQTT
+                      send_metadata_to_mqtt_queue('core', 'asgn', genre_name,
+                                                      strlen(genre_name), NULL, 0);
+#endif
                       free(genre_name);
                     }
 
@@ -218,6 +250,10 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
                       // debug(1, "Send artist name: \"%s\".", artist_name);
                       metadata_changed |=
                           update_string_record(&metadata_store.npi.artist_name, artist_name);
+#ifdef CONFIG_MQTT
+                      send_metadata_to_mqtt_queue('core', 'asar', artist_name,
+                                                      strlen(artist_name), NULL, 0);
+#endif
                       free(artist_name);
                     }
 

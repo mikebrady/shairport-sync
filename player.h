@@ -7,7 +7,12 @@
 #include "definitions.h"
 
 #ifdef CONFIG_MBEDTLS
+#include <mbedtls/version.h>
+#if MBEDTLS_VERSION_MAJOR >= 4
+#include <psa/crypto.h>
+#else
 #include <mbedtls/aes.h>
+#endif
 #endif
 
 #ifdef CONFIG_POLARSSL
@@ -372,7 +377,11 @@ typedef struct {
   int do_loudness; // if loudness is requested and there is no external mixer
 
 #ifdef CONFIG_MBEDTLS
+#if MBEDTLS_VERSION_MAJOR >= 4
+  psa_key_id_t dctx; // the AES key, imported into PSA
+#else
   mbedtls_aes_context dctx;
+#endif
 #endif
 
 #ifdef CONFIG_POLARSSL
