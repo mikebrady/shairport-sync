@@ -17,3 +17,59 @@ The UDP metadata format is very simple - the first four bytes are the metadata *
 (both are sent in network byte order - see https://github.com/mikebrady/shairport-sync-metadata-reader for a definition of those terms).
 The remaining bytes of the packet, if any, make up the raw value of the metadata.
 
+## Receiver measurements
+
+With metadata enabled, Shairport Sync sends these `ssnc` events. Each value is
+three decimal integers separated by `/`.
+
+### `abrt`: audio bitrate
+
+The value is `payload_bytes/input_sample_frames/sample_rate`. It measures AAC or
+ALAC compressed input in Classic AirPlay, AirPlay 2 realtime, and AirPlay 2 buffered
+streams, wherever the codec is supported. Bytes exclude transport and encryption
+overhead and the synthetic ADTS header used for AAC decoding.
+Sample frames are counted before output resampling; each frame contains all channels.
+The supported input sample rates are 44100 and 48000 Hz.
+
+Calculate the average bitrate in bits per second as
+`payload_bytes * 8 * sample_rate / input_sample_frames`.
+For example, `64000/96000/48000` gives 256000 bits per second.
+
+The counts accumulate since the last reset. The first report follows at least
+two seconds of decoded input audio; later reports follow about one more second
+of input audio. Buffered audio can arrive ahead of playback, so a report may
+include audio that has not yet played. This is not a sliding average or a
+guaranteed average for one track.
+
+The meter resets on pause or stop, input format changes, Classic/realtime flush,
+immediate buffered flush, activation of a deferred flush, buffered timestamp
+discontinuities, deliberate resynchronisation, sample-rate changes,
+and counter overflow. A reset sends `0/0/0` if the meter held data; consumers
+should clear the previous measurement without dividing by zero. Repeated
+duplicate sequence/timestamp pairs do not contribute to the counts. The bounded
+packet history covers the player's 1024-block window, including nonconsecutive
+duplicates. Recovered ALAC packets count once; ordinary UDP loss and reordering do
+not reset the meter. Missing blocks and substituted silence do not contribute to
+the measured duration. Uncompressed PCM is not measured.
+
+### `arst`: audio receiver statistics
+
+The value is `missing_audio_blocks/too_late_audio_blocks/retry_requests`.
+These are the existing player counters, reported on the first available audio
+frame and about once per elapsed second during playback, across codecs.
+They are totals for the receiver session and are not reset for each report.
+Unchanged totals are still emitted. Neither event introduces a reporting timer;
+reports are produced while processing audio, with no periodic reports while idle.
+
+The missing count records unavailable audio blocks that need silence substitution.
+The late count records blocks arriving too late for playback. The retry count
+records Shairport resend requests, not TCP retransmissions. These counters do
+not measure all network loss, decoder failures, or audible interruptions.
+
+Both events use the existing metadata queue without waiting for space. A full
+queue can drop a report, so consumers should allow missing or delayed updates.
+These queues are shared with other metadata and are bounded to 500 messages per
+output. With no pipe reader, the metadata worker discards undeliverable messages.
+An attached reader that stops reading can block the pipe worker and fill its queue;
+new messages are then dropped, rather than growing the queue or waiting for space.
+Queue submission still takes a mutex; it is not lock-free.

@@ -38,6 +38,7 @@
 #include "FFTConvolver/convolver.h"
 #endif
 
+
 void addADTStoPacket(uint8_t *packet, int packetLen, int rate, int channel_configuration) {
   // https://stackoverflow.com/questions/18862715/how-to-generate-the-aac-adts-elementary-stream-with-android-mediacodec
   // with thanks!
@@ -225,6 +226,11 @@ void *rtp_buffered_audio_processor(void *arg) {
 
     if ((play_enabled != 0) && (conn->ap2_play_enabled == 0)) {
       debug(2, "Play stopped.");
+#ifdef CONFIG_METADATA
+      pthread_mutex_lock_and_cleanup_push(&conn->flush_mutex);
+      reset_input_bitrate(conn);
+      pthread_cleanup_pop(1);
+#endif
       packets_played_in_this_sequence = 0; // not all blocks read are played...
 #ifdef CONFIG_CONVOLUTION
       convolver_clear_state();
@@ -284,6 +290,11 @@ void *rtp_buffered_audio_processor(void *arg) {
             payload_ssrc = nctohl(&packet[8]);
             
             if ((payload_ssrc != previous_ssrc) && (payload_ssrc != SSRC_NONE)) {
+#ifdef CONFIG_METADATA
+              pthread_mutex_lock_and_cleanup_push(&conn->flush_mutex);
+              reset_input_bitrate(conn);
+              pthread_cleanup_pop(1);
+#endif
               if (ssrc_is_recognised(payload_ssrc) == 0) {
                 debug(2, "Unrecognised SSRC: \"%s\" in packet %" PRIu64 ".", get_ssrc_name(payload_ssrc), blocks_read);
               } else {
@@ -388,6 +399,9 @@ void *rtp_buffered_audio_processor(void *arg) {
         if (conn->ap2_immediate_flush_requested != 0) {
           int flush_finished = 0;
           if (ap2_immediate_flush_requested == 0) {
+#ifdef CONFIG_METADATA
+            reset_input_bitrate(conn);
+#endif
             debug(3, "immediate flush started at sequence number %u until sequence number of %u.",
                   seq_no, conn->ap2_immediate_flush_until_sequence_number);
           }
@@ -480,6 +494,9 @@ void *rtp_buffered_audio_processor(void *arg) {
                   conn->ap2_deferred_flush_requests[f].flushFromSeq,
                   conn->ap2_deferred_flush_requests[f].flushUntilTS,
                   conn->ap2_deferred_flush_requests[f].flushUntilSeq, timestamp);
+#ifdef CONFIG_METADATA
+            reset_input_bitrate(conn);
+#endif
             conn->ap2_deferred_flush_requests[f].active = 1;
             new_audio_block_needed = 1;
           }
@@ -713,7 +730,7 @@ void *rtp_buffered_audio_processor(void *arg) {
                     if (skip_this_block == 0) {
                       uint32_t packet_size = player_put_packet(
                           payload_ssrc, sequence_number_for_player, timestamp, payload_pointer,
-                          payload_length, mute, timestamp_difference, conn);
+                          payload_length, mute, timestamp_difference, conn, seq_no);
                       debug(4, "block %u, timestamp %u, length %u sent to the player.", seq_no,
                             timestamp, packet_size);
                       sequence_number_for_player++;                 // simply increment

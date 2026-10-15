@@ -279,7 +279,7 @@ void *rtp_audio_receiver(void *arg) {
           if ((config.diagnostic_drop_packet_fraction == 0.0) ||
               (drand48() > config.diagnostic_drop_packet_fraction))
             player_put_packet(ALAC_44100_S16_2, seqno, actual_timestamp, pktp, plen, 0, 0,
-                              conn); // original format, no mute, not discontinuous
+                              conn, seqno); // original format, no mute, not discontinuous
           else
             debug(3, "Dropping audio packet %u to simulate a bad connection.", seqno);
           continue;
@@ -550,7 +550,7 @@ void *rtp_control_receiver(void *arg) {
             // i.e. ssrc, sequence number, timestamp, data, data_length_in_bytes, mute,
             // discontinuous, conn
             player_put_packet(ALAC_44100_S16_2, seqno, actual_timestamp, pktp, plen, 0, 0,
-                              conn); // original format, no mute, not discontinuous
+                              conn, seqno); // original format, no mute, not discontinuous
             continue;
           } else {
             debug(3, "Too-short retransmitted audio packet received in control port, ignored.");
@@ -1554,7 +1554,7 @@ int32_t decipher_player_put_packet(uint8_t *ciphered_audio_alt, ssize_t nread,
       // debug(1,"                                                        Write packet to buffer %d,
       // timestamp %u.", sequence_number, timestamp);
       player_put_packet(ALAC_44100_S16_2, sequence_number, timestamp, m, plen, 0, 0,
-                        conn); // 0 = no mute, 0 = non discontinuous
+                        conn, sequence_number); // 0 = no mute, 0 = non discontinuous
     } else {
       debug(4, "No session key, so the audio packet of %zd bytes can not be deciphered -- skipped.",
             nread);

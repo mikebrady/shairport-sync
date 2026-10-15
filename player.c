@@ -101,6 +101,7 @@
 #endif
 
 #ifdef CONFIG_AIRPLAY_2
+#include "ap2_buffered_audio_processor.h"
 #include "ptp-utilities.h"
 #endif
 
@@ -179,19 +180,21 @@ void reset_input_flow_metrics(rtsp_conn_info *conn) {
   conn->initial_reference_timestamp = 0;
 }
 
-void unencrypted_packet_decode(rtsp_conn_info *conn, unsigned char *packet, int length,
-                               short *dest) {
+uint32_t unencrypted_packet_decode(rtsp_conn_info *conn, unsigned char *packet, int length,
+                                  short *dest) {
   if (conn->stream.type == ast_apple_lossless) {
 #ifdef CONFIG_APPLE_ALAC
     if (config.decoder_in_use == 1 << decoder_apple_alac) {
-      int frames_decoded;
+      int frames_decoded = 0;
       apple_alac_decode_frame(packet, length, (unsigned char *)dest, &frames_decoded);
+      return frames_decoded > 0 ? (uint32_t)frames_decoded : 0;
     } else
 #endif
 #ifdef CONFIG_HAMMERTON
         if (config.decoder_in_use == 1 << decoder_hammerton) {
       int buffer_size = conn->frames_per_packet * conn->input_bytes_per_frame;
       alac_decode_frame(conn->decoder_info, packet, (unsigned char *)dest, &buffer_size);
+      return buffer_size > 0 ? (uint32_t)(buffer_size / conn->input_bytes_per_frame) : 0;
     } else
 #endif
     {
@@ -212,7 +215,9 @@ void unencrypted_packet_decode(rtsp_conn_info *conn, unsigned char *packet, int 
       dest++;
       source++;
     }
+    return length / conn->input_bytes_per_frame;
   }
+  return 0;
 }
 
 #ifdef CONFIG_HAMMERTON
@@ -426,6 +431,8 @@ void clear_software_resampler(rtsp_conn_info *conn) {
   }
 }
 
+#endif
+
 int ssrc_is_recognised(ssrc_t ssrc) {
   int response = 0;
   switch (ssrc) {
@@ -528,6 +535,8 @@ size_t get_ssrc_block_length(ssrc_t ssrc) {
   }
   return response;
 }
+
+#ifdef CONFIG_FFMPEG
 
 int setup_software_resampler(rtsp_conn_info *conn, ssrc_t ssrc) {
   int response = 0;
@@ -1468,10 +1477,86 @@ void clear_buffers_from(rtsp_conn_info *conn, seq_t from_here) {
 
 #endif
 
+#ifdef CONFIG_METADATA
+/* Queue submission may take its mutex, but never waits for queue capacity. */
+static void publish_audio_bitrate(const audio_bitrate_meter *meter) {
+  char text[96];
+  int length = snprintf(text, sizeof(text), "%" PRIu64 "/%" PRIu64 "/%u",
+                        meter ? meter->bytes : 0, meter ? meter->samples : 0,
+                        meter ? meter->rate : 0);
+  if (length > 0 && (size_t)length < sizeof(text))
+    send_ssnc_metadata('abrt', text, length, 0);
+}
+
+void reset_input_bitrate(rtsp_conn_info *conn) {
+  /* Caller holds flush_mutex. This also invalidates packets being decoded. */
+  conn->input_bitrate_generation++;
+  conn->input_bitrate_ssrc = SSRC_NONE;
+  if (audio_bitrate_reset(&conn->input_bitrate))
+    publish_audio_bitrate(NULL);
+}
+
+static int input_bitrate_is_playing(const rtsp_conn_info *conn) {
+#ifdef CONFIG_AIRPLAY_2
+  if (conn->airplay_type == ap_2 && conn->airplay_stream_type == buffered_stream)
+    return conn->ap2_play_enabled;
+#endif
+  return !conn->flush_requested;
+}
+
+static uint64_t input_bitrate_packet_generation(rtsp_conn_info *conn, uint32_t ssrc,
+                                                uint32_t sequence, uint32_t timestamp,
+                                                int32_t timestamp_gap) {
+  uint64_t generation = 0;
+  pthread_mutex_lock_and_cleanup_push(&conn->flush_mutex);
+  if (input_bitrate_is_playing(conn)) {
+    if (conn->input_bitrate_ssrc != ssrc ||
+        (timestamp_gap && !audio_bitrate_is_duplicate(&conn->input_bitrate,
+                                                      sequence, timestamp))) {
+      reset_input_bitrate(conn);
+      conn->input_bitrate_ssrc = ssrc;
+    }
+  }
+  generation = conn->input_bitrate_generation;
+  pthread_cleanup_pop(1);
+  return generation;
+}
+
+static void account_input_bitrate(rtsp_conn_info *conn, uint32_t ssrc, uint64_t bytes,
+                                  uint32_t samples, uint32_t sequence, uint32_t timestamp,
+                                  uint64_t generation) {
+  pthread_mutex_lock_and_cleanup_push(&conn->flush_mutex);
+  if (generation == conn->input_bitrate_generation && input_bitrate_is_playing(conn)) {
+    audio_bitrate_meter *meter = &conn->input_bitrate;
+    uint32_t rate = get_ssrc_rate(ssrc);
+    /* Native Classic ALAC uses an artificial 44.1-kHz SSRC even when ANNOUNCE
+     * negotiates 48 kHz. Buffered/FFmpeg formats retain their SSRC-derived rate. */
+    if (ssrc == ALAC_44100_S16_2 &&
+#ifdef CONFIG_AIRPLAY_2
+        conn->airplay_type == ap_1 &&
+#endif
+        (config.decoder_in_use == 1 << decoder_hammerton ||
+         config.decoder_in_use == 1 << decoder_apple_alac))
+      rate = conn->input_rate;
+    int result = audio_bitrate_add(meter, bytes, samples, rate,
+                                   sequence, timestamp);
+    if (result & AUDIO_BITRATE_RESET) {
+      conn->input_bitrate_generation++;
+      publish_audio_bitrate(NULL);
+    }
+    if (result & AUDIO_BITRATE_REPORT)
+      publish_audio_bitrate(meter);
+  }
+  pthread_cleanup_pop(1);
+}
+#endif
+
 uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp, uint8_t *data,
-                           size_t len, int mute, int32_t timestamp_gap, rtsp_conn_info *conn) {
+                           size_t len, int mute, int32_t timestamp_gap, rtsp_conn_info *conn,
+                           uint32_t packet_sequence) {
 
   (void) mute; // unused if FFmpeg is not in use.
+  (void) packet_sequence; // unused without metadata.
 
   // clang-format off
   
@@ -1495,6 +1580,12 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
   // clang-format on
 
   uint32_t input_packets_used = 0;
+#ifdef CONFIG_METADATA
+  uint64_t bitrate_generation = 0;
+  int measure_bitrate = config.metadata_enabled && conn->stream.type != ast_uncompressed &&
+                        (ssrc_is_aac(ssrc) || ssrc == ALAC_44100_S16_2 ||
+                         ssrc == ALAC_48000_S24_2);
+#endif
 
   // ignore a request to flush that has been made before the first packet...
   if (conn->packet_count == 0) {
@@ -1504,6 +1595,11 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
     pthread_mutex_unlock(&conn->flush_mutex);
   }
 
+#ifdef CONFIG_METADATA
+  if (measure_bitrate)
+    bitrate_generation = input_bitrate_packet_generation(conn, ssrc, packet_sequence,
+                                                         actual_timestamp, timestamp_gap);
+#endif
   pthread_mutex_lock_and_cleanup_push(&conn->ab_mutex);
   uint64_t time_now = get_absolute_time_in_ns();
   conn->packet_count++;
@@ -1621,9 +1717,8 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
           (config.decoder_in_use == 1 << decoder_apple_alac)) {
         abuf->data = malloc(conn->frames_per_packet * conn->input_bytes_per_frame);
         if (abuf->data != NULL) {
-          unencrypted_packet_decode(conn, data_to_use, len, abuf->data);
-          input_packets_used = conn->frames_per_packet; // return this to the caller
-          abuf->length = conn->frames_per_packet;       // these decoders don't transcode
+          input_packets_used = unencrypted_packet_decode(conn, data_to_use, len, abuf->data);
+          abuf->length = input_packets_used; // native decoders do not resample
         } else {
           debug(1, "audio block not allocated!");
         }
@@ -1635,7 +1730,7 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
         if (abuf->avframe) {
           input_packets_used = abuf->avframe->nb_samples;
         }
-        if (mute) {
+        if (mute && abuf->avframe) {
           // it's important to have already run it through the decoder before dropping it
           // especially if it an AAC decoder
           debug(2, "ap1 muting frame %u.", actual_timestamp);
@@ -1664,11 +1759,22 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
         intermediate_buffer = NULL;
       }
 
-      abuf->ready = 1;
-      abuf->status = 0; // signifying that it was received
-      abuf->timestamp = actual_timestamp;
-      abuf->timestamp_gap = timestamp_gap; // needed to decide if a resync is needed
-      abuf->sequence_number = seqno;
+      if (input_packets_used != 0) {
+        abuf->ready = 1;
+        abuf->status = 0; // signifying that it was received
+        abuf->timestamp = actual_timestamp;
+        abuf->timestamp_gap = timestamp_gap; // needed to decide if a resync is needed
+        abuf->sequence_number = seqno;
+      } else {
+        // Failed decoding leaves a missing block for the existing resend/silence path.
+        free_audio_buffer_payload(abuf);
+        abuf->ready = 0;
+        abuf->status = 1 << 0; // signifying missing
+        abuf->resend_request_number = 0;
+        abuf->timestamp = 0;
+        abuf->timestamp_gap = 0;
+        abuf->sequence_number = 0;
+      }
     } else {
       // This is AirPlay 2 -- always use FFmpeg
 #ifdef CONFIG_FFMPEG
@@ -1686,7 +1792,7 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
       if (abuf->avframe) {
         input_packets_used = abuf->avframe->nb_samples;
       }
-      if (mute) {
+      if (mute && abuf->avframe) {
         // it's important to have already run it through the decoder before dropping it
         debug(2, "ap2 muting frame %u.", actual_timestamp);
         abuf->length = abuf->avframe->nb_samples;
@@ -1831,6 +1937,17 @@ uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp
   // } // remove this
   pthread_cleanup_pop(1);
   // debug_mutex_unlock(&conn->ab_mutex, 0);
+#ifdef CONFIG_METADATA
+  /* Submit metadata after releasing ab_mutex; never perform pipe I/O here.
+   * Buffered AAC alone has a synthetic seven-byte ADTS decoding header. */
+  if (measure_bitrate && input_packets_used) {
+    uint64_t payload_bytes = len;
+    if (ssrc_is_aac(ssrc))
+      payload_bytes = len > 7 ? len - 7 : 0;
+    account_input_bitrate(conn, ssrc, payload_bytes, input_packets_used, packet_sequence,
+                          actual_timestamp, bitrate_generation);
+  }
+#endif
   return input_packets_used;
 }
 
@@ -2261,6 +2378,9 @@ static abuf_t *buffer_get_frame(rtsp_conn_info *conn, int resync_requested) {
         }
       }
       if (flush_needed) {
+#ifdef CONFIG_METADATA
+        reset_input_bitrate(conn);
+#endif
         debug(2, "flush request: flush done.");
         ab_resync(conn); // no cancellation points
         conn->first_packet_timestamp = 0;
@@ -3360,6 +3480,26 @@ void send_ssnc_stream_description(const char *type, const char *description) {
   send_ssnc_metadata('styp', type, strlen(type), 1);
   send_ssnc_metadata('sdsc', description, strlen(description), 1);
 }
+
+static void send_classic_stream_description(const char *type, rtsp_conn_info *conn) {
+  if (config.decoder_in_use == 1 << decoder_hammerton ||
+      config.decoder_in_use == 1 << decoder_apple_alac) {
+    char description[64];
+    int length = snprintf(description, sizeof(description), "ALAC/%u/S%u_LE/%u",
+                          conn->input_rate, conn->input_bit_depth, conn->input_num_channels);
+    if (length > 0 && (size_t)length < sizeof(description)) {
+      if (type != NULL)
+        send_ssnc_stream_description(type, description);
+      else
+        send_ssnc_metadata('sdsc', description, length, 1);
+    }
+  }
+#ifdef CONFIG_FFMPEG
+  /* FFmpeg's source format is available when playback starts. */
+  else if (type != NULL)
+    send_ssnc_stream_description(type, get_ssrc_name(conn->incoming_ssrc));
+#endif
+}
 #endif
 
 void player_thread_cleanup_handler(void *arg) {
@@ -3463,6 +3603,12 @@ void player_thread_cleanup_handler(void *arg) {
   ptp_send_control_message_string("E");
 #endif
 
+#ifdef CONFIG_METADATA
+  pthread_mutex_lock_and_cleanup_push(&conn->flush_mutex);
+  reset_input_bitrate(conn);
+  pthread_cleanup_pop(1);
+#endif
+
 #ifdef CONFIG_FFMPEG
   if (config.decoder_in_use == 1 << decoder_ffmpeg_alac) {
     // debug(1, "FFmpeg clearup");
@@ -3541,6 +3687,14 @@ void *player_thread_func(void *arg) {
   conn->fix_volume = 0x10000;
   conn->frames_per_packet = 352; // for ALAC -- will be changed if necessary
 
+#ifdef CONFIG_METADATA
+  pthread_mutex_lock_and_cleanup_push(&conn->flush_mutex);
+  audio_bitrate_reset(&conn->input_bitrate);
+  conn->input_bitrate_generation++;
+  conn->input_bitrate_ssrc = SSRC_NONE;
+  pthread_cleanup_pop(1);
+#endif
+
 #ifdef CONFIG_AIRPLAY_2
   conn->ap2_rate = 0;
   conn->ap2_play_enabled = 0;
@@ -3567,18 +3721,15 @@ void *player_thread_func(void *arg) {
       init_alac_decoder((int32_t *)&conn->stream.fmtp,
                         conn); // this sets up incoming rate, bit depth, channels.
                                // No pthread cancellation point in here
-#ifdef CONFIG_METADATA
-      send_ssnc_metadata('sdsc', "ALAC/44100/S16_LE/2", strlen("ALAC/44100/S16_LE/2"), 1);
-#endif
     }
 #endif
 #ifdef CONFIG_APPLE_ALAC
     if (config.decoder_in_use == 1 << decoder_apple_alac) {
       apple_alac_init(conn->stream.fmtp); // no pthread cancellation point in here
-#ifdef CONFIG_METADATA
-      send_ssnc_metadata('sdsc', "ALAC/44100/S16_LE/2", strlen("ALAC/44100/S16_LE/2"), 1);
-#endif
     }
+#endif
+#ifdef CONFIG_METADATA
+    send_classic_stream_description(NULL, conn);
 #endif
   }
   // This must be after init_alac_decoder
@@ -3636,7 +3787,13 @@ void *player_thread_func(void *arg) {
 
   int play_samples = 0;
   uint64_t current_delay;
+
+#ifdef CONFIG_METADATA
+  uint64_t last_receiver_stats = 0;
+#endif
+
   int64_t play_number = 0; // play_number * inbuflength would overflow an int after 2^31 frames
+
   conn->play_number_after_flush = 0;
   conn->time_of_last_audio_packet = 0;
   // conn->shutdown_requested = 0;
@@ -3788,6 +3945,24 @@ void *player_thread_func(void *arg) {
         conn, request_resync); // this has a guaranteed [and needed!] cancellation point
     request_resync = 0;
     if (inframe) {
+#ifdef CONFIG_METADATA
+      /* Report existing player counters, independently of codec and log verbosity. */
+      uint64_t stats_now = get_absolute_time_in_ns();
+      if (!last_receiver_stats || stats_now - last_receiver_stats >= 1000000000) {
+        uint64_t missing = 0, too_late = 0, retries = 0;
+        pthread_mutex_lock_and_cleanup_push(&conn->ab_mutex);
+        missing = conn->missing_packets;
+        too_late = conn->too_late_packets;
+        retries = conn->resend_requests;
+        pthread_cleanup_pop(1);
+        char stats[80];
+        int length = snprintf(stats, sizeof(stats), "%" PRIu64 "/%" PRIu64 "/%" PRIu64,
+                              missing, too_late, retries);
+        if (length > 0 && (size_t)length < sizeof(stats))
+          send_ssnc_metadata('arst', stats, length, 0);
+        last_receiver_stats = stats_now;
+      }
+#endif
       if (inframe->data != NULL) {
         /*
         {
@@ -4215,7 +4390,7 @@ void *player_thread_func(void *arg) {
               if (conn->airplay_stream_type == realtime_stream) {
                 if (conn->airplay_type == ap_1) {
 #ifdef CONFIG_METADATA
-                  send_ssnc_stream_description("Classic", get_ssrc_name(conn->incoming_ssrc));
+                  send_classic_stream_description("Classic", conn);
 #endif
                   if (config.statistics_requested)
                     inform("Connection %d: Classic AirPlay (\"AirPlay 1\") playback. "
@@ -4259,7 +4434,7 @@ void *player_thread_func(void *arg) {
               }
 #else
 #ifdef CONFIG_METADATA
-              send_ssnc_stream_description("AirPlay", "ALAC/44100/S16/2");
+              send_classic_stream_description("AirPlay", conn);
 #endif
               if (config.statistics_requested)
                 inform("Connection %d: Classic AirPlay (\"AirPlay 1\") playback. "
@@ -5353,6 +5528,9 @@ void do_flush(uint32_t timestamp, rtsp_conn_info *conn) {
   conn->flush_requested = 1;
   conn->flush_rtp_timestamp = timestamp; // flush all packets up to, but not including, this one.
   reset_input_flow_metrics(conn);
+#ifdef CONFIG_METADATA
+  reset_input_bitrate(conn);
+#endif
   pthread_mutex_unlock(&conn->flush_mutex);
 }
 
