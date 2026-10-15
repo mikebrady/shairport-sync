@@ -1,3 +1,10 @@
+Version 5.7-dev-7-g8775f104
+==
+**Bug Fix**
+* Fix an overflow condition that would occur after approximate 12.5 hours (`2^31 - 1` frames, to be exact). The overflow condition turned off synchronisation corrections. Thanks to [Martin Man](https://github.com/mman) for their patient (!) [detective work](https://github.com/mikebrady/shairport-sync/issues/2312#issuecomment-6165226305) and [PR](https://github.com/mikebrady/shairport-sync/pull/2315).
+
+  (There is [another issue](https://github.com/mikebrady/shairport-sync/issues/2312#issue-5828005388) that actually stops play after the same amount of continuous play of Buffered Audio, which we are working on.)
+
 Version 5.7-dev-4-g7b954b19
 ==
 **Bug Fix**
