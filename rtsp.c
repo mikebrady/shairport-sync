@@ -3158,10 +3158,10 @@ void handle_set_parameter_parameter(rtsp_conn_info *conn, rtsp_message *req,
               volume);
       } else {
         if (principal_conn != NULL)
-          debug(1, "Connection %d: fail to set player volume to %.3f. Principal conn is %d.",
+          debug(2, "Connection %d: fail to set player volume to %.3f. Principal conn is %d.",
                 conn->connection_number, volume, principal_conn->connection_number);
         else
-          debug(1, "Connection %d: fail to set player volume to %.3f. Principal conn is NULL.",
+          debug(2, "Connection %d: fail to set player volume to %.3f. Principal conn is NULL.",
                 conn->connection_number, volume);
       }
       if (conn != NULL) {
