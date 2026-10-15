@@ -1,3 +1,23 @@
+Version 5.7-dev-15-g9ac7a068
+==
+**Enhancement**
+* New metadata: Audio Bit Rates. Two new metadata tokens are added: `abrt` and `arst`, providing measured audio bitrates and missing packet information.
+
+  Sample payloads:
+  ```
+  ssnc abrt: 64000/96000/48000
+  ssnc arst: 2/1/3
+  ```
+ The `abrt` metadata contains audio payload bytes, decoded input sample frames and sample rate. This example gives an average bitrate of 256 kbps. A reset sends `0/0/0`.
+ The `arst` metadata contains missing audio blocks, late audio blocks, and resend requests, in that order.
+
+ Many thanks to [Leon Roy](https://github.com/leonroy) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2305), which initially dealt with AAC Buffered Audio only but now deals also Buffered and Realtime Audio, AAC and ALAC.
+
+
+
+**Bug Fix**
+* Fix a bug that causes a `SETUP` failure on hosts with many network interfaces. The bug was caused by not allocating enough memory for the list of network interfaces. Thanks to [Niraj Yadav](https://github.com/black-dragon74) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2313), which also tidies up another few issues.
+
 Version 5.7-dev-7-g8775f104
 ==
 **Bug Fix**
