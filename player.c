@@ -3636,7 +3636,7 @@ void *player_thread_func(void *arg) {
 
   int play_samples = 0;
   uint64_t current_delay;
-  int play_number = 0;
+  int64_t play_number = 0; // play_number * inbuflength would overflow an int after 2^31 frames
   conn->play_number_after_flush = 0;
   conn->time_of_last_audio_packet = 0;
   // conn->shutdown_requested = 0;
@@ -3813,7 +3813,7 @@ void *player_thread_func(void *arg) {
 
           if (inframe->timestamp == 0) {
             debug(2,
-                  "Player has supplied a silent frame, (possibly frame %u) for play number %d, "
+                  "Player has supplied a silent frame, (possibly frame %u) for play number %" PRId64 ", "
                   "status 0x%X after %u resend requests.",
                   conn->last_seqno_read + 1, play_number, inframe->status,
                   inframe->resend_request_number);
@@ -4136,7 +4136,7 @@ void *player_thread_func(void *arg) {
                     statistics_item("Net Sync PPM", "%*.1f", 12, corrections_ppm);
                     statistics_item("All Sync PPM", "%*.1f", 12, insertions_plus_deletions_ppm);
                     statistics_item("Av Sync Window (ms)", "%*.2f", 19, average_gap_ms);
-                    statistics_item("    Packets", "%*d", 11, play_number);
+                    statistics_item("    Packets", "%*" PRId64 "", 11, play_number);
                     statistics_item("Missing", "%*" PRIu64 "", 7, conn->missing_packets);
                     statistics_item("  Late", "%*" PRIu64 "", 6, conn->late_packets);
                     statistics_item("Too Late", "%*" PRIu64 "", 8, conn->too_late_packets);
