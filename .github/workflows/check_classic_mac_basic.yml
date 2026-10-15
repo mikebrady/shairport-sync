@@ -1,4 +1,4 @@
-name: macos classic, libao, BREW -- classic only, because macOS can't host NQPTP.
+name: macos classic, coreaudio, BREW.
 
 on:
   workflow_dispatch:
@@ -17,7 +17,6 @@ jobs:
         brew install automake
         brew install popt
         brew install libconfig
-        brew install libao
         brew install ffmpeg
 
 
