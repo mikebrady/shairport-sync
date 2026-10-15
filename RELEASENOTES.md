@@ -1,3 +1,7 @@
+Release Notes
+===
+Please visit [Releases](https://github.com/mikebrady/shairport-sync/releases) for up-to-date information on releases after 5.0.
+
 Version 5.0
 ====
 This major release represents a significant advancement in Shairport Sync's capabilities, introducing multi-channel audio support, high-resolution playback, and comprehensive performance improvements.
