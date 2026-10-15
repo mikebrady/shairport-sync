@@ -1,3 +1,8 @@
+Version 5.7-dev-4-g7b954b19
+==
+**Bug Fix**
+* Fix an oversight whereby, in AirPlay 2 operation, track metadata and artwork was not being sent out via MQTT. Thanks to [Léo](https://github.com/leodurandfr) and [malewpro](https://github.com/malewpro) for reporting.
+
 Version 5.6
 ==
 * This is essentially 5.6-dev-173-g29e65677.
