@@ -33,6 +33,24 @@ SOFTWARE.
 #define EXTERNC
 #endif
 
+// The following is for helping to print out 4-byte multichars,
+// for example the code 'ABCD' stored as four characters in a uint32_t.
+// These are widely used in metadata, both coming from the AirPlay source
+// and coming from Shairport Sync itself.
+
+#define MULTICHAR4_FMT "%c%c%c%c"
+#define MULTICHAR4_ARGS(c) \
+    (int)((c) >> 24) & 0xFF, \
+    (int)((c) >> 16) & 0xFF, \
+    (int)((c) >> 8)  & 0xFF, \
+    (int)(c)         & 0xFF
+
+// example:
+// debug(1, "type " MULTICHAR4_FMT ", code " MULTICHAR4_FMT ", length %u.",
+//   MULTICHAR4_ARGS(type), MULTICHAR4_ARGS(code), length);
+// where "type" and "code" are of type uint32_t.
+
+
 // four level debug message utility giving file and line, total elapsed time,
 // interval time warn / inform / debug / die calls.
 
