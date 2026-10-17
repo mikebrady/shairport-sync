@@ -78,7 +78,7 @@ int audio_bitrate_add(audio_bitrate_meter *meter, uint64_t bytes, uint32_t sampl
   }
   if (meter->samples < meter->next_report)
     return result;
-  meter->next_report = meter->samples + rate;
+  meter->next_report = meter->samples + (uint64_t)(config.bitrate_stats_interval * rate);
   return result | AUDIO_BITRATE_REPORT;
 }
 
