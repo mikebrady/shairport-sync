@@ -1196,6 +1196,11 @@ int parse_options(int argc, char **argv) {
       if (config_lookup_float(config.cfg, "metadata.progress_interval", &dvalue)) {
         config.metadata_progress_interval = dvalue;
       }
+      
+      if (config_lookup_float(config.cfg, "metadata.bitrate_stats_interval", &dvalue)) {
+        config.bitrate_stats_interval = dvalue;
+      }
+            
 
       if (config_lookup_non_empty_string(config.cfg, "metadata.socket_address", &str)) {
         config.metadata_sockaddr = (char *)str;

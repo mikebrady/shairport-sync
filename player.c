@@ -78,6 +78,7 @@
 
 #ifdef CONFIG_METADATA
 #include "metadata/core.h"
+#include "metadata/audio_bitrate.h"
 #endif
 
 #ifdef CONFIG_METADATA_HUB
@@ -1477,79 +1478,6 @@ void clear_buffers_from(rtsp_conn_info *conn, seq_t from_here) {
 
 #endif
 
-#ifdef CONFIG_METADATA
-/* Queue submission may take its mutex, but never waits for queue capacity. */
-static void publish_audio_bitrate(const audio_bitrate_meter *meter) {
-  char text[96];
-  int length = snprintf(text, sizeof(text), "%" PRIu64 "/%" PRIu64 "/%u",
-                        meter ? meter->bytes : 0, meter ? meter->samples : 0,
-                        meter ? meter->rate : 0);
-  if (length > 0 && (size_t)length < sizeof(text))
-    send_ssnc_metadata('abrt', text, length, 0);
-}
-
-void reset_input_bitrate(rtsp_conn_info *conn) {
-  /* Caller holds flush_mutex. This also invalidates packets being decoded. */
-  conn->input_bitrate_generation++;
-  conn->input_bitrate_ssrc = SSRC_NONE;
-  if (audio_bitrate_reset(&conn->input_bitrate))
-    publish_audio_bitrate(NULL);
-}
-
-static int input_bitrate_is_playing(const rtsp_conn_info *conn) {
-#ifdef CONFIG_AIRPLAY_2
-  if (conn->airplay_type == ap_2 && conn->airplay_stream_type == buffered_stream)
-    return conn->ap2_play_enabled;
-#endif
-  return !conn->flush_requested;
-}
-
-static uint64_t input_bitrate_packet_generation(rtsp_conn_info *conn, uint32_t ssrc,
-                                                uint32_t sequence, uint32_t timestamp,
-                                                int32_t timestamp_gap) {
-  uint64_t generation = 0;
-  pthread_mutex_lock_and_cleanup_push(&conn->flush_mutex);
-  if (input_bitrate_is_playing(conn)) {
-    if (conn->input_bitrate_ssrc != ssrc ||
-        (timestamp_gap && !audio_bitrate_is_duplicate(&conn->input_bitrate,
-                                                      sequence, timestamp))) {
-      reset_input_bitrate(conn);
-      conn->input_bitrate_ssrc = ssrc;
-    }
-  }
-  generation = conn->input_bitrate_generation;
-  pthread_cleanup_pop(1);
-  return generation;
-}
-
-static void account_input_bitrate(rtsp_conn_info *conn, uint32_t ssrc, uint64_t bytes,
-                                  uint32_t samples, uint32_t sequence, uint32_t timestamp,
-                                  uint64_t generation) {
-  pthread_mutex_lock_and_cleanup_push(&conn->flush_mutex);
-  if (generation == conn->input_bitrate_generation && input_bitrate_is_playing(conn)) {
-    audio_bitrate_meter *meter = &conn->input_bitrate;
-    uint32_t rate = get_ssrc_rate(ssrc);
-    /* Native Classic ALAC uses an artificial 44.1-kHz SSRC even when ANNOUNCE
-     * negotiates 48 kHz. Buffered/FFmpeg formats retain their SSRC-derived rate. */
-    if (ssrc == ALAC_44100_S16_2 &&
-#ifdef CONFIG_AIRPLAY_2
-        conn->airplay_type == ap_1 &&
-#endif
-        (config.decoder_in_use == 1 << decoder_hammerton ||
-         config.decoder_in_use == 1 << decoder_apple_alac))
-      rate = conn->input_rate;
-    int result = audio_bitrate_add(meter, bytes, samples, rate,
-                                   sequence, timestamp);
-    if (result & AUDIO_BITRATE_RESET) {
-      conn->input_bitrate_generation++;
-      publish_audio_bitrate(NULL);
-    }
-    if (result & AUDIO_BITRATE_REPORT)
-      publish_audio_bitrate(meter);
-  }
-  pthread_cleanup_pop(1);
-}
-#endif
 
 uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp, uint8_t *data,
                            size_t len, int mute, int32_t timestamp_gap, rtsp_conn_info *conn,
@@ -3788,10 +3716,6 @@ void *player_thread_func(void *arg) {
   int play_samples = 0;
   uint64_t current_delay;
 
-#ifdef CONFIG_METADATA
-  uint64_t last_receiver_stats = 0;
-#endif
-
   int64_t play_number = 0; // play_number * inbuflength would overflow an int after 2^31 frames
 
   conn->play_number_after_flush = 0;
@@ -3801,9 +3725,6 @@ void *player_thread_func(void *arg) {
   tsum_of_sync_errors = tsum_of_corrections = tsum_of_insertions_and_deletions = 0;
   tsum_of_frames = 0;
   tsum_of_gaps = 0;
-
-  // I think it's useful to keep this prime to prevent it from falling into a pattern with some
-  // other process.
 
   static char rnstate[256];
   initstate(time(NULL), rnstate, 256);
@@ -3947,21 +3868,7 @@ void *player_thread_func(void *arg) {
     if (inframe) {
 #ifdef CONFIG_METADATA
       /* Report existing player counters, independently of codec and log verbosity. */
-      uint64_t stats_now = get_absolute_time_in_ns();
-      if (!last_receiver_stats || stats_now - last_receiver_stats >= 1000000000) {
-        uint64_t missing = 0, too_late = 0, retries = 0;
-        pthread_mutex_lock_and_cleanup_push(&conn->ab_mutex);
-        missing = conn->missing_packets;
-        too_late = conn->too_late_packets;
-        retries = conn->resend_requests;
-        pthread_cleanup_pop(1);
-        char stats[80];
-        int length = snprintf(stats, sizeof(stats), "%" PRIu64 "/%" PRIu64 "/%" PRIu64,
-                              missing, too_late, retries);
-        if (length > 0 && (size_t)length < sizeof(stats))
-          send_ssnc_metadata('arst', stats, length, 0);
-        last_receiver_stats = stats_now;
-      }
+      report_player_counters(conn);
 #endif
       if (inframe->data != NULL) {
         /*

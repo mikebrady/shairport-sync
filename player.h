@@ -27,7 +27,7 @@
 #endif
 
 #ifdef CONFIG_METADATA
-#include "audio_bitrate.h"
+#include "metadata/audio_bitrate_structs.h"
 #endif
 
 #ifdef CONFIG_FFMPEG
@@ -348,10 +348,12 @@ typedef struct {
                                    // stats
   uint64_t missing_packets, late_packets, too_late_packets, resend_requests;
 #ifdef CONFIG_METADATA
+  // all for audio bitrate, missing packet, retries metadata
   /* Protected by flush_mutex, including the packet history. */
   audio_bitrate_meter input_bitrate;
   uint64_t input_bitrate_generation;
   uint32_t input_bitrate_ssrc;
+  uint64_t last_receiver_stats; // time when starts were last sent
 #endif
 
   int decoder_in_use;

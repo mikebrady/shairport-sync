@@ -221,7 +221,8 @@ typedef struct {
   int metadata_sockport;
   size_t metadata_sockmsglength;
   int get_coverart;
-  double metadata_progress_interval; // 0 means no progress reports
+  double metadata_progress_interval; // deprecated 0.0 means no progress reports
+  double bitrate_stats_interval; // 0.0 means no bitrate stats.
 #endif
 
 #ifdef CONFIG_MQTT
