@@ -1,7 +1,15 @@
+Version 5.7-dev-23-gc8ed69af
+==
+**Metadata Pipe Enhancement**
+* For backward compatibility in AirPlay 2 operation, Now Playing Information received through a plist from the sender is now repackaged and sent through the metadata pipe.
+
+**Enhancement**
+* A new `bitrate_stats_interval` setting, defaulting to `0.0`, is added to the `metadata` section of the configuration file. When set to `0.0`, no `abrt` or `arst` metadata messages are sent; otherwise the messages are send at roughly the interval given. (Please see below for an explanation of these messages.)
+
 Version 5.7-dev-15-g9ac7a068
 ==
 **Enhancement**
-* New metadata: Audio Bit Rates. Two new metadata tokens are added: `abrt` and `arst`, providing measured audio bitrates and missing packet information.
+* New metadata: Audio Bit Rates and Missing Packet. Two new metadata tokens are added: `abrt` and `arst`, providing measured audio bitrates and missing packet information.
 
   Sample payloads:
   ```
