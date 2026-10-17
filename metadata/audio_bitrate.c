@@ -69,8 +69,13 @@ int audio_bitrate_add(audio_bitrate_meter *meter, uint64_t bytes, uint32_t sampl
   meter->packets[slot].timestamp = timestamp;
   meter->packets[slot].valid = 1;
   meter->have_packet = 1;
-  if (!meter->next_report)
-    meter->next_report = 2 * (uint64_t)rate;
+  if (!meter->next_report) {
+    if (config.bitrate_stats_interval > 0.0) {
+      meter->next_report = (uint64_t)(config.bitrate_stats_interval * rate);
+    } else {
+      meter->next_report = 5 * (uint64_t)rate;
+    }
+  }
   if (meter->samples < meter->next_report)
     return result;
   meter->next_report = meter->samples + rate;
@@ -147,22 +152,24 @@ void account_input_bitrate(rtsp_conn_info *conn, uint32_t ssrc, uint64_t bytes, 
 }
 
 void report_player_counters(rtsp_conn_info *conn) {
-  uint64_t stats_now = get_absolute_time_in_ns();
-  if (!conn->last_receiver_stats || stats_now - conn->last_receiver_stats >= 1000000000) {
-    uint64_t missing = 0, too_late = 0, retries = 0;
-    pthread_mutex_lock_and_cleanup_push(&conn->ab_mutex);
-    missing = conn->missing_packets;
-    too_late = conn->too_late_packets;
-    retries = conn->resend_requests;
-    pthread_cleanup_pop(1);
-
-    char stats[80];
-    int length = snprintf(stats, sizeof(stats), "%" PRIu64 "/%" PRIu64 "/%" PRIu64, missing,
-                          too_late, retries);
-    if (config.bitrate_stats_interval != 0.0) {
-      if (length > 0 && (size_t)length < sizeof(stats))
-        send_ssnc_metadata('arst', stats, length, 0);
+  if (config.bitrate_stats_interval != 0.0) {
+    uint64_t stats_now = get_absolute_time_in_ns();
+    if (!conn->last_receiver_stats || stats_now - conn->last_receiver_stats >= (config.bitrate_stats_interval * 1E9)) {
+      uint64_t missing = 0, too_late = 0, retries = 0;
+      pthread_mutex_lock_and_cleanup_push(&conn->ab_mutex);
+      missing = conn->missing_packets;
+      too_late = conn->too_late_packets;
+      retries = conn->resend_requests;
+      pthread_cleanup_pop(1);
+  
+      char stats[80];
+      int length = snprintf(stats, sizeof(stats), "%" PRIu64 "/%" PRIu64 "/%" PRIu64, missing,
+                            too_late, retries);
+      
+        if (length > 0 && (size_t)length < sizeof(stats))
+          send_ssnc_metadata('arst', stats, length, 0);
+  
+      conn->last_receiver_stats = stats_now;
     }
-    conn->last_receiver_stats = stats_now;
   }
 }
