@@ -1863,6 +1863,22 @@ uint64_t nctoh64(const uint8_t *p) {
   return vl;
 }
 
+uint64_t hton64(const uint64_t v) {
+  uint64_t l64 = v & 0xFFFFFFFF;
+  uint32_t l = l64;
+  l = htonl(l);
+  l64 = l;
+  l64 = l64 << 32;
+
+  uint64_t h64 = v >> 32;
+  uint32_t h = h64;
+  h = htonl(h);
+  h64 = h;
+
+  uint64_t r = l64 | h64;
+  return r;
+}
+
 void sps_nanosleep(const time_t sec, const long nanosec) {
   struct timespec req, rem;
   int result;
