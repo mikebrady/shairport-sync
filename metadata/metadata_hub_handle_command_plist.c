@@ -126,9 +126,14 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
                   }
 
                   if (metadata_store.npi.npi_plist != NULL) {
+
+#ifdef CONFIG_METADATA_PIPE
+                    send_metadata_to_pipe_queue('ssnc', 'mdst', NULL, 0, NULL, 0);
+#endif
+
                     // If we have a kMRMediaRemoteNowPlayingInfoArtworkData item, which
-                    // is the bytes of the file
-                    // We need to save it in a file and add the file path to the plist.
+                    // contains the contents of the artwork file,
+                    // we need to save it in a file and add the file path to the plist.
                     plist_t pict_item = plist_dict_get_item(
                         metadata_store.npi.npi_plist, "kMRMediaRemoteNowPlayingInfoArtworkData");
                     if (pict_item != NULL) {
@@ -307,6 +312,19 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
                       duration = duration * 1000000.0; // convert to microseconds
                       metadata_changed |= update_uint64_record(
                           &metadata_store.npi.songtime_in_microseconds, (uint64_t)(duration));
+
+                      uint32_t duration_ms =
+                          (uint32_t)(duration / 1000);  // microseconds to milliseconds
+                      duration_ms = htonl(duration_ms); // convert to network byte order
+
+#ifdef CONFIG_METADATA_PIPE
+                      send_metadata_to_pipe_queue('core', 'astm', (const char *)&duration_ms,
+                                                  sizeof(duration_ms), NULL, 0);
+#endif
+#ifdef CONFIG_MQTT
+                      send_metadata_to_mqtt_queue('core', 'astm', (const char *)&duration_ms,
+                                                  sizeof(duration_ms), NULL, 0);
+#endif
                     }
 
                     double playback_rate = 0.0;
@@ -377,6 +395,9 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
                           (uint64_t)elapsedTime;
                       metadata_store.npi.elapsedTimeOnReceiptOfNowPlayingInfo.valid = 1;
                     }
+#ifdef CONFIG_METADATA_PIPE
+                    send_metadata_to_pipe_queue('ssnc', 'mden', NULL, 0, NULL, 0);
+#endif
                   }
 
                   metadata_hub_modify_epilog(metadata_changed);
