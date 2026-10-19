@@ -1,3 +1,7 @@
+Version 5.7-dev-25-g34a23885
+==
+* For backward compatibility in AirPlay 2 operation, Metadata Start, Metadata End, and Track Duration items have been added to the Now Playing Information sent through the metadata pipe.
+
 Version 5.7-dev-23-gc8ed69af
 ==
 **Metadata Pipe Enhancement**
