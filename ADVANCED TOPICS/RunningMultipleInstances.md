@@ -91,8 +91,7 @@ services:
     image: mikebrady/shairport-sync:latest   # the image ships nqptp
     entrypoint: ["/usr/local/bin/nqptp"]
     network_mode: host                        # NQPTP owns UDP 319/320 for the host
-    ipc: host                                 # nqptp and all shairport-sync instances need this option or else
-                                              # they will not have access to shared memory and will fall back to AirPlay1 classic
+    ipc: host                                 # share /dev/shm with shairport-sync instances
 
   mdns:
     image: mikebrady/shairport-sync:latest    # the image ships avahi + dbus
