@@ -1,4 +1,4 @@
-Version 5.7.
+Version 5.7-dev-30-gc2e6cac5
 ==
 **Docker Enhancement**
 * In the Docker Compose "sketch" for [running multiple instances](ADVANCED%20TOPICS/RunningMultipleInstances.md), add the line:
