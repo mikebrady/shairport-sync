@@ -31,6 +31,12 @@
 #include "hub.h"
 #include "utilities/rtsp_message_utilities.h"
 #include <plist/plist.h>
+#ifdef CONFIG_METADATA_PIPE
+#include "pipe.h"
+#endif
+#ifdef CONFIG_MQTT
+#include "mqtt.h"
+#endif
 
 // merge items in the second plist into the first
 
@@ -120,9 +126,14 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
                   }
 
                   if (metadata_store.npi.npi_plist != NULL) {
+
+#ifdef CONFIG_METADATA_PIPE
+                    send_metadata_to_pipe_queue('ssnc', 'mdst', NULL, 0, NULL, 0);
+#endif
+
                     // If we have a kMRMediaRemoteNowPlayingInfoArtworkData item, which
-                    // is the bytes of the file
-                    // We need to save it in a file and add the file path to the plist.
+                    // contains the contents of the artwork file,
+                    // we need to save it in a file and add the file path to the plist.
                     plist_t pict_item = plist_dict_get_item(
                         metadata_store.npi.npi_plist, "kMRMediaRemoteNowPlayingInfoArtworkData");
                     if (pict_item != NULL) {
@@ -130,7 +141,16 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
                       uint64_t length = 0;
                       plist_get_data_val(pict_item, &buff, &length);
                       size_t length_size = length;
-                      metadata_changed |= metadata_hub_process_picture(buff, length_size);
+                      if (metadata_hub_process_picture(buff, length_size) != 0) {
+                        metadata_changed |= 1;
+                        // only send the picture to MQTT if it has changed...
+#ifdef CONFIG_METADATA_PIPE
+                        send_metadata_to_pipe_queue('ssnc', 'PICT', buff, length, NULL, 0);
+#endif
+#ifdef CONFIG_MQTT
+                        send_metadata_to_mqtt_queue('ssnc', 'PICT', buff, length, NULL, 0);
+#endif
+                      }
                       plist_dict_set_item(metadata_store.npi.npi_plist,
                                           "kShairportSyncNowPlayingInfoArtworkFilePath",
                                           plist_new_string(metadata_store.npi.cover_art_pathname));
@@ -148,6 +168,14 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
                       // debug(1, "Send album name: \"%s\".", album_name);
                       metadata_changed |=
                           update_string_record(&metadata_store.npi.album_name, album_name);
+#ifdef CONFIG_METADATA_PIPE
+                      send_metadata_to_pipe_queue('core', 'asal', album_name, strlen(album_name),
+                                                  NULL, 0);
+#endif
+#ifdef CONFIG_MQTT
+                      send_metadata_to_mqtt_queue('core', 'asal', album_name, strlen(album_name),
+                                                  NULL, 0);
+#endif
                       free(album_name);
                     }
 
@@ -160,6 +188,14 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
                       // debug(1, "Send track title: \"%s\".", track_title);
                       metadata_changed |=
                           update_string_record(&metadata_store.npi.track_name, track_title);
+#ifdef CONFIG_METADATA_PIPE
+                      send_metadata_to_pipe_queue('core', 'minm', track_title, strlen(track_title),
+                                                  NULL, 0);
+#endif
+#ifdef CONFIG_MQTT
+                      send_metadata_to_mqtt_queue('core', 'minm', track_title, strlen(track_title),
+                                                  NULL, 0);
+#endif
                       free(track_title);
                     }
 
@@ -181,9 +217,18 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
                     if (track_id_item != NULL) {
                       uint64_t track_id;
                       plist_get_uint_val(track_id_item, &track_id);
-                      // debug(1, "Send track id: %" PRIu64 "", track_id);
                       metadata_changed |=
                           update_uint64_record(&metadata_store.npi.item_id, track_id);
+                      // now we need to turn it into network byte order...
+                      track_id = hton64(track_id);
+#ifdef CONFIG_METADATA_PIPE
+                      send_metadata_to_pipe_queue('core', 'mper', (const char *)&track_id,
+                                                  sizeof(track_id), NULL, 0);
+#endif
+#ifdef CONFIG_MQTT
+                      send_metadata_to_mqtt_queue('core', 'mper', (const char *)&track_id,
+                                                  sizeof(track_id), NULL, 0);
+#endif
                     }
 
                     // look for song data kind
@@ -195,6 +240,14 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
                       // debug(1, "Send track kind: %u", always_live);
                       metadata_changed |=
                           update_uint64_record(&metadata_store.npi.song_data_kind, always_live);
+#ifdef CONFIG_METADATA_PIPE
+                      send_metadata_to_pipe_queue('core', 'asdk', (const char *)&always_live,
+                                                  sizeof(always_live), NULL, 0);
+#endif
+#ifdef CONFIG_MQTT
+                      send_metadata_to_mqtt_queue('core', 'asdk', (const char *)&always_live,
+                                                  sizeof(always_live), NULL, 0);
+#endif
                     }
 
                     // look for genre
@@ -206,6 +259,14 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
                       // debug(1, "Send genre: \"%s\".", genre_name);
                       metadata_changed |=
                           update_string_record(&metadata_store.npi.genre, genre_name);
+#ifdef CONFIG_METADATA_PIPE
+                      send_metadata_to_pipe_queue('core', 'asgn', genre_name, strlen(genre_name),
+                                                  NULL, 0);
+#endif
+#ifdef CONFIG_MQTT
+                      send_metadata_to_mqtt_queue('core', 'asgn', genre_name, strlen(genre_name),
+                                                  NULL, 0);
+#endif
                       free(genre_name);
                     }
 
@@ -218,6 +279,14 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
                       // debug(1, "Send artist name: \"%s\".", artist_name);
                       metadata_changed |=
                           update_string_record(&metadata_store.npi.artist_name, artist_name);
+#ifdef CONFIG_METADATA_PIPE
+                      send_metadata_to_pipe_queue('core', 'asar', artist_name, strlen(artist_name),
+                                                  NULL, 0);
+#endif
+#ifdef CONFIG_MQTT
+                      send_metadata_to_mqtt_queue('core', 'asar', artist_name, strlen(artist_name),
+                                                  NULL, 0);
+#endif
                       free(artist_name);
                     }
 
@@ -243,6 +312,19 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
                       duration = duration * 1000000.0; // convert to microseconds
                       metadata_changed |= update_uint64_record(
                           &metadata_store.npi.songtime_in_microseconds, (uint64_t)(duration));
+
+                      uint32_t duration_ms =
+                          (uint32_t)(duration / 1000);  // microseconds to milliseconds
+                      duration_ms = htonl(duration_ms); // convert to network byte order
+
+#ifdef CONFIG_METADATA_PIPE
+                      send_metadata_to_pipe_queue('core', 'astm', (const char *)&duration_ms,
+                                                  sizeof(duration_ms), NULL, 0);
+#endif
+#ifdef CONFIG_MQTT
+                      send_metadata_to_mqtt_queue('core', 'astm', (const char *)&duration_ms,
+                                                  sizeof(duration_ms), NULL, 0);
+#endif
                     }
 
                     double playback_rate = 0.0;
@@ -253,20 +335,22 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
                       plist_get_real_val(playback_rate_item, &playback_rate);
                       metadata_store.npi.playbackRate = playback_rate;
                     } else {
-                      metadata_store.npi.playbackRate = 0.0; // no playbackRate item seems to mean no playback from Spotify
+                      metadata_store.npi.playbackRate =
+                          0.0; // no playbackRate item seems to mean no playback from Spotify
                     }
-                    
+
                     // look for the timestamp for this item
                     plist_t timestamp_item = plist_dict_get_item(
                         metadata_store.npi.npi_plist, "kMRMediaRemoteNowPlayingInfoTimestamp");
 
                     // must have a timestamp
                     if (timestamp_item != NULL) {
-                      metadata_store.npi.framesPlayedOnReceiptOfNowPlayingInfo = conn->frames_played; // we'll be counting frames played from now on
+                      metadata_store.npi.framesPlayedOnReceiptOfNowPlayingInfo =
+                          conn->frames_played; // we'll be counting frames played from now on
                       int64_t elapsedTime = 0;
                       // if we have a real time reference
                       if (conn->localTimeToAppleAbsoluteTimeOffset.valid != 0) {
-                      
+
                         uint64_t info_timestamp = 0;
                         uint32_t usec = 0;
 #ifdef HAVE_LIBPLIST_GE_2_7_0
@@ -281,16 +365,17 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
                         info_timestamp = info_timestamp + usec;
                         info_timestamp = info_timestamp * 1000; // nanoseconds
 
-                        info_timestamp = info_timestamp - conn->localTimeToAppleAbsoluteTimeOffset.value; // convert to local time ns
+                        info_timestamp = info_timestamp - conn->localTimeToAppleAbsoluteTimeOffset
+                                                              .value; // convert to local time ns
                         // Here, we know that the nowPlayingInfo refers to some time in the past
                         // We assume that play occurred continuously from then until now,
-                        // so we need to include the time between then and the now in the elapsed time
-                        elapsedTime  = reception_time - info_timestamp; // could be negative
+                        // so we need to include the time between then and the now in the elapsed
+                        // time
+                        elapsedTime = reception_time - info_timestamp; // could be negative
                       }
                       // look for the elapsed time on the current track at this time
-                      plist_t elapsed_time_item =
-                          plist_dict_get_item(metadata_store.npi.npi_plist,
-                                              "kMRMediaRemoteNowPlayingInfoElapsedTime");
+                      plist_t elapsed_time_item = plist_dict_get_item(
+                          metadata_store.npi.npi_plist, "kMRMediaRemoteNowPlayingInfoElapsedTime");
                       // must have elapsed time
                       if (elapsed_time_item != NULL) {
                         double elapsed_time_real = 0.0;
@@ -301,14 +386,18 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
                           debug(4, "negative prior elapsed time -- ignored.");
                         } else {
                           elapsedTime += (int64_t)(elapsed_time_real * 1E9);
-                          
                         }
                       }
                       if (elapsedTime < 0)
-                        elapsedTime = 0; // MPRIS spec says it must be from 0 to the length of the track, i.e. positive
-                      metadata_store.npi.elapsedTimeOnReceiptOfNowPlayingInfo.value = (uint64_t)elapsedTime;
-                      metadata_store.npi.elapsedTimeOnReceiptOfNowPlayingInfo.valid = 1;                       
+                        elapsedTime = 0; // MPRIS spec says it must be from 0 to the length of the
+                                         // track, i.e. positive
+                      metadata_store.npi.elapsedTimeOnReceiptOfNowPlayingInfo.value =
+                          (uint64_t)elapsedTime;
+                      metadata_store.npi.elapsedTimeOnReceiptOfNowPlayingInfo.valid = 1;
                     }
+#ifdef CONFIG_METADATA_PIPE
+                    send_metadata_to_pipe_queue('ssnc', 'mden', NULL, 0, NULL, 0);
+#endif
                   }
 
                   metadata_hub_modify_epilog(metadata_changed);

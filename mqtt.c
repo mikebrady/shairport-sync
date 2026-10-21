@@ -24,7 +24,6 @@ typedef struct {
 } command_translator_t;
 
 #include "metadata/core.h"
-#include "metadata/hub.h"
 #include "metadata/pc_queue.h"
 
 #include "mqtt.h"
@@ -358,6 +357,10 @@ void mqtt_process_metadata(uint32_t type, uint32_t code, char *data, uint32_t le
       case 'asal':
         mqtt_publish("album", data, length);
         break;
+      case 'asdk':
+        mqtt_publish("songdatakind", data,
+                     length); // 0 seem to be a timed item, 1 an untimed stream
+        break;
       case 'asfm':
         mqtt_publish("format", data, length);
         break;
@@ -388,13 +391,6 @@ void mqtt_process_metadata(uint32_t type, uint32_t code, char *data, uint32_t le
       case 'aend':
         mqtt_publish("active", "0", 1);
         mqtt_publish("active_end", data, length);
-        break;
-      case 'asal':
-        mqtt_publish("songalbum", data, length);
-        break;
-      case 'asdk':
-        mqtt_publish("songdatakind", data,
-                     length); // 0 seem to be a timed item, 1 an untimed stream
         break;
       case 'clip':
         mqtt_publish("client_ip", data, length);
@@ -526,18 +522,16 @@ void *metadata_mqtt_thread_function(__attribute__((unused)) void *ignore) {
   while (1) {
     pc_queue_get_item(&metadata_mqtt_queue, &pack);
     pthread_cleanup_push(metadata_pack_cleanup_function, (void *)&pack);
+    if (pack.carrier) {
+      debug(3, "mqtt: type " MULTICHAR4_FMT ", code " MULTICHAR4_FMT ", length %u, message %d.",
+            MULTICHAR4_ARGS(pack.type), MULTICHAR4_ARGS(pack.code), pack.length, pack.carrier->index_number);
+    } else {
+      debug(3, "mqtt: type " MULTICHAR4_FMT ", code " MULTICHAR4_FMT ", length %u.",
+            MULTICHAR4_ARGS(pack.type), MULTICHAR4_ARGS(pack.code), pack.length);
+    }
     if (config.mqtt_enabled) {
-      if (pack.carrier) {
-        debug(3,
-              "                                        mqtt: type %x, code %x, length %u, message "
-              "%d.",
-              pack.type, pack.code, pack.length, pack.carrier->index_number);
-      } else {
-        debug(3, "                                        mqtt: type %x, code %x, length %u.",
-              pack.type, pack.code, pack.length);
-      }
       mqtt_process_metadata(pack.type, pack.code, pack.data, pack.length);
-      debug(3, "                                        mqtt: done.");
+      debug(3, "mqtt: done.");
     }
 
     pthread_cleanup_pop(1);

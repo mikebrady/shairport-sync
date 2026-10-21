@@ -26,6 +26,10 @@
 #include <plist/plist.h>
 #endif
 
+#ifdef CONFIG_METADATA
+#include "metadata/audio_bitrate_structs.h"
+#endif
+
 #ifdef CONFIG_FFMPEG
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
@@ -193,6 +197,11 @@ typedef struct stats { // statistics for running averages
 // problem in an embedded device.
 
 #define BUFFER_FRAMES 1024
+#ifdef CONFIG_METADATA
+#if BUFFER_FRAMES != AUDIO_BITRATE_HISTORY_SIZE
+#error "Bitrate history must cover the player packet window"
+#endif
+#endif
 
 // maximum number of frames that can be added or removed from a packet_count
 #define INTERPOLATION_LIMIT 20
@@ -338,6 +347,15 @@ typedef struct {
   int64_t time_since_play_started; // nanoseconds
                                    // stats
   uint64_t missing_packets, late_packets, too_late_packets, resend_requests;
+#ifdef CONFIG_METADATA
+  // all for audio bitrate, missing packet, retries metadata
+  /* Protected by flush_mutex, including the packet history. */
+  audio_bitrate_meter input_bitrate;
+  uint64_t input_bitrate_generation;
+  uint32_t input_bitrate_ssrc;
+  uint64_t last_receiver_stats; // time when starts were last sent
+#endif
+
   int decoder_in_use;
   // debug variables
   int last_seqno_valid;
@@ -462,6 +480,7 @@ typedef struct {
 
   int ap2_rate;         // protect with flush mutex, 0 means don't play, 1 means play
   int ap2_play_enabled; // protect with flush mutex
+
 
   ap2_pairing ap2_pairing_context;
   struct pair_result *pair_setup_result; // need to keep the shared secret
@@ -620,8 +639,14 @@ void player_flush(uint32_t timestamp, rtsp_conn_info *conn);
 
 seq_t get_revised_seqno(rtsp_conn_info *conn, uint32_t timestamp);
 void clear_buffers_from(rtsp_conn_info *conn, seq_t from_here);
+#ifdef CONFIG_METADATA
+/* Caller holds flush_mutex. Invalidate in-flight accounting and publish a reset. */
+void reset_input_bitrate(rtsp_conn_info *conn);
+#endif
+
 uint32_t player_put_packet(uint32_t ssrc, seq_t seqno, uint32_t actual_timestamp, uint8_t *data,
-                           size_t len, int mute, int32_t timestamp_gap, rtsp_conn_info *conn);
+                           size_t len, int mute, int32_t timestamp_gap, rtsp_conn_info *conn,
+                           uint32_t packet_sequence);
 int64_t monotonic_timestamp(uint32_t timestamp,
                             rtsp_conn_info *conn); // add an epoch to the timestamp. The monotonic
 // timestamp guaranteed to start between 2^32 2^33
@@ -633,6 +658,7 @@ int64_t monotonic_timestamp(uint32_t timestamp,
 double suggested_volume(rtsp_conn_info *conn); // volume suggested for the connection
 
 const char *get_ssrc_name(ssrc_t ssrc);
+uint32_t get_ssrc_rate(ssrc_t ssrc);
 size_t get_ssrc_block_length(ssrc_t ssrc);
 
 const char *get_category_string(airplay_stream_c cat);

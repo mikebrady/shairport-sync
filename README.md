@@ -19,13 +19,12 @@ Shairport Sync does not support AirPlay video or photo streaming.
 * Runtime settings are documented [here](scripts/shairport-sync.conf).
 * Build configuration options are detailed in [CONFIGURATION FLAGS.md](CONFIGURATION%20FLAGS.md).
 * The `man` page, detailing command line options, is [here](https://raw.githack.com/mikebrady/shairport-sync/master/man/shairport-sync.1.xml).
-* Some advanced topics and developed in [ADVANCED TOPICS](https://github.com/mikebrady/shairport-sync/tree/master/ADVANCED%20TOPICS).
 
 # Features
 * Outputs AirPlay audio to [ALSA](https://www.alsa-project.org/wiki/Main_Page), [sndio](http://www.sndio.org), [PipeWire](https://pipewire.org), [PulseAudio](https://www.freedesktop.org/wiki/Software/PulseAudio/), macOS, to a unix pipe or to `STDOUT`. It also has limited support for [libao](https://xiph.org/ao/).
 * Metadata — Shairport Sync can deliver metadata supplied by the source, such as Album Name, Artist Name, Cover Art, etc. through a pipe or UDP socket to a recipient application program — see https://github.com/mikebrady/shairport-sync-metadata-reader for a sample recipient. Sources that supply metadata include iTunes and the Music app in macOS and iOS.
 * An interface to [MQTT](https://en.wikipedia.org/wiki/MQTT), a popular protocol for Inter Process Communication, Machine-to-Machine, Internet of Things and Home Automation projects. The interface provides access to metadata, including artwork, remote control.
-* Digital Signal Processing facilities – please see the [DSP Wiki Page Guide](https://github.com/mikebrady/shairport-sync/wiki/Digital-Signal-Processing-with-Shairport-Sync). (Thanks to [Yann Pomarède](https://github.com/yannpom) for the code and to [Paul Wieland](https://github.com/PaulWieland) for the guide.)
+* Digital Signal Processing facilities – please see the [DSP Wiki Page Guide](wiki/Digital-Signal-Processing-with-Shairport-Sync). (Thanks to [Yann Pomarède](https://github.com/yannpom) for the code and to [Paul Wieland](https://github.com/PaulWieland) for the guide.)
 * An [MPRIS](https://specifications.freedesktop.org/mpris/latest/)-like interface, partially complete and very functional, including access to metadata, including artwork, and remote control.
 * A native D-Bus interface, including access to metadata, artwork and system settings. Remote control is also available.
 * Better Volume Control — Shairport Sync offers finer control at very top and very bottom of the volume range. See http://tangentsoft.net/audio/atten.html for a good discussion of audio "attenuators", upon which volume control in Shairport Sync is modelled. See also the diagram of the volume transfer function in the documents folder. In addition, Shairport Sync can offer an extended volume control range on devices with a restricted range.
@@ -44,7 +43,8 @@ Classic Shairport Sync runs on a wider variety of Linux sytems, including OpenWr
 # Heritage and Acknowledgements
 The functionality offered by Shairport Sync is the result of study and analysis of the AirPlay and AirPlay 2 protocols by many people over the years. These protocols have not been officially published, and there is no assurance that Shairport Sync will continue to work in future.
 
-Shairport Sync is a substantial rewrite of the fantastic work done in Shairport 1.0 by James Wah (aka [abrasive](https://github.com/abrasive)), James Laird and others — please see [this list](https://github.com/abrasive/shairport/blob/master/README.md#contributors-to-version-1x) of the contributors to Shairport 1.x and Shairport 0.x. From a "heritage" point of view, Shairport Sync is a fork of Shairport 1.0.
+Shairport Sync is a substantial rewrite of the fantastic work done in Shairport 1.0 by James Wah (aka [abrasive](https://github.com/abrasive)), James Laird and others —
+please see [here](https://github.com/abrasive/shairport#contributors-to-version-1x) of the contributors to Shairport 1.x and Shairport 0.x. From a "heritage" point of view, Shairport Sync is a fork of Shairport 1.0.
 
 For the development of AirPlay 2 support in Version 4.x, special thanks are due to:
 * [JD Smith](https://github.com/jdtsmith) for really thorough testing, support and encouragement.

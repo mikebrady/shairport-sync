@@ -74,6 +74,10 @@
 // sent as an 'ssnc' type
 // metadata message with the code 'PICT'
 // Here are the 'ssnc' codes defined so far:
+//    'abrt' -- audio bitrate measurements: compressed payload bytes/input sample
+//              frames/sample rate, for AAC and ALAC. A reset is "0/0/0".
+//    'arst' -- audio receiver statistics: missing blocks/too-late blocks/resend
+//              requests, as cumulative receiver-session totals.
 //    'PICT' -- the payload is a picture, either a JPEG or a PNG. Check the
 //    first few bytes to see
 //    which.

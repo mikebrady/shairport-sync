@@ -46,7 +46,7 @@ Shairport Sync offers AirPlay 2 support for audio sources on:
 - Shairport Sync can revert to "classic" AirPlay if necessary.
 - Metadata, including "now-playing" information and album artwork, via an MPRIS interface, a native D-Bus interface, MQTT, a Unix pipe or multicast.
 - Remote control facilities via MPRIS, D-Bus or MQTT.
-- Devices running Shairport Sync in AirPlay 2 mode can be [added](https://github.com/mikebrady/shairport-sync/blob/master/ADDINGTOHOME.md) to the Home app.
+- Devices running Shairport Sync in AirPlay 2 mode can be [added](ADDINGTOHOME.md) to the Home app.
 - Shairport Sync can be built to support classic AirPlay (aka "AirPlay 1") only. Classic Airplay offers only one format, ALAC/S16/44100/2, but output transcoding is available to, for example, 48,000 fps.
 
 ## What Does Not Work

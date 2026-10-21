@@ -1,7 +1,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.50])
-AC_INIT([shairport-sync], [5.6], [4265913+mikebrady@users.noreply.github.com])
+AC_INIT([shairport-sync], [5.6.1], [4265913+mikebrady@users.noreply.github.com])
 : ${CFLAGS="-O3"}
 : ${CXXFLAGS="-O3"}
 AM_INIT_AUTOMAKE([subdir-objects])
@@ -395,19 +395,23 @@ fi
 
 if test "x$with_mpris_interface" = "xyes" || test "x$with_dbus_interface" = "xyes" || test "x$with_mqtt_client" = "xyes" ; then
   REQUESTED_EXTENDED_METADATA_AND_REMOTE_CONTROL_SUPPORT=1
-  AC_DEFINE([CONFIG_METADATA_HUB], 1, [Needed by the compiler.])
+  REQUESTED_METADATA_HUB_FOR_EXTENDED_METADATA_AND_REMOTE_CONTROL_SUPPORT=1
   AC_DEFINE([CONFIG_DACP_CLIENT], 1, [DACP client needed for extended metadata support.])
 fi
-AM_CONDITIONAL([USE_METADATA_HUB], [test "x$REQUESTED_EXTENDED_METADATA_AND_REMOTE_CONTROL_SUPPORT" = "x1"])
 AM_CONDITIONAL([USE_DACP_CLIENT], [test "x$REQUESTED_EXTENDED_METADATA_AND_REMOTE_CONTROL_SUPPORT" = "x1"])
 AM_CONDITIONAL([USE_REMOTE_CONTROL], [test "x$REQUESTED_EXTENDED_METADATA_AND_REMOTE_CONTROL_SUPPORT" = "x1"])
+
 
 if test "x$REQUESTED_EXTENDED_METADATA_AND_REMOTE_CONTROL_SUPPORT" = "x1" || test "x$with_metadata" = "xyes" || test "x$with_metadata_pipe" = "xyes" || test "x$with_metadata_multicast" = "xyes" ; then
   REQUESTED_METADATA_SUPPORT=1
 fi
 
+AC_MSG_CHECKING(if metadata support should be included)
 if test "x$REQUESTED_METADATA_SUPPORT" = "x1" ; then
+  AC_MSG_RESULT(yes)
   AC_DEFINE([CONFIG_METADATA], 1, [Needed by the compiler.])
+else
+  AC_MSG_RESULT(no)
 fi
 AM_CONDITIONAL([USE_METADATA], [test "x$REQUESTED_METADATA_SUPPORT" = "x1"])
 
@@ -415,10 +419,28 @@ if test "x$with_metadata" = "xyes" ; then
   DEFAULT_INCLUDE_PIPE_METADATA=1
 fi
 
+AC_MSG_CHECKING(if the metadata pipe should be included)
 if test "x$DEFAULT_INCLUDE_PIPE_METADATA" = "x1" || test "x$with_metadata_pipe" = "xyes" ; then
+  AC_MSG_RESULT(yes)
+  if test "x$with_airplay_2" = "xyes" ; then
+    REQUESTED_METADATA_HUB_FOR_METADATA_PIPE_IN_AIRPLAY_2=1
+  fi
   AC_DEFINE([CONFIG_METADATA_PIPE], 1, [Needed by the compiler.])
+else
+  AC_MSG_RESULT(no)
 fi
 AM_CONDITIONAL([USE_METADATA_PIPE], [test "x$DEFAULT_INCLUDE_PIPE_METADATA" = "x1" || test "x$with_metadata_pipe" = "xyes"])
+
+
+AC_MSG_CHECKING(if the metadata hub is needed)
+if test "x$REQUESTED_METADATA_HUB_FOR_EXTENDED_METADATA_AND_REMOTE_CONTROL_SUPPORT" = "x1" || test "x$REQUESTED_METADATA_HUB_FOR_METADATA_PIPE_IN_AIRPLAY_2" = "x1" ; then
+  REQUESTED_METADATA_HUB=1
+  AC_MSG_RESULT(yes)
+  AC_DEFINE([CONFIG_METADATA_HUB], 1, [Metadata Hub included.])
+else
+  AC_MSG_RESULT(no)
+fi
+AM_CONDITIONAL([USE_METADATA_HUB], [test "x$REQUESTED_METADATA_HUB" = "x1"])
 
 if test "x$with_metadata_multicast" = "xyes" ; then
   AC_DEFINE([CONFIG_METADATA_MULTICAST], 1, [Needed by the compiler.])

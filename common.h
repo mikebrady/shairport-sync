@@ -221,7 +221,8 @@ typedef struct {
   int metadata_sockport;
   size_t metadata_sockmsglength;
   int get_coverart;
-  double metadata_progress_interval; // 0 means no progress reports
+  double metadata_progress_interval; // deprecated 0.0 means no progress reports
+  double bitrate_stats_interval; // 0.0 means no bitrate stats.
 #endif
 
 #ifdef CONFIG_MQTT
@@ -438,6 +439,7 @@ typedef struct {
 uint32_t nctohl(const uint8_t *p);  // read 4 characters from *p and do ntohl on them
 uint16_t nctohs(const uint8_t *p);  // read 2 characters from *p and do ntohs on them
 uint64_t nctoh64(const uint8_t *p); // read 8 characters from *p to a uint64_t
+uint64_t hton64(const uint64_t v);  // host to network 64 bit
 
 int try_to_open_pipe_for_writing(
     const char *pathname); // open it without blocking if it's not hooked up

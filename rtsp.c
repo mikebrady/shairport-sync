@@ -40,9 +40,11 @@
 #include <netinet/tcp.h>
 #include <poll.h>
 #include <pthread.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -516,30 +518,40 @@ ssize_t read_encrypted(int fd, pair_cipher_bundle *ctx, void *buf, size_t count)
 }
 
 ssize_t write_encrypted(int fd, pair_cipher_bundle *ctx, const void *buf, size_t count) {
-  uint8_t *encrypted;
+  uint8_t *encrypted = NULL; // pair_encrypt may return without setting this
   size_t encrypted_len;
 
   ssize_t ret = pair_encrypt(&encrypted, &encrypted_len, buf, count, ctx->cipher_ctx);
   if (ret < 0) {
-    debug(1, "%s", pair_cipher_errmsg(ctx->cipher_ctx));
+    debug(1, "write_encrypted: socket %d: could not encrypt %zu plaintext bytes: \"%s\".", fd,
+          count, pair_cipher_errmsg(ctx->cipher_ctx));
     return -1;
   }
 
+  // A partial write leaves the cipher stream ahead of what is on the wire, so a -1 from here
+  // means the channel must be torn down rather than retried.
+  ssize_t result = (ssize_t)count;
+  // free the encrypted buffer even if a blocking write is cancelled
+  pthread_cleanup_push(malloc_cleanup, &encrypted);
   size_t remain = encrypted_len;
-  // debug(1, "write to the \"%s\" channel", ctx->description);
-  // debug_print_buffer(1, (void *)buf, count);
-  // debug(1, "write encrypted:");
-  // debug_print_buffer(1, encrypted, encrypted_len);
   while (remain > 0) {
     ssize_t wrote = write(fd, encrypted + (encrypted_len - remain), remain);
+    if ((wrote < 0) && (errno == EINTR))
+      continue;
     if (wrote <= 0) {
-      free(encrypted);
-      return wrote;
+      int error = (wrote < 0) ? errno : 0; // errno is only meaningful if write() failed
+      char errorstring[1024];
+      strerror_r(error, errorstring, sizeof(errorstring));
+      debug(1, "write_encrypted: socket %d: write returned %zd, error %d: \"%s\". Requested "
+               "encrypted bytes: %zu, written: %zu, plaintext bytes: %zu.",
+            fd, wrote, error, errorstring, encrypted_len, encrypted_len - remain, count);
+      result = -1;
+      break;
     }
-    remain -= wrote;
+    remain -= (size_t)wrote;
   }
-  free(encrypted);
-  return count;
+  pthread_cleanup_pop(1);
+  return result;
 }
 
 #endif
@@ -792,12 +804,53 @@ enum rtsp_read_request_response rtsp_read_request(rtsp_conn_info *conn, rtsp_mes
   return reply;
 }
 
+// Bound header formatting and per-response allocation, leaving room for AirPlay 2 address lists.
+// These are local implementation limits, not limits specified by the AirPlay protocol.
+#define RTSP_RESPONSE_HEADER_LIMIT (16U * 1024U)
+#define RTSP_RESPONSE_PACKET_LIMIT (1024U * 1024U)
+
+static int response_header_append(rtsp_conn_info *conn, int stage, char *headers,
+                                 size_t *length, const char *format, ...)
+    PRINTF_LIKE(5, 6);
+
+static int response_header_append(rtsp_conn_info *conn, int stage, char *headers,
+                                 size_t *length, const char *format, ...) {
+  // snprintf returns the required length on truncation, so check it before advancing the pointer.
+  size_t available = RTSP_RESPONSE_HEADER_LIMIT - *length;
+  va_list args;
+  va_start(args, format);
+  int n = vsnprintf(headers + *length, available, format, args);
+  va_end(args);
+  if (n < 0) {
+    debug(1, "Connection %d: RTSP response header formatting failed at stage %d.",
+          conn->connection_number, stage);
+    return -1;
+  }
+  if ((size_t)n >= available) {
+    debug(1, "Connection %d: Attempted to write overlong RTSP packet %d -- header bytes: "
+             "%zu, next field requires: %d, available: %zu, header buffer size: %u.",
+          conn->connection_number, stage, *length, n, available, RTSP_RESPONSE_HEADER_LIMIT);
+    return -1;
+  }
+  *length += (size_t)n;
+  return 0;
+}
+
 int msg_write_response(rtsp_conn_info *conn, rtsp_message *resp) {
-  char pkt[4096];
-  int pktfree = sizeof(pkt);
-  char *p = pkt;
-  int n;
+  char headers[RTSP_RESPONSE_HEADER_LIMIT];
+  size_t header_length = 0;
   unsigned int i;
+
+  if (resp->nheaders > sizeof(resp->name) / sizeof(resp->name[0])) {
+    debug(1, "Connection %d: Invalid RTSP response: header count %u exceeds capacity %zu.",
+          conn->connection_number, resp->nheaders, sizeof(resp->name) / sizeof(resp->name[0]));
+    return -1;
+  }
+  if ((resp->contentlength != 0) && (resp->content == NULL)) {
+    debug(1, "Connection %d: Invalid RTSP response: body is NULL with length %" PRIu32 ".",
+          conn->connection_number, resp->contentlength);
+    return -1;
+  }
 
   struct response_t {
     int code;
@@ -827,76 +880,93 @@ int msg_write_response(rtsp_conn_info *conn, rtsp_message *resp) {
     debug(1, "can't find text for response code %d. Using \"%s\" instead.", resp->respcode,
           respcode_text);
 
-  n = snprintf(p, pktfree, "RTSP/1.0 %d %s\r\n", resp->respcode, respcode_text);
-  pktfree -= n;
-  p += n;
+  if (response_header_append(conn, 1, headers, &header_length, "RTSP/1.0 %d %s\r\n",
+                             resp->respcode, respcode_text) != 0)
+    return -1;
 
   for (i = 0; i < resp->nheaders; i++) {
-    //    debug(3, "    %s: %s.", resp->name[i], resp->value[i]);
-    n = snprintf(p, pktfree, "%s: %s\r\n", resp->name[i], resp->value[i]);
-    pktfree -= n;
-    p += n;
-    if (pktfree <= 1024) {
-      debug(1, "Attempted to write overlong RTSP packet 1");
+    const char *name = resp->name[i];
+    const char *value = resp->value[i];
+    // Validate names and values before formatting so client-supplied fields cannot inject headers.
+    const char *header_name_characters =
+        "!#$%&'*+-.^_`|~0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    const char *reason = NULL;
+    if ((name == NULL) || (value == NULL))
+      reason = "missing name or value";
+    else if ((*name == '\0') || (strspn(name, header_name_characters) != strlen(name)))
+      reason = "invalid name";
+    else if (strpbrk(value, "\r\n") != NULL)
+      reason = "value contains CR or LF";
+    // The writer generates Content-Length itself; do not allow conflicting framing headers.
+    else if ((strcasecmp(name, "Content-Length") == 0) ||
+             (strcasecmp(name, "Transfer-Encoding") == 0))
+      reason = "conflicting framing header";
+    if (reason != NULL) {
+      debug(1, "Connection %d: Invalid RTSP response header %u (\"%s\"): %s.",
+            conn->connection_number, i, (name == NULL) ? "(null)" : name, reason);
       return -1;
     }
+    if (response_header_append(conn, 1, headers, &header_length, "%s: %s\r\n", name, value) != 0)
+      return -1;
   }
 
-  // Here, if there's content, write the Content-Length header ...
+  // Content-Length is always sent, and this append also terminates the header section.
+  if (response_header_append(conn, 2, headers, &header_length,
+                             "Content-Length: %" PRIu32 "\r\n\r\n", resp->contentlength) != 0)
+    return -2;
 
-  // if (resp->contentlength) {
-  {
-    // debug(2, "Responding with content of length %d", resp->contentlength);
-    n = snprintf(p, pktfree, "Content-Length: %d\r\n", resp->contentlength);
-    pktfree -= n;
-    p += n;
-    if (pktfree <= 1024) {
-      debug(1, "Attempted to write overlong RTSP packet 2");
-      return -2;
-    }
-  }
-
-  n = snprintf(p, pktfree, "\r\n");
-  pktfree -= n;
-  p += n;
-
-  if (resp->contentlength) {
-    memcpy(p, resp->content, resp->contentlength);
-    pktfree -= resp->contentlength;
-    p += resp->contentlength;
-  }
-
-  if (pktfree <= 1024) {
-    debug(1, "Attempted to write overlong RTSP packet 3");
+  // Enforce the packet limit by subtraction, so header_length + contentlength cannot wrap.
+  if (resp->contentlength > RTSP_RESPONSE_PACKET_LIMIT - header_length) {
+    debug(1, "Connection %d: Attempted to write overlong RTSP packet 3 -- header bytes: "
+             "%zu, body bytes: %" PRIu32 ", packet limit: %u.",
+          conn->connection_number, header_length, resp->contentlength, RTSP_RESPONSE_PACKET_LIMIT);
     return -3;
   }
+  size_t packet_length = header_length + (size_t)resp->contentlength;
+  char *pkt = malloc(packet_length);
+  if (pkt == NULL) {
+    debug(1, "Connection %d: Could not allocate %zu bytes for RTSP response.",
+          conn->connection_number, packet_length);
+    return -3;
+  }
+  memcpy(pkt, headers, header_length);
+  if (resp->contentlength != 0)
+    memcpy(pkt + header_length, resp->content, resp->contentlength);
+
+  int result = 0;
+  // free the response buffer even if a blocking write is cancelled
+  pthread_cleanup_push(malloc_cleanup, &pkt);
 
   // here, if the link is encrypted, better do it
-
 #ifdef CONFIG_AIRPLAY_2
-  ssize_t reply;
   if (conn->ap2_pairing_context.control_cipher_bundle.is_encrypted) {
-    reply =
-        write_encrypted(conn->fd, &conn->ap2_pairing_context.control_cipher_bundle, pkt, p - pkt);
-  } else {
-    reply = write(conn->fd, pkt, p - pkt);
-  }
-#else
-  ssize_t reply = write(conn->fd, pkt, p - pkt);
+    // write_encrypted returns either -1 or the full plaintext count, and logs its own errors.
+    if (write_encrypted(conn->fd, &conn->ap2_pairing_context.control_cipher_bundle, pkt,
+                        packet_length) < 0)
+      result = -4;
+  } else
 #endif
-
-  if (reply == -1) {
-    char errorstring[1024];
-    strerror_r(errno, (char *)errorstring, sizeof(errorstring));
-    debug(1, "msg_write_response error %d: \"%s\".", errno, (char *)errorstring);
-    return -4;
+  {
+    size_t sent = 0;
+    while (sent < packet_length) {
+      ssize_t reply = write(conn->fd, pkt + sent, packet_length - sent);
+      if ((reply < 0) && (errno == EINTR))
+        continue;
+      if (reply <= 0) {
+        int error = (reply < 0) ? errno : 0; // errno is only meaningful if write() failed
+        char errorstring[1024];
+        strerror_r(error, errorstring, sizeof(errorstring));
+        debug(1, "Connection %d: msg_write_response error -- socket %d: write returned %zd, "
+                 "error %d: \"%s\". Requested bytes: %zu, written: %zu.",
+              conn->connection_number, conn->fd, reply, error, errorstring, packet_length, sent);
+        result = (reply < 0) ? -4 : -5;
+        break;
+      }
+      sent += (size_t)reply;
+    }
   }
-  if (reply != p - pkt) {
-    debug(1, "msg_write_response error -- requested bytes: %zd not fully written: %zd.", p - pkt,
-          reply);
-    return -5;
-  }
-  return 0;
+  pthread_cleanup_pop(1);
+  return result;
 }
 
 #ifdef CONFIG_AIRPLAY_2
@@ -1367,6 +1437,9 @@ void handle_flushbuffered(rtsp_conn_info *conn, rtsp_message *req, rtsp_message 
             ", flushUntilSeq: %" PRIu64 ".",
             conn->connection_number, flushUntilTS, flushUntilSeq & 0x7fffff);
       conn->ap2_play_enabled = 0; // stop trying to play audio
+#ifdef CONFIG_METADATA
+      reset_input_bitrate(conn);
+#endif
       // ptp_send_control_message_string(
       //     "P"); // "P"ause signify clock no longer valid and will be restarted by a subsequent
       //     play
@@ -1494,6 +1567,10 @@ void handle_setrateanchori(rtsp_conn_info *conn, rtsp_message *req, rtsp_message
         ptp_send_control_message_string("P"); // signify play is "P"ausing
         debug(2, "Connection %d: SETRATEANCHORI Pause playing.", conn->connection_number);
         conn->ap2_play_enabled = 0;
+#ifdef CONFIG_METADATA
+        /* The TCP reader can remain asleep throughout a pause and resume. */
+        reset_input_bitrate(conn);
+#endif
         activity_monitor_signify_activity(0);
 
 #ifdef CONFIG_METADATA
@@ -3158,10 +3235,10 @@ void handle_set_parameter_parameter(rtsp_conn_info *conn, rtsp_message *req,
               volume);
       } else {
         if (principal_conn != NULL)
-          debug(1, "Connection %d: fail to set player volume to %.3f. Principal conn is %d.",
+          debug(2, "Connection %d: fail to set player volume to %.3f. Principal conn is %d.",
                 conn->connection_number, volume, principal_conn->connection_number);
         else
-          debug(1, "Connection %d: fail to set player volume to %.3f. Principal conn is NULL.",
+          debug(2, "Connection %d: fail to set player volume to %.3f. Principal conn is NULL.",
                 conn->connection_number, volume);
       }
       if (conn != NULL) {
