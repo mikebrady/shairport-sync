@@ -1,3 +1,11 @@
+Version 5.7.
+==
+**Docker Enhancement**
+* In the Docker Compose "sketch" for [running multiple instances](ADVANCED%20TOPICS/RunningMultipleInstances.md), add the line:
+  ```
+  ipc: host                                 # share /dev/shm with shairport-sync instances
+  ```
+  so that the NQPTP Shared Memory Interface (SMI) can be seen by Shairport Sync instances. Thanks to [noelhibbard](https://github.com/noelhibbard) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2320).
 
 Version 5.6.1
 ==
@@ -5,6 +13,7 @@ Version 5.6.1
 
 Version 5.7-dev-25-g34a23885
 ==
+**Metadata Pipe Enhancement**
 * For backward compatibility in AirPlay 2 operation, Metadata Start, Metadata End, and Track Duration items have been added to the Now Playing Information sent through the metadata pipe.
 
 Version 5.7-dev-23-gc8ed69af
