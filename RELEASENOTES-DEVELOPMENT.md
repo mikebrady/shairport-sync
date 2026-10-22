@@ -3,7 +3,7 @@ Version 5.7-dev-41-g0c014073
 **Bug Fixes**
 * Extend 32-bit RTP timestamps to 64 bits on PTP connections so that long sessions do not break due to overflow.
 
-  Background: AirPlay associated a 32-bit _RTP timestamp_, effectively a frame number, with every audio frame. After playing 2^31 - 1 frames of buffered audio -- about 12.5 hours at 48,000 frames per second -- the total number of frames played will exceed 2^31 -1, and so calculations using frames' RTP timestamps will overflow.
+  Background: AirPlay associates a 32-bit _RTP timestamp_, effectively a frame number, with every audio frame. After playing 2^31 - 1 frames of buffered audio -- about 12.5 hours at 48,000 frames per second -- the total number of frames played will exceed 2^31 -1, and so calculations using frames' RTP timestamps will overflow.
 
   This (ingenious) bug fix develops 64-bit timestamps from RTP timestamps of the the frames as they are processed in preparation for playing. The fix is based on two principles:
   * When a play session starts, the starting timestamp and the timestamp used for reference are within range and overflow will definitely not occur.
@@ -83,6 +83,7 @@ Version 5.6-dev-173-g29e65677
 * In `tinysvcmdns`: fix an invalid free and a leak of the interface list. Thanks to [Yegor Yefremov](https://github.com/yegorich) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2311).
 
   **Please note:** using `tinysvcmdns` remains deprecated for security reasons.
+
 **Enhancements**
 * Add support for Mbed TLS 4 (support for 3.6 LTS ends in March 2027).
 
