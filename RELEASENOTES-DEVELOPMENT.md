@@ -1,3 +1,20 @@
+Version 5.7-dev-41-g0c014073
+==
+**Bug Fixes**
+* Extend 32-bit RTP timestamps to 64 bits on PTP connections so that long sessions do not break due to overflow.
+
+  Background: AirPlay associated a 32-bit _RTP timestamp_, effectively a frame number, with every audio frame. After playing 2^31 - 1 frames of buffered audio -- about 12.5 hours at 48,000 frames per second -- the total number of frames played will exceed 2^31 -1, and so calculations using frames' RTP timestamps will overflow.
+
+  This (ingenious) bug fix develops 64-bit timestamps from RTP timestamps of the the frames as they are processed in preparation for playing. The fix is based on two principles:
+  * When a play session starts, the starting timestamp and the timestamp used for reference are within range and overflow will definitely not occur.
+  * When blocks of frames are being played, the timestamp of the next block will always be within range of the current one.
+
+  With these principles, a 64-bit timestamp system has been constructed by [Martin Man](https://github.com/mman). Many thanks for their patient troubleshooting and for their meticulous [PR](https://github.com/mikebrady/shairport-sync/pull/2321).
+
+  **Please test this!** It's a big change, and we'd like to be sure it's working properly!
+
+* Add some extra checking to DACP TLV tokens.
+  
 Version 5.7-dev-30-gc2e6cac5
 ==
 **Docker Enhancement**
