@@ -733,6 +733,8 @@ void *rtp_buffered_audio_processor(void *arg) {
                           payload_length, mute, timestamp_difference, conn, seq_no);
                       debug(4, "block %u, timestamp %u, length %u sent to the player.", seq_no,
                             timestamp, packet_size);
+                      // keep the 64-bit timestamp extension reference up to date
+                      note_ptp_rtp_timestamp(conn, timestamp);
                       sequence_number_for_player++;                 // simply increment
                       expected_timestamp = timestamp + packet_size; // for the next time
                       packets_played_in_this_sequence++;

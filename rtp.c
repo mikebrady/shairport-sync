@@ -1124,6 +1124,8 @@ int frame_to_ntp_local_time(uint32_t timestamp, uint64_t *time, rtsp_conn_info *
   int result = -1;
   if (conn->anchor_remote_info_is_valid != 0) {
     uint64_t remote_time_of_timestamp;
+    // the interval is bounded here, because an NTP anchor is refreshed about once a second,
+    // so the simple scaling below can not overflow
     int32_t timestamp_interval = timestamp - conn->anchor_rtptime;
     int64_t timestamp_interval_time = timestamp_interval;
     timestamp_interval_time = timestamp_interval_time * 1000000000;
@@ -1261,8 +1263,75 @@ void rtp_request_resend(seq_t first, uint32_t count, rtsp_conn_info *conn) {
 
 #ifdef CONFIG_AIRPLAY_2
 
+// RTP timestamps are 32 bits wide. A sender sets the anchor once at the start of a buffered
+// play session and does not refresh it, so the distance in frames between an audio block's
+// timestamp and the anchor grows without limit, and after 2^31 frames -- about 12 hours
+// 25 minutes at 48,000 frames per second -- it no longer fits in a signed 32-bit difference.
+//
+// To deal with this, timestamps are extended to 64 bits. The extended timestamp of the newest
+// audio block seen is kept as a reference, and a 32-bit timestamp is extended by choosing the
+// 64-bit value nearest to that reference, which is correct for any timestamp within 2^31 frames
+// of the current position in the stream. The reference is only ever moved forward, and only by
+// real audio blocks and by new anchors, so a stale or uninitialised timestamp can not disturb
+// it. Only differences between extended timestamps are used, so their absolute values do not
+// matter.
+//
+// Note that this relies on the usual two's-complement wrapping conversion from uint32_t to
+// int32_t, which is how the rest of this file already treats timestamp differences. The
+// difference is in [-2^31, 2^31).
+
+// if an incoming anchor is more than this far behind the extension reference, the sender has
+// gone backwards and the 64-bit timeline is re-based on the new anchor
+static const int64_t ap2_reference_rebasing_threshold_seconds = 60;
+
+static uint64_t extend_rtp_timestamp(uint32_t timestamp, uint64_t reference) {
+  int32_t difference = timestamp - (uint32_t)reference;
+  return reference + difference; // difference is sign-extended, so this is correct mod 2^64
+}
+
+// Scale a number of frames to nanoseconds. The frame count is unbounded once timestamps are
+// extended to 64 bits, so the multiplication is split to keep it well away from overflowing:
+// frames * 10^9 would overflow an int64_t after about 53 hours of playback at 48,000 frames
+// per second.
+
+static int64_t frames_to_nanoseconds(int64_t frames, uint32_t rate) {
+  int64_t whole_seconds = frames / rate;
+  int64_t remaining_frames = frames - (whole_seconds * rate);
+  return (whole_seconds * 1000000000) + ((remaining_frames * 1000000000) / rate);
+}
+
+static int64_t nanoseconds_to_frames(int64_t nanoseconds, uint32_t rate) {
+  int64_t whole_seconds = nanoseconds / 1000000000;
+  int64_t remaining_nanoseconds = nanoseconds - (whole_seconds * 1000000000);
+  return (whole_seconds * rate) + ((remaining_nanoseconds * rate) / 1000000000);
+}
+
+void note_ptp_rtp_timestamp(rtsp_conn_info *conn, uint32_t timestamp) {
+  // call this with the timestamp of each audio block as it is passed to the player
+  int rc = pthread_mutex_lock(&conn->reference_time_mutex);
+  if (rc != 0) {
+    debug(1, "Connection %d: note_ptp_rtp_timestamp can not lock reference_time_mutex: error %d.",
+          conn->connection_number, rc);
+    return;
+  }
+  pthread_cleanup_push(mutex_unlock, (void *)&conn->reference_time_mutex);
+  if (conn->rtp_timestamp_extension_reference_is_valid != 0) {
+    uint64_t extended = extend_rtp_timestamp(timestamp, conn->rtp_timestamp_extension_reference);
+    if ((int64_t)(extended - conn->rtp_timestamp_extension_reference) > 0)
+      conn->rtp_timestamp_extension_reference = extended;
+  }
+  pthread_cleanup_pop(1); // unlock the mutex
+}
+
 void set_ptp_anchor_info(rtsp_conn_info *conn, uint64_t clock_id, uint32_t rtptime,
                          uint64_t networktime) {
+  int rc = pthread_mutex_lock(&conn->reference_time_mutex);
+  if (rc != 0) {
+    debug(1, "Connection %d: set_ptp_anchor_info can not lock reference_time_mutex: error %d.",
+          conn->connection_number, rc);
+    return;
+  }
+  pthread_cleanup_push(mutex_unlock, (void *)&conn->reference_time_mutex);
   if ((conn->anchor_clock != 0) && (conn->anchor_clock == clock_id) &&
       (conn->anchor_remote_info_is_valid != 0)) {
     // check change in timing
@@ -1323,6 +1392,28 @@ void set_ptp_anchor_info(rtsp_conn_info *conn, uint64_t clock_id, uint32_t rtpti
   conn->anchor_rtptime = rtptime;
   conn->anchor_time = networktime;
   conn->anchor_clock = clock_id;
+
+  // Place the new anchor on the existing 64-bit timeline if there is one, so that the timeline
+  // stays continuous across a re-anchor. Otherwise this anchor starts a new timeline.
+  if (conn->rtp_timestamp_extension_reference_is_valid != 0) {
+    conn->anchor_rtptime_extended =
+        extend_rtp_timestamp(rtptime, conn->rtp_timestamp_extension_reference);
+    // The reference must stay close to the frames actually being played. It is moved up to an
+    // anchor that is ahead of it, which is what keeps it advancing on a realtime stream, where
+    // no audio blocks are noted. An anchor that lands well behind it means the sender has gone
+    // backwards -- a seek, or a new track -- so the timeline is re-based on the new anchor:
+    // a reference left far in the future would mis-extend the blocks that follow.
+    int64_t reference_lead =
+        (int64_t)(conn->rtp_timestamp_extension_reference - conn->anchor_rtptime_extended);
+    if ((reference_lead < 0) ||
+        (reference_lead > ((int64_t)conn->input_rate * ap2_reference_rebasing_threshold_seconds)))
+      conn->rtp_timestamp_extension_reference = conn->anchor_rtptime_extended;
+  } else {
+    conn->anchor_rtptime_extended = rtptime;
+    conn->rtp_timestamp_extension_reference = rtptime;
+    conn->rtp_timestamp_extension_reference_is_valid = 1;
+  }
+  pthread_cleanup_pop(1); // unlock the mutex
   debug(2, "set_ptp_anchor_info done.");
 }
 
@@ -1333,14 +1424,25 @@ uint64_t previous_clock_id = 0;
 
 void reset_ptp_anchor_info(rtsp_conn_info *conn) {
   debug(2, "Connection %d: Clear anchor information.", conn->connection_number);
+  int rc = pthread_mutex_lock(&conn->reference_time_mutex);
+  if (rc != 0)
+    debug(1, "Connection %d: reset_ptp_anchor_info can not lock reference_time_mutex: error %d.",
+          conn->connection_number, rc);
   conn->anchor_remote_info_is_valid = 0;
+  conn->rtp_timestamp_extension_reference_is_valid = 0;
+  if (rc == 0)
+    pthread_mutex_unlock(&conn->reference_time_mutex);
   long_time_notifcation_done = 0;
   previous_offset = 0;
   previous_clock_id = 0;
 }
 
-int get_ptp_anchor_local_time_info(rtsp_conn_info *conn, uint32_t *anchorRTP,
-                                   uint64_t *anchorLocalTime) {
+// anchorRTPExtended is the anchor's rtptime on the 64-bit timeline (see extend_rtp_timestamp)
+// and extensionReference is the reference to use when extending other timestamps onto it.
+static int get_ptp_anchor_local_time_info_extended(rtsp_conn_info *conn,
+                                                   uint64_t *anchorRTPExtended,
+                                                   uint64_t *anchorLocalTime,
+                                                   uint64_t *extensionReference) {
   int response = clock_no_anchor_info; // no anchor information
   pthread_mutex_lock(&conn->reference_time_mutex);
   pthread_cleanup_push(mutex_unlock, &conn->reference_time_mutex);
@@ -1375,7 +1477,10 @@ int get_ptp_anchor_local_time_info(rtsp_conn_info *conn, uint32_t *anchorRTP,
         }
         
         conn->last_anchor_rtptime = conn->anchor_rtptime;
+        conn->last_anchor_rtptime_extended = conn->anchor_rtptime_extended;
         conn->last_anchor_local_time = conn->anchor_time - actual_offset;
+        if (conn->rtp_timestamp_extension_reference_is_valid == 0)
+          response = clock_no_anchor_info; // no 64-bit timeline for this anchor yet
         conn->last_anchor_validity_start_time = start_of_mastership;
 
       } else {
@@ -1432,16 +1537,28 @@ int get_ptp_anchor_local_time_info(rtsp_conn_info *conn, uint32_t *anchorRTP,
     }
 
     if ((clock_status_t)response == clock_ok) {
-      if (anchorRTP != NULL) {
+      if (anchorRTPExtended != NULL) {
         // Use the current rate in case the stream format has changed.
-        int32_t added_latency = (int32_t)(config.audio_backend_latency_offset * conn->input_rate);
-        *anchorRTP = conn->last_anchor_rtptime - added_latency;
+        int64_t added_latency = (int64_t)(config.audio_backend_latency_offset * conn->input_rate);
+        *anchorRTPExtended = conn->last_anchor_rtptime_extended - added_latency;
       }
       if (anchorLocalTime != NULL)
         *anchorLocalTime = conn->last_anchor_local_time;
+      if (extensionReference != NULL)
+        *extensionReference = conn->rtp_timestamp_extension_reference;
     }
   }
   pthread_cleanup_pop(1); //unlock that mutex
+  return response;
+}
+
+int get_ptp_anchor_local_time_info(rtsp_conn_info *conn, uint32_t *anchorRTP,
+                                   uint64_t *anchorLocalTime) {
+  uint64_t anchor_rtptime_extended = 0;
+  int response = get_ptp_anchor_local_time_info_extended(conn, &anchor_rtptime_extended,
+                                                         anchorLocalTime, NULL);
+  if ((response == clock_ok) && (anchorRTP != NULL))
+    *anchorRTP = (uint32_t)anchor_rtptime_extended;
   return response;
 }
 
@@ -1454,14 +1571,16 @@ int have_ptp_timing_information(rtsp_conn_info *conn) {
 
 int frame_to_ptp_local_time(uint32_t timestamp, uint64_t *time, rtsp_conn_info *conn) {
   int result = -1;
-  uint32_t anchor_rtptime = 0;
+  uint64_t anchor_rtptime_extended = 0;
   uint64_t anchor_local_time = 0;
-  if ((conn->input_rate != 0) &&
-      (get_ptp_anchor_local_time_info(conn, &anchor_rtptime, &anchor_local_time) == clock_ok)) {
-    int32_t frame_difference = timestamp - anchor_rtptime;
-    int64_t time_difference = frame_difference;
-    time_difference = time_difference * 1000000000;
-    time_difference = time_difference / conn->input_rate;
+  uint64_t extension_reference = 0;
+  uint32_t rate = conn->input_rate; // it can be changed by the player thread, so take a copy
+  if ((rate != 0) &&
+      (get_ptp_anchor_local_time_info_extended(conn, &anchor_rtptime_extended, &anchor_local_time,
+                                               &extension_reference) == clock_ok)) {
+    int64_t frame_difference =
+        extend_rtp_timestamp(timestamp, extension_reference) - anchor_rtptime_extended;
+    int64_t time_difference = frames_to_nanoseconds(frame_difference, rate);
     uint64_t ltime = anchor_local_time + time_difference;
     *time = ltime;
     result = 0;
@@ -1473,17 +1592,14 @@ int frame_to_ptp_local_time(uint32_t timestamp, uint64_t *time, rtsp_conn_info *
 
 int local_ptp_time_to_frame(uint64_t time, uint32_t *frame, rtsp_conn_info *conn) {
   int result = -1;
-  uint32_t anchor_rtptime = 0;
+  uint64_t anchor_rtptime_extended = 0;
   uint64_t anchor_local_time = 0;
-  if ((conn->input_rate != 0) &&
-      (get_ptp_anchor_local_time_info(conn, &anchor_rtptime, &anchor_local_time) == clock_ok)) {
+  uint32_t rate = conn->input_rate; // it can be changed by the player thread, so take a copy
+  if ((rate != 0) && (get_ptp_anchor_local_time_info_extended(
+                          conn, &anchor_rtptime_extended, &anchor_local_time, NULL) == clock_ok)) {
     int64_t time_difference = time - anchor_local_time;
-    int64_t frame_difference = time_difference;
-    frame_difference = frame_difference * conn->input_rate; // but this is by 10^9
-    frame_difference = frame_difference / 1000000000;
-    int32_t fd32 = frame_difference;
-    uint32_t lframe = anchor_rtptime + fd32;
-    *frame = lframe;
+    int64_t frame_difference = nanoseconds_to_frames(time_difference, rate);
+    *frame = (uint32_t)(anchor_rtptime_extended + frame_difference);
     result = 0;
   } else {
     debug(2, "local_ptp_time_to_frame can't get anchor local time information");
