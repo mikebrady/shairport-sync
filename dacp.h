@@ -16,8 +16,9 @@ void dacp_monitor_start();
 void dacp_monitor_stop();
 
 uint32_t dacp_tlv_crawl(
-    char **p,
-    int32_t *length); // return the code of the next TLV entity and advance the pointer beyond it.
+    char **p, size_t buffer_length,
+    size_t *length); // return the code and length of the next TLV entity and advance the pointer
+                     // beyond it. Check that it doesn't run off the end of the buffer
 
 int dacp_set_speaker_volume(int64_t machine_number, int32_t vo);
 
@@ -32,7 +33,7 @@ void relinquish_dacp_server_information(rtsp_conn_info *conn); // tell the DACP 
 void dacp_monitor_port_update_callback(
     const char *dacp_id, uint16_t port); // a callback to say the port is no longer in use
 
-int dacp_send_command(const char *command, char **body, ssize_t *bodysize);
+int dacp_send_command(const char *command, char **body, size_t *bodysize);
 int send_simple_dacp_command(const char *command);
 
 int dacp_set_include_speaker_volume(int64_t machine_number, int32_t vo);

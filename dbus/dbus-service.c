@@ -908,14 +908,14 @@ static gboolean on_handle_remote_command(ShairportSync *skeleton, GDBusMethodInv
   char *client_reply_hex = "";
 #ifdef CONFIG_DACP_CLIENT
   char *client_reply = NULL;
-  ssize_t reply_size = 0;
+  size_t reply_size = 0;
   reply = dacp_send_command((const char *)command, &client_reply, &reply_size);
   client_reply_hex = alloca(reply_size * 2 + 1);
   if (client_reply_hex) {
     char *p = client_reply_hex;
     if (client_reply) {
       char *q = client_reply;
-      int i;
+      size_t i;
       for (i = 0; i < reply_size; i++) {
         snprintf(p, 3, "%02X", *q);
         p += 2;
