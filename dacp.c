@@ -1,6 +1,6 @@
 /*
  * DACP protocol handler. This file is part of Shairport Sync.
- * Copyright (c) Mike Brady 2017--2025
+ * Copyright (c) Mike Brady 2017--2026
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person
@@ -67,9 +67,9 @@ void *mdns_dacp_monitor_private_storage_pointer;
 
 // HTTP Response data/funcs (See the tinyhttp example.cpp file for more on this.)
 struct HttpResponse {
-  void *body;            // this will be a malloc'ed pointer
-  ssize_t malloced_size; // this will be its allocated size
-  ssize_t size;          // the current size of the content
+  void *body;           // this will be a malloc'ed pointer
+  size_t malloced_size; // this will be its allocated size
+  size_t size;          // the current size of the content
   int code;
 };
 
@@ -155,7 +155,36 @@ void http_cleanup(void *arg) {
   http_free(rt);
 }
 
-int dacp_send_command(const char *command, char **body, ssize_t *bodysize) {
+uint32_t dacp_tlv_crawl(char **p, size_t buffer_length, size_t *length) {
+  uint32_t type = 0; // zero means failure
+  *length = 0;       // and a length of 0
+  char *q = *p;      // p will not be changed if dacp_tlv_crawl fails
+  // check that there is at least 8 bytes to hold the type and length
+  if (buffer_length >= 8) {
+    uint32_t t = ntohl(*(uint32_t *)q);
+    q += 4;
+    uint32_t l = ntohl(*(uint32_t *)q);
+    // now check that the length does not exceed the number of remaining bytes in the buffer
+    if ((size_t)l <= buffer_length - 8) {
+      *length = l; // return the length of the token
+      *p += 8 + l; // point past the end of the token
+      type = t;    // set the type to the type of the token
+    } else {
+      debug(1,
+            "dacp_tlv_crawl: item length is %u bytes -- too long for the buffer which has %zu "
+            "bytes of payload.",
+            l, buffer_length - 8);
+    }
+  } else {
+    debug(1,
+          "dacp_tlv_crawl: buffer length is %zu -- too short to contain a code and length (8 bytes "
+          "in total).",
+          buffer_length);
+  }
+  return type;
+}
+
+int dacp_send_command(const char *command, char **body, size_t *bodysize) {
   int result;
   // debug(1,"dacp_send_command: command is: \"%s\".",command);
 
@@ -371,7 +400,7 @@ int send_simple_dacp_command(const char *command) {
   int reply = 0;
   char *server_reply = NULL;
   debug(2, "send_simple_dacp_command: sending command \"%s\".", command);
-  ssize_t reply_size = 0;
+  size_t reply_size = 0;
   reply = dacp_send_command(command, &server_reply, &reply_size);
   if (server_reply) {
     free(server_reply);
@@ -657,260 +686,261 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
           metadata_store.speaker_volume = the_volume;
         metadata_hub_modify_epilog(diff);
 
-        ssize_t le;
+        size_t remaining_bytes_in_response;
         char *response = NULL;
-        int32_t item_size;
+        size_t item_size;
         char command[1024] = "";
         if (always_use_revision_number_1 != 0) // see the "long polling" note above
           revision_number = 1;
         snprintf(command, sizeof(command) - 1, "playstatusupdate?revision-number=%d",
                  revision_number);
         // debug(1,"dacp_monitor_thread_code: command: \"%s\"",command);
-        result = dacp_send_command(command, &response, &le);
+        result = dacp_send_command(command, &response, &remaining_bytes_in_response);
         // debug(1,"Response to \"%s\" is %d.",command,result);
         // remember: unless the revision_number you pass in is 1,
         // response will be 200 only if there's something new to report.
         if (result == 200) {
           // if (0) {
           char *sp = response;
-          if (le >= 8) {
-            // here start looking for the contents of the status update
-            if (dacp_tlv_crawl(&sp, &item_size) == 'cmst') { // status
-              // here, we know that we are receiving playerstatusupdates, so set a flag
-              metadata_hub_modify_prolog();
-              int metadata_changed = 0;
-              // debug(1, "playstatusupdate release track metadata");
-              // metadata_hub_reset_track_metadata();
-              // metadata_store.playerstatusupdates_are_received = 1;
-              sp -= item_size; // drop down into the array -- don't skip over it
-              le -= 8;
-              // char typestring[5];
-              // we need to acquire the metadata data structure and possibly update it
-              while (le >= 8) {
-                uint32_t type = dacp_tlv_crawl(&sp, &item_size);
-                le -= item_size + 8;
-                char *t;
-                int32_t r;
-                uint32_t ui;
+          // ensure there is enough in the buffer for the type (4 bytes) and length (4 bytes)
+          // here start looking for the contents of the status update
+          // type code and length always take two uint32_ts
+          if (dacp_tlv_crawl(&sp, remaining_bytes_in_response, &item_size) == 'cmst') { // status
+            // here, we know that we are receiving playerstatusupdates, so set a flag
+            metadata_hub_modify_prolog();
+            int metadata_changed = 0;
+            // debug(1, "playstatusupdate release track metadata");
+            // metadata_hub_reset_track_metadata();
+            // metadata_store.playerstatusupdates_are_received = 1;
+            sp -= item_size; // drop down into the array -- don't skip over it
+            remaining_bytes_in_response -= 8;
+            // char typestring[5];
+            // we need to acquire the metadata data structure and possibly update it
+            while (remaining_bytes_in_response >= 8) {
+              uint32_t type = dacp_tlv_crawl(&sp, remaining_bytes_in_response, &item_size);
+              remaining_bytes_in_response -= item_size + 8;
+              char *t;
+              int32_t r;
+              uint32_t ui;
 
-                switch (type) {
-                case 'cmsr': // revision number
-                  t = sp - item_size;
-                  revision_number = ntohl(*(uint32_t *)(t));
-                  // debug(1,"New revision number received: %d", revision_number);
-                  break;
-                case 'caps': // play status
-                  t = sp - item_size;
-                  r = *(unsigned char *)(t);
-                  switch (r) {
-                  case 2:
-                    if (metadata_store.play_status != PS_STOPPED) {
-                      metadata_store.play_status = PS_STOPPED;
-                      metadata_changed |= 1;
-                      debug(2, "Play status is \"stopped\".");
-                    }
-                    break;
-                  case 3:
-                    if (metadata_store.play_status != PS_PAUSED) {
-                      metadata_store.play_status = PS_PAUSED;
-                      metadata_changed |= 1;
-                      debug(2, "Play status is \"paused\".");
-                    }
-                    break;
-                  case 4:
-                    if (metadata_store.play_status != PS_PLAYING) {
-                      metadata_store.play_status = PS_PLAYING;
-                      metadata_changed |= 1;
-                      debug(2, "Play status changed to \"playing\".");
-                    }
-                    break;
-                  default:
-                    debug(1, "Unrecognised play status %d received.", r);
-                    break;
-                  }
-                  break;
-                case 'cash': // shuffle status
-                  t = sp - item_size;
-                  r = *(unsigned char *)(t);
-                  switch (r) {
-                  case 0:
-                    if (metadata_store.shuffle_status != SS_OFF) {
-                      metadata_store.shuffle_status = SS_OFF;
-                      metadata_changed |= 1;
-                      debug(2, "Shuffle status is \"off\".");
-                    }
-                    break;
-                  case 1:
-                    if (metadata_store.shuffle_status != SS_ON) {
-                      metadata_store.shuffle_status = SS_ON;
-                      metadata_changed |= 1;
-                      debug(2, "Shuffle status is \"on\".");
-                    }
-                    break;
-                  default:
-                    debug(1, "Unrecognised shuffle status %d received.", r);
-                    break;
-                  }
-                  break;
-                case 'carp': // repeat status
-                  t = sp - item_size;
-                  r = *(unsigned char *)(t);
-                  switch (r) {
-                  case 0:
-                    if (metadata_store.repeat_status != RS_OFF) {
-                      metadata_store.repeat_status = RS_OFF;
-                      metadata_changed |= 1;
-                      debug(2, "Repeat status is \"none\".");
-                    }
-                    break;
-                  case 1:
-                    if (metadata_store.repeat_status != RS_ONE) {
-                      metadata_store.repeat_status = RS_ONE;
-                      metadata_changed |= 1;
-                      debug(2, "Repeat status is \"one\".");
-                    }
-                    break;
-                  case 2:
-                    if (metadata_store.repeat_status != RS_ALL) {
-                      metadata_store.repeat_status = RS_ALL;
-                      metadata_changed |= 1;
-                      debug(2, "Repeat status is \"all\".");
-                    }
-                    break;
-                  default:
-                    debug(1, "Unrecognised repeat status %d received.", r);
-                    break;
-                  }
-                  break;
-                case 'cann': // track name
-                  debug(2, "DACP Track Name seen");
-
-                  if (update_string_record_with_data(&metadata_store.npi.track_name, sp - item_size,
-                                                     item_size)) {
-                    debug(2, "DACP Track Name set to: \"%s\"", metadata_store.npi.track_name);
+              switch (type) {
+              case 'cmsr': // revision number
+                t = sp - item_size;
+                revision_number = ntohl(*(uint32_t *)(t));
+                // debug(1,"New revision number received: %d", revision_number);
+                break;
+              case 'caps': // play status
+                t = sp - item_size;
+                r = *(unsigned char *)(t);
+                switch (r) {
+                case 2:
+                  if (metadata_store.play_status != PS_STOPPED) {
+                    metadata_store.play_status = PS_STOPPED;
                     metadata_changed |= 1;
+                    debug(2, "Play status is \"stopped\".");
                   }
                   break;
-                case 'cana': // artist name
-                  debug(2, "DACP Artist Name seen");
-                  if (update_string_record_with_data(&metadata_store.npi.artist_name,
-                                                     sp - item_size, item_size)) {
-                    debug(2, "DACP Artist Name set to: \"%s\"", metadata_store.npi.artist_name);
+                case 3:
+                  if (metadata_store.play_status != PS_PAUSED) {
+                    metadata_store.play_status = PS_PAUSED;
                     metadata_changed |= 1;
+                    debug(2, "Play status is \"paused\".");
                   }
                   break;
-                case 'canl': // album name
-                  debug(2, "DACP Album Name seen");
-                  if (update_string_record_with_data(&metadata_store.npi.album_name, sp - item_size,
-                                                     item_size)) {
-                    debug(2, "DACP Album Name set to: \"%s\"", metadata_store.npi.album_name);
+                case 4:
+                  if (metadata_store.play_status != PS_PLAYING) {
+                    metadata_store.play_status = PS_PLAYING;
                     metadata_changed |= 1;
+                    debug(2, "Play status changed to \"playing\".");
                   }
                   break;
-                case 'cang': // genre
-                  debug(2, "DACP Genre seen");
-                  if (update_string_record_with_data(&metadata_store.npi.genre, sp - item_size,
-                                                     item_size)) {
-                    debug(2, "DACP Genre set to: \"%s\"", metadata_store.npi.genre);
-                    metadata_changed |= 1;
-                  }
-                  break;
-                case 'canp': // nowplaying 4 ids: dbid, plid, playlistItem, itemid (from mellowware
-                             // see reference above)
-                  debug(2, "DACP Composite ID seen");
-                  if ((metadata_store.npi.item_composite_id_is_valid == 0) ||
-                      (memcmp(metadata_store.npi.item_composite_id, sp - item_size,
-                              sizeof(metadata_store.npi.item_composite_id)) != 0)) {
-                    memcpy(metadata_store.npi.item_composite_id, sp - item_size,
-                           sizeof(metadata_store.npi.item_composite_id));
-                    char st[33];
-                    char *pt = st;
-                    int it;
-                    for (it = 0; it < 16; it++) {
-                      snprintf(pt, 3, "%02X", metadata_store.npi.item_composite_id[it]);
-                      pt += 2;
-                    }
-                    *pt = 0;
-                    debug(2, "Item composite ID changed to 0x%s.", st);
-                    metadata_store.npi.item_composite_id_is_valid = 1;
-                    metadata_changed |= 1;
-                  }
-                  break;
-                case 'astm':
-                  t = sp - item_size;
-                  ui = ntohl(*(uint32_t *)(t));
-                  debug(2, "DACP Song Time seen: \"%u\" milliseconds, of length %u.", ui,
-                        item_size);
-                  metadata_changed |=
-                      update_uint64_record(&metadata_store.npi.songtime_in_microseconds,
-                                           ui * 1000); // microseconds
-                  /*
-                  if (ui64 != metadata_store.npi.songtime_in_microseconds) {
-                    metadata_store.npi.songtime_in_microseconds = ui64;
-                    metadata_store.npi.songtime_in_microseconds_changed = 1;
-                    metadata_store.npi.songtime_in_microseconds_is_valid = 1;
-                    debug(2, "DACP Song Time set to: %" PRIu64 " microseconds.",
-                          metadata_store.npi.songtime_in_microseconds);
-                  }
-                  */
-                  break;
-
-                /*
-                            case 'mstt':
-                            case 'cant':
-                            case 'cast':
-                            case 'cmmk':
-                            case 'caas':
-                            case 'caar':
-                              t = sp - item_size;
-                              r = ntohl(*(uint32_t *)(t));
-                              printf("    %d", r);
-                              printf("    (0x");
-                              t = sp - item_size;
-                              for (i = 0; i < item_size; i++) {
-                                printf("%02x", *t & 0xff);
-                                t++;
-                              }
-                              printf(")");
-                              break;
-                            case 'asai':
-                              t = sp - item_size;
-                              s = ntohl(*(uint32_t *)(t));
-                              s = s << 32;
-                              t += 4;
-                              v = (ntohl(*(uint32_t *)(t))) & 0xffffffff;
-                              s += v;
-                              printf("    %lu", s);
-                              printf("    (0x");
-                              t = sp - item_size;
-                              for (i = 0; i < item_size; i++) {
-                                printf("%02x", *t & 0xff);
-                                t++;
-                              }
-                              printf(")");
-                              break;
-                 */
                 default:
-                  /*
-                    printf("    0x");
-                    t = sp - item_size;
-                    for (i = 0; i < item_size; i++) {
-                      printf("%02x", *t & 0xff);
-                      t++;
-                    }
-                   */
+                  debug(1, "Unrecognised play status %d received.", r);
                   break;
                 }
-                // printf("\n");
-              }
+                break;
+              case 'cash': // shuffle status
+                t = sp - item_size;
+                r = *(unsigned char *)(t);
+                switch (r) {
+                case 0:
+                  if (metadata_store.shuffle_status != SS_OFF) {
+                    metadata_store.shuffle_status = SS_OFF;
+                    metadata_changed |= 1;
+                    debug(2, "Shuffle status is \"off\".");
+                  }
+                  break;
+                case 1:
+                  if (metadata_store.shuffle_status != SS_ON) {
+                    metadata_store.shuffle_status = SS_ON;
+                    metadata_changed |= 1;
+                    debug(2, "Shuffle status is \"on\".");
+                  }
+                  break;
+                default:
+                  debug(1, "Unrecognised shuffle status %d received.", r);
+                  break;
+                }
+                break;
+              case 'carp': // repeat status
+                t = sp - item_size;
+                r = *(unsigned char *)(t);
+                switch (r) {
+                case 0:
+                  if (metadata_store.repeat_status != RS_OFF) {
+                    metadata_store.repeat_status = RS_OFF;
+                    metadata_changed |= 1;
+                    debug(2, "Repeat status is \"none\".");
+                  }
+                  break;
+                case 1:
+                  if (metadata_store.repeat_status != RS_ONE) {
+                    metadata_store.repeat_status = RS_ONE;
+                    metadata_changed |= 1;
+                    debug(2, "Repeat status is \"one\".");
+                  }
+                  break;
+                case 2:
+                  if (metadata_store.repeat_status != RS_ALL) {
+                    metadata_store.repeat_status = RS_ALL;
+                    metadata_changed |= 1;
+                    debug(2, "Repeat status is \"all\".");
+                  }
+                  break;
+                default:
+                  debug(1, "Unrecognised repeat status %d received.", r);
+                  break;
+                }
+                break;
+              case 'cann': // track name
+                debug(2, "DACP Track Name seen");
 
-              // finished possibly writing to the metadata hub
-              metadata_hub_modify_epilog(metadata_changed);
-            } else {
-              debug(1, "Status Update not found.\n");
+                if (update_string_record_with_data(&metadata_store.npi.track_name, sp - item_size,
+                                                   item_size)) {
+                  debug(2, "DACP Track Name set to: \"%s\"", metadata_store.npi.track_name);
+                  metadata_changed |= 1;
+                }
+                break;
+              case 'cana': // artist name
+                debug(2, "DACP Artist Name seen");
+                if (update_string_record_with_data(&metadata_store.npi.artist_name, sp - item_size,
+                                                   item_size)) {
+                  debug(2, "DACP Artist Name set to: \"%s\"", metadata_store.npi.artist_name);
+                  metadata_changed |= 1;
+                }
+                break;
+              case 'canl': // album name
+                debug(2, "DACP Album Name seen");
+                if (update_string_record_with_data(&metadata_store.npi.album_name, sp - item_size,
+                                                   item_size)) {
+                  debug(2, "DACP Album Name set to: \"%s\"", metadata_store.npi.album_name);
+                  metadata_changed |= 1;
+                }
+                break;
+              case 'cang': // genre
+                debug(2, "DACP Genre seen");
+                if (update_string_record_with_data(&metadata_store.npi.genre, sp - item_size,
+                                                   item_size)) {
+                  debug(2, "DACP Genre set to: \"%s\"", metadata_store.npi.genre);
+                  metadata_changed |= 1;
+                }
+                break;
+              case 'canp': // nowplaying 4 ids: dbid, plid, playlistItem, itemid (from mellowware
+                           // see reference above)
+                debug(2, "DACP Composite ID seen");
+                if ((metadata_store.npi.item_composite_id_is_valid == 0) ||
+                    (memcmp(metadata_store.npi.item_composite_id, sp - item_size,
+                            sizeof(metadata_store.npi.item_composite_id)) != 0)) {
+                  memcpy(metadata_store.npi.item_composite_id, sp - item_size,
+                         sizeof(metadata_store.npi.item_composite_id));
+                  char st[33];
+                  char *pt = st;
+                  int it;
+                  for (it = 0; it < 16; it++) {
+                    snprintf(pt, 3, "%02X", metadata_store.npi.item_composite_id[it]);
+                    pt += 2;
+                  }
+                  *pt = 0;
+                  debug(2, "Item composite ID changed to 0x%s.", st);
+                  metadata_store.npi.item_composite_id_is_valid = 1;
+                  metadata_changed |= 1;
+                }
+                break;
+              case 'astm':
+                t = sp - item_size;
+                ui = ntohl(*(uint32_t *)(t));
+                debug(2, "DACP Song Time seen: \"%u\" milliseconds, of length %zu.", ui, item_size);
+                metadata_changed |=
+                    update_uint64_record(&metadata_store.npi.songtime_in_microseconds,
+                                         ui * 1000); // microseconds
+                /*
+                if (ui64 != metadata_store.npi.songtime_in_microseconds) {
+                  metadata_store.npi.songtime_in_microseconds = ui64;
+                  metadata_store.npi.songtime_in_microseconds_changed = 1;
+                  metadata_store.npi.songtime_in_microseconds_is_valid = 1;
+                  debug(2, "DACP Song Time set to: %" PRIu64 " microseconds.",
+                        metadata_store.npi.songtime_in_microseconds);
+                }
+                */
+                break;
+
+              /*
+                          case 'mstt':
+                          case 'cant':
+                          case 'cast':
+                          case 'cmmk':
+                          case 'caas':
+                          case 'caar':
+                            t = sp - item_size;
+                            r = ntohl(*(uint32_t *)(t));
+                            printf("    %d", r);
+                            printf("    (0x");
+                            t = sp - item_size;
+                            for (i = 0; i < item_size; i++) {
+                              printf("%02x", *t & 0xff);
+                              t++;
+                            }
+                            printf(")");
+                            break;
+                          case 'asai':
+                            t = sp - item_size;
+                            s = ntohl(*(uint32_t *)(t));
+                            s = s << 32;
+                            t += 4;
+                            v = (ntohl(*(uint32_t *)(t))) & 0xffffffff;
+                            s += v;
+                            printf("    %lu", s);
+                            printf("    (0x");
+                            t = sp - item_size;
+                            for (i = 0; i < item_size; i++) {
+                              printf("%02x", *t & 0xff);
+                              t++;
+                            }
+                            printf(")");
+                            break;
+               */
+              case 0:
+                debug(1, "Invalid TLV in PlayerStatusUpdate -- ignored.");
+                break;
+
+              default:
+                /*
+                  printf("    0x");
+                  t = sp - item_size;
+                  for (i = 0; i < item_size; i++) {
+                    printf("%02x", *t & 0xff);
+                    t++;
+                  }
+                 */
+                break;
+              }
+              // printf("\n");
             }
+
+            // finished possibly writing to the metadata hub
+            metadata_hub_modify_epilog(metadata_changed);
           } else {
-            debug(1, "Can't find any content in playerstatusupdate request");
+            debug(1, "PlayerStatusUpdate could not parse response.\n");
           }
         } /* else {
           if (result != 403)
@@ -923,22 +953,16 @@ void *dacp_monitor_thread_code(__attribute__((unused)) void *na) {
       };
       /*
       strcpy(command,"nowplayingartwork?mw=320&mh=320");
-      debug(1,"Command: \"%s\", result is %d",command, dacp_send_command(command, &response, &le));
-      if (response) {
-        free(response);
-        response = NULL;
+      debug(1,"Command: \"%s\", result is %d",command, dacp_send_command(command, &response,
+      &remaining_bytes_in_response)); if (response) { free(response); response = NULL;
       }
       strcpy(command,"getproperty?properties=dmcp.volume");
-      debug(1,"Command: \"%s\", result is %d",command, dacp_send_command(command, &response, &le));
-      if (response) {
-        free(response);
-        response = NULL;
+      debug(1,"Command: \"%s\", result is %d",command, dacp_send_command(command, &response,
+      &remaining_bytes_in_response)); if (response) { free(response); response = NULL;
       }
       strcpy(command,"setproperty?dmcp.volume=100.000000");
-      debug(1,"Command: \"%s\", result is %d",command, dacp_send_command(command, &response, &le));
-      if (response) {
-        free(response);
-        response = NULL;
+      debug(1,"Command: \"%s\", result is %d",command, dacp_send_command(command, &response,
+      &remaining_bytes_in_response)); if (response) { free(response); response = NULL;
       }
       */
       if (metadata_store.player_thread_active)
@@ -1025,39 +1049,30 @@ void dacp_monitor_stop() {
   }
 }
 
-uint32_t dacp_tlv_crawl(char **p, int32_t *length) {
-  char typecode[5];
-  memcpy(typecode, *p, 4);
-  typecode[4] = '\0';
-  uint32_t type = ntohl(*(uint32_t *)*p);
-  *p += 4;
-  *length = ntohl(*(uint32_t *)*p);
-  *p += 4 + *length;
-  // debug(1,"Type seen: '%s' of length %d",typecode,*length);
-  return type;
-}
-
 int dacp_get_client_volume(int32_t *result) {
   // debug(1,"dacp_get_client_volume");
   char *server_reply = NULL;
   int32_t overall_volume = -1;
-  ssize_t reply_size;
+  size_t reply_size;
   // debug(1,"dacp_get_client_volume: dacp_send_command");
   int response =
       dacp_send_command("getproperty?properties=dmcp.volume", &server_reply, &reply_size);
   if (response == 200) { // if we get an okay
     char *sp = server_reply;
-    int32_t item_size;
+    size_t item_size;
     if (reply_size >= 8) {
-      if (dacp_tlv_crawl(&sp, &item_size) == 'cmgt') {
+      if (dacp_tlv_crawl(&sp, reply_size, &item_size) == 'cmgt') {
         sp -= item_size; // drop down into the array -- don't skip over it
         reply_size -= 8;
         while (reply_size >= 8) {
-          uint32_t type = dacp_tlv_crawl(&sp, &item_size);
+          uint32_t type = dacp_tlv_crawl(&sp, reply_size, &item_size);
           reply_size -= item_size + 8;
           if (type == 'cmvo') { // drop down into the dictionary -- don't skip over it
             char *t = sp - item_size;
             overall_volume = ntohl(*(uint32_t *)(t));
+          } else if (type == 0) {
+            debug(1,
+                  "Invalid payload component in response from getproperty?properties=dmcp.volume");
           }
         }
       } else {
@@ -1110,24 +1125,24 @@ int dacp_get_speaker_list(dacp_spkr_stuff *speaker_info, int max_size_of_array,
   char *server_reply = NULL;
   int speaker_index = -1; // will be incremented before use
   int speaker_count = -1; // will be fixed if there is no problem
-  ssize_t le;
+  size_t remaining_bytes_in_response;
 
   // debug(1,"dacp_speaker_list: dacp_send_command");
-  int response = dacp_send_command("getspeakers", &server_reply, &le);
+  int response = dacp_send_command("getspeakers", &server_reply, &remaining_bytes_in_response);
   if (response == 200) {
     char *sp = server_reply;
-    int32_t item_size;
-    if (le >= 8) {
-      if (dacp_tlv_crawl(&sp, &item_size) == 'casp') {
+    size_t item_size;
+    if (remaining_bytes_in_response >= 8) {
+      if (dacp_tlv_crawl(&sp, remaining_bytes_in_response, &item_size) == 'casp') {
         //          debug(1,"Speakers:",item_size);
         sp -= item_size; // drop down into the array -- don't skip over it
-        le -= 8;
-        while (le >= 8) {
-          uint32_t type = dacp_tlv_crawl(&sp, &item_size);
+        remaining_bytes_in_response -= 8;
+        while (remaining_bytes_in_response >= 8) {
+          uint32_t type = dacp_tlv_crawl(&sp, remaining_bytes_in_response, &item_size);
           if (type == 'mdcl') { // drop down into the dictionary -- don't skip over it
             // debug(1,">>>> Dictionary:");
             sp -= item_size;
-            le -= 8;
+            remaining_bytes_in_response -= 8;
             speaker_index++;
             if (speaker_index == max_size_of_array) {
               return 413; // Payload Too Large -- too many speakers
@@ -1137,7 +1152,7 @@ int dacp_get_speaker_list(dacp_spkr_stuff *speaker_info, int max_size_of_array,
             speaker_info[speaker_index].volume = 0;
             speaker_info[speaker_index].name[0] = '\0';
           } else {
-            le -= item_size + 8;
+            remaining_bytes_in_response -= item_size + 8;
             char *t;
             // char u;
             int32_t r;
@@ -1187,6 +1202,9 @@ int dacp_get_speaker_list(dacp_spkr_stuff *speaker_info, int max_size_of_array,
                               debug(1,"Type: '%s' Value: \"%d\".",typestring,u);
                               break;
             */
+            case 0:
+              debug(1, "Invalid TLV in getspeakers response.");
+              break;
             default:
               break;
             }
@@ -1199,7 +1217,7 @@ int dacp_get_speaker_list(dacp_spkr_stuff *speaker_info, int max_size_of_array,
       }
       /*
               int i;
-              for (i=0;i<le;i++) {
+              for (i=0;i<remaining_bytes_in_response;i++) {
                 if (*sp < ' ')
                   debug(1,"%d  %02x", i, *sp);
                 else

@@ -360,7 +360,7 @@ static gboolean property_preflight_shairport_sync_remote_control_validate_proper
     gdouble requested_value = g_variant_get_double(*value);
     *value = NULL; // don't update the D-Bus value when finished
     if ((requested_value == -144.0) || ((requested_value >= -30.0) && (requested_value <= 0.0))) {
-      debug(1, ">> set airplay volume to %g.", requested_value);
+      debug(4, ">> set airplay volume to %g.", requested_value);
       if (remote_set_airplay_volume(requested_value) == 0) {
         g_set_error(error, G_DBUS_ERROR, G_DBUS_ERROR_FAILED,
                     "ShairportSync.RemoteControl.AirplayVolume is unable to set the volume "
