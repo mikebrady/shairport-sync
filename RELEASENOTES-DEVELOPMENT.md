@@ -1,3 +1,7 @@
+Version 5.7-dev-44-g90045883
+==
+This is effectively 5.6.2.
+
 Version 5.7-dev-41-g0c014073
 ==
 **Bug Fixes**
