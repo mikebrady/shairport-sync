@@ -469,6 +469,14 @@ typedef struct {
   uint64_t last_anchor_local_time;
   uint64_t last_anchor_validity_start_time;
 
+  // 64-bit extensions of the 32-bit RTP timestamps on a PTP connection -- see
+  // extend_rtp_timestamp() in rtp.c. These four fields are only ever accessed with
+  // reference_time_mutex held.
+  uint64_t anchor_rtptime_extended;
+  uint64_t last_anchor_rtptime_extended;
+  uint64_t rtp_timestamp_extension_reference; // extended timestamp of the newest audio block
+  int rtp_timestamp_extension_reference_is_valid;
+
   int ap2_immediate_flush_requested;
   uint32_t ap2_immediate_flush_until_rtp_timestamp;
   uint32_t ap2_immediate_flush_until_sequence_number;

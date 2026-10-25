@@ -29,6 +29,7 @@ int have_ptp_timing_information(rtsp_conn_info *conn);
 int get_ptp_anchor_local_time_info(rtsp_conn_info *conn, uint32_t *anchorRTP,
                                    uint64_t *anchorLocalTime);
 void reset_ptp_anchor_info(rtsp_conn_info *conn);
+void note_ptp_rtp_timestamp(rtsp_conn_info *conn, uint32_t timestamp);
 void *rtp_ap2_control_receiver(void *arg);
 void *rtp_realtime_audio_receiver(void *arg);
 void *rtp_ap2_timing_receiver(void *arg);
