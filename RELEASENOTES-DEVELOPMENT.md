@@ -5,7 +5,7 @@ Version 5.7-dev-41-g0c014073
 
   Background: AirPlay associates a 32-bit _RTP timestamp_, effectively a frame number, with every audio frame. After playing 2^31 - 1 frames of buffered audio -- about 12.5 hours at 48,000 frames per second -- the total number of frames played will exceed 2^31 -1, and so calculations using frames' RTP timestamps will overflow.
 
-  This (ingenious) bug fix develops 64-bit timestamps from RTP timestamps of the the frames as they are processed in preparation for playing. The fix is based on two principles:
+  This (ingenious) bug fix develops 64-bit timestamps from RTP timestamps of the frames as they are processed in preparation for playing. The fix is based on two principles:
   * When a play session starts, the starting timestamp and the timestamp used for reference are within range and overflow will definitely not occur.
   * When blocks of frames are being played, the timestamp of the next block will always be within range of the current one.
 
