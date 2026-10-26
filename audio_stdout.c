@@ -34,11 +34,53 @@
 #include <memory.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/ioctl.h>
+#include <time.h>
 #include <unistd.h>
 
 static int fd = STDOUT_FILENO;
 static int warned = 0;
 static unsigned int bytes_per_frame = 0;
+static unsigned int frame_rate = 0;
+
+// The stdout backend can't see how much of what it has written is still waiting to be heard -- it might be
+// buffered by whatever reads STDOUT -- so it has no delay() and can't keep in sync. If the reader can say,
+// set "delay_file" in the "stdout" stanza: the reader keeps that file holding two numbers, the nanoseconds
+// of audio it has read that are still to be heard, and the CLOCK_REALTIME time in nanoseconds when that was
+// true, rewriting it as it reads more. delay() then adds what is still unread in the pipe.
+static const char *delay_file = NULL;
+
+static int delay(long *the_delay) {
+  if (delay_file == NULL || frame_rate == 0 || bytes_per_frame == 0)
+    return -ENODEV;
+  int unread = 0; // bytes written but not yet read, if STDOUT is a pipe
+  if (ioctl(fd, FIONREAD, &unread) != 0 || unread < 0)
+    unread = 0;
+  long long pending = 0, at = 0;
+  int dfd = open(delay_file, O_RDONLY);
+  if (dfd >= 0) {
+    char b[64];
+    ssize_t n = pread(dfd, b, sizeof(b) - 1, 0);
+    close(dfd);
+    if (n > 0) {
+      b[n] = 0;
+      if (sscanf(b, "%lld %lld", &pending, &at) != 2) {
+        pending = 0;
+        at = 0;
+      }
+    }
+  }
+  if (at > 0) { // the reader plays on after it writes, so what it said is reduced by the time since
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    long long now = (long long)ts.tv_sec * 1000000000LL + ts.tv_nsec;
+    pending -= now - at;
+  }
+  if (pending < 0)
+    pending = 0;
+  *the_delay = unread / (int)bytes_per_frame + (long)(pending * frame_rate / 1000000000LL);
+  return 0;
+}
 
 static int play(void *buf, int samples, __attribute__((unused)) int sample_type,
                 __attribute__((unused)) uint32_t timestamp,
@@ -67,6 +109,11 @@ static int init(__attribute__((unused)) int argc, __attribute__((unused)) char *
 #else
   parse_audio_options("stdout", (1 << SPS_FORMAT_S16_LE), (1 << SPS_RATE_44100), (1 << 2));
 #endif
+  if (config.cfg != NULL) {
+    const char *str;
+    if (config_lookup_non_empty_string(config.cfg, "stdout.delay_file", &str))
+      delay_file = str;
+  }
   return 0;
 }
 
@@ -87,6 +134,7 @@ static int configure(int32_t requested_encoded_format, __attribute__((unused)) c
     response = EINVAL;
   }
   bytes_per_frame = bytes_per_sample * CHANNELS_FROM_ENCODED_FORMAT(requested_encoded_format);
+  frame_rate = RATE_FROM_ENCODED_FORMAT(requested_encoded_format);
   return response;
 }
 
@@ -99,7 +147,7 @@ audio_output audio_stdout = {.name = "stdout",
                              .stop = NULL,
                              .is_running = NULL,
                              .flush = NULL,
-                             .delay = NULL,
+                             .delay = &delay,
                              .stats = NULL,
                              .play = &play,
                              .volume = NULL,
