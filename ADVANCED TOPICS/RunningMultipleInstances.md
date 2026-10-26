@@ -51,6 +51,39 @@ interface name, demultiplexing its clients by the name each one uses. **Do not r
 one NQPTP per instance**; they would contend for ports 319/320. The
 automatically-derived names give each instance its own clock with no configuration.
 
+## D-Bus and MPRIS interfaces
+
+Only one process can own a D-Bus name, so only one instance can be
+`org.gnome.ShairportSync` (or `org.mpris.MediaPlayer2.ShairportSync`). Each instance
+that finds the name in use by another instance takes one made from its own name instead:
+`org.gnome.ShairportSync.Kitchen` and `org.mpris.MediaPlayer2.ShairportSync.Kitchen` for
+the instance named `Kitchen`. In these names, every character of the instance's name other
+than an ASCII letter or digit becomes `_`, and `_` is put in front of a name that begins with
+a digit, so `Living Room` becomes `org.gnome.ShairportSync.Living_Room`.
+
+Whichever instance starts first has the plain name, so to reach a particular instance, try
+the name made from its name first and then the plain one, checking its `ServiceName`. Or
+list every instance on the bus:
+
+```bash
+for n in $(dbus-send --system --print-reply=literal --dest=org.freedesktop.DBus /org/freedesktop/DBus \
+             org.freedesktop.DBus.ListNames | tr ' ' '\n' | grep '^org\.gnome\.ShairportSync'); do
+  echo "$n: $(dbus-send --system --print-reply=literal --dest=$n /org/gnome/ShairportSync \
+                org.freedesktop.DBus.Properties.Get string:org.gnome.ShairportSync string:ServiceName)"
+done
+```
+
+On the `system` bus, the installed D-Bus policy files allow these names to be owned, and
+allow methods to be called on the native interface of every instance. To call methods on
+the MPRIS interface of an instance other than the first on the `system` bus, add a rule to
+your local policy (`send_destination_prefix` needs dbus-daemon 1.13.12 or later):
+
+```xml
+<policy context="default">
+  <allow send_destination_prefix="org.mpris.MediaPlayer2.ShairportSync"/>
+</policy>
+```
+
 ## Running in containers
 
 The container case is the same model — a name and a port (or address) per room —
