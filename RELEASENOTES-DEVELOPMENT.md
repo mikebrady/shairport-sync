@@ -1,3 +1,8 @@
+Version 5.7-dev-46-g4aca3726
+==
+**Bug Fix**
+* Remove a stray `</dict>` and tidy up `get_info_response.xml`. This caused an error during building on macOS using Homebrew libraries. Thanks to [TheGreatJumbi](https://github.com/TheGreatJumbi) for the [report](https://github.com/mikebrady/shairport-sync/issues/2325).
+  
 Version 5.7-dev-44-g90045883
 ==
 This is effectively 5.6.2.
