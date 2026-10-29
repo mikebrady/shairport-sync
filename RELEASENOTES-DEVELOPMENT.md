@@ -1,7 +1,7 @@
 Version 5.7-dev-46-g4aca3726
 ==
 **Bug Fix**
-* Remove a stray `</dict>` and tidy up `get_info_response.xml`. This caused an error during building on macOS using Homebrew libraries. Thanks to [TheGreatJumbi](https://github.com/TheGreatJumbi) for the [report](https://github.com/mikebrady/shairport-sync/issues/2325).
+* Remove a stray `</dict>` that caused an error while building Shairport Sync on macOS using Homebrew libraries, and tidy up `get_info_response.xml`. Thanks to [TheGreatJumbi](https://github.com/TheGreatJumbi) for the [report](https://github.com/mikebrady/shairport-sync/issues/2325).
   
 Version 5.7-dev-44-g90045883
 ==
@@ -1857,7 +1857,7 @@ Version 4.1-dev-466-g05dfcdfd
 
 These are for advanced users.
 * Add a new `Protocol` property to the D-Bus interface. Values: `AirPlay` if built for AirPlay and `AirPlay 2` if build for AirPlay 2.
-* Add a new `Volume` property to the D-Bus interface. This enables you to get and set the volume _locally_. Use this carefully: it means that you can set the volume of the player without changing it at the source (e.g. iTunes / Music). The source will not be informed of the change, so the volume it sets and and the actual volume may become different. It is preferable to use remote control (if available) to "ask" the player to change the volume.
+* Add a new `Volume` property to the D-Bus interface. This enables you to get and set the volume _locally_. Use this carefully: it means that you can set the volume of the player without changing it at the source (e.g. iTunes / Music). The source will not be informed of the change, so the volume it sets and the actual volume may become different. It is preferable to use remote control (if available) to "ask" the player to change the volume.
 * Add a new `DropSession` method. This will immediately and forcibly terminate a playing session without informing the source. Use it carefully. It is preferable to use remote control (if available) to "ask" the player to stop playing.
 
 Version 4.1-dev-454-ga774a6fc
@@ -1877,7 +1877,7 @@ Documentation update. Comments, corrections and suggestions welcome.
 Version 4.1-dev-429-g449e024c
 ====
 **Enhancement**
-* With the ALSA backend, if the `default` device isn't available, Shairport Sync will now try to use `"hw:0"` instead. Background: the default  ALSA device is sometimes a pseudo device provided by a sound server such as PipeWire or PulseAudio to play audio from ALSA-compatible programs. But it's not always available to all users, especially daemons like Shairport Sync. This simple change will try to use the first ALSA hardware device -- card 0 -- if the default output device is inaccessible with error code `EHOSTDOWN`. It allows Shairport Sync to work on default settings with Fedora 36.
+* With the ALSA backend, if the `default` device isn't available, Shairport Sync will now try to use `"hw:0"` instead. Background: the default ALSA device is sometimes a pseudo device provided by a sound server such as PipeWire or PulseAudio to play audio from ALSA-compatible programs. But it's not always available to all users, especially daemons like Shairport Sync. This simple change will try to use the first ALSA hardware device -- card 0 -- if the default output device is inaccessible with error code `EHOSTDOWN`. It allows Shairport Sync to work on default settings with Fedora 36.
  
 Version 4.1-dev-424-g4729e325
 ====
@@ -3214,7 +3214,7 @@ Version 3.2d16
 Version 3.2d15
 ====
 **Bug Fix, kind of...**
-* Shairport Sync crashes on Arch Linux with with pulseaudio backend enabled. The cause appears to be a pulseaudio configuration issue, but of course, Shairport Sync shouldn't crash. For the present, the bug fix merely adds an error message before terminating Shairport Sync.
+* Shairport Sync crashes on Arch Linux with pulseaudio backend enabled. The cause appears to be a pulseaudio configuration issue, but of course, Shairport Sync shouldn't crash. For the present, the bug fix merely adds an error message before terminating Shairport Sync.
 
 **Enhancements**
 * Still lots of changes and experiments with D-Bus and DACP. As before, please note that the implementation is likely to change greatly or to be removed at any time.
