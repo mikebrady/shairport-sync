@@ -5203,6 +5203,10 @@ static void player_send_volume_metadata(uint8_t vol_mode_both, double airplay_vo
 
 void player_volume_without_notification(double airplay_volume, rtsp_conn_info *conn) {
   pthread_mutex_lock(&conn->volume_control_mutex);
+  // store the volume first: the metadata hub reads config.airplay_volume when it
+  // processes the 'pvol' message sent below, possibly before this function returns
+  config.airplay_volume = airplay_volume;
+  conn->own_airplay_volume = airplay_volume;
   // first, see if we are hw only, sw only, both with hw attenuation on the top or both with sw
   // attenuation on top
 
@@ -5417,9 +5421,6 @@ void player_volume_without_notification(double airplay_volume, rtsp_conn_info *c
           "is disabled.",
           volume_mode, airplay_volume, software_attenuation / 100.0, hardware_attenuation / 100.0);
   }
-  // here, store the volume for possible use in the future
-  config.airplay_volume = airplay_volume;
-  conn->own_airplay_volume = airplay_volume;
   pthread_mutex_unlock(&conn->volume_control_mutex);
 }
 
