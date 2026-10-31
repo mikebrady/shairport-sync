@@ -1,3 +1,12 @@
+Version 5.7-dev-55-g7be5b0df
+==
+**Bug Fix**
+* tinysvcmdns: set multicast TTL to 255. Background: RFC 6762 section 11 recommends an IP TTL of 255 for mDNS responses. The default system multicast TTL is usually 1, which causes some access points to discard the packet. The bug fix is to set the TTL in `tinysvcmdns` to 255 for mDNS responses. (Avahi uses 255 by default, so no change is necessary there.)
+
+  Thanks to [Isabella Nightshade](https://github.com/xBelladonna) for her [PR](https://github.com/mikebrady/shairport-sync/pull/2328), which also references an interesting discussion.
+
+Please note that `tinysvcmdns` remains insecure and should be avoided if possible.
+
 Version 5.7-dev-51-g059b1717
 ==
 **Bug Fix**
