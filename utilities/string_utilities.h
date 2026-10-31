@@ -7,6 +7,10 @@ char *str_replace(const char *string, const char *substr, const char *replacemen
 
 char *service_name(const char *raw_service_name);
 
+// A D-Bus well-known name for one of several instances, e.g. "org.gnome.ShairportSync.Kitchen".
+// Returns NULL if instance_name is empty. Free the result with free().
+char *dbus_instance_name(const char *base_name, const char *instance_name);
+
 // read in a 64-bit unsigned number
 int parse_u64(const char *str, uint64_t *out);
 

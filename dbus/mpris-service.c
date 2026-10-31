@@ -39,6 +39,7 @@
 #include "property-preflight/property-preflight-mpris.h"
 #include "remote/remote.h"
 #include "utilities/exit.h"
+#include "utilities/string_utilities.h"
 
 static guint ownerID = 0;
 static GBusType mpris_bus_type = G_BUS_TYPE_SYSTEM; // default is the dbus system message bus
@@ -309,11 +310,26 @@ static void on_mpris_name_acquired(GDBusConnection *connection, const gchar *nam
         (mpris_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
 }
 
-static void on_mpris_name_lost(__attribute__((unused)) GDBusConnection *connection,
-                               const gchar *name, __attribute__((unused)) gpointer user_data) {
-  warn("could not acquire an MPRIS interface named \"%s\" on the %s bus.", name,
-       (mpris_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
-  ownerID = 0;
+static void on_mpris_name_lost(GDBusConnection *connection, const gchar *name,
+                               __attribute__((unused)) gpointer user_data) {
+  char *instance_name = NULL;
+  if ((connection != NULL) && (mprisPlayerSkeleton == NULL) &&
+      (strcmp(name, "org.mpris.MediaPlayer2.ShairportSync") == 0))
+    instance_name = dbus_instance_name("org.mpris.MediaPlayer2.ShairportSync", config.service_name);
+  if (instance_name != NULL) {
+    // Another instance of Shairport Sync owns the name. Rather than wait in the queue for it,
+    // which would leave this instance without an interface until the other one exits, use a
+    // name made from this instance's name, e.g. "org.mpris.MediaPlayer2.ShairportSync.Kitchen".
+    debug(1, "\"%s\" is already in use -- looking for \"%s\" instead.", name, instance_name);
+    g_bus_unown_name(ownerID);
+    ownerID = g_bus_own_name(mpris_bus_type, instance_name, G_BUS_NAME_OWNER_FLAGS_NONE, NULL,
+                             on_mpris_name_acquired, on_mpris_name_lost, NULL, NULL);
+    free(instance_name);
+  } else {
+    warn("could not acquire an MPRIS interface named \"%s\" on the %s bus.", name,
+         (mpris_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
+    ownerID = 0;
+  }
 }
 
 int start_mpris_service() {
