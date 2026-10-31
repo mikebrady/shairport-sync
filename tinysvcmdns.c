@@ -1233,6 +1233,15 @@ static int create_recv_sock() {
     return r;
   }
 
+  // RFC 6762 section 11 recommends an IP TTL of 255 for mDNS responses.
+  // The default multicast TTL is usually 1, which some access points discard.
+  unsigned char multicast_ttl = 255;
+  if ((r = setsockopt(sd, IPPROTO_IP, IP_MULTICAST_TTL, (char *)&multicast_ttl,
+                      sizeof(multicast_ttl))) < 0) {
+    log_message(LOG_ERR, "recv setsockopt(IP_MULTICAST_TTL): %m");
+    return r;
+  }
+
 #ifdef IP_PKTINFO
   if ((r = setsockopt(sd, SOL_IP, IP_PKTINFO, (char *)&on, sizeof(on))) < 0) {
     log_message(LOG_ERR, "recv setsockopt(IP_PKTINFO): %m");
