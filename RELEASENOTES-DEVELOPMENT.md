@@ -1,3 +1,8 @@
+Version 5.7-dev-51-g059b1717
+==
+**Bug Fix**
+* Fix a bug whereby when the volume changed, the metadata emitted was the _old_ volume, not the new volume. Thanks to [Julien G.](https://github.com/Gjuju) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2326).
+
 Version 5.7-dev-46-g4aca3726
 ==
 **Bug Fix**
