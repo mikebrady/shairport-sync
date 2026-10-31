@@ -27,7 +27,7 @@ Version 5.7-dev-41-g0c014073
 
   **Please test this!** It's a big change, and we'd like to be sure it's working properly!
 
-* Add some extra checking to DACP TLV tokens.
+* Add some extra checking to DACP TLV tokens. Thanks to [memoriaru](https://github.com/memoriaru) for the [alert](https://github.com/mikebrady/shairport-sync/security/advisories/GHSA-vfxr-hxq9-9h35).
   
 Version 5.7-dev-30-gc2e6cac5
 ==
