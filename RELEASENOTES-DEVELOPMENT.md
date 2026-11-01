@@ -1,3 +1,24 @@
+Version 5.7-dev-60-g424c835f
+==
+**Bug Fix**
+* Multiple Instances, D-Bus and MPRIS interfaces: when several instances of Shairport Sync on the same system share a D-Bus (`system` or `session`), only the first gets to own `org.gnome.ShairportSync` and `org.mpris.MediaPlayer2.ShairportSync`. The others get no D-Bus or MPRIS interface at all: they wait in the bus's queue for the names and acquire them, unannounced, if and when the first instance exited.
+
+  This fix addresses the problem by adding an extra D-Bus bus name element, derived from the instance's service name, to the D-Bus bus name. For example, if the service name is `Kitchen Nook`, the extra D-Bus bus name element is `Kitchen_Nook` and so that instance would get D-Bus bus names `org.gnome.ShairportSync.Kitchen_Nook` and `org.mpris.MediaPlayer2.ShairportSync.Kitchen_Nook`.
+
+  The first instance of Shairport Sync -- which may be the only instance -- does not get the extra D-Bus bus name element.
+
+  The D-Bus and MPRIS service files have been updated to permit the standard D-Bus bus name with extra D-Bus bus name elements.
+
+  Many thanks to [Joseph Telaak](https://github.com/The1TrueJoe) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2324).
+
+  Note: please consider this a work in progress. While this certainly addresses the problem, it is a little inflexible:
+  * Non-ASCII service names, e.g. `♬`, will not be dealt with cleanly.
+  * Name collisions may occur while converting service names into valid D-Bus bus name elements, e.g. the service names `Kitchen Nook` and `Kitchen_Nook` will both generate a D-Bus bus name element `Kitchen_Nook`.
+  * The first instance to acquire the standard name will not have the extra D-Bus bus name element added.
+  * Instances that have the same service name will contend for the same D-Bus bus name element.
+
+  It is expected that a new optional setting will be added to allow the addition of a D-Bus bus name element.
+
 Version 5.7-dev-55-g7be5b0df
 ==
 **Bug Fix**
