@@ -51,6 +51,7 @@
 #include "remote/remote.h"
 #include "utilities/exit.h"
 #include "utilities/general_utilities.h"
+#include "utilities/string_utilities.h"
 
 #ifdef CONFIG_CONVOLUTION
 #include <FFTConvolver/convolver.h>
@@ -1226,12 +1227,26 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
   service_is_running = 1;
 }
 
-static void on_dbus_name_lost(__attribute__((unused)) GDBusConnection *connection,
-                              __attribute__((unused)) const gchar *name,
+static void on_dbus_name_lost(GDBusConnection *connection, const gchar *name,
                               __attribute__((unused)) gpointer user_data) {
-  warn("could not acquire a Shairport Sync native D-Bus interface \"%s\" on the %s bus.", name,
-       (dbus_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
-  ownerID = 0;
+  char *instance_name = NULL;
+  if ((connection != NULL) && (service_is_running == 0) &&
+      (strcmp(name, "org.gnome.ShairportSync") == 0))
+    instance_name = dbus_instance_name("org.gnome.ShairportSync", config.service_name);
+  if (instance_name != NULL) {
+    // Another instance of Shairport Sync owns the name. Rather than wait in the queue for it,
+    // which would leave this instance without an interface until the other one exits, use a
+    // name made from this instance's name, e.g. "org.gnome.ShairportSync.Kitchen".
+    debug(1, "\"%s\" is already in use -- looking for \"%s\" instead.", name, instance_name);
+    g_bus_unown_name(ownerID);
+    ownerID = g_bus_own_name(dbus_bus_type, instance_name, G_BUS_NAME_OWNER_FLAGS_NONE, NULL,
+                             on_dbus_name_acquired, on_dbus_name_lost, NULL, NULL);
+    free(instance_name);
+  } else {
+    warn("could not acquire a Shairport Sync native D-Bus interface \"%s\" on the %s bus.", name,
+         (dbus_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
+    ownerID = 0;
+  }
 }
 
 int start_dbus_service() {
