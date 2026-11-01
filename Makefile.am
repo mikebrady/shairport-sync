@@ -150,7 +150,7 @@ shairport_sync_SOURCES += mdns_dns_sd.c
 endif
 
 if USE_METADATA
-shairport_sync_SOURCES += metadata/pc_queue.c metadata/core.c metadata/audio_bitrate.c
+shairport_sync_SOURCES += metadata/pc_queue.c metadata/core.c metadata/audio_bitrate.c mdns_metadata.c
 endif
 
 if USE_METADATA_PIPE

@@ -191,3 +191,8 @@ instance's service under one hostname; instances differ by their service name. I
 would otherwise advertise on interfaces you don't want (internal/container bridges,
 for example), scope it to your LAN interface (`allow-interfaces=` in
 `avahi-daemon.conf`) to keep discovery clean.
+
+An application that runs the instances and has its own mDNS responder can skip
+Avahi: with `mdns_backend = "metadata";` each instance sends its services to the
+metadata feed (`svrg`/`svup`, see [METADATA CODES](../METADATA%20CODES.md)) and the
+application publishes them while the instance runs.
