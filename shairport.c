@@ -381,6 +381,7 @@ void usage(char *progname) {
 #if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
     printf("    --dbus-default-message-bus=BUS Use the BUS specified for the native D-Bus and MPRIS interfaces.\n");
     printf("                            BUS must be \"system\" (default) or \"session\".\n");
+    printf("    --dbus-nametag=TAG      Append TAG to the native D-Bus and MPRIS bus names, e.g. org.gnome.ShairportSync.TAG.\n");
 #endif
     printf("    --log-to-syslog         Send debug and statistics information through syslog\n");
     printf("                            If used, this should be the first command line argument.\n");
@@ -423,6 +424,7 @@ int parse_options(int argc, char **argv) {
 #if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
   char *dbus_default_message_bus =
       NULL; /* used for picking the "system" or "session" bus as the default */
+  char *cli_dbus_nametag = NULL; /* used for picking up the D-Bus bus name tag */
 #endif
   signed char c; /* used for argument parsing */
   // int i = 0;                     /* used for tracking options */
@@ -459,6 +461,7 @@ int parse_options(int argc, char **argv) {
 #endif
 #if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
       {"dbus-default-message-bus", 0, POPT_ARG_STRING, &dbus_default_message_bus, 0, NULL, NULL},
+      {"dbus-nametag", 0, POPT_ARG_STRING, &cli_dbus_nametag, 0, NULL, NULL},
 #endif
       {"tolerance", 'z', POPT_ARG_INT, &tolerance_in_frames, 'z', NULL, NULL},
       {"use-stderr", 'u', POPT_ARG_NONE, NULL, 'u', NULL, NULL},
@@ -1437,6 +1440,12 @@ int parse_options(int argc, char **argv) {
       }
 #endif
 
+#if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
+      /* Get the D-Bus bus name tag, if any. */
+      if (config_lookup_string(config.cfg, "general.dbus_nametag", &str))
+        config.dbus_nametag = (char *)str;
+#endif
+
 #if defined(CONFIG_MPRIS_INTERFACE)
       /* Get the mpris service sbus setting. */
       if (config_lookup_string(config.cfg, "general.mpris_service_bus", &str)) {
@@ -1766,6 +1775,23 @@ int parse_options(int argc, char **argv) {
           "(default) or "
           "\"session\".",
           str);
+  }
+
+  if (cli_dbus_nametag != NULL)
+    config.dbus_nametag = cli_dbus_nametag;
+  if (config.dbus_nametag != NULL) {
+    // It must be a valid bus name element and leave room for the longest name it goes into,
+    // the MPRIS name with a process ID added, e.g.
+    // "org.mpris.MediaPlayer2.ShairportSync.Kitchen.i4294967295", within D-Bus's 255 characters.
+    if (!dbus_bus_name_element_is_valid(config.dbus_nametag))
+      die("Invalid dbus_nametag \"%s\". It may contain only the ASCII letters \"A\" to \"Z\" "
+          "and \"a\" to \"z\", the digits \"0\" to \"9\", \"_\" and \"-\", and must not begin "
+          "with a digit.",
+          config.dbus_nametag);
+    if (strlen("org.mpris.MediaPlayer2.ShairportSync.") + strlen(config.dbus_nametag) +
+            strlen(".i4294967295") >
+        255)
+      die("The dbus_nametag \"%s\" is too long.", config.dbus_nametag);
   }
 #endif
   config.airplay_statusflags |= 1 << 2; // Audio cable is attached

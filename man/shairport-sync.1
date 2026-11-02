@@ -2,7 +2,7 @@
 .SH NAME
 shairport-sync \- AirPlay and AirPlay 2 Audio Player
 .SH SYNOPSIS
-\fBshairport-sync [-djvw]\fB [-a \fB\fIservice-name\fB | --name=\fB\fIservice-name\fB]\fB [-B \fB\fIcommand\fB | --onstart=\fB\fIcommand\fB]\fB [-c \fB\fIconfigurationfile\fB | --configfile=\fB\fIconfigurationfile\fB]\fB [-d | --daemon]\fB [--dbus-default-message-bus=\fB\fIbus\fB]\fB [-E \fB\fIcommand\fB | --onstop=\fB\fIcommand\fB]\fB [-g | --get-cover-art]\fB [-j | --justDaemoniseNoPIDFile]\fB [--logOutputLevel]\fB [-L \fB\fIlatency\fB | --latency=\fB\fIlatency\fB]\fB [-m \fB\fIbackend\fB | --mdns=\fB\fIbackend\fB]\fB [-M | --metadata-enable]\fB [--nqptp-shared-memory-interface-name=\fB\fIname\fB]\fB [-o \fB\fIbackend\fB | --output=\fB\fIbackend\fB]\fB [-p \fB\fIport\fB | --port=\fB\fIport\fB]\fB [--password=\fB\fIsecret\fB]\fB [-r \fB\fIthreshold\fB | --resync=\fB\fIthreshold\fB]\fB [--service-type=\fB\fItype\fB]\fB [--statistics]\fB [-S \fB\fImode\fB | --stuffing=\fB\fImode\fB]\fB [-t \fB\fItimeout\fB | --timeout=\fB\fItimeout\fB]\fB [--tolerance=\fB\fIframes\fB]\fB [-v | --verbose]\fB [-w | --wait-cmd]\fB [-- \fB\fIaudio_backend_options\fB]\fB
+\fBshairport-sync [-djvw]\fB [-a \fB\fIservice-name\fB | --name=\fB\fIservice-name\fB]\fB [-B \fB\fIcommand\fB | --onstart=\fB\fIcommand\fB]\fB [-c \fB\fIconfigurationfile\fB | --configfile=\fB\fIconfigurationfile\fB]\fB [-d | --daemon]\fB [--dbus-default-message-bus=\fB\fIbus\fB]\fB [--dbus-nametag=\fB\fItag\fB]\fB [-E \fB\fIcommand\fB | --onstop=\fB\fIcommand\fB]\fB [-g | --get-cover-art]\fB [-j | --justDaemoniseNoPIDFile]\fB [--logOutputLevel]\fB [-L \fB\fIlatency\fB | --latency=\fB\fIlatency\fB]\fB [-m \fB\fIbackend\fB | --mdns=\fB\fIbackend\fB]\fB [-M | --metadata-enable]\fB [--nqptp-shared-memory-interface-name=\fB\fIname\fB]\fB [-o \fB\fIbackend\fB | --output=\fB\fIbackend\fB]\fB [-p \fB\fIport\fB | --port=\fB\fIport\fB]\fB [--password=\fB\fIsecret\fB]\fB [-r \fB\fIthreshold\fB | --resync=\fB\fIthreshold\fB]\fB [--service-type=\fB\fItype\fB]\fB [--statistics]\fB [-S \fB\fImode\fB | --stuffing=\fB\fImode\fB]\fB [-t \fB\fItimeout\fB | --timeout=\fB\fItimeout\fB]\fB [--tolerance=\fB\fIframes\fB]\fB [-v | --verbose]\fB [-w | --wait-cmd]\fB [-- \fB\fIaudio_backend_options\fB]\fB
 
 shairport-sync -X | --displayConfig\fB
 
@@ -75,6 +75,9 @@ Instruct shairport-sync to demonise itself. It will write its Process ID (PID) t
 .TP
 \fB--dbus-default-message-bus=\f1\fIbus\f1
 Use the \fIbus\f1 specified for the native D-Bus and MPRIS interfaces. The \fIbus\f1 must be \fBsystem\f1 or \fBsession\f1. This option is only available if Shairport Sync is built with the D-Bus or MPRIS interface. 
+.TP
+\fB--dbus-nametag=\f1\fItag\f1
+Add \fItag\f1 to the native D-Bus and MPRIS bus names, e.g. \fBorg.gnome.ShairportSync.Kitchen\f1 and \fBorg.mpris.MediaPlayer2.ShairportSync.Kitchen\f1. Use it to give each of several instances on the same bus its own names. The \fItag\f1 may contain only ASCII letters, digits, "_" and "-", and must not begin with a digit. This overrides the \fBdbus_nametag\f1 setting in the configuration file. This option is only available if Shairport Sync is built with the D-Bus or MPRIS interface. 
 .TP
 \fB-E \f1\fIprogram\f1\fB | --on-stop=\f1\fIprogram\f1
 Execute \fIprogram\f1 when playback has ended. Specify the full path to the program, e.g. \fI/usr/bin/logger\f1. Executable scripts can be used, but they must have the appropriate shebang (\fI#!/bin/sh\f1) in the headline.
