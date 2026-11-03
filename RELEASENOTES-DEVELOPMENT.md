@@ -1,6 +1,23 @@
+Version 5.7-dev-62-g0ca27e7f
+==
+**Enhancement / Bug Fix**
+* This version updates and improves the arrangements and settings introduced in Version 5.7-dev-60 for the D-Bus and MPRIS interfaces when multiple instances of Shairport Sync  run on the same system.
+
+  Until now, multiple instances of Shairport Sync attempting to provide D-Bus or MPRIS interfaces contend for the D-Bus names `org.gnome.ShairportSync` and `org.mpris.MediaPlayer2.ShairportSync`.
+
+  This new scheme, which replaces previous arrangements, adds the idea of a D-Bus "_nametag_" to resolve the issue, and comprises the following:
+1. An optional D-Bus nametag that is appended to the standard D-Bus name. For example, if the D-Bus nametag is `Kitchen`, then the D-Bus names become: `org.gnome.ShairportSync.Kitchen` and `org.mpris.MediaPlayer2.ShairportSync.Kitchen` respectively.
+2. The D-Bus nametag can be defined using a new `dbus_nametag` setting in the `general` section of the configuration file or the `--dbus-nametag=<nametag>` command line argument.
+3. If a D-Bus name is already taken, the process ID is tagged on to the end of the D-Bus bus name. For example, if the D-Bus name `org.gnome.ShairportSync.Kitchen` is already taken, then the process ID will be added, e.g. `org.gnome.ShairportSync.Kitchen.i23841`.
+4. The D-Bus nametag must be a valid D-Bus name element and the overall D-Bus name must also be [valid](https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names); otherwise program execution halts with an error message in the log.
+
+   To summarise: a D-Bus name element must only contain the ASCII characters `A` to `Z`, `a` to `z`, `0` to `9`, the underscore `_` and the hyphen/minus sign `-`, with `-` discouraged. It must not begin with a digit. A complete D-Bus name must not exceed 255 characters in length.
+
+Big thanks, again, to [Joseph Telaak](https://github.com/The1TrueJoe) for his work on this and for the [PR](https://github.com/mikebrady/shairport-sync/pull/2330).
+
 Version 5.7-dev-60-g424c835f
 ==
-**Bug Fix**
+**Enhancement / Bug Fix**
 * Multiple Instances, D-Bus and MPRIS interfaces: when several instances of Shairport Sync on the same system share a D-Bus (`system` or `session`), only the first gets to own `org.gnome.ShairportSync` and `org.mpris.MediaPlayer2.ShairportSync`. The others get no D-Bus or MPRIS interface at all: they wait in the bus's queue for the names and acquire them, unannounced, if and when the first instance exited.
 
   This fix addresses the problem by adding an extra D-Bus bus name element, derived from the instance's service name, to the D-Bus bus name. For example, if the service name is `Kitchen Nook`, the extra D-Bus bus name element is `Kitchen_Nook` and so that instance would get D-Bus bus names `org.gnome.ShairportSync.Kitchen_Nook` and `org.mpris.MediaPlayer2.ShairportSync.Kitchen_Nook`.
