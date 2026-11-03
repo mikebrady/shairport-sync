@@ -16,7 +16,7 @@ Remember to enable Shairport Sync to start as a system service. You may also nee
 
 If Shairport Sync is installed as a user service, it will not be able to become a service on the D-Bus `system` bus, but it can be added to the D-Bus `session` bus. Edit the configuration file to select the `session` bus, or add the option `--dbus_default_message_bus=session` to the command line.
 
-If more than one instance of Shairport Sync is running on the same bus, the first to start owns `org.gnome.ShairportSync` and each of the others takes a name made from its own name, e.g. `org.gnome.ShairportSync.Kitchen`. See [Running Multiple Instances](../ADVANCED%20TOPICS/RunningMultipleInstances.md#d-bus-and-mpris-interfaces).
+To add a name tag to the bus name, e.g. `org.gnome.ShairportSync.Kitchen`, set `dbus_nametag` in the `general` section of the configuration file, or add the option `--dbus-nametag=Kitchen` to the command line. The tag is added to the MPRIS bus name too. If more than one instance of Shairport Sync is running on the same bus, give each its own name tag. An instance whose name is already in use adds its process ID to it instead, e.g. `org.gnome.ShairportSync.i1234`. See [Running Multiple Instances](../ADVANCED%20TOPICS/RunningMultipleInstances.md#d-bus-and-mpris-interfaces).
 
 ### D-Feet
 On desktop Linuxes with a GUI, e.g. Ubuntu, D-Feet is a great tool for examining a D-Bus service:

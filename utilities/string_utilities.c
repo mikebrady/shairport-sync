@@ -196,34 +196,31 @@ char *service_name(const char *raw_service_name) {
   return response;
 }
 
-char *dbus_instance_name(const char *base_name, const char *instance_name) {
-  // Add the instance's name to base_name as a final element, e.g. "Living Room" makes
-  // "org.gnome.ShairportSync.Living_Room". An element may contain only ASCII letters, digits
-  // and '_' (and '-', which is discouraged) and must not begin with a digit, so every other
-  // character becomes '_' and a leading digit gets a '_' in front of it. The whole name must
-  // be no longer than 255 characters.
-  char *result = NULL;
-  if ((instance_name != NULL) && (instance_name[0] != '\0')) {
-    size_t base_length = strlen(base_name);
-    size_t prefix_length = isdigit((unsigned char)instance_name[0]) ? 1 : 0;
-    size_t length = strlen(instance_name);
-    if (base_length + 1 + prefix_length + length > 255)
-      length = 255 - (base_length + 1 + prefix_length);
-    result = malloc(base_length + 1 + prefix_length + length + 1);
-    if (result != NULL) {
-      char *p = result;
-      memcpy(p, base_name, base_length);
-      p += base_length;
-      *p++ = '.';
-      if (prefix_length != 0)
-        *p++ = '_';
-      size_t i;
-      for (i = 0; i < length; i++) {
-        unsigned char ch = (unsigned char)instance_name[i];
-        *p++ = ((ch < 0x80) && isalnum(ch)) ? (char)ch : '_';
-      }
-      *p = '\0';
-    }
+int dbus_bus_name_element_is_valid(const char *element) {
+  // An element of a well-known bus name may contain only ASCII letters, digits, '_' and '-',
+  // must not be empty and must not begin with a digit.
+  if ((element == NULL) || (element[0] == '\0') || isdigit((unsigned char)element[0]))
+    return 0;
+  const char *p;
+  for (p = element; *p != '\0'; p++) {
+    unsigned char ch = (unsigned char)*p;
+    if (!((ch < 0x80) && (isalnum(ch) || (ch == '_') || (ch == '-'))))
+      return 0;
+  }
+  return 1;
+}
+
+char *dbus_bus_name(const char *base_name, const char *element) {
+  // e.g. "org.gnome.ShairportSync" and "Kitchen" make "org.gnome.ShairportSync.Kitchen"
+  size_t length = strlen(base_name) + 1;
+  if (element != NULL)
+    length += 1 + strlen(element);
+  char *result = malloc(length);
+  if (result != NULL) {
+    if (element != NULL)
+      snprintf(result, length, "%s.%s", base_name, element);
+    else
+      snprintf(result, length, "%s", base_name);
   }
   return result;
 }

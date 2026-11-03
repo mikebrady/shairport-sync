@@ -25,7 +25,9 @@
  */
 #include <inttypes.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 
 #include "common.h"
@@ -43,6 +45,8 @@
 
 static guint ownerID = 0;
 static GBusType mpris_bus_type = G_BUS_TYPE_SYSTEM; // default is the dbus system message bus
+static char *bus_name =
+    NULL; // "org.mpris.MediaPlayer2.ShairportSync", plus the D-Bus bus name tag, if any
 
 MediaPlayer2 *mprisPlayerSkeleton = NULL;
 MediaPlayer2Player *mprisPlayerPlayerSkeleton = NULL;
@@ -312,19 +316,22 @@ static void on_mpris_name_acquired(GDBusConnection *connection, const gchar *nam
 
 static void on_mpris_name_lost(GDBusConnection *connection, const gchar *name,
                                __attribute__((unused)) gpointer user_data) {
-  char *instance_name = NULL;
-  if ((connection != NULL) && (mprisPlayerSkeleton == NULL) &&
-      (strcmp(name, "org.mpris.MediaPlayer2.ShairportSync") == 0))
-    instance_name = dbus_instance_name("org.mpris.MediaPlayer2.ShairportSync", config.service_name);
-  if (instance_name != NULL) {
+  char *pid_name = NULL;
+  if ((connection != NULL) && (mprisPlayerSkeleton == NULL) && (bus_name != NULL) &&
+      (strcmp(name, bus_name) == 0)) {
+    char pid_element[16];
+    snprintf(pid_element, sizeof(pid_element), "i%d", (int)getpid());
+    pid_name = dbus_bus_name(bus_name, pid_element);
+  }
+  if (pid_name != NULL) {
     // Another instance of Shairport Sync owns the name. Rather than wait in the queue for it,
-    // which would leave this instance without an interface until the other one exits, use a
-    // name made from this instance's name, e.g. "org.mpris.MediaPlayer2.ShairportSync.Kitchen".
-    debug(1, "\"%s\" is already in use -- looking for \"%s\" instead.", name, instance_name);
+    // which would leave this instance without an interface until the other one exits, add this
+    // instance's process ID to the name, e.g. "org.mpris.MediaPlayer2.ShairportSync.i1234".
+    debug(1, "\"%s\" is already in use -- looking for \"%s\" instead.", name, pid_name);
     g_bus_unown_name(ownerID);
-    ownerID = g_bus_own_name(mpris_bus_type, instance_name, G_BUS_NAME_OWNER_FLAGS_NONE, NULL,
+    ownerID = g_bus_own_name(mpris_bus_type, pid_name, G_BUS_NAME_OWNER_FLAGS_NONE, NULL,
                              on_mpris_name_acquired, on_mpris_name_lost, NULL, NULL);
-    free(instance_name);
+    free(pid_name);
   } else {
     warn("could not acquire an MPRIS interface named \"%s\" on the %s bus.", name,
          (mpris_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
@@ -347,11 +354,12 @@ int start_mpris_service() {
   else if (config.mpris_service_bus_type == DBT_session)
     mpris_bus_type = G_BUS_TYPE_SESSION;
 
-  debug(1, "Looking for an MPRIS interface \"org.mpris.MediaPlayer2.ShairportSync\" on the %s bus.",
+  free(bus_name);
+  bus_name = dbus_bus_name("org.mpris.MediaPlayer2.ShairportSync", config.dbus_nametag);
+  debug(1, "Looking for an MPRIS interface \"%s\" on the %s bus.", bus_name,
         (mpris_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
-  ownerID = g_bus_own_name(mpris_bus_type, "org.mpris.MediaPlayer2.ShairportSync",
-                           G_BUS_NAME_OWNER_FLAGS_NONE, NULL, on_mpris_name_acquired,
-                           on_mpris_name_lost, NULL, NULL);
+  ownerID = g_bus_own_name(mpris_bus_type, bus_name, G_BUS_NAME_OWNER_FLAGS_NONE, NULL,
+                           on_mpris_name_acquired, on_mpris_name_lost, NULL, NULL);
   return 0; // this is just to quieten a compiler warning
 }
 
