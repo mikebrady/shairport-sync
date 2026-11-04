@@ -194,5 +194,5 @@ for example), scope it to your LAN interface (`allow-interfaces=` in
 
 An application that runs the instances and has its own mDNS responder can skip
 Avahi: with `mdns_backend = "metadata";` each instance sends its services to the
-metadata feed (`svrg`/`svup`, see [METADATA CODES](../METADATA%20CODES.md)) and the
+metadata feed (`svrg`, see [METADATA CODES](../METADATA%20CODES.md)) and the
 application publishes them while the instance runs.

@@ -50,8 +50,7 @@ Shairport SyNC itself).
 | `styp` | Stream type description (e.g. `"Classic"`, `"Realtime"`, `"Buffered"`). |
 | `svip` | The IP address used by the player for the play session. |
 | `svna` | The service name of the player. |
-| `svrg` | `mdns_backend = "metadata"`: register a service. Lines `service=`, `name=`, `port=`, then `txt=<key=value>` per TXT record. Sent once, at start-up, so read the feed (e.g. open the metadata pipe) before starting Shairport Sync. |
-| `svup` | `mdns_backend = "metadata"`: replace a service's TXT records. Same payload as `svrg`. |
+| `svrg` | `mdns_backend = "metadata"`: register a service, or replace its TXT records. Lines `service=`, `name=`, `port=`, then `txt=<key=value>` per TXT record. Read the feed (e.g. open the metadata pipe) before starting Shairport Sync. |
 
 ---
 

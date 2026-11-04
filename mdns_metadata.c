@@ -27,7 +27,7 @@
 // Advertises nothing itself: each service is sent to the metadata feed for
 // an application with its own mDNS responder to publish. Payload, one line each:
 //   service=<type>  name=<name>  port=<port>  txt=<key=value> (per TXT record)
-// 'svrg' registers a service, 'svup' replaces its TXT records. Services end
+// 'svrg' registers a service or replaces its TXT records. Services end
 // when the instance exits (nothing is sent then: the feed is already closed).
 // Used only when named; no DACP monitor.
 
@@ -89,9 +89,8 @@ static int mdns_metadata_register(char *ap1name, char *ap2name, int port, char *
   }
   forget_services();
   service_port = port;
-  // 'svrg' is sent once, here at start-up, and not repeated. Metadata sent while nothing reads
-  // the feed is dropped (e.g. while the metadata pipe has no reader), so the application must
-  // be reading it before Shairport Sync starts.
+  // Metadata sent while nothing reads the feed is dropped (e.g. while the metadata pipe has no
+  // reader), so the application should be reading it before Shairport Sync starts.
   ap1_service_name = strdup(ap1name);
   send_service('svrg', config.regtype, ap1_service_name, txt_records);
   if ((ap2name != NULL) && (secondary_txt_records != NULL)) {
@@ -104,9 +103,9 @@ static int mdns_metadata_register(char *ap1name, char *ap2name, int port, char *
 
 static int mdns_metadata_update(char **txt_records, char **secondary_txt_records) {
   if (ap1_service_name != NULL)
-    send_service('svup', config.regtype, ap1_service_name, txt_records);
+    send_service('svrg', config.regtype, ap1_service_name, txt_records);
   if ((ap2_service_name != NULL) && (secondary_txt_records != NULL))
-    send_service('svup', config.regtype2, ap2_service_name, secondary_txt_records);
+    send_service('svrg', config.regtype2, ap2_service_name, secondary_txt_records);
   return 0;
 }
 
