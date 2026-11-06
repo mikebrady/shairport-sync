@@ -5012,9 +5012,20 @@ void *player_thread_func(void *arg) {
 
                         char *play_starting_point = conn->outbuf + bytes_to_skip;
 
+                        // the first frame played is frames_to_skip (output) frames into the
+                        // packet, so its timestamp and time are later than the packet's
+                        uint32_t output_rate =
+                            RATE_FROM_ENCODED_FORMAT(config.current_output_configuration);
+                        uint32_t starting_point_timestamp =
+                            inframe->timestamp +
+                            (uint32_t)(((uint64_t)frames_to_skip * conn->input_rate) / output_rate);
+                        uint64_t starting_point_time =
+                            should_be_time +
+                            ((uint64_t)frames_to_skip * 1000000000) / output_rate;
+
                         config.output->play(play_starting_point, play_samples - frames_to_skip,
-                                            play_samples_are_timed, inframe->timestamp,
-                                            should_be_time);
+                                            play_samples_are_timed, starting_point_timestamp,
+                                            starting_point_time);
                         conn->total_frames_sent_to_play += (play_samples - frames_to_skip);
 
 
