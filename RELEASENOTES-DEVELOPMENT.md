@@ -1,3 +1,12 @@
+Version 5.7-dev-67-g483e1505
+==
+**Enhancement**
+* Add a new "metadata" mDNS backend for situations where another mDNS responder is already available and in use.
+
+  Background: In some application situations, an mDNS responder is already in place. So, instead of sending mDNS information to another standalone mDNS responser such as Avahi or (deprecated) tinysvcmdns, this new backend simply sends mDNS information as metadata with the`ssnc` / `svrg` type and code. This information can then be processed by an external app as required.
+
+  Thanks to [NotSomeBot](https://github.com/mariusdkm) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2332).
+
 Version 5.7-dev-62-g0ca27e7f
 ==
 **Enhancement / Bug Fix**
