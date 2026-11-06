@@ -1,3 +1,10 @@
+Version 5.7-dev-70-g56954a1c
+==
+**Bug Fix**
+* Fixed a bug so that when the start of a packet arrives too late and the player skips (i.e. discards) some of its frames, `play()` now gets the RTP timestamp and play time of the first frame it actually plays, instead of those of the packet's now-discarded first frame.
+
+  Thanks again to [NotSomeBot](https://github.com/mariusdkm) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2335).
+
 Version 5.7-dev-67-g483e1505
 ==
 **Enhancement**
