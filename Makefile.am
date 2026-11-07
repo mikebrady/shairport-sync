@@ -35,7 +35,7 @@ noinst_LIBRARIES =
 
 # See below for the flags for the test client program
 
-shairport_sync_SOURCES = shairport.c bonjour_strings.c mdns.c common.c rtp.c \
+shairport_sync_SOURCES = shairport.c bonjour_strings.c mdns/mdns.c common.c rtp.c \
   player.c audio.c loudness.c activity_monitor.c \
   rtsp.c \
   utilities/debug.c \
@@ -92,15 +92,15 @@ AM_CFLAGS+= \
 endif
 
 if USE_AVAHI
-shairport_sync_SOURCES += mdns_avahi.c
+shairport_sync_SOURCES += mdns/mdns_avahi.c
 endif
 
 if USE_TINYSVCMDNS
-shairport_sync_SOURCES += mdns_tinysvcmdns.c tinysvcmdns.c
+shairport_sync_SOURCES += mdns/mdns_tinysvcmdns.c mdns/tinysvcmdns/tinysvcmdns.c
 endif
 
 if USE_EXTERNAL_MDNS
-shairport_sync_SOURCES += mdns_external.c
+shairport_sync_SOURCES += mdns/mdns_external.c
 endif
 
 if USE_ALSA
@@ -146,11 +146,11 @@ AM_CXXFLAGS += -std=c++11
 endif
 
 if USE_DNS_SD
-shairport_sync_SOURCES += mdns_dns_sd.c
+shairport_sync_SOURCES += mdns/mdns_dns_sd.c
 endif
 
 if USE_METADATA
-shairport_sync_SOURCES += metadata/pc_queue.c metadata/core.c metadata/audio_bitrate.c mdns_metadata.c
+shairport_sync_SOURCES += metadata/pc_queue.c metadata/core.c metadata/audio_bitrate.c mdns/mdns_metadata.c
 endif
 
 if USE_METADATA_PIPE

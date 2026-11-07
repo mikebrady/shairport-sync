@@ -35,7 +35,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "tinysvcmdns.h"
+#include "tinysvcmdns/tinysvcmdns.h"
 
 static struct mdnsd *svr = NULL;
 

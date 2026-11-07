@@ -11,7 +11,7 @@ extern "C" {
 #include <unistd.h>    // for useconds_t
 
 #include "definitions.h"
-#include "mdns.h"
+#include "mdns/mdns.h"
 
 // service type to be offered
 typedef enum {

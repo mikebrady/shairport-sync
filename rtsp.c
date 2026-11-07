@@ -122,7 +122,7 @@
 #include "dbus/dbus-service.h"
 #endif
 
-#include "mdns.h"
+#include "mdns/mdns.h"
 #include "utilities/network_utilities.h"
 
 enum rtsp_read_request_response {

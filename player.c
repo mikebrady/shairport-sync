@@ -90,7 +90,7 @@
 #endif
 
 #include "common.h"
-#include "mdns.h"
+#include "mdns/mdns.h"
 #include "player.h"
 #include "rtp.h"
 #include "rtsp.h"
