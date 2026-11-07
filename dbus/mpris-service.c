@@ -279,6 +279,7 @@ static void on_mpris_name_acquired(GDBusConnection *connection, const gchar *nam
   // cached value with something harmless; it is never actually read by a D-Bus client.
   media_player2_player_set_position(mprisPlayerPlayerSkeleton, 0.0);
   media_player2_player_set_shuffle(mprisPlayerPlayerSkeleton, FALSE);
+  media_player2_player_set_rate(mprisPlayerPlayerSkeleton, 1.0);
   media_player2_player_set_minimum_rate(mprisPlayerPlayerSkeleton, 1.0);
   media_player2_player_set_maximum_rate(mprisPlayerPlayerSkeleton, 1.0);
   media_player2_player_set_can_go_next(mprisPlayerPlayerSkeleton, TRUE);
