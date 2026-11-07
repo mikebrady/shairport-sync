@@ -1,3 +1,8 @@
+Version 5.7-dev-73-gccf37c63
+==
+**Bug Fix**
+* MPRIS: Set the MPRIS `Rate` parameter to 1.0 -- it had been 0.0, messing up some MPRIS readers. Thanks to [martipops](https://github.com/martipops) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2336).
+
 Version 5.7-dev-70-g56954a1c
 ==
 **Bug Fix**
