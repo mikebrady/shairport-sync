@@ -47,6 +47,7 @@ static guint ownerID = 0;
 static GBusType mpris_bus_type = G_BUS_TYPE_SYSTEM; // default is the dbus system message bus
 static char *bus_name =
     NULL; // "org.mpris.MediaPlayer2.ShairportSync", plus the D-Bus bus name tag, if any
+static int mpris_name_acquired = 0; // set once the bus name (or its per-process variant) is owned
 
 MediaPlayer2 *mprisPlayerSkeleton = NULL;
 MediaPlayer2Player *mprisPlayerPlayerSkeleton = NULL;
@@ -249,12 +250,20 @@ static gboolean on_handle_set_volume(MediaPlayer2Player *skeleton,
   return TRUE;
 }
 
-static void on_mpris_name_acquired(GDBusConnection *connection, const gchar *name,
-                                   __attribute__((unused)) gpointer user_data) {
+// The objects are exported here, when the connection is available, rather than when the bus name
+// is acquired, so that they already exist when the name becomes visible. Otherwise a client that
+// queries the player as soon as the name appears gets "Object does not exist at path
+// /org/mpris/MediaPlayer2" and may never query again.
+static void on_mpris_bus_acquired(GDBusConnection *connection, const gchar *name,
+                                  __attribute__((unused)) gpointer user_data) {
+
+  // Already exported on this (shared) connection, e.g. when retrying with a per-process name.
+  if (mprisPlayerSkeleton != NULL)
+    return;
 
   const char *empty_string_array[] = {NULL};
 
-  debug(2, "MPRIS well-known interface name \"%s\" acquired on the %s bus.", name,
+  debug(2, "Setting up the MPRIS interface for \"%s\" on the %s bus.", name,
         (mpris_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
 
   mprisPlayerSkeleton = property_preflight_mpris_media_player2_skeleton_new();
@@ -311,6 +320,13 @@ static void on_mpris_name_acquired(GDBusConnection *connection, const gchar *nam
   g_dbus_interface_skeleton_export(G_DBUS_INTERFACE_SKELETON(mprisPlayerPlayerSkeleton), connection,
                                    "/org/mpris/MediaPlayer2", NULL);
 
+  debug(2, "MPRIS objects exported on the %s bus.",
+        (mpris_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
+}
+
+static void on_mpris_name_acquired(__attribute__((unused)) GDBusConnection *connection,
+                                   const gchar *name, __attribute__((unused)) gpointer user_data) {
+  mpris_name_acquired = 1;
   debug(1, "MPRIS service started at \"%s\" on the %s bus.", name,
         (mpris_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
 }
@@ -318,7 +334,7 @@ static void on_mpris_name_acquired(GDBusConnection *connection, const gchar *nam
 static void on_mpris_name_lost(GDBusConnection *connection, const gchar *name,
                                __attribute__((unused)) gpointer user_data) {
   char *pid_name = NULL;
-  if ((connection != NULL) && (mprisPlayerSkeleton == NULL) && (bus_name != NULL) &&
+  if ((connection != NULL) && (mpris_name_acquired == 0) && (bus_name != NULL) &&
       (strcmp(name, bus_name) == 0)) {
     char pid_element[16];
     snprintf(pid_element, sizeof(pid_element), "i%d", (int)getpid());
@@ -330,8 +346,9 @@ static void on_mpris_name_lost(GDBusConnection *connection, const gchar *name,
     // instance's process ID to the name, e.g. "org.mpris.MediaPlayer2.ShairportSync.i1234".
     debug(1, "\"%s\" is already in use -- looking for \"%s\" instead.", name, pid_name);
     g_bus_unown_name(ownerID);
-    ownerID = g_bus_own_name(mpris_bus_type, pid_name, G_BUS_NAME_OWNER_FLAGS_NONE, NULL,
-                             on_mpris_name_acquired, on_mpris_name_lost, NULL, NULL);
+    ownerID = g_bus_own_name(mpris_bus_type, pid_name, G_BUS_NAME_OWNER_FLAGS_NONE,
+                             on_mpris_bus_acquired, on_mpris_name_acquired, on_mpris_name_lost,
+                             NULL, NULL);
     free(pid_name);
   } else {
     warn("could not acquire an MPRIS interface named \"%s\" on the %s bus.", name,
@@ -343,6 +360,7 @@ static void on_mpris_name_lost(GDBusConnection *connection, const gchar *name,
 int start_mpris_service() {
   mprisPlayerSkeleton = NULL;
   mprisPlayerPlayerSkeleton = NULL;
+  mpris_name_acquired = 0;
 
   // set up default message bus
 
@@ -359,8 +377,9 @@ int start_mpris_service() {
   bus_name = dbus_bus_name("org.mpris.MediaPlayer2.ShairportSync", config.dbus_nametag);
   debug(1, "Looking for an MPRIS interface \"%s\" on the %s bus.", bus_name,
         (mpris_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
-  ownerID = g_bus_own_name(mpris_bus_type, bus_name, G_BUS_NAME_OWNER_FLAGS_NONE, NULL,
-                           on_mpris_name_acquired, on_mpris_name_lost, NULL, NULL);
+  ownerID = g_bus_own_name(mpris_bus_type, bus_name, G_BUS_NAME_OWNER_FLAGS_NONE,
+                           on_mpris_bus_acquired, on_mpris_name_acquired, on_mpris_name_lost, NULL,
+                           NULL);
   return 0; // this is just to quieten a compiler warning
 }
 
