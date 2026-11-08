@@ -1,5 +1,5 @@
 group "default" {
-  targets = ["shairport-sync-classic-minimum", "shairport-sync-classic-minimum-metadata", "shairport-sync-classic-ffmpeg-minimum", "shairport-sync-classic-dbus", "shairport-sync-classic-mpris", "shairport-sync-classic-maximum", "shairport-sync-classic-maximum-ffmpeg", "shairport-sync-minimum", "shairport-sync-all"]
+  targets = ["shairport-sync-classic-tiny", "shairport-sync-classic-minimum", "shairport-sync-classic-minimum-metadata", "shairport-sync-classic-ffmpeg-minimum", "shairport-sync-classic-dbus", "shairport-sync-classic-mpris", "shairport-sync-classic-maximum", "shairport-sync-classic-maximum-ffmpeg", "shairport-sync-minimum", "shairport-sync-all"]
 }
 
 target "shairport-sync-classic-ffmpeg-minimum" {
@@ -21,6 +21,13 @@ target "shairport-sync-classic-minimum" {
   dockerfile = "tests/Dockerfile.testrig"
   target     = "shairport-sync-classic-minimum"
   tags       = ["shairport-sync:classic-minimum"]
+}
+
+target "shairport-sync-classic-tiny" {
+  context = ".."
+  dockerfile = "tests/Dockerfile.testrig"
+  target     = "shairport-sync-classic-tiny"
+  tags       = ["shairport-sync:classic-tiny"]
 }
 
 target "shairport-sync-classic-dbus" {
