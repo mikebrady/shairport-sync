@@ -1,3 +1,16 @@
+Version 5.7-dev-78-ga336ab0c
+==
+**Bug Fix**
+* Fixed a bug whereby stale `name`, `deviceID`, `model` and `macAddress` information from a previous connection would be used for a new connection.
+
+  The problem arose if the second phase of SETUP for the new connection did not contain this information, and so the information from the previous connection was not updated.
+
+  The fix is to attempt to cache the information in the first phase of SETUP and apply it in the second phase of SETUP. If no identity information is found in either phase, the previous identity is deleted. Thanks to [prhodey](https://github.com/prhodey) for the [report](https://github.com/mikebrady/shairport-sync/issues/2333) and suggested fix.
+
+**Other Changes**
+* Add a test build for a minimally-sized classic AirPlay build using the Hammerton decoder, tinysvcmdns and the [Mbed-TLS](https://github.com/Mbed-TLS/mbedtls) library. Please note that the Hammerton decoder and tinysvcmdns are deprecated for security reasons and so a build like this is not recommended.
+* Move all code relating to mDNS and dns-sd into a separate `mdns` subdirectory.
+
 Version 5.7-dev-73-gccf37c63
 ==
 **Bug Fix**
