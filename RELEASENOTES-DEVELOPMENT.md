@@ -1,9 +1,9 @@
 Version 5.7-dev-78-ga336ab0c
 ==
 **Bug Fix**
-* Fixed a bug whereby stale `name`, `deviceID`, `model` and `macAddress` information from a previous connection would be used for a new connection.
+* Fixed a bug whereby stale `name`, `deviceID`, `model` and `macAddress` information from a previous connection could be used for a new connection.
 
-  The problem arose if the second phase of SETUP for the new connection did not contain this information, and so the information from the previous connection was not updated.
+  The problem could arise if the second phase of SETUP for the new connection did not contain this information, and so the information relating to the previous connection would not be updated.
 
   The fix is to attempt to cache the information in the first phase of SETUP and apply it in the second phase of SETUP. If no identity information is found in either phase, the previous identity is deleted. Thanks to [prhodey](https://github.com/prhodey) for the [report](https://github.com/mikebrady/shairport-sync/issues/2333) and suggested fix.
 
