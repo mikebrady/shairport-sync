@@ -533,8 +533,8 @@ void remote_simple_command(simple_command_t command) {
 #ifdef CONFIG_DACP_CLIENT
   available = metadata_store.dacp_server_active;
   if (available) {
-    // see if we can find the commands string
-    if ((command <= rcsc_rewind_stop) && (simple_command_strings[command] != NULL)) {
+    // see if we can find the commands string (simple_command_strings ends at rcsc_volume_down)
+    if ((command <= rcsc_volume_down) && (simple_command_strings[command] != NULL)) {
       debug(4, "remote_simple_command \"%s\" -- DACP active.", simple_command_strings[command]);
       send_simple_dacp_command(simple_command_strings[command]);
     }
