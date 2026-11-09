@@ -212,6 +212,28 @@ int has_fltp_capable_aac_decoder(void) {
 #endif
 
 #ifdef CONFIG_SOXR
+// libsoxr keeps a process-wide FFT cache and, the first time it is used,
+// registers an atexit() handler that frees it. If that happens after
+// exit_function() has been registered, the cache is freed before
+// exit_function() (and exit_rtsp_listener()) have stopped the threads that
+// use libsoxr, so a thread still inside soxr_oneshot() reads freed memory and
+// the program crashes on exit. Do the same conversions that soxr_time_check()
+// and the player do here, before registering our own exit handlers, so that
+// libsoxr's handler is registered first and therefore runs last. (Only the
+// downsampling conversion goes through the FFT stage, but do both anyway.)
+static void soxr_register_exit_handler_early(void) {
+  const int buffer_length = 352;
+  int32_t inbuffer[buffer_length * 2];
+  int32_t outbuffer[(buffer_length + 1) * 2];
+  memset(inbuffer, 0, sizeof(inbuffer));
+
+  soxr_io_spec_t io_spec = soxr_io_spec(SOXR_INT32_I, SOXR_INT32_I);
+  size_t odone;
+  for (int stuff = -1; stuff <= 1; stuff += 2)
+    soxr_oneshot(buffer_length, buffer_length + stuff, 2, inbuffer, buffer_length, NULL,
+                 outbuffer, buffer_length + stuff, &odone, &io_spec, NULL, NULL);
+}
+
 pthread_t *soxr_time_check_thread = NULL;
 void *soxr_time_check(__attribute__((unused)) void *arg) {
   // this just checks how long it takes to process adding and subtracing a frame
@@ -2770,6 +2792,9 @@ int main(int argc, char **argv) {
 #else
   setlogmask(LOG_UPTO(LOG_DEBUG));
   openlog(NULL, 0, LOG_DAEMON);
+#endif
+#ifdef CONFIG_SOXR
+  soxr_register_exit_handler_early(); // must come before atexit(exit_function)
 #endif
   debug(1, "adding the exit function");
   atexit(exit_function);
