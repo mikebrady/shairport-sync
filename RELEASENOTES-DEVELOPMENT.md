@@ -10,7 +10,7 @@ Version 5.7-dev-87-g40ca0f6c
 
   The fix is to run `libsoxr` in `main()`, forcing it to register its exit handler before the main program registers its own exit handler. This ensures that, upon exit, the `libsoxr` exit handler always runs before the `main()` exit handler.
 
-  Thanks to [Chris Boot](https://github.com/bootc) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2340) reporting this problems and providing a fix.
+  Thanks to [Chris Boot](https://github.com/bootc) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2340) reporting this problem and providing a fix.
 
 Version 5.7-dev-84-gf7bb528a
 ==
