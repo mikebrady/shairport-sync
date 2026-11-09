@@ -1,3 +1,8 @@
+Version 5.7-dev-90-g4b24dabc
+==
+**Bug Fix**
+* A bug was fixed that prevented `VolumeUp` and `VolumeDown` commands being forwarded to the player in Classic AirPlay mode. Thanks to [Hans Tammiste](https://github.com/hanstammiste) for discovering the problem and providing a [PR](https://github.com/mikebrady/shairport-sync/pull/2341) to fix it.
+
 Version 5.7-dev-87-g40ca0f6c
 ==
 **Bug Fix**
