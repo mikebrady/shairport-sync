@@ -1,3 +1,8 @@
+Version 5.7-dev-84-gf7bb528a
+==
+**Bug Fix**
+* Fixed a race on the D-Bus and MPRIS interfaces whereby interface objects were exported _after_ the bus name had become visible on the bus. Clients triggered by  the appearance of the bus name could then be looking for interface objects before they appeared, causing errors. The fix is to export the objects in the bus-acquired callback instead, which runs before the name is requested, thus guaranteeing that the objects are visible when the bus name appears. Thanks to [Hans Tammiste](https://github.com/hanstammiste) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2338).
+
 Version 5.7-dev-78-ga336ab0c
 ==
 **Bug Fix**
