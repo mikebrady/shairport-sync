@@ -1,3 +1,12 @@
+Version 5.7-dev-87-g40ca0f6c
+==
+**Bug Fix**
+* Shairport Sync, when built with `libsoxr` support, can crash if it is stopped within about 1.5 seconds of starting. The cause is the order of the exit handlers. The `libsoxr` library keeps a process-wide FFT cache, and the first time a conversion needs it, `libsoxr` registers its exit handler to frees the cache on exit. That first use normally happens in the `soxr_time_check()` thread, after `main()` has already registered its own exit handler (and possibly after `exit_rtsp_listener()`). Exit handlers run in reverse order of registration, so on exit, the `libsoxr` exit handler frees its cache *before* the `main()` exit handler cancels and joins the `soxr_checker` thread. If that thread is still inside `soxr_oneshot()`, it reads the already-freed cache and crashes.
+
+  The fix is to run `libsoxr` in `main()`, forcing it to register its exit handler before the main program registers its own exit handler. This ensures that, upon exit, the `libsoxr` exit handler always runs before the `main()` exit handler.
+
+  Thanks to [Chris Boot](https://github.com/bootc) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2340) reporting this problems and providing a fix.
+
 Version 5.7-dev-84-gf7bb528a
 ==
 **Bug Fix**
