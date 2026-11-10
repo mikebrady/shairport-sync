@@ -196,6 +196,35 @@ char *service_name(const char *raw_service_name) {
   return response;
 }
 
+int dbus_bus_name_element_is_valid(const char *element) {
+  // An element of a well-known bus name may contain only ASCII letters, digits, '_' and '-',
+  // must not be empty and must not begin with a digit.
+  if ((element == NULL) || (element[0] == '\0') || isdigit((unsigned char)element[0]))
+    return 0;
+  const char *p;
+  for (p = element; *p != '\0'; p++) {
+    unsigned char ch = (unsigned char)*p;
+    if (!((ch < 0x80) && (isalnum(ch) || (ch == '_') || (ch == '-'))))
+      return 0;
+  }
+  return 1;
+}
+
+char *dbus_bus_name(const char *base_name, const char *element) {
+  // e.g. "org.gnome.ShairportSync" and "Kitchen" make "org.gnome.ShairportSync.Kitchen"
+  size_t length = strlen(base_name) + 1;
+  if (element != NULL)
+    length += 1 + strlen(element);
+  char *result = malloc(length);
+  if (result != NULL) {
+    if (element != NULL)
+      snprintf(result, length, "%s.%s", base_name, element);
+    else
+      snprintf(result, length, "%s", base_name);
+  }
+  return result;
+}
+
 int parse_u64(const char *str, uint64_t *out) {
   if (str == NULL || *str == '\0') {
     return -1; /* empty input */

@@ -212,6 +212,28 @@ int has_fltp_capable_aac_decoder(void) {
 #endif
 
 #ifdef CONFIG_SOXR
+// libsoxr keeps a process-wide FFT cache and, the first time it is used,
+// registers an atexit() handler that frees it. If that happens after
+// exit_function() has been registered, the cache is freed before
+// exit_function() (and exit_rtsp_listener()) have stopped the threads that
+// use libsoxr, so a thread still inside soxr_oneshot() reads freed memory and
+// the program crashes on exit. Do the same conversions that soxr_time_check()
+// and the player do here, before registering our own exit handlers, so that
+// libsoxr's handler is registered first and therefore runs last. (Only the
+// downsampling conversion goes through the FFT stage, but do both anyway.)
+static void soxr_register_exit_handler_early(void) {
+  const int buffer_length = 352;
+  int32_t inbuffer[buffer_length * 2];
+  int32_t outbuffer[(buffer_length + 1) * 2];
+  memset(inbuffer, 0, sizeof(inbuffer));
+
+  soxr_io_spec_t io_spec = soxr_io_spec(SOXR_INT32_I, SOXR_INT32_I);
+  size_t odone;
+  for (int stuff = -1; stuff <= 1; stuff += 2)
+    soxr_oneshot(buffer_length, buffer_length + stuff, 2, inbuffer, buffer_length, NULL,
+                 outbuffer, buffer_length + stuff, &odone, &io_spec, NULL, NULL);
+}
+
 pthread_t *soxr_time_check_thread = NULL;
 void *soxr_time_check(__attribute__((unused)) void *arg) {
   // this just checks how long it takes to process adding and subtracing a frame
@@ -381,6 +403,7 @@ void usage(char *progname) {
 #if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
     printf("    --dbus-default-message-bus=BUS Use the BUS specified for the native D-Bus and MPRIS interfaces.\n");
     printf("                            BUS must be \"system\" (default) or \"session\".\n");
+    printf("    --dbus-nametag=TAG      Append TAG to the native D-Bus and MPRIS bus names, e.g. org.gnome.ShairportSync.TAG.\n");
 #endif
     printf("    --log-to-syslog         Send debug and statistics information through syslog\n");
     printf("                            If used, this should be the first command line argument.\n");
@@ -423,6 +446,7 @@ int parse_options(int argc, char **argv) {
 #if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
   char *dbus_default_message_bus =
       NULL; /* used for picking the "system" or "session" bus as the default */
+  char *cli_dbus_nametag = NULL; /* used for picking up the D-Bus bus name tag */
 #endif
   signed char c; /* used for argument parsing */
   // int i = 0;                     /* used for tracking options */
@@ -459,6 +483,7 @@ int parse_options(int argc, char **argv) {
 #endif
 #if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
       {"dbus-default-message-bus", 0, POPT_ARG_STRING, &dbus_default_message_bus, 0, NULL, NULL},
+      {"dbus-nametag", 0, POPT_ARG_STRING, &cli_dbus_nametag, 0, NULL, NULL},
 #endif
       {"tolerance", 'z', POPT_ARG_INT, &tolerance_in_frames, 'z', NULL, NULL},
       {"use-stderr", 'u', POPT_ARG_NONE, NULL, 'u', NULL, NULL},
@@ -1437,6 +1462,12 @@ int parse_options(int argc, char **argv) {
       }
 #endif
 
+#if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
+      /* Get the D-Bus bus name tag, if any. */
+      if (config_lookup_string(config.cfg, "general.dbus_nametag", &str))
+        config.dbus_nametag = (char *)str;
+#endif
+
 #if defined(CONFIG_MPRIS_INTERFACE)
       /* Get the mpris service sbus setting. */
       if (config_lookup_string(config.cfg, "general.mpris_service_bus", &str)) {
@@ -1766,6 +1797,23 @@ int parse_options(int argc, char **argv) {
           "(default) or "
           "\"session\".",
           str);
+  }
+
+  if (cli_dbus_nametag != NULL)
+    config.dbus_nametag = cli_dbus_nametag;
+  if (config.dbus_nametag != NULL) {
+    // It must be a valid bus name element and leave room for the longest name it goes into,
+    // the MPRIS name with a process ID added, e.g.
+    // "org.mpris.MediaPlayer2.ShairportSync.Kitchen.i4294967295", within D-Bus's 255 characters.
+    if (!dbus_bus_name_element_is_valid(config.dbus_nametag))
+      die("Invalid dbus_nametag \"%s\". It may contain only the ASCII letters \"A\" to \"Z\" "
+          "and \"a\" to \"z\", the digits \"0\" to \"9\", \"_\" and \"-\", and must not begin "
+          "with a digit.",
+          config.dbus_nametag);
+    if (strlen("org.mpris.MediaPlayer2.ShairportSync.") + strlen(config.dbus_nametag) +
+            strlen(".i4294967295") >
+        255)
+      die("The dbus_nametag \"%s\" is too long.", config.dbus_nametag);
   }
 #endif
   config.airplay_statusflags |= 1 << 2; // Audio cable is attached
@@ -2744,6 +2792,9 @@ int main(int argc, char **argv) {
 #else
   setlogmask(LOG_UPTO(LOG_DEBUG));
   openlog(NULL, 0, LOG_DAEMON);
+#endif
+#ifdef CONFIG_SOXR
+  soxr_register_exit_handler_early(); // must come before atexit(exit_function)
 #endif
   debug(1, "adding the exit function");
   atexit(exit_function);

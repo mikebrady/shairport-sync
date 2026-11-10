@@ -11,7 +11,7 @@ extern "C" {
 #include <unistd.h>    // for useconds_t
 
 #include "definitions.h"
-#include "mdns.h"
+#include "mdns/mdns.h"
 
 // service type to be offered
 typedef enum {
@@ -423,6 +423,7 @@ typedef struct {
 
 #if defined(CONFIG_DBUS_INTERFACE) || defined(CONFIG_MPRIS_INTERFACE)
   dbus_message_bus_t dbus_default_message_bus;
+  char *dbus_nametag; // if not NULL, appended to the D-Bus and MPRIS bus names
 
 #if defined(CONFIG_DBUS_INTERFACE)
   dbus_message_bus_t dbus_service_bus_type;

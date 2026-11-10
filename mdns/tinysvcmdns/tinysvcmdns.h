@@ -1,5 +1,5 @@
 // This file is the concatenation of mdnsd.h and mdns.h
-// from tinysvcmdns with minor modifications
+// from tinysvcmdns with modifications
 // The code was taken from https://bitbucket.org/geekman/tinysvcmdns at revision e34b562
 
 /*

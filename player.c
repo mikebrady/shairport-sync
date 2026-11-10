@@ -90,7 +90,7 @@
 #endif
 
 #include "common.h"
-#include "mdns.h"
+#include "mdns/mdns.h"
 #include "player.h"
 #include "rtp.h"
 #include "rtsp.h"
@@ -5012,9 +5012,20 @@ void *player_thread_func(void *arg) {
 
                         char *play_starting_point = conn->outbuf + bytes_to_skip;
 
+                        // the first frame played is frames_to_skip (output) frames into the
+                        // packet, so its timestamp and time are later than the packet's
+                        uint32_t output_rate =
+                            RATE_FROM_ENCODED_FORMAT(config.current_output_configuration);
+                        uint32_t starting_point_timestamp =
+                            inframe->timestamp +
+                            (uint32_t)(((uint64_t)frames_to_skip * conn->input_rate) / output_rate);
+                        uint64_t starting_point_time =
+                            should_be_time +
+                            ((uint64_t)frames_to_skip * 1000000000) / output_rate;
+
                         config.output->play(play_starting_point, play_samples - frames_to_skip,
-                                            play_samples_are_timed, inframe->timestamp,
-                                            should_be_time);
+                                            play_samples_are_timed, starting_point_timestamp,
+                                            starting_point_time);
                         conn->total_frames_sent_to_play += (play_samples - frames_to_skip);
 
 
@@ -5203,6 +5214,10 @@ static void player_send_volume_metadata(uint8_t vol_mode_both, double airplay_vo
 
 void player_volume_without_notification(double airplay_volume, rtsp_conn_info *conn) {
   pthread_mutex_lock(&conn->volume_control_mutex);
+  // store the volume first: the metadata hub reads config.airplay_volume when it
+  // processes the 'pvol' message sent below, possibly before this function returns
+  config.airplay_volume = airplay_volume;
+  conn->own_airplay_volume = airplay_volume;
   // first, see if we are hw only, sw only, both with hw attenuation on the top or both with sw
   // attenuation on top
 
@@ -5417,9 +5432,6 @@ void player_volume_without_notification(double airplay_volume, rtsp_conn_info *c
           "is disabled.",
           volume_mode, airplay_volume, software_attenuation / 100.0, hardware_attenuation / 100.0);
   }
-  // here, store the volume for possible use in the future
-  config.airplay_volume = airplay_volume;
-  conn->own_airplay_volume = airplay_volume;
   pthread_mutex_unlock(&conn->volume_control_mutex);
 }
 

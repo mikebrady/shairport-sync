@@ -41,6 +41,7 @@
       <opt>[-c </opt><arg>configurationfile</arg><opt> | --configfile=</opt><arg>configurationfile</arg><opt>]</opt>
       <opt>[-d | --daemon]</opt>
       <opt>[--dbus-default-message-bus=</opt><arg>bus</arg><opt>]</opt>
+      <opt>[--dbus-nametag=</opt><arg>tag</arg><opt>]</opt>
       <opt>[-E </opt><arg>command</arg><opt> | --onstop=</opt><arg>command</arg><opt>]</opt>
       <opt>[-g | --get-cover-art]</opt>
       <opt>[-j | --justDaemoniseNoPIDFile]</opt>
@@ -210,6 +211,18 @@
 		<optdesc><p>
 		Use the <arg>bus</arg> specified for the native D-Bus and MPRIS interfaces.
 		The <arg>bus</arg> must be <opt>system</opt> or <opt>session</opt>. This option is
+		only available if Shairport Sync is built with the D-Bus or MPRIS interface.
+		</p></optdesc>
+	  </option>
+
+	  <option>
+		<p><opt>--dbus-nametag=</opt><arg>tag</arg></p>
+		<optdesc><p>
+		Add <arg>tag</arg> to the native D-Bus and MPRIS bus names, e.g.
+		<opt>org.gnome.ShairportSync.Kitchen</opt> and <opt>org.mpris.MediaPlayer2.ShairportSync.Kitchen</opt>.
+		Use it to give each of several instances on the same bus its own names.
+		The <arg>tag</arg> may contain only ASCII letters, digits, "_" and "-", and must not begin with a digit.
+		This overrides the <opt>dbus_nametag</opt> setting in the configuration file. This option is
 		only available if Shairport Sync is built with the D-Bus or MPRIS interface.
 		</p></optdesc>
 	  </option>

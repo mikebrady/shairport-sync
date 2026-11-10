@@ -25,18 +25,18 @@
 	<!-- <string>192.168.50.63:45008</string> -->
 	<key>screenDemoMode</key>
 	<false/>
-	<!--  <key>initialVolume</key> --> <!-- added programmatically -->
-	<!--  <real>-18.612697601318359</real> -->
-	<!--  <key>featuresEx</key> -->
+	<!-- <key>initialVolume</key> --> <!-- added programmatically -->
+	<!-- <real>-18.612697601318359</real> -->
+	<!-- <key>featuresEx</key> -->
 	<!-- <string>AMp/StBLNbw</string> --> <!-- added programmatically -->
-	<!--  <key>supportedFormats</key> --> <!-- added programmatically -->
-	<!--  <dict> -->
-	<!--  	<key>audioStream</key> -->
-		<!--<integer>21235712</integer>  --> <!-- looks like: 0x1440800 -->
-		<!--<key>bufferStream</key> -->
+	<!-- <key>supportedFormats</key> --> <!-- added programmatically -->
+	<!-- <dict> -->
+	  <!-- <key>audioStream</key> -->
+		<!-- <integer>21235712</integer>  --> <!-- looks like: 0x1440800 -->
+		<!-- <key>bufferStream</key> -->
 		<!-- This seems to tell the client what formats it supports. -->
 		<!-- See https://emanuelecozzi.net/docs/airplay2/audio for an incomplete list -->
-		<!--  <integer>4017212516896604160></integer>  --> <!-- looks like: 0x37C0018000E00000, from ATV4K: lots of unknown + AAC-LC/48K/F24/7.1, AAC-LC/48K/F24/5.1, ALAC/48000/S24/2, AAC-LC/48000/F24/2 and AAC-LC/44100/F24/2 -->
+		<!-- <integer>4017212516896604160></integer>  --> <!-- looks like: 0x37C0018000E00000, from ATV4K: lots of unknown + AAC-LC/48K/F24/7.1, AAC-LC/48K/F24/5.1, ALAC/48000/S24/2, AAC-LC/48000/F24/2 and AAC-LC/44100/F24/2 -->
 		<!-- <integer>2190448001024</integer>  --> <!-- looks like: 0x1FE00E00000, lots of guesses of unknowns + AAC-LC/48K/F24/7.1, AAC-LC/48K/F24/5.1, ALAC/48000/S24/2, AAC-LC/48000/F24/2 and AAC-LC/44100/F24/2 -->
 		<!-- <integer>1649282121728</integer>  --> <!-- looks like: 0x18000E00000, AAC-LC/48K/F24/7.1, AAC-LC/48K/F24/5.1, ALAC/48000/S24/2, AAC-LC/48000/F24/2 and AAC-LC/44100/F24/2 -->
 		<!-- <integer>-577021992845180928</integer>  --> <!-- looks like: 0xF7FE 018E 00E0 0000, from HPm 16.3.2 -->
@@ -45,8 +45,7 @@
 		<!-- 0x00000800000 is AAC-LC/48K/F24/2 -->
 		<!-- 0x00000400000 is AAC-LC/44.1K/F24/2 -->
 		<!-- 0x00000200000 is ALAC/48K/F24/2 -->
-
-	</dict>
+	<!-- </dict> -->
 	<!-- <key>sourceVersion</key> --> <!-- added programmatically -->
 	<!-- <string>620.8.2</string> -->
 	<!-- <key>macAddress</key> --> <!-- hoping we don't need this -->

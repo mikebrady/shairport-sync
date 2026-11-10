@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 
 #include "common.h"
@@ -51,6 +52,7 @@
 #include "remote/remote.h"
 #include "utilities/exit.h"
 #include "utilities/general_utilities.h"
+#include "utilities/string_utilities.h"
 
 #ifdef CONFIG_CONVOLUTION
 #include <FFTConvolver/convolver.h>
@@ -67,6 +69,8 @@ ShairportSyncRemoteControl *shairportSyncRemoteControlSkeleton = NULL;
 ShairportSyncAdvancedRemoteControl *shairportSyncAdvancedRemoteControlSkeleton = NULL;
 
 static guint ownerID = 0;
+static char *bus_name = NULL; // "org.gnome.ShairportSync", plus the D-Bus bus name tag, if any
+static int dbus_name_acquired = 0; // set once the bus name (or its per-process variant) is owned
 
 void dbus_metadata_watcher(struct metadata_bundle *argc) {
   char response[100];
@@ -945,9 +949,17 @@ static gboolean on_handle_set_frame_position_update_interval(
   return TRUE;
 }
 
-static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name,
-                                  __attribute__((unused)) gpointer user_data) {
-  debug(1, "Shairport Sync native D-Bus interface \"%s\" acquired on the %s bus.", name,
+// The objects are exported here, when the connection is available, rather than when the bus name
+// is acquired, so that they already exist when the name becomes visible. Otherwise a client that
+// queries the interface as soon as the name appears gets "Object does not exist at path
+// /org/gnome/ShairportSync" and may never query again.
+static void on_dbus_bus_acquired(GDBusConnection *connection, const gchar *name,
+                                 __attribute__((unused)) gpointer user_data) {
+  // Already exported on this (shared) connection, e.g. when retrying with a per-process name.
+  if (service_is_running != 0)
+    return;
+
+  debug(2, "Setting up the Shairport Sync native D-Bus interface for \"%s\" on the %s bus.", name,
         (dbus_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
 
   // define the skeletons
@@ -1221,20 +1233,46 @@ static void on_dbus_name_acquired(GDBusConnection *connection, const gchar *name
       G_DBUS_INTERFACE_SKELETON(shairportSyncAdvancedRemoteControlSkeleton), connection,
       "/org/gnome/ShairportSync", NULL);
 
-  debug(1, "Shairport Sync native D-Bus service started at \"%s\" on the %s bus.", name,
+  debug(2, "Shairport Sync native D-Bus objects exported on the %s bus.",
         (dbus_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
   service_is_running = 1;
 }
 
-static void on_dbus_name_lost(__attribute__((unused)) GDBusConnection *connection,
-                              __attribute__((unused)) const gchar *name,
+static void on_dbus_name_acquired(__attribute__((unused)) GDBusConnection *connection,
+                                  const gchar *name, __attribute__((unused)) gpointer user_data) {
+  dbus_name_acquired = 1;
+  debug(1, "Shairport Sync native D-Bus service started at \"%s\" on the %s bus.", name,
+        (dbus_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
+}
+
+static void on_dbus_name_lost(GDBusConnection *connection, const gchar *name,
                               __attribute__((unused)) gpointer user_data) {
-  warn("could not acquire a Shairport Sync native D-Bus interface \"%s\" on the %s bus.", name,
-       (dbus_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
-  ownerID = 0;
+  char *pid_name = NULL;
+  if ((connection != NULL) && (dbus_name_acquired == 0) && (bus_name != NULL) &&
+      (strcmp(name, bus_name) == 0)) {
+    char pid_element[16];
+    snprintf(pid_element, sizeof(pid_element), "i%d", (int)getpid());
+    pid_name = dbus_bus_name(bus_name, pid_element);
+  }
+  if (pid_name != NULL) {
+    // Another instance of Shairport Sync owns the name. Rather than wait in the queue for it,
+    // which would leave this instance without an interface until the other one exits, add this
+    // instance's process ID to the name, e.g. "org.gnome.ShairportSync.i1234".
+    debug(1, "\"%s\" is already in use -- looking for \"%s\" instead.", name, pid_name);
+    g_bus_unown_name(ownerID);
+    ownerID = g_bus_own_name(dbus_bus_type, pid_name, G_BUS_NAME_OWNER_FLAGS_NONE,
+                             on_dbus_bus_acquired, on_dbus_name_acquired, on_dbus_name_lost, NULL,
+                             NULL);
+    free(pid_name);
+  } else {
+    warn("could not acquire a Shairport Sync native D-Bus interface \"%s\" on the %s bus.", name,
+         (dbus_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
+    ownerID = 0;
+  }
 }
 
 int start_dbus_service() {
+  dbus_name_acquired = 0;
 
   // set up default message bus
   if (config.dbus_default_message_bus == DBT_session)
@@ -1246,12 +1284,13 @@ int start_dbus_service() {
   else if (config.dbus_service_bus_type == DBT_session)
     dbus_bus_type = G_BUS_TYPE_SESSION;
 
-  debug(1,
-        "Looking for a Shairport Sync native D-Bus interface \"org.gnome.ShairportSync\" on the %s "
-        "bus.",
+  free(bus_name);
+  bus_name = dbus_bus_name("org.gnome.ShairportSync", config.dbus_nametag);
+  debug(1, "Looking for a Shairport Sync native D-Bus interface \"%s\" on the %s bus.", bus_name,
         (dbus_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
-  ownerID = g_bus_own_name(dbus_bus_type, "org.gnome.ShairportSync", G_BUS_NAME_OWNER_FLAGS_NONE,
-                           NULL, on_dbus_name_acquired, on_dbus_name_lost, NULL, NULL);
+  ownerID = g_bus_own_name(dbus_bus_type, bus_name, G_BUS_NAME_OWNER_FLAGS_NONE,
+                           on_dbus_bus_acquired, on_dbus_name_acquired, on_dbus_name_lost, NULL,
+                           NULL);
   debug(2, "ownerID: %d.", ownerID);
   return 0; // this is just to quieten a compiler warning
 }

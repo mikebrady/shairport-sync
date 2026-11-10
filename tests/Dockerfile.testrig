@@ -78,6 +78,30 @@ RUN apt-get install -y --no-install-recommends \
     libavutil-dev libavcodec-dev libavformat-dev
 ##### SPS-CLASSIC-MINIMUM-DEV END #####
 
+##### SPS-CLASSIC-TINY #####
+##### NOTE: hammerton and tinysvcmdns are deprecated due to serious security concerns.
+FROM shairport-sync-classic-minimum-dev AS shairport-sync-classic-tiny
+RUN apt-get install -y   --no-install-recommends \
+  libmbedtls-dev
+ARG SHAIRPORT_SYNC_BRANCH
+WORKDIR /shairport-sync-classic-tiny
+COPY . .
+RUN rm -rf build
+# the above three lines or the following...
+# RUN git clone --depth=1 -b "SHAIRPORT_SYNC_BRANCH" https://github.com/mikebrady/sps-private shairport-sync
+
+# RUN git checkout "$SHAIRPORT_SYNC_BRANCH"
+# the following is to remove any build directory that might be there
+# not needed if the source is a clone of the repository
+# RUN rm -rf build
+WORKDIR /shairport-sync-classic-tiny/build
+RUN autoreconf -i ../
+RUN ../configure --sysconfdir=/etc --with-alsa --with-tinysvcmdns --without-ffmpreg --with-hammerton --with-ssl=mbedtls --with-systemd-startup
+RUN make -j$(nproc)
+RUN DESTDIR=install make install
+WORKDIR /
+##### SPS-CLASSIC-TINY END #####
+
 ##### SPS-CLASSIC-MINIMUM #####
 FROM shairport-sync-classic-minimum-dev AS shairport-sync-classic-minimum
 ARG SHAIRPORT_SYNC_BRANCH

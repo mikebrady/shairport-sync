@@ -23,6 +23,10 @@ shairport-sync -c /etc/shairport-sync.conf -a "Kitchen"     --port=7000 -- -d ro
 shairport-sync -c /etc/shairport-sync.conf -a "Living Room" --port=7001 -- -d room_livingroom
 ```
 
+If Shairport Sync is built with the D-Bus or MPRIS interface, give each instance a
+D-Bus name tag as well, e.g. `--dbus-nametag=Kitchen` — see
+[D-Bus and MPRIS interfaces](#d-bus-and-mpris-interfaces).
+
 These examples share the host's IP and differ by port; giving each instance its own
 `--address` instead (or as well) works the same way. Because the identity comes from
 the name, it stays put if a room later moves to a different port or address.
@@ -42,6 +46,9 @@ device — run `shairport-sync -h` for the options.)
    own, though instances can share a device that permits concurrent playback (their
    audio is then mixed). If several rooms come off one multichannel card, see
    [Splitting a Surround Card into Per-Room Outputs](SplittingASurroundCard.md).
+5. **A D-Bus name tag** — `general.dbus_nametag`, or `--dbus-nametag`, if Shairport
+   Sync is built with the D-Bus or MPRIS interface. See
+   [D-Bus and MPRIS interfaces](#d-bus-and-mpris-interfaces).
 
 ## One NQPTP for the whole host
 
@@ -50,6 +57,44 @@ of UDP ports 319 and 320 — and it keeps a separate clock per shared-memory
 interface name, demultiplexing its clients by the name each one uses. **Do not run
 one NQPTP per instance**; they would contend for ports 319/320. The
 automatically-derived names give each instance its own clock with no configuration.
+
+## D-Bus and MPRIS interfaces
+
+Only one process can own a D-Bus name, so only one instance can be
+`org.gnome.ShairportSync` (or `org.mpris.MediaPlayer2.ShairportSync`). Give each instance a
+name tag of its own with the `dbus_nametag` setting in the `general` section of its
+configuration file, or with `--dbus-nametag` on its command line. The tag is added to both
+names, so the instance with `dbus_nametag = "Kitchen";` is `org.gnome.ShairportSync.Kitchen`
+and `org.mpris.MediaPlayer2.ShairportSync.Kitchen`, whatever order the instances start in. A
+tag may contain only the ASCII letters `A`–`Z` and `a`–`z`, the digits `0`–`9`, `_` and `-`,
+and must not begin with a digit. If it doesn't, Shairport Sync stops with an error.
+
+If an instance finds its name in use by another instance, it adds its process ID to the name,
+e.g. `org.gnome.ShairportSync.i1234`, or `org.gnome.ShairportSync.Kitchen.i1234` if two
+instances have the same tag. That gives every instance an interface, but the name changes
+each time the instance starts. In containers, where each instance may be process 1 in its own
+container, the process ID doesn't tell them apart, so there each instance needs a name tag.
+
+To list every instance on the bus:
+
+```bash
+for n in $(dbus-send --system --print-reply=literal --dest=org.freedesktop.DBus /org/freedesktop/DBus \
+             org.freedesktop.DBus.ListNames | tr ' ' '\n' | grep '^org\.gnome\.ShairportSync'); do
+  echo "$n: $(dbus-send --system --print-reply=literal --dest=$n /org/gnome/ShairportSync \
+                org.freedesktop.DBus.Properties.Get string:org.gnome.ShairportSync string:ServiceName)"
+done
+```
+
+On the `system` bus, the installed D-Bus policy files allow these names to be owned, and
+allow methods to be called on the native interface of every instance. To call methods on
+the MPRIS interface of an instance with a name tag or a process ID on the `system` bus, add a rule to
+your local policy (`send_destination_prefix` needs dbus-daemon 1.13.12 or later):
+
+```xml
+<policy context="default">
+  <allow send_destination_prefix="org.mpris.MediaPlayer2.ShairportSync"/>
+</policy>
+```
 
 ## Running in containers
 
@@ -116,7 +161,7 @@ services:
     volumes:                                  # reach the shared avahi + dbus
       - dbus:/run/dbus
       - avahi:/run/avahi-daemon
-    command: ["-a", "Kitchen", "--port=7000", "--", "-d", "room_kitchen"]
+    command: ["-a", "Kitchen", "--port=7000", "--dbus-nametag=Kitchen", "--", "-d", "room_kitchen"]
     depends_on: [nqptp, mdns]
 
   livingroom:
@@ -127,7 +172,7 @@ services:
     volumes:
       - dbus:/run/dbus
       - avahi:/run/avahi-daemon
-    command: ["-a", "Living Room", "--port=7001", "--", "-d", "room_livingroom"]
+    command: ["-a", "Living Room", "--port=7001", "--dbus-nametag=Living_Room", "--", "-d", "room_livingroom"]
     depends_on: [nqptp, mdns]
 ```
 
@@ -146,3 +191,8 @@ instance's service under one hostname; instances differ by their service name. I
 would otherwise advertise on interfaces you don't want (internal/container bridges,
 for example), scope it to your LAN interface (`allow-interfaces=` in
 `avahi-daemon.conf`) to keep discovery clean.
+
+An application that runs the instances and has its own mDNS responder can skip
+Avahi: with `mdns_backend = "metadata";` each instance sends its services to the
+metadata feed (`svrg`, see [METADATA CODES](../METADATA%20CODES.md)) and the
+application publishes them while the instance runs.

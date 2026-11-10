@@ -122,7 +122,7 @@
 #include "dbus/dbus-service.h"
 #endif
 
-#include "mdns.h"
+#include "mdns/mdns.h"
 #include "utilities/network_utilities.h"
 
 enum rtsp_read_request_response {
@@ -2405,16 +2405,48 @@ void handle_flush(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
 #ifdef CONFIG_AIRPLAY_2
 
 #ifdef CONFIG_METADATA
-static void check_and_send_plist_metadata(plist_t messagePlist, const char *plist_key,
-                                          uint32_t metadata_code) {
-  plist_t item = plist_dict_get_item(messagePlist, plist_key);
-  if (item) {
-    char *value;
-    plist_get_string_val(item, &value);
-    if (value != NULL) {
-      send_metadata('ssnc', metadata_code, value, strlen(value), NULL, 0);
-      free(value);
+// Keep identity on its RTSP connection: AP2 clients may send it only in phase one.
+// sessionPlist was previously an unused dangling pointer to a freed SETUP plist.
+// Own only the identity strings here; do not retain the full SETUP or its keys.
+static const struct {
+  const char *key;
+  uint32_t code;
+} ap2_client_identity_fields[] = {
+    {"name", 'snam'}, {"deviceID", 'cdid'}, {"model", 'cmod'}, {"macAddress", 'cmac'}};
+
+static void clear_ap2_client_identity(rtsp_conn_info *conn) {
+  if (conn->sessionPlist) {
+    plist_free(conn->sessionPlist);
+    conn->sessionPlist = NULL;
+  }
+}
+
+static void cache_ap2_client_identity(rtsp_conn_info *conn, plist_t message, int initial_setup) {
+  if (initial_setup)
+    clear_ap2_client_identity(conn);
+  if (!message || plist_get_node_type(message) != PLIST_DICT)
+    return;
+  if (!conn->sessionPlist)
+    conn->sessionPlist = plist_new_dict();
+  for (size_t i = 0; i < 4; i++) {
+    plist_t item = plist_dict_get_item(message, ap2_client_identity_fields[i].key);
+    if (item && plist_get_node_type(item) == PLIST_STRING)
+      plist_dict_set_item(conn->sessionPlist, ap2_client_identity_fields[i].key, plist_copy(item));
+  }
+}
+
+static void publish_ap2_client_identity(rtsp_conn_info *conn) {
+  for (size_t i = 0; i < 4; i++) {
+    char *value = NULL;
+    if (conn->sessionPlist) {
+      plist_t item = plist_dict_get_item(conn->sessionPlist, ap2_client_identity_fields[i].key);
+      if (item && plist_get_node_type(item) == PLIST_STRING)
+        plist_get_string_val(item, &value);
     }
+    // Publish missing fields too, so MQTT cannot retain a previous sender's identity.
+    send_metadata('ssnc', ap2_client_identity_fields[i].code, value,
+                  value ? strlen(value) : 0, NULL, 0);
+    free(value);
   }
 }
 #endif
@@ -2428,11 +2460,6 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
 
   plist_t messagePlist = plist_from_rtsp_content(req);
 
-  if (messagePlist != NULL) {
-    // if (conn->sessionPlist)
-    //   plist_free(conn->sessionPlist);
-    conn->sessionPlist = messagePlist;
-  }
   plist_t setupResponsePlist = plist_new_dict();
   resp->respcode = 501;
 
@@ -2447,6 +2474,9 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
 
   // see if the incoming plist contains a "streams" array
   plist_t streams = plist_dict_get_item(messagePlist, "streams");
+#ifdef CONFIG_METADATA
+  cache_ap2_client_identity(conn, messagePlist, streams == NULL);
+#endif
   if (streams == NULL) {
     // no "streams" plist, so it must (?) be an initial setup
     debug(2,
@@ -2958,10 +2988,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
               get_category_string(conn->airplay_stream_category));
         mdns_update(txt_records, secondary_txt_records);
 #ifdef CONFIG_METADATA
-        check_and_send_plist_metadata(messagePlist, "name", 'snam');
-        check_and_send_plist_metadata(messagePlist, "deviceID", 'cdid');
-        check_and_send_plist_metadata(messagePlist, "model", 'cmod');
-        check_and_send_plist_metadata(messagePlist, "macAddress", 'cmac');
+        publish_ap2_client_identity(conn);
 #endif
         resp->respcode = 200;
       } else {
@@ -4122,6 +4149,9 @@ void rtsp_conversation_thread_cleanup_function(void *arg) {
     }
 
 #ifdef CONFIG_AIRPLAY_2
+#ifdef CONFIG_METADATA
+    clear_ap2_client_identity(conn);
+#endif
     if (conn->ap2_client_name) {
       free(conn->ap2_client_name);
       conn->ap2_client_name = NULL;

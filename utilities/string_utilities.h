@@ -7,6 +7,13 @@ char *str_replace(const char *string, const char *substr, const char *replacemen
 
 char *service_name(const char *raw_service_name);
 
+// Returns non-zero if element is a valid element of a D-Bus well-known bus name, e.g. "Kitchen".
+int dbus_bus_name_element_is_valid(const char *element);
+
+// base_name with element appended, e.g. "org.gnome.ShairportSync.Kitchen", or a copy of
+// base_name if element is NULL. Free the result with free().
+char *dbus_bus_name(const char *base_name, const char *element);
+
 // read in a 64-bit unsigned number
 int parse_u64(const char *str, uint64_t *out);
 

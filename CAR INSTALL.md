@@ -234,7 +234,7 @@ This is convenient for when you want to reconnect to update (see later), but if 
 #### Optional: Read-only mode – Raspberry Pi Specific
 This optional step is applicable to a Raspberry Pi only. Run `sudo raspi-config` and then choose `Performance Options` > `Overlay Filesystem` and choose to enable the overlay filesystem, and to set the boot partition to be write-protected. (The idea here is that this offers more protection against files being corrupted by the sudden removal of power.)
 
-Note that some packages may be installed to enable read-only mode, so the Pi needs to be connected to the internet for this step. Thus, if may be necessary to temporarily enable and disable read-only mode while connected to your network before re-enabling it after restarting in its final `RUN` mode as a stand-alone AirPlay receiver.
+Note that some packages may be installed to enable read-only mode, so the Pi needs to be connected to the internet for this step. Thus, it may be necessary to temporarily enable and disable read-only mode while connected to your network before re-enabling it after restarting in its final `RUN` mode as a stand-alone AirPlay receiver.
 
 ### Final Step
 When you are finished, carefully power down the machine before unplugging it from power:
