@@ -1,3 +1,7 @@
+Version 5.6.3
+==
+This is essentially 5.7-dev-90-g4b24dabc.
+
 Version 5.7-dev-90-g4b24dabc
 ==
 **Bug Fix**
