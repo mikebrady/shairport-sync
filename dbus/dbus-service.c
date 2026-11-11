@@ -1258,16 +1258,19 @@ static void on_dbus_name_lost(GDBusConnection *connection, const gchar *name,
     // Another instance of Shairport Sync owns the name. Rather than wait in the queue for it,
     // which would leave this instance without an interface until the other one exits, add this
     // instance's process ID to the name, e.g. "org.gnome.ShairportSync.i1234".
-    debug(1, "\"%s\" is already in use -- looking for \"%s\" instead.", name, pid_name);
-    g_bus_unown_name(ownerID);
+    debug(2, "could not acquire a Shairport Sync native D-Bus interface named \"%s\" on the %s bus. Trying \"%s\" instead.", name,
+         (dbus_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system", pid_name);
+    // g_bus_unown_name(ownerID);
     ownerID = g_bus_own_name(dbus_bus_type, pid_name, G_BUS_NAME_OWNER_FLAGS_NONE,
                              on_dbus_bus_acquired, on_dbus_name_acquired, on_dbus_name_lost, NULL,
                              NULL);
     free(pid_name);
   } else {
-    warn("could not acquire a Shairport Sync native D-Bus interface \"%s\" on the %s bus.", name,
+    debug(2, "could not acquire a Shairport Sync native D-Bus interface \"%s\" on the %s bus.", name,
          (dbus_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
-    ownerID = 0;
+    warn("could not acquire a Shairport Sync native D-Bus interface on the %s bus.",
+         (dbus_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
+    // ownerID = 0;
   }
 }
 
@@ -1286,7 +1289,7 @@ int start_dbus_service() {
 
   free(bus_name);
   bus_name = dbus_bus_name("org.gnome.ShairportSync", config.dbus_nametag);
-  debug(1, "Looking for a Shairport Sync native D-Bus interface \"%s\" on the %s bus.", bus_name,
+  debug(2, "Looking for a Shairport Sync native D-Bus interface \"%s\" on the %s bus.", bus_name,
         (dbus_bus_type == G_BUS_TYPE_SESSION) ? "session" : "system");
   ownerID = g_bus_own_name(dbus_bus_type, bus_name, G_BUS_NAME_OWNER_FLAGS_NONE,
                            on_dbus_bus_acquired, on_dbus_name_acquired, on_dbus_name_lost, NULL,
