@@ -25,12 +25,25 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+/*
+ * Registry-driven tinysvcmdns backend.
+ *
+ * mdns_start brings up the responder (hostname and addresses); each record that
+ * reaches mdns_publish is then registered as a service.
+ *
+ * LIMITATION: The first version of a record is what gets advertised: later
+ * changes to the same type are noted and ignored, and a record that is
+ * un-published remains advertised until mdns_stop shuts the whole
+ * responder down. 
+ */
+
 #include "mdns.h"
 #include "common.h"
 #include <ifaddrs.h>
 #include <net/if.h>
 #include <netinet/in.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -38,13 +51,20 @@
 #include "tinysvcmdns/tinysvcmdns.h"
 
 static struct mdnsd *svr = NULL;
+static char registered[MDNS_MAX_RECORDS][32]; // the types that have been registered
 
-static int mdns_tinysvcmdns_register(char *ap1name, __attribute__((unused)) char *ap2name, int port,
-                                     __attribute__((unused)) char **txt_records,
-                                     __attribute__((unused)) char **secondary_txt_records) {
+static int registered_index(const char *type) {
+  for (int i = 0; i < MDNS_MAX_RECORDS; i++)
+    if ((registered[i][0] != '\0') && (strcasecmp(registered[i], type) == 0))
+      return i;
+  return -1;
+}
+
+static int mdns_tinysvcmdns_start(void) {
   struct ifaddrs *ifalist;
   struct ifaddrs *ifa;
 
+  memset(registered, 0, sizeof(registered));
   svr = mdnsd_start();
   if (svr == NULL) {
     warn("tinysvcmdns: mdnsd_start() failed");
@@ -66,10 +86,10 @@ static int mdns_tinysvcmdns_register(char *ap1name, __attribute__((unused)) char
 
   if (getifaddrs(&ifalist) < 0) {
     warn("tinysvcmdns: getifaddrs() failed");
+    mdnsd_stop(svr);
+    svr = NULL;
     return -1;
   }
-
-  ifa = ifalist;
 
   // Look for an ipv4/ipv6 non-loopback interface to use as the main one.
   for (ifa = ifalist; ifa != NULL; ifa = ifa->ifa_next) {
@@ -95,6 +115,8 @@ static int mdns_tinysvcmdns_register(char *ap1name, __attribute__((unused)) char
   if (ifa == NULL) {
     warn("tinysvcmdns: no non-loopback ipv4 or ipv6 interface found");
     freeifaddrs(ifalist);
+    mdnsd_stop(svr);
+    svr = NULL;
     return -1;
   }
 
@@ -104,6 +126,8 @@ static int mdns_tinysvcmdns_register(char *ap1name, __attribute__((unused)) char
       continue;
     // only check for the named interface, if specified
     if ((config.interface == NULL) || (strcmp(config.interface, ifa->ifa_name) == 0)) {
+      if (ifa->ifa_addr == NULL)
+        continue;
       switch (ifa->ifa_addr->sa_family) {
       case AF_INET: { // ipv4
         uint32_t ip = ((struct sockaddr_in *)ifa->ifa_addr)->sin_addr.s_addr;
@@ -123,52 +147,72 @@ static int mdns_tinysvcmdns_register(char *ap1name, __attribute__((unused)) char
 
   // the records have their own copies of the addresses
   freeifaddrs(ifalist);
-
-  char *txtwithoutmetadata[] = {MDNS_RECORD_WITHOUT_METADATA, NULL};
-#ifdef CONFIG_METADATA
-  char *txtwithmetadata[] = {MDNS_RECORD_WITH_METADATA, NULL};
-#endif
-  char **txt;
-
-#ifdef CONFIG_METADATA
-  if (config.metadata_enabled)
-    txt = txtwithmetadata;
-  else
-#endif
-
-    txt = txtwithoutmetadata;
-
-  if (config.regtype == NULL)
-    die("tinysvcmdns: regtype is null");
-
-  char *extendedregtype = malloc(strlen(config.regtype) + strlen(".local") + 1);
-
-  if (extendedregtype == NULL)
-    die("tinysvcmdns: could not allocated memory to request a Zeroconf service");
-
-  strcpy(extendedregtype, config.regtype);
-  strcat(extendedregtype, ".local");
-
-  struct mdns_service *svc =
-      mdnsd_register_svc(svr, ap1name, extendedregtype, port, NULL,
-                         (const char **)txt); // TTL should be 75 minutes, i.e. 4500 seconds
-  mdns_service_destroy(svc);
-
-  free(extendedregtype);
-
   return 0;
 }
 
-static void mdns_tinysvcmdns_unregister(void) {
+static void mdns_tinysvcmdns_publish(const mdns_service_record *rec, mdns_put_result why,
+                                     void *ctx) {
+  (void)why;
+  (void)ctx;
+  if (svr == NULL)
+    return;
+
+  if (registered_index(rec->service_type) >= 0) {
+    debug(2, "tinysvcmdns: can not change a registered service (%s): its advertisement stays as "
+             "first published.",
+          rec->service_type);
+    return;
+  }
+
+  int slot = -1;
+  for (int i = 0; i < MDNS_MAX_RECORDS; i++)
+    if (registered[i][0] == '\0') {
+      slot = i;
+      break;
+    }
+  if (slot < 0) {
+    warn("tinysvcmdns: no free slot for a record of type %s.", rec->service_type);
+    return;
+  }
+
+  char fulltype[sizeof(rec->service_type) + 8]; // the type, ".local" and a NUL
+  snprintf(fulltype, sizeof fulltype, "%s.local", rec->service_type);
+
+  const char *txt[MDNS_MAX_KV + 1]; // NULL-terminated, pointing into rec
+  if (mdns_record_to_strv(rec, txt, MDNS_MAX_KV + 1) < 0) {
+    warn("tinysvcmdns: the text records for %s do not fit.", rec->service_type);
+    return;
+  }
+
+  struct mdns_service *svc = mdnsd_register_svc(svr, rec->instance_name, fulltype, rec->port, NULL,
+                                                txt); // TTL should be 75 minutes, i.e. 4500 seconds
+  if (svc == NULL) {
+    warn("tinysvcmdns: could not register \"%s\" as %s.", rec->instance_name, rec->service_type);
+    return;
+  }
+  mdns_service_destroy(svc); // the records stay with the responder
+  snprintf(registered[slot], sizeof registered[slot], "%s", rec->service_type);
+}
+
+static void mdns_tinysvcmdns_unpublish(const mdns_service_record *rec, void *ctx) {
+  (void)ctx;
+  debug(2, "tinysvcmdns: %s can not be withdrawn individually; it stays until the responder stops.",
+        rec->service_type);
+}
+
+static void mdns_tinysvcmdns_stop(void) {
   if (svr) {
     mdnsd_stop(svr);
     svr = NULL;
   }
+  memset(registered, 0, sizeof(registered));
 }
 
 mdns_backend mdns_tinysvcmdns = {.name = "tinysvcmdns",
-                                 .mdns_register = mdns_tinysvcmdns_register,
-                                 .mdns_unregister = mdns_tinysvcmdns_unregister,
+                                 .mdns_start = mdns_tinysvcmdns_start,
+                                 .mdns_stop = mdns_tinysvcmdns_stop,
+                                 .mdns_publish = mdns_tinysvcmdns_publish,
+                                 .mdns_unpublish = mdns_tinysvcmdns_unpublish,
                                  .mdns_dacp_monitor_start = NULL,
                                  .mdns_dacp_monitor_set_id = NULL,
                                  .mdns_dacp_monitor_stop = NULL};

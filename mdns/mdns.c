@@ -31,13 +31,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "mdns_registry.h"
+
+
+// there'll probably be a different init for each backend type... but initially just one.
+void mdns_init() {
+}
 
 #ifdef CONFIG_AVAHI
 extern mdns_backend mdns_avahi;
 #endif
+
 #ifdef CONFIG_DNS_SD
 extern mdns_backend mdns_dns_sd;
 #endif
+
 #ifdef CONFIG_TINYSVCMDNS
 extern mdns_backend mdns_tinysvcmdns;
 #endif
@@ -46,6 +54,7 @@ extern mdns_backend mdns_tinysvcmdns;
 extern mdns_backend mdns_external_avahi;
 extern mdns_backend mdns_external_dns_sd;
 #endif
+
 #ifdef CONFIG_METADATA
 extern mdns_backend mdns_metadata;
 #endif
@@ -69,25 +78,25 @@ static mdns_backend *mdns_backends[] = {
 #endif
     NULL};
 
-void mdns_register(char **txt_records, char **secondary_txt_records) {
-  char *ap1_service_name = alloca(strlen(config.service_name) + 14);
-  char *p = ap1_service_name;
-  int i;
-  for (i = 0; i < 6; i++) {
-    snprintf(p, 3, "%02X", config.ap1_prefix[i]);
-    p += 2;
+// Starts a backend and, if that succeeds, installs it as the registry's publisher, which
+// replays every record already in the registry to it.
+static int start_backend(mdns_backend *b) {
+  int error = b->mdns_start();
+  if (error >= 0) {
+    mdns_publisher pub = {b->mdns_publish, b->mdns_unpublish, NULL};
+    mdns_registry_set_publisher(&pub);
   }
-  *p++ = '@';
-  strcpy(p, config.service_name);
+  return error;
+}
 
+void mdns_register(void) {
   mdns_backend **b = NULL;
 
   if (config.mdns_name != NULL) {
     for (b = mdns_backends; *b; b++) {
       if (strcmp((*b)->name, config.mdns_name) != 0) // Not the one we are looking for
         continue;
-      int error = (*b)->mdns_register(ap1_service_name, config.service_name, config.port,
-                                      txt_records, secondary_txt_records);
+      int error = start_backend(*b);
       if (error >= 0) {
         config.mdns = *b;
       }
@@ -99,8 +108,7 @@ void mdns_register(char **txt_records, char **secondary_txt_records) {
   } else {
     // default -- pick the first back end
     for (b = mdns_backends; *b; b++) {
-      int error = (*b)->mdns_register(ap1_service_name, config.service_name, config.port,
-                                      txt_records, secondary_txt_records);
+      int error = start_backend(*b);
       if (error >= 0) {
         config.mdns = *b;
         break;
@@ -114,17 +122,13 @@ void mdns_register(char **txt_records, char **secondary_txt_records) {
   mdns_dacp_monitor_start(); // create a dacp monitor thread
 }
 
-void mdns_update(char **txt_records, char **secondary_txt_records) {
-  if ((config.mdns) && (config.mdns->mdns_update)) {
-    config.mdns->mdns_update(txt_records, secondary_txt_records);
-  } else
-    debug(1, "Can't mdns_update -- no mdns_update registered.");
-}
-
 void mdns_unregister(void) {
   mdns_dacp_monitor_stop();
   if (config.mdns) {
-    config.mdns->mdns_unregister();
+    mdns_registry_clear();             // unpublishes every record
+    mdns_registry_set_publisher(NULL); // nothing may call the backend after this
+    if (config.mdns->mdns_stop)
+      config.mdns->mdns_stop();
   }
 }
 

@@ -27,8 +27,9 @@
 // Advertises nothing itself: each service is sent to the metadata feed for
 // an application with its own mDNS responder to publish. Payload, one line each:
 //   service=<type>  name=<name>  port=<port>  txt=<key=value> (per TXT record)
-// 'svrg' registers a service or replaces its TXT records. Services end
-// when the instance exits (nothing is sent then: the feed is already closed).
+// 'svrg' registers a service or replaces its TXT records. It is sent for every
+// record the mDNS registry adds or changes, with that record's own port.
+// Services end when the instance exits (nothing is sent then: the feed is already closed).
 // Used only when named; no DACP monitor.
 
 #include "common.h"
@@ -38,48 +39,34 @@
 #include <stdlib.h>
 #include <string.h>
 
-static char *ap1_service_name = NULL;
-static char *ap2_service_name = NULL;
-static int service_port = 0;
-
-static void send_service(const uint32_t code, const char *service_type,
-                         const char *service_name, char **txt_records) {
-  size_t length = strlen("service=\nname=\nport=65535\n") + strlen(service_type) +
-                  strlen(service_name) + 1;
-  char **record;
-  if (txt_records != NULL)
-    for (record = txt_records; *record != NULL; record++)
-      length += strlen("txt=\n") + strlen(*record);
+static void send_service(const uint32_t code, const mdns_service_record *rec) {
+  size_t length = strlen("service=\nname=\nport=65535\n") + strlen(rec->service_type) +
+                  strlen(rec->instance_name) + 1;
+  for (size_t i = 0; i < rec->n; i++)
+    length += strlen("txt=\n") + strlen(mdns_record_get(rec, i));
   char *payload = malloc(length);
   if (payload == NULL) {
-    warn("mdns metadata backend: can not allocate memory for the \"%s\" service.", service_type);
+    warn("mdns metadata backend: can not allocate memory for the \"%s\" service.",
+         rec->service_type);
     return;
   }
   char *p = payload;
-  p += snprintf(p, length, "service=%s\nname=%s\nport=%d\n", service_type, service_name,
-                service_port);
-  if (txt_records != NULL)
-    for (record = txt_records; *record != NULL; record++) {
-      // would split the record
-      if (strchr(*record, '\n') != NULL) {
-        debug(1, "mdns metadata backend: skipping a TXT record containing a newline.");
-        continue;
-      }
-      p += snprintf(p, length - (p - payload), "txt=%s\n", *record);
+  p += snprintf(p, length, "service=%s\nname=%s\nport=%u\n", rec->service_type, rec->instance_name,
+                (unsigned)rec->port);
+  for (size_t i = 0; i < rec->n; i++) {
+    const char *txt = mdns_record_get(rec, i);
+    // would split the record
+    if (strchr(txt, '\n') != NULL) {
+      debug(1, "mdns metadata backend: skipping a TXT record containing a newline.");
+      continue;
     }
-  send_ssnc_metadata(code, payload, p - payload, 1); // copied
+    p += snprintf(p, length - (size_t)(p - payload), "txt=%s\n", txt);
+  }
+  send_ssnc_metadata(code, payload, (size_t)(p - payload), 1); // copied
   free(payload);
 }
 
-static void forget_services(void) {
-  free(ap1_service_name);
-  ap1_service_name = NULL;
-  free(ap2_service_name);
-  ap2_service_name = NULL;
-}
-
-static int mdns_metadata_register(char *ap1name, char *ap2name, int port, char **txt_records,
-                                  char **secondary_txt_records) {
+static int mdns_metadata_start(void) {
   // never a fallback: nothing would be advertised
   if ((config.mdns_name == NULL) || (strcmp(config.mdns_name, "metadata") != 0))
     return -1;
@@ -87,34 +74,29 @@ static int mdns_metadata_register(char *ap1name, char *ap2name, int port, char *
     warn("The \"metadata\" mDNS backend needs metadata to be enabled.");
     return -1;
   }
-  forget_services();
-  service_port = port;
   // Metadata sent while nothing reads the feed is dropped (e.g. while the metadata pipe has no
   // reader), so the application should be reading it before Shairport Sync starts.
-  ap1_service_name = strdup(ap1name);
-  send_service('svrg', config.regtype, ap1_service_name, txt_records);
-  if ((ap2name != NULL) && (secondary_txt_records != NULL)) {
-    ap2_service_name = strdup(ap2name);
-    send_service('svrg', config.regtype2, ap2_service_name, secondary_txt_records);
-  }
-  debug(1, "mdns metadata backend: services handed to the metadata reader.");
+  debug(1, "mdns metadata backend: services will be handed to the metadata reader.");
   return 0;
 }
 
-static int mdns_metadata_update(char **txt_records, char **secondary_txt_records) {
-  if (ap1_service_name != NULL)
-    send_service('svrg', config.regtype, ap1_service_name, txt_records);
-  if ((ap2_service_name != NULL) && (secondary_txt_records != NULL))
-    send_service('svrg', config.regtype2, ap2_service_name, secondary_txt_records);
-  return 0;
+static void mdns_metadata_publish(const mdns_service_record *rec, mdns_put_result why, void *ctx) {
+  (void)why; // 'svrg' registers a service or replaces its TXT records
+  (void)ctx;
+  send_service('svrg', rec);
 }
 
-static void mdns_metadata_unregister(void) { forget_services(); }
+// The feed has no message for withdrawing a service (they end with the instance).
+static void mdns_metadata_unpublish(const mdns_service_record *rec, void *ctx) {
+  (void)ctx;
+  debug(1, "mdns metadata backend: nothing is sent when the %s service is removed.",
+        rec->service_type);
+}
 
 mdns_backend mdns_metadata = {.name = "metadata",
-                              .mdns_register = mdns_metadata_register,
-                              .mdns_update = mdns_metadata_update,
-                              .mdns_unregister = mdns_metadata_unregister,
+                              .mdns_start = mdns_metadata_start,
+                              .mdns_publish = mdns_metadata_publish,
+                              .mdns_unpublish = mdns_metadata_unpublish,
                               .mdns_dacp_monitor_start = NULL,
                               .mdns_dacp_monitor_set_id = NULL,
                               .mdns_dacp_monitor_stop = NULL};

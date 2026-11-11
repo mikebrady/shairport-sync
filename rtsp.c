@@ -76,7 +76,7 @@
 #include <polarssl/md5.h>
 #endif
 
-#include "bonjour_strings.h"
+#include "mdns/mdns_services.h"
 #include "common.h"
 #include "player.h"
 #include "rtp.h"
@@ -312,8 +312,8 @@ void stop_play() {
     }
 #endif
     config.airplay_statusflags &= (0xffffffff - (1 << 17)); // ReceiverSessionIsActive
-    build_bonjour_strings(principal_conn);
-    mdns_update(txt_records, secondary_txt_records);
+    mdns_update_service_records(principal_conn);
+    
     principal_conn = NULL; // let it go
     debug(1, "Connection successfully closed.");
   }
@@ -332,8 +332,8 @@ void release_play_lock(rtsp_conn_info *conn) {
       }
 #endif
       config.airplay_statusflags &= (0xffffffff - (1 << 17)); // ReceiverSessionIsActive
-      build_bonjour_strings(principal_conn);
-      mdns_update(txt_records, secondary_txt_records);
+      mdns_update_service_records(principal_conn);
+      
       debug(4, "Connection %d: (%s) has released play lock.", conn->connection_number,
             get_category_string(conn->airplay_stream_category));
     }
@@ -382,8 +382,8 @@ play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) 
       // no other connection already has play lock
       principal_conn = conn;
       config.airplay_statusflags |= (1 << 17); // ReceiverSessionIsActive
-      build_bonjour_strings(conn);
-      mdns_update(txt_records, secondary_txt_records);
+      mdns_update_service_records(conn);
+      
       response = play_lock_acquired_without_breaking_in;
     } else if (allow_session_interruption != 0) { // principal conn is not NULL,
       debug(4, "Connection %d: (%s) about to be terminated.", principal_conn->connection_number,
@@ -394,27 +394,9 @@ play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) 
             conn->connection_number, get_category_string(conn->airplay_stream_category),
             previous_principal_conn->connection_number);
       terminate_conn(previous_principal_conn->connection_number);
-      /*
-      if (principal_conn == NULL) {
-#ifdef CONFIG_AIRPLAY_2
-        if (conn->airplay_gid) {
-          free(conn->airplay_gid);
-          conn->airplay_gid = NULL; // stop using the client's GID as our GID.
-        }
-#endif
-        config.airplay_statusflags &= (0xffffffff - (1 << 17)); // ReceiverSessionIsActive
-        build_bonjour_strings(conn);
-        mdns_update(txt_records, secondary_txt_records);
-
-        response = play_lock_released;
-      } else {
-      */
-      if (1) {
-        config.airplay_statusflags |= (1 << 17); // ReceiverSessionIsActive
-        build_bonjour_strings(conn);
-        mdns_update(txt_records, secondary_txt_records);
-        response = play_lock_acquired_by_breaking_in;
-      }
+      config.airplay_statusflags |= (1 << 17); // ReceiverSessionIsActive
+      mdns_update_service_records(conn);
+      response = play_lock_acquired_by_breaking_in;
     }
     //    if ((principal_conn != NULL) && (response != play_lock_already_acquired))
     if (response != play_lock_already_acquired) {
@@ -2065,8 +2047,7 @@ void handle_configure(rtsp_conn_info *conn __attribute__((unused)),
   }
 
   if (config.enable_HK_Access_Control != existingEnable_HK_Access_Control) {
-    build_bonjour_strings(principal_conn);
-    mdns_update(txt_records, secondary_txt_records);
+    mdns_update_service_records(principal_conn);
   }
   plist_to_bin(response_plist, &resp->content, &resp->contentlength);
   plist_free(response_plist);
@@ -2982,11 +2963,11 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
         plist_array_append_item(streams_array, stream0dict);
         plist_dict_set_item(setupResponsePlist, "streams", streams_array);
   
-        // since the GID from the client has been acquired, update the airplay bonjour strings.
-        build_bonjour_strings(conn);
-        debug(2, "Connection %d: SETUP mdns_update on %s.", conn->connection_number,
+        // since the GID from the client has been acquired, update the airplay service records.
+        debug(2, "Connection %d: SETUP mdns_update_service_records on %s.", conn->connection_number,
               get_category_string(conn->airplay_stream_category));
-        mdns_update(txt_records, secondary_txt_records);
+        mdns_update_service_records(conn);
+        
 #ifdef CONFIG_METADATA
         publish_ap2_client_identity(conn);
 #endif
@@ -4515,19 +4496,9 @@ void *rtsp_listen_loop(__attribute((unused)) void *arg) {
         maxfd = sockfd[i];
     }
 
-    char **t1 = txt_records; // ap1 text records
-    char **t2 = NULL;        // possibly two text records
-#ifdef CONFIG_AIRPLAY_2
-    if (config.service_type == APST_airplay2) {
-      // make up a secondary set of text records
-      t2 = secondary_txt_records; // second set of text records in AirPlay 2 only
-    }
-#endif
-    build_bonjour_strings(NULL); // no conn yet
-    // if a thread is created, e.g. Avahi, it'll inherit the name from this thread
-    mdns_register(t1, t2); // note that the dacp thread could still be using the mdns stuff after
-                           // all player threads have been terminated, so mdns_unregister can't be
-                           // in the rtsp_listen_loop cleanup.
+    mdns_register();
+    mdns_update_service_records(NULL);
+
     pthread_setcancelstate(oldState, NULL);
     int acceptfd;
     struct timeval tv;

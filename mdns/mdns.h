@@ -1,57 +1,40 @@
 #ifndef _MDNS_H
 #define _MDNS_H
 
+#include "mdns_registry.h"
 #include "player.h"
 #include <stdint.h>
 
-extern int mdns_pid;
-
+void mdns_init(void);
 void mdns_unregister(void);
-void mdns_register(char **txt_records, char **secondary_txt_records);
-void mdns_update(char **txt_records, char **secondary_txt_records);
+void mdns_register(void);
 void mdns_dacp_monitor_start();
 void mdns_dacp_monitor_stop(void);
 void mdns_dacp_monitor_set_id(const char *dacp_id);
 
 void mdns_ls_backends(void);
 
+/* A backend is driven by the mDNS registry (see mdns_registry.h): mdns_register()
+ * calls mdns_start() and then installs mdns_publish / mdns_unpublish as the
+ * registry's publisher, so records already in the registry are replayed to it.
+ *
+ *   mdns_start    -- bring up the mDNS machinery; return >= 0 on success.
+ *   mdns_publish  -- a record was added or its content changed.
+ *   mdns_unpublish-- a record was removed.
+ *   mdns_stop     -- called last, after every record has been unpublished
+ *                    and the publisher removed. May be NULL.
+ */
 typedef struct {
   char *name;
-  int (*mdns_register)(char *ap1name, char *ap2name, int port, char **txt_records,
-                       char **secondary_txt_records);
-  int (*mdns_update)(char **txt_records, char **secondary_txt_records);
-  void (*mdns_unregister)(void);
+
+  int (*mdns_start)(void);
+  void (*mdns_stop)(void);
+  void (*mdns_publish)(const mdns_service_record *rec, mdns_put_result why, void *ctx);
+  void (*mdns_unpublish)(const mdns_service_record *rec, void *ctx);
+
   void (*mdns_dacp_monitor_start)();
   void (*mdns_dacp_monitor_set_id)(const char *);
   void (*mdns_dacp_monitor_stop)();
 } mdns_backend;
-
-#ifdef CONFIG_METADATA
-
-#define METADATA_EXPRESSION config.get_coverart ? "md=0,1,2" : "md=0,2"
-
-/*
- #define MDNS_RECORD_WITH_METADATA \
-  "tp=UDP", "sm=false", "ek=1", "et=0,1", "cn=0,1", "ch=2", METADATA_EXPRESSION, "ss=16", \
-      "sr=44100", "vn=3", "txtvers=1", config.password ? "pw=true" : "pw=false"
-*/
-#define MDNS_RECORD_WITH_METADATA                                                                  \
-  "sf=0x4", "fv=76400.10", "am=ShairportSync", "vs=105.1", "tp=TCP,UDP", "vn=65537",               \
-      METADATA_EXPRESSION, "ss=16", "sr=44100", "da=true", "sv=false", "et=0,1", "ek=1", "cn=0,1", \
-      "ch=2", "txtvers=1", config.password ? "pw=true" : "pw=false"
-
-#endif
-
-/*
- #define MDNS_RECORD_WITHOUT_METADATA \
-  "tp=UDP", "sm=false", "ek=1", "et=0,1", "cn=0,1", "ch=2", METADATA_EXPRESSION, "ss=16",
- "sr=44100", "vn=3",           \
-      "txtvers=1", config.password ? "pw=true" : "pw=false"
-*/
-
-#define MDNS_RECORD_WITHOUT_METADATA                                                               \
-  "sf=0x4", "fv=76400.10", "am=ShairportSync", "vs=105.1", "tp=TCP,UDP", "vn=65537", "ss=16",      \
-      "sr=44100", "da=true", "sv=false", "et=0,1", "ek=1", "cn=0,1", "ch=2", "txtvers=1",          \
-      config.password ? "pw=true" : "pw=false"
 
 #endif // _MDNS_H

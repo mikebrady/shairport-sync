@@ -85,6 +85,7 @@
 #include "common.h"
 #include "rtp.h"
 #include "rtsp.h"
+#include "mdns/mdns.h"
 #include "utilities/exit.h"
 #include "utilities/string_utilities.h"
 
@@ -2165,7 +2166,7 @@ int parse_options(int argc, char **argv) {
     }
   }
 #else
-  // if we don't have AirPLay 2, the service type must be classic
+  // if we don't have AirPlay 2, the service type must be classic
   config.service_type = APST_classic;
 #endif
 
@@ -3751,6 +3752,8 @@ int main(int argc, char **argv) {
 #ifdef CONFIG_CONVOLUTION
   convolver_pool_init(config.convolution_threads, 8); // 8 channels
 #endif
+
+  mdns_init(); // initialise the mdns registry
   activity_monitor_start();
   debug(4, "create an RTSP listener");
   // note: the Avahi Threaded Poll thread will be named after whatever name you use here too, so

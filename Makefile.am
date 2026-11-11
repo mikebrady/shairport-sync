@@ -35,9 +35,10 @@ noinst_LIBRARIES =
 
 # See below for the flags for the test client program
 
-shairport_sync_SOURCES = shairport.c bonjour_strings.c mdns/mdns.c common.c rtp.c \
+shairport_sync_SOURCES = shairport.c common.c rtp.c \
   player.c audio.c loudness.c activity_monitor.c \
   rtsp.c \
+  mdns/mdns.c mdns/mdns_record.c mdns/mdns_record_set.c mdns/mdns_registry.c mdns/mdns_services.c \
   utilities/debug.c \
   utilities/network_utilities.c \
   utilities/rtsp_message_utilities.c \
