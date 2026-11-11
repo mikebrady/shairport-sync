@@ -172,10 +172,7 @@ static GVariant *plist_node_to_gvariant(plist_t node) {
       free(data);
       return v;
     }
-
-    GVariant *v = g_variant_new_from_data(G_VARIANT_TYPE("ay"), data, length, TRUE, NULL, NULL);
-    free(data);
-    return v;
+    return g_variant_new_from_data(G_VARIANT_TYPE("ay"), data, length, TRUE, free, data);
   }
 
   case PLIST_ARRAY:
