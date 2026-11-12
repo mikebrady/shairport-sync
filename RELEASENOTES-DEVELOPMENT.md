@@ -1,3 +1,13 @@
+Version 5.7-dev-99-g28683e2f
+==
+**Bug Fixes**
+* Fix two use-after-free and free-after-free memory bugs.
+
+**Other Changes**
+* The management of mDNS ("Multicast DNS", RFC 6762) and DNS-SD ("DNS Service Discovery”) services -- sometimes collectively known as "Bonjour" or "Zeroconf" -- has been completely reorganised. Shairport Sync now maintains a registry of service information and uses the selected mDNS backend (e.g. Avahi) to publish on the network.
+
+  AirPlay uses mDNS and DNS-SD services to advertise player information and state, so the smooth operation of these services is central to the operation of Shairport Sync. This is a big change, so it would be great to thoroughly test it.
+
 Version 5.6.3
 ==
 This is essentially 5.7-dev-90-g4b24dabc.
