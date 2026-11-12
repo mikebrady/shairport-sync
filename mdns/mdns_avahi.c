@@ -1,7 +1,7 @@
 /*
  * Embedded Avahi client. This file is part of Shairport.
  * Copyright (c) James Laird 2013
- * Additions for maintenance, metadata, AirPlay 2 and IPv6 Copyright (c) Mike Brady 2015--2025
+ * Additions for maintenance, metadata, AirPlay 2 and IPv6 Copyright (c) Mike Brady 2015--2026
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person

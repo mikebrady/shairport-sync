@@ -23,6 +23,7 @@ void mdns_ls_backends(void);
  *   mdns_unpublish-- a record was removed.
  *   mdns_stop     -- called last, after every record has been unpublished
  *                    and the publisher removed. May be NULL.
+ * Note that some backends can not update or unpublish a published service.
  */
 typedef struct {
   char *name;
