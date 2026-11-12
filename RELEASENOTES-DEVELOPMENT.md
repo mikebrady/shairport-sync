@@ -8,6 +8,8 @@ Version 5.7-dev-99-g28683e2f
 
   AirPlay uses mDNS and DNS-SD services to advertise player information and state, so the smooth operation of these services is central to the operation of Shairport Sync. This is a big change, so it would be great to thoroughly test it.
 
+* Clean up outdated diagnostic messages about acquiring the D-Bus bus for the D-Bus and MPRIS interfaces.
+  
 Version 5.6.3
 ==
 This is essentially 5.7-dev-90-g4b24dabc.
