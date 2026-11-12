@@ -144,8 +144,11 @@ void *rtp_buffered_audio_processor(void *arg) {
   pthread_cleanup_push(cv_cleanup, &buffered_audio->not_full_cv);
 
   // initialise the buffer data structure
-  buffered_audio->buffer_max_size = conn->ap2_audio_buffer_size;
-  buffered_audio->buffer = malloc(conn->ap2_audio_buffer_size);
+  // audioBufferSize stays at the advertised size. Allocate twice that, so a
+  // sender that fills the advertised window before the anchor arrives does not
+  // block this reader.
+  buffered_audio->buffer_max_size = conn->ap2_audio_buffer_size * 2;
+  buffered_audio->buffer = malloc(buffered_audio->buffer_max_size);
   if (buffered_audio->buffer == NULL)
     debug(1, "cannot allocate an audio buffer of %zu bytes!", buffered_audio->buffer_max_size);
   pthread_cleanup_push(malloc_cleanup, &buffered_audio->buffer);
