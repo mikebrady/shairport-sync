@@ -1997,10 +1997,10 @@ int parse_options(int argc, char **argv) {
   // 496155702020608 this setting here is the source of both the plist features response and the
   // mDNS string.
 
-  config.airplay_features = 0x00010340401C4A00; // no AP2 metadata (b50), no AP1 text (b17), no AP1
-                                                // progress (b16), no AP1 artwork (b15)
-                                                // no HomeKit Pairing ability
-
+  config.airplay_features = 0x00010340401C4A00; // base: no AP2 metadata (b50), no AP1 text (b17),
+                                                // no AP1 progress (b16), no AP1 artwork (b15);
+                                                // bits 46 and 47 (HomeKit pairing) are added below
+                                                
   // These are important for allowing Shairport Sync to be added to Apple home.
   config.airplay_features |= (((uint64_t)1 << 46) | ((uint64_t)1 << 47));
   // Bit 46 seems to mean	SupportsHKPairingAndAccessControl	HomeKit-based pairing and
