@@ -2249,6 +2249,12 @@ void handle_setpeers(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp
     plist_free(addresses_array);
   */
   // set_client_as_ptp_clock(conn);
+  // A late join names the timing peer here and does not open the audio stream
+  // until this receiver is following that clock. NQPTP keeps the first address,
+  // which is the peer of this connection.
+  set_client_as_ptp_clock(conn);
+  ptp_send_control_message_string(
+      "B"); // signify clock dependability period is "B"eginning (or continuing)
   resp->respcode = 200;
 }
 void handle_setpeersx(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
