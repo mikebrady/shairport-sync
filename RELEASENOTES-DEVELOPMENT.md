@@ -1,3 +1,9 @@
+Version 5.7-dev-102-gdeb83848
+==
+**Small Change**
+* Set the code for `ALAC_44100_S16_2` to  `0x12000000`.
+
+
 Version 5.7-dev-99-g28683e2f
 ==
 **Bug Fixes**
