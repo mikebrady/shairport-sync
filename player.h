@@ -151,7 +151,7 @@ typedef uint16_t seq_t;
 // Dolby Atmos seems to be 7P1
 typedef enum {
   SSRC_NONE = 0,
-  ALAC_44100_S16_2 = 0x0000FACE, // this is made up
+  ALAC_44100_S16_2 = 0x12000000,
   ALAC_48000_S24_2 = 0x15000000,
   AAC_44100_F24_2 = 0x16000000,
   AAC_48000_F24_2 = 0x17000000,
