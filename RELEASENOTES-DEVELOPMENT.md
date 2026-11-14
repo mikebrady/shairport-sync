@@ -1,8 +1,7 @@
 Version 5.7-dev-102-gdeb83848
 ==
-**Small Change**
-* Set the code for `ALAC_44100_S16_2` to  `0x12000000`.
-
+**Enhancement**
+* Following the suggestion [here](https://github.com/mikebrady/shairport-sync/issues/2319#issuecomment-6869458600), support has been added for ALAC/44100/S16/2 in buffered audio streams. This format is not currently used by Apple for buffered audio, but it is used by [Music Assistant](https://www.music-assistant.io).
 
 Version 5.7-dev-99-g28683e2f
 ==
