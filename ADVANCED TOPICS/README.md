@@ -5,6 +5,7 @@ Here you will find links to some advanced features and things you can do with Sh
 * [Metadata](Metadata.md).
 * [Events](Events.md).
 * [Statistics](Statistics.md).
+* [Pipe Output with Timing Headers](PipeOutput.md) – timestamp the audio sent to a pipe, so a reader can schedule it itself.
 * [Running Multiple AirPlay 2 Instances](RunningMultipleInstances.md) on one host – one independent AirPlay 2 zone per room from a single machine, VM, or set of containers.
 * [Splitting a Surround Card into Per-Room Outputs](SplittingASurroundCard.md) – carve one multichannel ALSA card into several independent stereo outputs, one per room.
 * Setting up an [MQTT](../MQTT.md) system.
