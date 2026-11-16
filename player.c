@@ -4982,8 +4982,10 @@ void *player_thread_func(void *arg) {
                                            conn->previous_random_number,
                                            config.current_output_configuration);
                     }
-                    uint64_t should_be_time;
-                    frame_to_local_time(inframe->timestamp, &should_be_time, conn);
+                    uint64_t should_be_time = 0;
+                    // 0 tells the backend the time isn't known, e.g. if the anchor was just reset
+                    if (frame_to_local_time(inframe->timestamp, &should_be_time, conn) != 0)
+                      should_be_time = 0;
                     // debug(1, "play frame %u.", inframe->timestamp);
 
                     // now, see if we are skipping some or all of these frames
@@ -5020,8 +5022,10 @@ void *player_thread_func(void *arg) {
                             inframe->timestamp +
                             (uint32_t)(((uint64_t)frames_to_skip * conn->input_rate) / output_rate);
                         uint64_t starting_point_time =
-                            should_be_time +
-                            ((uint64_t)frames_to_skip * 1000000000) / output_rate;
+                            should_be_time == 0
+                                ? 0
+                                : should_be_time +
+                                      ((uint64_t)frames_to_skip * 1000000000) / output_rate;
 
                         config.output->play(play_starting_point, play_samples - frames_to_skip,
                                             play_samples_are_timed, starting_point_timestamp,
@@ -5093,8 +5097,10 @@ void *player_thread_func(void *arg) {
                                        conn->previous_random_number,
                                        config.current_output_configuration);
                 }
-                uint64_t should_be_time;
-                frame_to_local_time(inframe->timestamp, &should_be_time, conn);
+                uint64_t should_be_time = 0;
+                // 0 tells the backend the time isn't known, e.g. if the anchor was just reset
+                if (frame_to_local_time(inframe->timestamp, &should_be_time, conn) != 0)
+                  should_be_time = 0;
                 debug(3, "play frame %u.", inframe->timestamp);
                 config.output->play(conn->outbuf, play_samples, play_samples_are_timed,
                                     inframe->timestamp, should_be_time);
