@@ -36,6 +36,7 @@ Each controller's remote control channel is passed on to the source of the audio
 | `--with-ao` |
 | `--with-stdout` |
 | `--with-pipe` |
+| `--with-blockaudio` |
 
 Shairport Sync has a number of different "backends" that send audio to an onward destination, e.g. an audio subsystem for output to a Digital to Audio Converter and thence to loudspeakers, or to a pipe for further processing. You can use configuration options to include support for multiple backends at build time and select one of them at runtime.
 
@@ -48,6 +49,7 @@ Here are the audio backend configuration options:
 - `--with-ao` Output to the [libao](https://xiph.org/ao/) system. No synchronisation.
 - `--with-stdout` Include an optional backend module to enable raw audio to be output through standard output (`STDOUT`).
 - `--with-pipe` Include an optional backend module to enable raw audio to be output through a unix pipe.
+- `--with-blockaudio` Include an optional backend module that outputs audio through a unix pipe in blocks, each with a header giving its format and the time at which it should be played. See [Block Audio Output](ADVANCED%20TOPICS/BlockAudio.md).
 
 ### PulseAudio and PipeWire
 If your system uses either PipeWire or PulseAudio as sound servers, Shairport Sync must be started as a user service. This is because the PipeWire or PulseAudio services -- needed by Shairport Sync -- are user services themselves, and they must be running before Shairport Sync starts. That implies that Shairport Sync must be started as a user service.

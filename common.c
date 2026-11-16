@@ -2021,6 +2021,9 @@ char *get_version_string() {
 #ifdef CONFIG_PIPE
     strcat(version_string, "-pipe");
 #endif
+#ifdef CONFIG_BLOCKAUDIO
+    strcat(version_string, "-blockaudio");
+#endif
 #ifdef CONFIG_SOXR
     strcat(version_string, "-soxr");
 #endif

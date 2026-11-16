@@ -98,6 +98,12 @@ if test "x$with_pipe" = "xyes" ; then
 fi
 AM_CONDITIONAL([USE_PIPE], [test "x$with_pipe" = "xyes" ])
 
+AC_ARG_WITH([blockaudio],[AS_HELP_STRING([--with-blockaudio],[build the blockaudio backend, which writes timed blocks of audio to a unix pipe])])
+if test "x$with_blockaudio" = "xyes" ; then
+  AC_DEFINE([CONFIG_BLOCKAUDIO], 1, [Include an audio backend to output timed blocks of audio to a unix pipe.])
+fi
+AM_CONDITIONAL([USE_BLOCKAUDIO], [test "x$with_blockaudio" = "xyes" ])
+
 # Check to see if we should include the System V initscript
 
 AC_ARG_WITH([systemv-startup],[AS_HELP_STRING([--with-systemv-startup],[install a System V startup script during a make install])])

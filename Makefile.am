@@ -120,6 +120,10 @@ if USE_PIPE
 shairport_sync_SOURCES += audio_pipe.c
 endif
 
+if USE_BLOCKAUDIO
+shairport_sync_SOURCES += audio_blockaudio.c
+endif
+
 if USE_DUMMY
 shairport_sync_SOURCES += audio_dummy.c
 endif

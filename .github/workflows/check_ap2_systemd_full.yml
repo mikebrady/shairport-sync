@@ -19,7 +19,7 @@ jobs:
     - name: Configure
       run: |
         autoreconf -fi
-        ./configure --sysconfdir=/etc --with-alsa --with-ao --with-dummy --with-jack --with-pipe --with-stdout --with-soxr --with-avahi --with-ssl=openssl --with-systemd-startup --with-dbus-interface --with-mpris-interface --with-mqtt-client --with-airplay-2
+        ./configure --sysconfdir=/etc --with-alsa --with-ao --with-dummy --with-jack --with-pipe --with-blockaudio --with-stdout --with-soxr --with-avahi --with-ssl=openssl --with-systemd-startup --with-dbus-interface --with-mpris-interface --with-mqtt-client --with-airplay-2
     - name: Make
       run: |
         make -j

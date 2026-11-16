@@ -96,6 +96,7 @@ typedef enum {
 
 // ensure sps_format_sample_size_array and sps_format_description_string_array are in sync with
 // this!
+// the blockaudio backend sends these values to readers, so don't renumber existing entries.
 typedef enum {
   SPS_FORMAT_UNKNOWN = 0,
   SPS_FORMAT_S8,
