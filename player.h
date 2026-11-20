@@ -151,7 +151,7 @@ typedef uint16_t seq_t;
 // Dolby Atmos seems to be 7P1
 typedef enum {
   SSRC_NONE = 0,
-  ALAC_44100_S16_2 = 0x0000FACE, // this is made up
+  ALAC_44100_S16_2 = 0x12000000,
   ALAC_48000_S24_2 = 0x15000000,
   AAC_44100_F24_2 = 0x16000000,
   AAC_48000_F24_2 = 0x17000000,
@@ -462,6 +462,13 @@ typedef struct {
   pthread_t rtp_buffered_audio_thread;
   pthread_mutex_t event_sender_mutex;
   int event_channel_fd; // zero if closed, controlled by event_sender_mutex
+#ifdef CONFIG_MRP_RELAY
+  uint8_t *mrp_pending; // queued MediaRemote reply messages for the event channel
+  size_t mrp_pending_length;
+  int mrp_subscribe_pending; // the controller has asked for updates; register after replying
+  int rc_stream_count; // the number of remote control data channels the controller has set up
+  int mrp_stream_id;   // X-Apple-StreamID of the controller's latest MediaRemote message, or 0
+#endif
 
   int ap2_event_receiver_exited;
 
@@ -511,6 +518,9 @@ typedef struct {
   uint64_t compression;
   unsigned char *session_key; // needs to be free'd at the end
   char *ap2_client_name;      // needs to be free'd at teardown phase 2
+#ifdef CONFIG_MRP_RELAY
+  int sender_supports_relay;  // 1 if the SETUP said senderSupportsRelay is true
+#endif
   uint64_t type;                  // 96 (Realtime Audio), 103 (Buffered Audio), 130 (Remote Control)
   uint64_t networkTimeTimelineID; // the clock ID used by the player
   uint8_t groupContainsGroupLeader; // information coming from the SETUP

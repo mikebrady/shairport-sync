@@ -112,6 +112,8 @@
 //    of the current play sequence, the current play point and the end of the
 //    play sequence.
 //              I guess the timestamps wrap at 2^32.
+//    'rfsh' -- refresh -- the metadata hub runs its watchers, although no data has changed.
+//    It has no data. Used by a watcher that has just been added, to catch up.
 //    'mdst' -- a sequence of metadata is about to start; will have, as data,
 //    the rtptime associated with the metadata, if available
 //    'mden' -- a sequence of metadata has ended; will have, as data, the

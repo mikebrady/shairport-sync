@@ -17,6 +17,15 @@ _AirPlay_ (without the "2", aka "classic AirPlay" or "AirPlay 1") is an older ve
 
 To build Shairport Sync for AirPlay 2, include the `--with-airplay-2` option in the `./configure ...` options. You will also have to include extra libraries. Omitting this option will cause Shairport Sync to be built for the older AirPlay protocol. Include the `--with-ffmpeg` to build for classic AirPlay but using the FFmpeg libraries for decoding and for transcoding. This is recommended for classic AirPlay because it is better maintained and more flexible. Unfortunately, the FFmpeg library is very bulky and so many embedded devices simply don't have space for it.
 
+## MediaRemote Relay
+| Flag |
+| ---- |
+| `--with-mrp-relay` |
+
+Experimental, and for AirPlay 2 only. With this option, iPhones, iPads and Macs that are using the receiver can connect to it for remote control, so that their control panels show the current track, its artwork and the playback and volume controls for Shairport Sync, and use them. It requires `--with-airplay-2`. It also includes the metadata hub, which it uses to show now-playing information, and the remote control client, which it uses to pass play, pause and skip commands on to the source of the audio, as if you had asked for extended metadata and remote control support. Without this option, Shairport Sync does not set the "Relay" bit in its status flags and does not act on the MediaRemote messages that remote control connections carry.
+
+An iPad or a Mac may open more than one remote control channel on the same connection and treat each as a separate session. Shairport Sync gives each channel its own stream ID and sends each its own now-playing state, so the controller can show the current track as soon as it connects. When the source of the audio disconnects, Shairport Sync tells each controller to remove its player and client, and that it is disconnected.
+
 ## Audio Output
 | Flags |
 | ----- |

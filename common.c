@@ -2039,6 +2039,9 @@ char *get_version_string() {
 #ifdef CONFIG_MPRIS_INTERFACE
     strcat(version_string, "-mpris");
 #endif
+#ifdef CONFIG_MRP_RELAY
+    strcat(version_string, "-mrp");
+#endif
     strcat(version_string, "-sysconfdir:");
     strcat(version_string, SYSCONFDIR);
   }

@@ -3,7 +3,7 @@
 #include "rtsp.h"
 #include <pthread.h>
 
-#define number_of_watchers 2
+#define number_of_watchers 3
 
 typedef enum {
   PS_NOT_AVAILABLE = 0,

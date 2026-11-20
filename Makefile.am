@@ -190,6 +190,10 @@ if USE_METADATA_HUB
 shairport_sync_SOURCES += metadata/metadata_hub_handle_command_plist.c
 endif
 
+if USE_MRP_RELAY
+shairport_sync_SOURCES += mrp/mrp_protobuf.c mrp/mrp_relay.c
+endif
+
 shairport_sync_LDADD += lib_pair_ap.a
 lib_pair_ap_a_SOURCES = pair_ap/pair.c pair_ap/pair_fruit.c pair_ap/pair_homekit.c pair_ap/pair-tlv.c
 noinst_LIBRARIES += lib_pair_ap.a

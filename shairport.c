@@ -638,7 +638,7 @@ int parse_options(int argc, char **argv) {
                                 // player. 0 -- 4. 3 seems normal.
 #endif
 
-  config.vv = 0;
+  config.vv = 1;
 
   // make up a firmware version
 #ifdef CONFIG_USE_GIT_VERSION_STRING
@@ -2007,12 +2007,14 @@ int parse_options(int argc, char **argv) {
   // access control support Bit 47 seems necessary too, but is undocumented.
 
   // This is undocumented, but is set on the APX.
-  // config.airplay_features |= (uint64_t)1 << 22 ;
+  config.airplay_features |= (uint64_t)1 << 22 ;
+  // config.airplay_features |= (uint64_t)1 << 26; // HasUnifiedAdvertiserInfo
 
   // debug(1, "Features: 0x%" PRIx64 ", unmask: 0x%" PRIx64 ", mask: 0x%" PRIx64 ".",
   // config.airplay_features, unmask, mask);
 
   // features=0x0001C340445D0A00 -- AirPort Express
+  
 
 #ifdef CONFIG_METADATA
   // If we are asking for metadata, turn on the relevant bits

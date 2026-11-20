@@ -141,6 +141,9 @@ int mdns_build_airplay_record(mdns_service_record *r, const char *instance, uint
     TRY(mdns_record_add(r, "gcgl=1"));
   else
     TRY(mdns_record_add(r, "gcgl=0"));
+  if ((config.airplay_statusflags & (1 << 11)) != 0) {
+    TRY(mdns_record_add(r, "isGroupLeader=0"));
+  }
   TRY(addf(r, "model=%s", config.model));
   TRY(mdns_record_add(r, "protovers=1.1"));
   TRY(addf(r, "pi=%s", config.airplay_pi));
@@ -148,6 +151,7 @@ int mdns_build_airplay_record(mdns_service_record *r, const char *instance, uint
   TRY(addf(r, "pk=%s", config.pk_string));
   TRY(addf(r, "srcvers=%s", config.srcvers));
   TRY(addf(r, "fv=%s", config.firmware_version));
+  TRY(addf(r, "vv=%d", config.vv));
   return MDNS_OK;
 }
 #endif

@@ -41,7 +41,8 @@ ssize_t ap2_event_port_send_message(rtsp_conn_info *conn, char *data, size_t dat
   ssize_t result = -1; // assume a problem
   pthread_mutex_lock(&conn->event_sender_mutex);
   pthread_cleanup_push(mutex_unlock, &conn->event_sender_mutex);
-  if (conn->event_channel_fd != 0) {
+  // the descriptor is zero before the channel is opened and -1 after it has been closed
+  if (conn->event_channel_fd > 0) {
     result = write_encrypted(conn->event_channel_fd, &conn->ap2_pairing_context.event_cipher_bundle,
                              data, data_length);
     if ((result != -1) && ((size_t)result == data_length)) {
@@ -76,6 +77,16 @@ ssize_t ap2_event_port_send_message(rtsp_conn_info *conn, char *data, size_t dat
           if ((response_code < 200) || (response_code >= 300)) {
             debug(1, "Connection %d: Event Port returned RTSP status %u.", conn->connection_number,
                   response_code);
+            // show what the controller said, to help find out why it refused the message
+            char reply_text[301];
+            size_t reply_length = (size_t)result < sizeof(reply_text) - 1 ? (size_t)result
+                                                                          : sizeof(reply_text) - 1;
+            memcpy(reply_text, packet, reply_length);
+            reply_text[reply_length] = '\0';
+            for (size_t k = 0; k < reply_length; k++)
+              if (reply_text[k] == '\r' || reply_text[k] == '\n')
+                reply_text[k] = '|';
+            debug(1, "Connection %d: the reply was \"%s\".", conn->connection_number, reply_text);
             result = -1;
           }
         }
@@ -95,30 +106,40 @@ ssize_t ap2_event_port_send_message(rtsp_conn_info *conn, char *data, size_t dat
 }
 
 ssize_t ap2_event_port_post_command(rtsp_conn_info *conn, plist_t command) {
+  return ap2_event_port_post_command_stream(conn, command, 0);
+}
+
+ssize_t ap2_event_port_post_command_stream(rtsp_conn_info *conn, plist_t command, int stream_id) {
   ssize_t result = 0;
   decodeAndLogPlist(3, command);
-  structured_buffer *sbuf = sbuf_new(4096);
-  if (sbuf != NULL) {
-    pthread_cleanup_push(sbuf_cleanup, sbuf);
-    char *plistString = NULL;
-    uint32_t plistStringLength = 0;
-
-    plist_to_bin(command, &plistString, &plistStringLength);
-    if (plistString != NULL) {
+  char *plistString = NULL;
+  uint32_t plistStringLength = 0;
+  plist_to_bin(command, &plistString, &plistStringLength);
+  if (plistString != NULL) {
+    // size the buffer to suit the message: a fixed-size buffer silently drops a large plist
+    // (e.g. one carrying artwork), leaving a header that promises a body that never arrives
+    structured_buffer *sbuf = sbuf_new((size_t)plistStringLength + 1024);
+    if (sbuf != NULL) {
+      pthread_cleanup_push(sbuf_cleanup, sbuf);
       sbuf_printf(sbuf, "POST /command RTSP/1.0\r\nContent-Length: %u\r\n", plistStringLength);
+      if (stream_id != 0)
+        sbuf_printf(sbuf, "X-Apple-StreamID: %d\r\n", stream_id);
       sbuf_printf(sbuf, "Content-Type: application/x-apple-binary-plist\r\n\r\n");
-      sbuf_append(sbuf, plistString, plistStringLength);
-      free(plistString); // should be plist_to_bin_free, but it's not defined in older
-                         // libraries
-      char *b = 0;
-      size_t l = 0;
-      sbuf_buf_and_length(sbuf, &b, &l);
-      result = ap2_event_port_send_message(conn, b, l);
-      debug(3, "Connection %d: POST /command sent on the event port. Result is %zd.",
-            conn->connection_number, result);
-      sbuf_clear(sbuf);
+      if (sbuf_append(sbuf, plistString, plistStringLength) == 0) {
+        char *b = 0;
+        size_t l = 0;
+        sbuf_buf_and_length(sbuf, &b, &l);
+        result = ap2_event_port_send_message(conn, b, l);
+        debug(3, "Connection %d: POST /command sent on the event port. Result is %zd.",
+              conn->connection_number, result);
+      } else {
+        result = -1; // never send a header without its body
+      }
+      pthread_cleanup_pop(1); // delete the structured buffer
+    } else {
+      result = -1;
     }
-    pthread_cleanup_pop(1); // delete the structured buffer
+    free(plistString); // should be plist_to_bin_free, but it's not defined in older libraries
   }
   return result;
 }
@@ -181,7 +202,7 @@ void ap2_event_receiver_cleanup_handler(void *arg) {
 
 void *ap2_event_receiver(void *arg) {
   rtsp_conn_info *conn = (rtsp_conn_info *)arg;
-  debug(2, "Connection %d: AP2 Event Receiver started", conn->connection_number);
+  debug(3, "Connection %d: AP2 Event Receiver started", conn->connection_number);
   SOCKADDR remote_addr;
   memset(&remote_addr, 0, sizeof(remote_addr));
   socklen_t addr_size = sizeof(remote_addr);
@@ -192,7 +213,7 @@ void *ap2_event_receiver(void *arg) {
       eintr_checked_accept(conn->event_socket, (struct sockaddr *)&remote_addr, &addr_size);
   pthread_cleanup_pop(1); // unlock the mutex
   if (conn->event_channel_fd > 0) {
-    debug(2,
+    debug(3,
           "Connection %d: ap2_event_receiver accepted a connection on socket %d and moved to a new "
           "socket %d.",
           conn->connection_number, conn->event_socket, conn->event_channel_fd);

@@ -487,7 +487,7 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
 
                         char *printable_plist = plist_as_xml_text(commandInfoOptionsDict);
                         if (printable_plist) {
-                          debug(2, "\n--\n%s\n--", printable_plist);
+                          debug(3, "\n--\n%s\n--", printable_plist);
                           free(printable_plist);
                         } else {
                           debug(1, "Can't print the plist!");
@@ -519,21 +519,31 @@ void metadata_hub_handle_command_plist(rtsp_conn_info *conn, const plist_t comma
             if (playback_state_item != NULL) {
               uint64_t playback_state = 0;
               plist_get_uint_val(playback_state_item, &playback_state);
+              play_status_type new_play_status = PS_NOT_AVAILABLE;
+              int recognised = 1;
               switch (playback_state) {
               case 1:
-                metadata_store.play_status = PS_PLAYING;
+                new_play_status = PS_PLAYING;
                 break;
               case 2:
-                metadata_store.play_status = PS_PAUSED;
+                new_play_status = PS_PAUSED;
                 break;
               case 3:
-                metadata_store.play_status = PS_STOPPED;
+                new_play_status = PS_STOPPED;
                 break;
               case 4:
-                metadata_store.play_status = PS_NOT_AVAILABLE;
+                new_play_status = PS_NOT_AVAILABLE;
                 break;
               default:
+                recognised = 0;
                 debug(1, "unrecognised new play status: %" PRIu64 ".", playback_state);
+              }
+              if (recognised) {
+                // take the hub write lock, and run the watchers if the status has changed
+                metadata_hub_modify_prolog();
+                int play_status_changed = (metadata_store.play_status != new_play_status);
+                metadata_store.play_status = new_play_status;
+                metadata_hub_modify_epilog(play_status_changed);
               }
             } else {
               debug(1, "POST /command updateMRPlaybackState has no mrPlaybackState item.");

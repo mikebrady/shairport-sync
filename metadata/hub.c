@@ -191,7 +191,7 @@ void _metadata_hub_modify_epilog(int modified, const char *filename, const int l
       metadata_store.dacp_server_active; // set the scanner_has_been_active now.
 #endif
   if (modified) {
-    debug(2, "run metadata watchers");
+    debug(3, "run metadata watchers");
     run_metadata_watchers();
   }
 
@@ -689,6 +689,11 @@ void metadata_hub_process_metadata(uint32_t type, uint32_t code, char *data, uin
         changed = 1;
         debug(3, "MH Server IP set to: \"%s\"", metadata_store.server_ip);
       }
+      break;
+    case 'rfsh':
+      // no data has changed: this just asks for the watchers to be run, so that a watcher that
+      // has been added since the last change can catch up with the present state
+      changed = 1;
       break;
     case 'abeg':
       changed = (metadata_store.active_state != AM_ACTIVE);

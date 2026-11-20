@@ -270,8 +270,15 @@ void _debug_log_rtsp_message(rtsp_conn_info *conn, const char *filename, const i
                              int level, char *prompt, rtsp_message *message) {
   if (level > debug_level())
     return;
-  if ((prompt) && (*prompt != '\0')) // okay to pass NULL or an empty list...
-    _debug(filename, linenumber, level, "%s", prompt);
+  if ((prompt) && (*prompt != '\0')) { // okay to pass NULL or an empty list...
+#ifdef CONFIG_AIRPLAY_2
+    if (conn != NULL)
+      _debug(filename, linenumber, level, "Connection %d (\"%s\"): %s", conn->connection_number,
+             conn->ap2_client_name != NULL ? conn->ap2_client_name : "?", prompt);
+    else
+#endif
+      _debug(filename, linenumber, level, "%s", prompt);
+  }
   _debug_print_msg_headers(conn, filename, linenumber, level, message);
 #ifdef CONFIG_AIRPLAY_2
   char *plist_content = rtsp_plist_content(message);
