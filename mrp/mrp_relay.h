@@ -36,9 +36,17 @@
 // open two channels, such as the iPad and the Mac, wait before they show anything.
 #define MRP_DISTINCT_STREAM_IDS 1
 
-// Called when a POST /command arrives on a remote-control-only connection.
-// Decodes and logs the MediaRemote protobuf messages it carries and queues any replies.
+// Called when a POST /command arrives on a remote-control-only connection, which carries
+// MediaRemote protobuf messages from a controller. With MRP_PASSTHROUGH (see mrp_relay.c) they are
+// passed to the source of the audio; otherwise they are decoded and answered here, and any replies
+// are queued for mrp_relay_flush.
 void mrp_relay_handle_command(rtsp_conn_info *conn, rtsp_message *req);
+
+// Called when a POST /command arrives on a connection that is not remote-control-only (that is,
+// on the source's connection). With MRP_PASSTHROUGH, a message that carries an X-Apple-StreamID is
+// a reply or an update for a controller: it is passed to the controller that stream belongs to,
+// and resp is filled in. Otherwise it does nothing.
+void mrp_relay_handle_sender_command(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp);
 
 // Sends any queued replies on the event channel. Call it AFTER the RTSP response to the
 // POST /command has been written, because the controller waits for that response first.

@@ -2165,9 +2165,13 @@ void handle_command(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
   // first, check that this is an airplay 2 session
   if (conn->airplay_type == ap_2) {
 #ifdef CONFIG_MRP_RELAY
-    // remote-control-only connections carry MediaRemote protobuf messages
+    // A remote-control-only connection carries a controller's MediaRemote messages. Any other
+    // connection is the source's, and its POST /command messages that have a stream number are
+    // replies and updates for a controller (used only with MRP_PASSTHROUGH in mrp_relay.c).
     if (conn->airplay_stream_category == remote_control_stream)
       mrp_relay_handle_command(conn, req);
+    else
+      mrp_relay_handle_sender_command(conn, req, resp);
 #endif
 #ifdef CONFIG_METADATA
     if (config.metadata_enabled != 0) {

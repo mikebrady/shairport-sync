@@ -118,8 +118,8 @@ static int looks_like_text(const uint8_t *d, size_t l) {
   return 1;
 }
 
-#define PB_DUMP_MAX_DEPTH 4
-#define PB_DUMP_MAX_FIELDS 64
+#define PB_DUMP_MAX_DEPTH 6
+#define PB_DUMP_MAX_FIELDS 512
 
 static void pb_dump_inner(int level, const char *prefix, const uint8_t *buf, size_t len, int depth) {
   size_t pos = 0;
