@@ -4434,8 +4434,10 @@ void *player_thread_func(void *arg) {
 
             if (resp == 0) {
 
-              uint64_t the_time_this_frame_should_be_played;
-              frame_to_local_time(inframe->timestamp, &the_time_this_frame_should_be_played, conn);
+              uint64_t the_time_this_frame_should_be_played = 0;
+              // a zero result is good -- it can fail if the anchor has just been reset
+              int frame_time_result = frame_to_local_time(
+                  inframe->timestamp, &the_time_this_frame_should_be_played, conn);
 
               uint64_t output_buffer_delay_time = current_delay;
 
@@ -4485,7 +4487,8 @@ void *player_thread_func(void *arg) {
 
               // debug(1, "measurement time: %" PRId64 " ns.", measurement_time);
 
-              if (measurement_time < 2000000) {
+              // no sync error calculations if we don't know when the frame should be played
+              if ((frame_time_result == 0) && (measurement_time < 2000000)) {
 
                 sync_error_ns =
                     the_time_this_frame_will_be_played - the_time_this_frame_should_be_played;
@@ -4982,15 +4985,15 @@ void *player_thread_func(void *arg) {
                                            conn->previous_random_number,
                                            config.current_output_configuration);
                     }
-                    uint64_t should_be_time = 0;
-                    // 0 tells the backend the time isn't known, e.g. if the anchor was just reset
-                    if (frame_to_local_time(inframe->timestamp, &should_be_time, conn) != 0)
-                      should_be_time = 0;
+                    uint64_t should_be_time = the_time_this_frame_should_be_played;
+                    int sample_type = play_samples_are_timed;
+                    if (frame_time_result != 0)
+                      sample_type = play_samples_are_untimed; // we don't know when to play it
                     // debug(1, "play frame %u.", inframe->timestamp);
 
                     // now, see if we are skipping some or all of these frames
                     if (frames_to_skip == 0) {
-                      config.output->play(conn->outbuf, play_samples, play_samples_are_timed,
+                      config.output->play(conn->outbuf, play_samples, sample_type,
                                           inframe->timestamp, should_be_time);
                       frames_played += play_samples;
                       conn->total_frames_sent_to_play += play_samples;
@@ -5022,13 +5025,11 @@ void *player_thread_func(void *arg) {
                             inframe->timestamp +
                             (uint32_t)(((uint64_t)frames_to_skip * conn->input_rate) / output_rate);
                         uint64_t starting_point_time =
-                            should_be_time == 0
-                                ? 0
-                                : should_be_time +
-                                      ((uint64_t)frames_to_skip * 1000000000) / output_rate;
+                            should_be_time +
+                            ((uint64_t)frames_to_skip * 1000000000) / output_rate;
 
                         config.output->play(play_starting_point, play_samples - frames_to_skip,
-                                            play_samples_are_timed, starting_point_timestamp,
+                                            sample_type, starting_point_timestamp,
                                             starting_point_time);
                         conn->total_frames_sent_to_play += (play_samples - frames_to_skip);
 
@@ -5098,12 +5099,12 @@ void *player_thread_func(void *arg) {
                                        config.current_output_configuration);
                 }
                 uint64_t should_be_time = 0;
-                // 0 tells the backend the time isn't known, e.g. if the anchor was just reset
+                int sample_type = play_samples_are_timed;
                 if (frame_to_local_time(inframe->timestamp, &should_be_time, conn) != 0)
-                  should_be_time = 0;
+                  sample_type = play_samples_are_untimed; // we don't know when to play it
                 debug(3, "play frame %u.", inframe->timestamp);
-                config.output->play(conn->outbuf, play_samples, play_samples_are_timed,
-                                    inframe->timestamp, should_be_time);
+                config.output->play(conn->outbuf, play_samples, sample_type, inframe->timestamp,
+                                    should_be_time);
                 frames_played += play_samples;
                 conn->total_frames_sent_to_play += play_samples;
 #ifdef CONFIG_METADATA
