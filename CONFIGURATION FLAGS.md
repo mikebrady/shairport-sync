@@ -22,11 +22,9 @@ To build Shairport Sync for AirPlay 2, include the `--with-airplay-2` option in 
 | ---- |
 | `--with-mrp-relay` |
 
-Experimental, and for AirPlay 2 only. With this option, iPhones, iPads and Macs that are using the receiver can connect to it for remote control, so that their control panels show the current track, its artwork and the playback and volume controls for Shairport Sync, and use them. It requires `--with-airplay-2`. It also includes the metadata hub, which it uses to show now-playing information, and the remote control client, which it uses to pass play, pause and skip commands on to the source of the audio, as if you had asked for extended metadata and remote control support. Without this option, Shairport Sync does not set the "Relay" bit in its status flags and does not act on the MediaRemote messages that remote control connections carry.
+Experimental, and for AirPlay 2 only. With this option, iPhones, iPads and Macs that are using the receiver can connect to it for remote control, so that their control panels show the current track, its artwork and the playback and volume controls for Shairport Sync, and use them. It requires `--with-airplay-2`. Without this option, Shairport Sync does not set the "Relay" bit in its status flags and does not act on the MediaRemote messages that remote control connections carry.
 
 Each controller's remote control channel is passed on to the source of the audio, as an AirPort Express does it. The source supplies the track, its artwork, the queue and the playback state, and carries out the controls, so the controller shows what it would show for the source itself. This needs a source that supports relays: an iPhone, iPad or Mac. If you play from another kind of source, such as another AirPlay 2 sender application, the controllers will have little or nothing to show. An iPad or a Mac may open more than one remote control channel on the same connection and treat each as a separate session. Shairport Sync gives each channel its own stream ID. When the source of the audio disconnects, Shairport Sync closes the controllers' connections, and they find it again when something plays.
-
-Shairport Sync can instead make up the state itself, from the metadata it has about the track, and pass play, pause, skip and volume commands to the source. That is a build-time experiment: set `MRP_PASSTHROUGH` to 0 near the top of `mrp/mrp_relay.c`.
 
 ## Audio Output
 | Flags |

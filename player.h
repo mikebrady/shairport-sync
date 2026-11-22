@@ -463,11 +463,7 @@ typedef struct {
   pthread_mutex_t event_sender_mutex;
   int event_channel_fd; // zero if closed, controlled by event_sender_mutex
 #ifdef CONFIG_MRP_RELAY
-  uint8_t *mrp_pending; // queued MediaRemote reply messages for the event channel
-  size_t mrp_pending_length;
-  int mrp_subscribe_pending; // the controller has asked for updates; register after replying
   int rc_stream_count; // the number of remote control data channels the controller has set up
-  int mrp_stream_id;   // X-Apple-StreamID of the controller's latest MediaRemote message, or 0
 #endif
 
   int ap2_event_receiver_exited;

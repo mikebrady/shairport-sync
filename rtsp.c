@@ -444,6 +444,10 @@ play_lock_r get_play_lock(rtsp_conn_info *conn, int allow_session_interruption) 
         config.airplay_statusflags |= (1 << 11); // DeviceSupportsRelay
       else
         close_relays = clear_relay_flag();
+      // The controllers' sessions belong to the source that has just been terminated, and the new
+      // source knows nothing about them, so close the controllers' connections. They will set up
+      // new sessions with the new source.
+      close_relays = 1;
 #endif
       mdns_update_service_records(conn);
       response = play_lock_acquired_by_breaking_in;
@@ -2167,7 +2171,7 @@ void handle_command(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
 #ifdef CONFIG_MRP_RELAY
     // A remote-control-only connection carries a controller's MediaRemote messages. Any other
     // connection is the source's, and its POST /command messages that have a stream number are
-    // replies and updates for a controller (used only with MRP_PASSTHROUGH in mrp_relay.c).
+    // replies and updates for a controller (see mrp_relay.c).
     if (conn->airplay_stream_category == remote_control_stream)
       mrp_relay_handle_command(conn, req);
     else
@@ -2495,6 +2499,37 @@ static void publish_ap2_client_identity(rtsp_conn_info *conn) {
 }
 #endif
 
+// A remote-control-only connection has just been set up. Say whether it comes from the same device
+// as the source of the audio (the principal connection), by comparing the client IP addresses, or
+// from some other device, or whether there is no source at the moment.
+static void log_remote_control_origin(rtsp_conn_info *conn) {
+  const char *rc_ip = conn->client_ip_string;
+  if (strncmp(rc_ip, "::ffff:", 7) == 0)
+    rc_ip += 7; // an IPv4 address in an IPv6 socket
+  pthread_rwlock_rdlock(&principal_conn_lock);
+  pthread_cleanup_push(rwlock_unlock, (void *)&principal_conn_lock);
+  if (principal_conn == NULL || principal_conn == conn) {
+    debug(2,
+          "Connection %d (\"%s\", %s): remote control connection. There is no source of audio at "
+          "the moment.",
+          conn->connection_number, conn->ap2_client_name != NULL ? conn->ap2_client_name : "?",
+          rc_ip);
+  } else {
+    const char *src_ip = principal_conn->client_ip_string;
+    if (strncmp(src_ip, "::ffff:", 7) == 0)
+      src_ip += 7;
+    debug(2,
+          "Connection %d (\"%s\", %s): remote control connection %s the source of the audio, "
+          "which is Connection %d (\"%s\", %s).",
+          conn->connection_number, conn->ap2_client_name != NULL ? conn->ap2_client_name : "?",
+          rc_ip,
+          strcmp(rc_ip, src_ip) == 0 ? "from the same device as" : "from a different device to",
+          principal_conn->connection_number,
+          principal_conn->ap2_client_name != NULL ? principal_conn->ap2_client_name : "?", src_ip);
+  }
+  pthread_cleanup_pop(1);
+}
+
 void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp) {
   int err;
 
@@ -2523,11 +2558,11 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
 #endif
   if (streams == NULL) {
     // no "streams" plist, so it must (?) be an initial setup
-    debug(1,
+    debug(3,
           "Connection %d (\"%s\") SETUP: No \"streams\" array has been found -- create an event "
           "thread and open a TCP port.",
           conn->connection_number, conn->ap2_client_name != NULL ? conn->ap2_client_name : "?");
-    debug_log_rtsp_message_conn(conn, 1, "SETUP (AP2) no \"streams\" array.", req);
+    debug_log_rtsp_message_conn(conn, 3, "SETUP (AP2) no \"streams\" array.", req);
     conn->airplay_stream_category = unspecified_stream_category;
 
     // figure out what category of stream it is, by looking at the plist
@@ -2585,7 +2620,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
           }
         }
 
-        debug(2, "Connection %d from \"%s\": %s SETUP %s Content-Length %d",
+        debug(3, "Connection %d from \"%s\": %s SETUP %s Content-Length %d",
               conn->connection_number, conn->ap2_client_name,
               get_category_string(conn->airplay_stream_category), req->path, req->contentlength);
         debug_log_rtsp_message_conn(
@@ -2775,6 +2810,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
                               plist_new_uint(conn->local_event_port));
           debug(2, "SETUP on Connection %d: RemoteControl Only eventPort %u.",
                 conn->connection_number, conn->local_event_port);
+          log_remote_control_origin(conn);
           // plist_dict_set_item(setupResponsePlist, "timingPort", plist_new_uint(0));
           //  cancel_all_RTSP_threads(
           //     remote_control_stream,
@@ -2800,7 +2836,7 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
       warn("Unrecognised SETUP incoming message -- ignored.");
     }
   } else {
-    debug_log_rtsp_message_conn(conn, 1, "SETUP (AP2) with \"streams\" array.", req);
+    debug_log_rtsp_message_conn(conn, 3, "SETUP (AP2) with \"streams\" array.", req);
     // we have a streams item, to this seems to be the second phase of a setup
     if (conn->airplay_stream_category == ptp_stream) {
       
@@ -3133,8 +3169,9 @@ void handle_setup_2(rtsp_conn_info *conn, rtsp_message *req, rtsp_message *resp)
         debug(1, "Connection %d SETUP (RC): data port already allocated.", conn->connection_number);
       }
       plist_t coreResponseDict = plist_new_dict();
-#if defined(CONFIG_MRP_RELAY) && MRP_DISTINCT_STREAM_IDS
-      // a controller can set up more than one data channel; give each its own stream ID
+#ifdef CONFIG_MRP_RELAY
+      // a controller can set up more than one data channel, and each is a MediaRemote session of
+      // its own, so give each its own stream ID
       conn->rc_stream_count++;
       plist_dict_set_item(coreResponseDict, "streamID", plist_new_uint(conn->rc_stream_count));
 #else
@@ -4425,10 +4462,6 @@ static void *rtsp_conversation_thread_func(void *pconn) {
       }
       // if (conn->stop == 0) {
       int err = msg_write_response(conn, resp);
-#ifdef CONFIG_MRP_RELAY
-      if (err == 0)
-        mrp_relay_flush(conn); // replies for the event channel must follow the response
-#endif
       if (err) {
         debug(1,
               "Connection %d: Unable to write an RTSP message response. Terminating the "

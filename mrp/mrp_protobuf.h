@@ -26,13 +26,11 @@
 #ifndef _MRP_PROTOBUF_H
 #define _MRP_PROTOBUF_H
 
-// A very small, bounds-checked protobuf reader/writer, just enough for the
+// A very small, bounds-checked protobuf reader, just enough to log the
 // MediaRemote (MRP) messages carried by AirPlay 2 remote-control connections.
 
 #include <stddef.h>
 #include <stdint.h>
-
-// ---- reader ----
 
 typedef struct {
   uint32_t field;       // field number
@@ -54,23 +52,5 @@ int pb_find(const uint8_t *buf, size_t len, uint32_t field, uint32_t wire, pb_fi
 
 // log a human-readable rendering of a message at the given debug level (nesting limited)
 void pb_dump(int level, const char *prefix, const uint8_t *buf, size_t len);
-
-// ---- writer ----
-
-typedef struct {
-  uint8_t *buf;
-  size_t capacity;
-  size_t length;
-  int overflow; // set if anything did not fit; the contents are then invalid
-} pb_writer;
-
-void pb_writer_init(pb_writer *w, uint8_t *buf, size_t capacity);
-void pb_put_varint(pb_writer *w, uint64_t v); // raw varint, no tag
-void pb_put_uint(pb_writer *w, uint32_t field, uint64_t v);
-void pb_put_bool(pb_writer *w, uint32_t field, int v);
-void pb_put_float(pb_writer *w, uint32_t field, float v); // 32-bit, little-endian
-void pb_put_double(pb_writer *w, uint32_t field, double v); // 64-bit, little-endian
-void pb_put_bytes(pb_writer *w, uint32_t field, const void *data, size_t length);
-void pb_put_string(pb_writer *w, uint32_t field, const char *s);
 
 #endif

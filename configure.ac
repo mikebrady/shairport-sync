@@ -393,9 +393,7 @@ if test "x$with_mqtt_client" = "xyes" && test "x$with_avahi" != "xyes" ; then
   AC_MSG_WARN([MQTT needs Avahi for remote control functionality. With the current configuration settings, only metadata publishing will be supported.])
 fi
 
-# Look for the MediaRemote relay flag. The relay needs the metadata hub, to show now-playing
-# information, and the remote control client, to pass commands on to the source of the audio, so
-# it asks for extended metadata and remote control support below.
+# Look for the MediaRemote relay flag.
 AC_ARG_WITH(mrp-relay, [AS_HELP_STRING([--with-mrp-relay],[include the MediaRemote relay, so that iPhones, iPads and Macs can show now-playing information and controls for Shairport Sync (AirPlay 2 only, experimental)])])
 if test "x$with_mrp_relay" = "xyes" ; then
   AS_IF([test "x$with_airplay_2" != "xyes"], [AC_MSG_ERROR([--with-mrp-relay requires --with-airplay-2.])])
@@ -403,7 +401,7 @@ if test "x$with_mrp_relay" = "xyes" ; then
 fi
 AM_CONDITIONAL([USE_MRP_RELAY], [test "x$with_mrp_relay" = "xyes"])
 
-if test "x$with_mpris_interface" = "xyes" || test "x$with_dbus_interface" = "xyes" || test "x$with_mqtt_client" = "xyes" || test "x$with_mrp_relay" = "xyes" ; then
+if test "x$with_mpris_interface" = "xyes" || test "x$with_dbus_interface" = "xyes" || test "x$with_mqtt_client" = "xyes" ; then
   REQUESTED_EXTENDED_METADATA_AND_REMOTE_CONTROL_SUPPORT=1
   REQUESTED_METADATA_HUB_FOR_EXTENDED_METADATA_AND_REMOTE_CONTROL_SUPPORT=1
   AC_DEFINE([CONFIG_DACP_CLIENT], 1, [DACP client needed for extended metadata support.])
