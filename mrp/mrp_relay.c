@@ -173,10 +173,14 @@ static const char *mrp_peer_name(rtsp_conn_info *conn) {
 
 // Close a connection. Setting its stop flag makes its thread exit and clean up for itself, but the
 // thread is usually blocked reading, so shut the socket down too, to wake it.
+// The event channel is shut down too, in case another thread is blocked sending on it to a
+// controller that has disappeared.
 static void close_connection(rtsp_conn_info *conn) {
   conn->stop = 1;
   if (conn->fd > 0)
     shutdown(conn->fd, SHUT_RDWR);
+  if (conn->event_channel_fd > 0)
+    shutdown(conn->event_channel_fd, SHUT_RDWR);
 }
 
 // Send some framed messages to a controller on the event channel. If the controller does not

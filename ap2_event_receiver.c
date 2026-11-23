@@ -28,6 +28,10 @@
 #include "common.h"
 #include "player.h"
 #include "utilities/network_utilities.h"
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <sys/socket.h>
+#include <sys/time.h>
 #include "utilities/rtsp_message_utilities.h"
 #include "utilities/structured_buffer.h"
 
@@ -218,6 +222,36 @@ void *ap2_event_receiver(void *arg) {
           "socket %d.",
           conn->connection_number, conn->event_socket, conn->event_channel_fd);
     pthread_cleanup_push(ap2_event_receiver_cleanup_handler, arg);
+
+    // A sender that has gone away without closing the connection (an iPhone that has moved out of
+    // Wi-Fi range, say) must not block whoever is sending on this channel: every send waits for the
+    // reply, and that thread may be the source's, so give up after a while.
+    {
+      struct timeval tv;
+      tv.tv_sec = 10;
+      tv.tv_usec = 0;
+      if (setsockopt(conn->event_channel_fd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv,
+                     sizeof(tv)) != 0)
+        debug(1, "Connection %d: could not set a receive timeout on the event channel.",
+              conn->connection_number);
+      if (setsockopt(conn->event_channel_fd, SOL_SOCKET, SO_SNDTIMEO, (const char *)&tv,
+                     sizeof(tv)) != 0)
+        debug(1, "Connection %d: could not set a send timeout on the event channel.",
+              conn->connection_number);
+      int on = 1;
+      setsockopt(conn->event_channel_fd, SOL_SOCKET, SO_KEEPALIVE, (const char *)&on, sizeof(on));
+#if defined(TCP_KEEPIDLE) && defined(TCP_KEEPINTVL) && defined(TCP_KEEPCNT)
+      int idle = 15, interval = 5, count = 3;
+      setsockopt(conn->event_channel_fd, IPPROTO_TCP, TCP_KEEPIDLE, &idle, sizeof(idle));
+      setsockopt(conn->event_channel_fd, IPPROTO_TCP, TCP_KEEPINTVL, &interval, sizeof(interval));
+      setsockopt(conn->event_channel_fd, IPPROTO_TCP, TCP_KEEPCNT, &count, sizeof(count));
+#endif
+#ifdef TCP_USER_TIMEOUT
+      unsigned int user_timeout = 20000; // milliseconds that sent data may stay unacknowledged
+      setsockopt(conn->event_channel_fd, IPPROTO_TCP, TCP_USER_TIMEOUT, &user_timeout,
+                 sizeof(user_timeout));
+#endif
+    }
 
     ap2_event_send_update_info(conn);
 
