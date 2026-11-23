@@ -21,7 +21,7 @@ A remote controller that disappears without disconnecting (for example, an iPhon
 
 #### Known limitations
 
-* On Mac, Apple Music artwork may not show in the speaker list, though other apps' artwork does. This is also a problem with the Apple AirPort Express implementation.
+* On Mac, Apple Music artwork may not show in the speaker list, though other apps' artwork does. (This is also a problem with the Apple AirPort Express.)
 * Tested with an iPhone, an iPad, an HomePod mini 1, an Apple TV and a Mac as sources and controllers. YMMV.
 * Not tested with third-party players.
 
