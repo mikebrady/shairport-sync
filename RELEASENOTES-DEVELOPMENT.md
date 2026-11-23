@@ -1,3 +1,33 @@
+Version 5.7-dev-110-g724c6279
+==
+## Big Enhancement
+### AirPlay 2: Remote Control from other Apple devices' Control Centre, lock screen and apps
+
+When a source is playing to Shairport Sync over AirPlay 2, other Apple devices on the network (iPhones, iPads, Macs) can now show what is playing and send play, pause and skip commands.
+This is how an AirPlay 2 speaker such as a HomePod or AirPort Express behaves, so you can control playback from a device other than the one doing the playing.
+
+The new feature is called `MRP Relay` for "MediaRemote Protocol Relay".
+
+**How it works.** Shairport Sync passes ("relays") MRP traffic between remote controllers and the playing device. No extra libraries are needed.
+
+If a new player takes over the speaker, remote controllers connected to the old speaker are disconnected and reconnect to the new one.
+
+A remote controller that disappears without disconnecting (for example, an iPhone leaving Wi-Fi range) is detected and dropped within about 10 to 20 seconds.
+  
+#### Adding MRP Relay Support
+* Include the `--with-mrp-relay` configuration flag. (MRP Relay is omitted by default because it is experimental. When it matures, it will be included by default.)
+* MRP Relay adds roughly 20 KB to the compiled program. It is not necessary to include metadata or D-Bus support.
+* Diagnostics are at debug level 3 (`-vvv`), so normal logs stay quiet.
+
+#### Known limitations
+
+* On Mac, Apple Music artwork may not show in the speaker list, though other apps' artwork does. This is also a problem with the Apple AirPort Express implementation.
+* Tested with an iPhone, an iPad, an HomePod mini 1, an Apple TV and a Mac as sources and controllers. YMMV.
+* Not tested with third-party players.
+
+### Acknowledgements
+* It is a pleasure to acknowledge the work of all the contributors to [pyatv](https://pyatv.dev).
+
 Version 5.7-dev-102-gdeb83848
 ==
 **Enhancement**
