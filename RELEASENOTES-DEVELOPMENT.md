@@ -10,7 +10,7 @@ The new feature is called `MRP Relay` for "MediaRemote Protocol Relay".
 
 **How it works.** Shairport Sync passes ("relays") MRP traffic between remote controllers and the playing device. No extra libraries are needed.
 
-If a new player takes over the speaker, remote controllers connected to the old speaker are disconnected and reconnect to the new one.
+If a new player takes over the speaker, remote controllers connected to the old player are disconnected and reconnect to the new one.
 
 A remote controller that disappears without disconnecting (for example, an iPhone leaving Wi-Fi range) is detected and dropped within about 10 to 20 seconds.
   
@@ -22,7 +22,7 @@ A remote controller that disappears without disconnecting (for example, an iPhon
 #### Known limitations
 
 * On Mac, Apple Music artwork may not show in the speaker list, though other apps' artwork does. (This is also a problem with the Apple AirPort Express.)
-* Tested with an iPhone, an iPad, an HomePod mini 1, an Apple TV and a Mac as sources and controllers. YMMV.
+* Tested with an iPhone, an iPad, a HomePod mini 1, an Apple TV and a Mac as sources and controllers. YMMV.
 * Not tested with third-party players.
 
 ### Acknowledgements
