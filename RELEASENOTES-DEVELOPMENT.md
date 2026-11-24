@@ -1,3 +1,9 @@
+Version 5.7-dev-115-gac6b04b6
+==
+**Bug Fixes**
+* Fix an expected stop caused by a stale `errno` value. Add debug code to monitor genuine end-of-file conditions.
+* Stop killing a running AirPlay 2 instance by running another instance with `--displayConfig`.
+  
 Version 5.7-dev-110-g724c6279
 ==
 ## Big Enhancement
