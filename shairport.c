@@ -2125,27 +2125,32 @@ int parse_options(int argc, char **argv) {
 #ifdef CONFIG_AIRPLAY_2
   // don't bother checking for NQPTP if we are providing a classic service
   if (config.service_type != APST_classic) {
-    ptp_send_control_message_string(
-        "T"); // send this message to get nqptp to create the named shm interface
     int response = 0;
+    // Look for the NQPTP service -- it may be there already, e.g.
+    // if Shairport Sync is already running and this is a --displayConfig.
+    response = ptp_shm_interface_open();
+    if (response != 0) {
+      ptp_send_control_message_string(
+          "T"); // send this message to get nqptp to create the named shm interface
 
-    // nqptp creates the named shared-memory interface only on receiving the "T"
-    // message sent just above, so with a brand-new interface name (for example a
-    // per-instance general.nqptp_shared_memory_interface_name) there is a brief
-    // window in which it does not exist yet. Retry the probe for a short time
-    // rather than giving up on the first miss -- otherwise a first start with a
-    // fresh name reports "NQPTP service not found" and, under "auto", silently
-    // falls back to classic AirPlay on port 5000. Only ENOENT ("not created yet")
-    // is retried; any other result falls through immediately.
-    uint64_t nqptp_probe_deadline = get_absolute_time_in_ns() + 500000000L; // 0.5 s
-    do {
-      response = ptp_shm_interface_open(); // look for the NQPTP service
-      if ((response == -1) && (errno == ENOENT) &&
-          (get_absolute_time_in_ns() < nqptp_probe_deadline))
-        usleep(50000); // 50 ms, then retry
-      else
-        break;
-    } while (1);
+      // nqptp creates the named shared-memory interface only on receiving the "T"
+      // message sent just above, so with a brand-new interface name (for example a
+      // per-instance general.nqptp_shared_memory_interface_name) there is a brief
+      // window in which it does not exist yet. Retry the probe for a short time
+      // rather than giving up on the first miss -- otherwise a first start with a
+      // fresh name reports "NQPTP service not found" and, under "auto", silently
+      // falls back to classic AirPlay on port 5000. Only ENOENT ("not created yet")
+      // is retried; any other result falls through immediately.
+      uint64_t nqptp_probe_deadline = get_absolute_time_in_ns() + 500000000L; // 0.5 s
+      do {
+        response = ptp_shm_interface_open(); // look for the NQPTP service
+        if ((response == -1) && (errno == ENOENT) &&
+            (get_absolute_time_in_ns() < nqptp_probe_deadline))
+          usleep(50000); // 50 ms, then retry
+        else
+          break;
+      } while (1);
+    }
 
     if ((response == -1) && (errno == ENOENT)) {
       debug(1, "NQPTP service not found.");
@@ -2556,34 +2561,19 @@ void _display_config(const char *filename, const int linenumber, __attribute__((
   if (config.cfg == NULL)
     _inform(filename, linenumber, "No configuration file.");
   else {
-    int configpipe[2];
-    if (pipe(configpipe) == 0) {
-      FILE *cw;
-      cw = fdopen(configpipe[1], "w");
+    // write the configuration into a memory buffer, with no pipe and no fixed-size buffer
+    char *config_text = NULL;
+    size_t config_text_size = 0;
+    FILE *cw = open_memstream(&config_text, &config_text_size);
+    if (cw != NULL) {
       _inform(filename, linenumber, "");
       _inform(filename, linenumber, "Configuration File:");
       _inform(filename, linenumber, " %s", config_file_real_path);
       _inform(filename, linenumber, "");
       config_write(config.cfg, cw);
-      fclose(cw);
-      // get back the raw configuration file settings text
-      FILE *cr;
-      cr = fdopen(configpipe[0], "r");
-      int i = 0;
-      int ch = 0;
-      do {
-        ch = fgetc(cr);
-        if (ch == EOF) {
-          result[i] = '\0';
-        } else {
-          result[i] = (char)ch;
-          i++;
-        }
-      } while (ch != EOF);
-      fclose(cr);
-      // debug(1,"result is \"%s\".",result);
+      fclose(cw); // config_text is valid and NUL-terminated only after this
       // remove empty stanzas
-      char *i0 = str_replace(result, "general : \n{\n};\n", "");
+      char *i0 = str_replace(config_text, "general : \n{\n};\n", "");
       char *i1 = str_replace(i0, "sessioncontrol : \n{\n};\n", "");
       char *i2 = str_replace(i1, "alsa : \n{\n};\n", "");
       char *i3 = str_replace(i2, "sndio : \n{\n};\n", "");
@@ -2600,6 +2590,7 @@ void _display_config(const char *filename, const int linenumber, __attribute__((
       // debug(1,"i10 is \"%s\".",i10);
 
       // free intermediate strings
+      free(config_text);
       free(i12);
       free(i11);
       free(i10);
@@ -2621,33 +2612,18 @@ void _display_config(const char *filename, const int linenumber, __attribute__((
         _inform(filename, linenumber, "Configuration File Settings:");
         char *p = i13;
         while (*p != '\0') {
-          i = 0;
-          while ((*p != '\0') && (*p != '\n')) {
-            result[i] = *p;
-            p++;
-            i++;
-          }
-          if (i != 0) {
-            result[i] = '\0';
-            _inform(filename, linenumber, " %s", result);
-          }
-          if (*p == '\n')
-            p++;
+          char *eol = strchr(p, '\n');
+          size_t len = (eol != NULL) ? (size_t)(eol - p) : strlen(p);
+          if (len != 0)
+            _inform(filename, linenumber, " %.*s", (int)len, p);
+          p = (eol != NULL) ? eol + 1 : p + len;
         }
       }
 
       free(i13); // free the cleaned-up configuration string
 
-      /*
-            while (fgets(result, 1024, cr) != NULL) {
-              // replace funny character at the end, if it's there
-              if (result[strlen(result) - 1] <= ' ')
-                result[strlen(result) - 1] = '\0'; // remove the last character if it's not
-         printable _inform(filename, linenumber, " %s", result);
-            }
-      */
     } else {
-      debug(1, "Error making pipe.\n");
+      debug(1, "Error creating a memory stream for the configuration.");
     }
   }
   _inform(filename, linenumber, "");
@@ -2796,11 +2772,6 @@ int main(int argc, char **argv) {
   setlogmask(LOG_UPTO(LOG_DEBUG));
   openlog(NULL, 0, LOG_DAEMON);
 #endif
-#ifdef CONFIG_SOXR
-  soxr_register_exit_handler_early(); // must come before atexit(exit_function)
-#endif
-  debug(1, "adding the exit function");
-  atexit(exit_function);
 
   config.service_type = APST_auto; // this may be changed by the settings...
 
@@ -2916,7 +2887,10 @@ int main(int argc, char **argv) {
   daemon_pid_file_proc = pid_file_proc;
 
 #endif
-  // parse arguments into config -- needed to locate pid_dir
+
+  // Note that parse_options has side effects,
+  // e.g. it will send "T" to NQPTP if it can't find the NQPTP shm interface.
+  
   int audio_arg = parse_options(argc, argv);
 
   if (display_config_selected != 0) {
@@ -2951,6 +2925,12 @@ int main(int argc, char **argv) {
     return 1;
 #endif
   }
+
+#ifdef CONFIG_SOXR
+  soxr_register_exit_handler_early(); // must come before atexit(exit_function)
+#endif
+  debug(1, "adding the exit function");
+  atexit(exit_function);
 
 #ifdef CONFIG_LIBDAEMON
   /* If we are going to daemonise, check that the daemon is not running already.*/

@@ -36,7 +36,8 @@ extern rtsp_conn_info *principal_conn;
 extern pthread_rwlock_t principal_conn_lock;
 
 #ifdef CONFIG_AIRPLAY_2
-ssize_t read_encrypted(int fd, pair_cipher_bundle *ctx, void *buf, size_t count);
+ssize_t read_encrypted(rtsp_conn_info *conn, int fd, pair_cipher_bundle *ctx, void *buf,
+                       size_t count);
 ssize_t write_encrypted(int fd, pair_cipher_bundle *ctx, const void *buf, size_t count);
 
 void generateTxtDataValueInfo(rtsp_conn_info *conn, void **response, size_t *responseLength);

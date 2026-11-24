@@ -495,9 +495,17 @@ static char *nextline(char *in, int inbuf) {
 
 #ifdef CONFIG_AIRPLAY_2
 static void buf_add(sized_buffer *buf, uint8_t *in, size_t in_len) {
+  if (in_len == 0) // nothing to add; also covers in == NULL at end-of-file
+    return;
   if (buf->length + in_len > buf->size) {
-    buf->size = buf->length + in_len + 2048; // Extra headroom to avoid future memcpy's
-    buf->data = realloc(buf->data, buf->size);
+    size_t new_size = buf->length + in_len + 2048; // Extra headroom to avoid future memcpy's
+    uint8_t *new_data = realloc(buf->data, new_size);
+    if (new_data == NULL) {
+      debug(1, "buf_add: can't grow a buffer to %zu bytes.", new_size);
+      return; // data is dropped, but not a crash or a leak
+    }
+    buf->data = new_data;
+    buf->size = new_size;
   }
   memcpy(buf->data + buf->length, in, in_len);
   buf->length += in_len;
@@ -520,11 +528,28 @@ static size_t buf_remove(sized_buffer *buf, uint8_t *out, size_t out_len) {
   return bytes;
 }
 
-ssize_t read_encrypted(int fd, pair_cipher_bundle *ctx, void *buf, size_t count) {
+// A short description of a connection and of the channel being read, for messages:
+// e.g. Connection 7 (PTP, "Counter", Control Stream)
+static void read_encrypted_describe(rtsp_conn_info *conn, pair_cipher_bundle *ctx, char *out,
+                                    size_t out_len) {
+  snprintf(out, out_len, "Connection %d (%s, \"%s\", %s)", conn->connection_number,
+           get_category_string(conn->airplay_stream_category),
+           conn->ap2_client_name != NULL ? conn->ap2_client_name : "?",
+           ctx->description != NULL ? ctx->description : "?");
+}
+
+ssize_t read_encrypted(rtsp_conn_info *conn, int fd, pair_cipher_bundle *ctx, void *buf,
+                       size_t count) {
   ssize_t response = 0;
+  char who[256];
+  read_encrypted_describe(conn, ctx, who, sizeof(who));
   // If there is leftover decoded content from the last pass just return that
   if (ctx->plaintext_read_buffer.length > 0) {
     response = buf_remove(&ctx->plaintext_read_buffer, buf, count);
+    if (response == 0) {
+      debug(1, "%s: read_encrypted: return zero bytes from buffer of length: %zu.", who,
+            ctx->plaintext_read_buffer.length);
+    }
   } else {
 
     // Otherwise read stuff in...
@@ -534,13 +559,17 @@ ssize_t read_encrypted(int fd, pair_cipher_bundle *ctx, void *buf, size_t count)
     size_t plain_len = 0;
     do {
       response = read(fd, in, sizeof(in));
+      if (response == 0) {
+        debug(1, "%s: read_encrypted: read() returns zero bytes -- connection is closed.", who);
+      }
       if (response > 0) {
         buf_add(&ctx->encrypted_read_buffer, in, response);
         ssize_t consumed = pair_decrypt(&plain, &plain_len, ctx->encrypted_read_buffer.data,
                                         ctx->encrypted_read_buffer.length, ctx->cipher_ctx);
         if (consumed < 0) {
-          debug(1, "read_encrypted: abnormal exit from pair_decrypt: %zd.", consumed);
+          debug(1, "%s: read_encrypted: abnormal exit from pair_decrypt: %zd.", who, consumed);
           response = -1;
+          errno = EBADMSG; // so the caller doesn't report a stale errno
         } else {
           buf_drain(&ctx->encrypted_read_buffer, consumed);
         }
@@ -550,10 +579,13 @@ ssize_t read_encrypted(int fd, pair_cipher_bundle *ctx, void *buf, size_t count)
     if (response >= 0) {
       buf_add(&ctx->plaintext_read_buffer, plain, plain_len);
       response = buf_remove(&ctx->plaintext_read_buffer, buf, count);
+      if ((response == 0) && (ctx->plaintext_read_buffer.length)) {
+        debug(1, "%s: read_encrypted: return zero bytes from buffer of length: %zu.", who,
+            ctx->plaintext_read_buffer.length);
+      }      
     }
     pthread_cleanup_pop(1);
   }
-
   return response;
 }
 
@@ -597,16 +629,21 @@ ssize_t write_encrypted(int fd, pair_cipher_bundle *ctx, const void *buf, size_t
 #endif
 
 ssize_t read_from_rtsp_connection(rtsp_conn_info *conn, void *buf, size_t count) {
-  if (count == 0)
-    debug(1, "asking to read zero bytes!");
+  if (count == 0) {
+    // A zero-length read would return 0, which the callers would take to mean "closed by the client".
+    debug(1, "Connection %d: asking to read zero bytes!", conn->connection_number);
+    errno = EINVAL;
+    return -1;
+  }
 
   ssize_t result = 0; // closed
+  errno = 0;          // so a stale errno from an earlier call can't be mistaken for a read error
   if (conn->fd > 0) {
 #ifdef CONFIG_AIRPLAY_2
     if (conn->ap2_pairing_context.control_cipher_bundle.cipher_ctx) {
       conn->ap2_pairing_context.control_cipher_bundle.is_encrypted = 1;
       result =
-          read_encrypted(conn->fd, &conn->ap2_pairing_context.control_cipher_bundle, buf, count);
+          read_encrypted(conn, conn->fd, &conn->ap2_pairing_context.control_cipher_bundle, buf, count);
 
     } else {
       result = read(conn->fd, buf, count);
@@ -615,13 +652,20 @@ ssize_t read_from_rtsp_connection(rtsp_conn_info *conn, void *buf, size_t count)
     result = read(conn->fd, buf, count);
     // In AP1, the RTSP connection is closed in this way, so it's not unexpected
 #endif
-    if ((result <= 0) && (errno != 0)) {
+    if (result < 0) {
+      int read_errno = errno;
       char errorstring[1024];
-      strerror_r(errno, (char *)errorstring, sizeof(errorstring));
+      strerror_r(read_errno, (char *)errorstring, sizeof(errorstring));
       debug(1,
             "Connection %d: read_from_rtsp_connection error %d \"%s\" attempting to read up to %zu "
             "bytes.",
-            conn->connection_number, errno, errorstring, count);
+            conn->connection_number, read_errno, errorstring, count);
+      errno = read_errno; // strerror_r may have changed it
+    } else if (result == 0) {
+      // end of file: the client closed the connection. That is not an error, whatever errno holds.
+      debug(2, "Connection %d: end of file on the RTSP connection (closed by the client).",
+            conn->connection_number);
+      errno = 0;
     }
   } else {
     debug(1, "Connection %d: attempt to read from a closed RTSP connection.",
