@@ -4,7 +4,7 @@ Version 5.7-dev-123-g81eb692e
 * A new audio backend called `blockaudio` has been added that will be of interest to system integrators. This new backend, unlike the existing `pipe` and `STDOUT` backends, provides audio in blocks that include timing and format information as well as raw audio. This enables downstream programs to provide synchronised audio and deal with all formats that Shairport Sync can provide. Many thanks to [NotSomeBot](https://github.com/mariusdkm) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2349).
 
 **Bug Fix**
-* Fix compatibility with Debian packaging rules. The new arrangements for tagged D-Bus and MPRIS interfaces is incompatible with current Debian packaging rules and has been partly rolled back. Specifically, for multiple instance use of D-Bus or MPRIS interfaces, the D-Bus service files will have to be modified to allow tagged interfaces to be permitted access. Thanks to [Chris Boot](https://github.com/bootc) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2348).
+* Fix compatibility with Debian packaging rules. The new arrangements for tagged D-Bus and MPRIS interfaces is incompatible with current Debian packaging rules and has been partly rolled back. As a consequence of the rollback, for multiple instance use of D-Bus or MPRIS interfaces, the D-Bus service files will have to be modified to allow tagged interfaces to be permitted access. Thanks to [Chris Boot](https://github.com/bootc) for the [PR](https://github.com/mikebrady/shairport-sync/pull/2348).
 
 Version 5.7-dev-115-gac6b04b6
 ==
