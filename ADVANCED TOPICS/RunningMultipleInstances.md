@@ -85,16 +85,27 @@ for n in $(dbus-send --system --print-reply=literal --dest=org.freedesktop.DBus 
 done
 ```
 
-On the `system` bus, the installed D-Bus policy files allow these names to be owned, and
-allow methods to be called on the native interface of every instance. To call methods on
-the MPRIS interface of an instance with a name tag or a process ID on the `system` bus, add a rule to
-your local policy (`send_destination_prefix` needs dbus-daemon 1.13.12 or later):
+On the `system` bus, the installed D-Bus policy files allow these names to be owned, but
+only allow methods to be called on the instance without a name tag. To call methods on an
+instance with a name tag on the `system` bus, add a policy file of your own, e.g.
+`/etc/dbus-1/system.d/shairport-sync-kitchen.conf`, with a rule for each of its names:
 
 ```xml
-<policy context="default">
-  <allow send_destination_prefix="org.mpris.MediaPlayer2.ShairportSync"/>
-</policy>
+<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN"
+  "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+<busconfig>
+  <policy context="default">
+    <allow send_destination="org.gnome.ShairportSync.Kitchen"/>
+    <allow send_destination="org.mpris.MediaPlayer2.ShairportSync.Kitchen"/>
+  </policy>
+</busconfig>
 ```
+
+A process ID suffix changes each time the instance starts, so give an instance on the
+`system` bus a name tag if you want to call its methods. (`send_destination_prefix` would
+cover every instance with one rule, but it needs dbus-daemon 1.13.12 or later and is not
+supported by dbus-broker. A `send_path` rule without a `send_destination` would allow
+method calls to any service on the bus that has an object at that path.)
 
 ## Running in containers
 
