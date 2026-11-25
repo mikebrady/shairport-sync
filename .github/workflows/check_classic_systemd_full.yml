@@ -21,7 +21,7 @@ jobs:
         mkdir build
         cd build
         autoreconf -i ..
-        ../configure --sysconfdir=/etc --with-ffmpeg --with-alsa --with-pipewire --with-ao --with-dummy --with-pipe --with-stdout --with-soxr --with-avahi --with-ssl=openssl --with-dbus-interface --with-mpris-interface --with-mqtt-client --with-systemd-startup
+        ../configure --sysconfdir=/etc --with-ffmpeg --with-alsa --with-pipewire --with-ao --with-dummy --with-pipe --with-blockaudio --with-stdout --with-soxr --with-avahi --with-ssl=openssl --with-dbus-interface --with-mpris-interface --with-mqtt-client --with-systemd-startup
     - name: Make
       run: |
         cd build

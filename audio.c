@@ -55,6 +55,9 @@ extern audio_output audio_dummy;
 #ifdef CONFIG_PIPE
 extern audio_output audio_pipe;
 #endif
+#ifdef CONFIG_BLOCKAUDIO
+extern audio_output audio_blockaudio;
+#endif
 #ifdef CONFIG_STDOUT
 extern audio_output audio_stdout;
 #endif
@@ -80,6 +83,9 @@ static audio_output *outputs[] = {
 #endif
 #ifdef CONFIG_PIPE
     &audio_pipe,
+#endif
+#ifdef CONFIG_BLOCKAUDIO
+    &audio_blockaudio,
 #endif
 #ifdef CONFIG_STDOUT
     &audio_stdout,

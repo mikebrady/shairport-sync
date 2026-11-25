@@ -132,6 +132,9 @@ check_for_success x$1 --without-stdout --with-ssl=mbedtls x stdout
 check_for_success x$1 --with-pipe --with-ssl=mbedtls pipe
 check_for_success x$1 --without-pipe --with-ssl=mbedtls x pipe
 
+check_for_success x$1 --with-blockaudio --with-ssl=mbedtls blockaudio
+check_for_success x$1 --without-blockaudio --with-ssl=mbedtls x blockaudio
+
 check_for_success x$1 --with-external-mdns --with-ssl=mbedtls external_mdns
 check_for_success x$1 --without-external-mdns --with-ssl=mbedtls x external_mdns
 
